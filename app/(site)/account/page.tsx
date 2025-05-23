@@ -3,10 +3,10 @@
 
 import { useState, useEffect } from "react";
 import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { Card } from "@/components/ui/card";
+import { api } from "../../../convex/_generated/api";
+import { Card } from "../../../components/ui/card";
 import { format } from "date-fns";
-import LineChart from "@/components/ui/Linechart";
+import LineChart from "../../../components/ui/Linechart";
 export default function SubNational() {
   const [activeTab, setActiveTab] = useState("reports");
   const user = useQuery(api.users.getCurrentUsers);
