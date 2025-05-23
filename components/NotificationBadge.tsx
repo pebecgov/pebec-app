@@ -16,7 +16,7 @@ export default function NotificationBadge() {
     user
   } = useUser();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const clerkUserId = user?.id || "";
+const clerkUserId = user?.id;
   const getRolePath = () => {
     const role = user?.publicMetadata?.role;
     switch (role) {
