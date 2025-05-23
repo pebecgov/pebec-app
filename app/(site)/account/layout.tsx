@@ -1,15 +1,13 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
-// @ts-nocheck
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { UserButton } from "@clerk/nextjs";
-import NotificationBadge from "../../components/NotificationBadge";
+import NotificationBadge from "@/components/NotificationBadge";
 import Image from "next/image";
 import Link from "next/link";
 import { FaBars } from "react-icons/fa";
-import Sidebar from "../../components/Magistrates/MagistratesSidebar";
+import Sidebar from "@/components/Magistrates/MagistratesSidebar";
 export default function Deputies({
   children
 }: {

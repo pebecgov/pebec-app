@@ -1,5 +1,4 @@
-// @ts-nocheck
-
+// 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 import { UserJSON } from '@clerk/backend';
 import { v, Validator } from 'convex/values';
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from './_generated/server';

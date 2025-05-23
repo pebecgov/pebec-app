@@ -1,11 +1,13 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
+// @ts-nocheck
+
 "use client";
 
 import { useState, useEffect } from "react";
-import Footer from "../../components/Footer";
-import Header from "../../components/Header";
-import Lines from "../../components/Lines";
-import ScrollToTop from "../../components/ScrollToTop";
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Lines from "@/components/Lines";
+import ScrollToTop from "@/components/ScrollToTop";
 import { ThemeProvider } from "next-themes";
 import { Inter } from "next/font/google";
 import "../globals.css";
@@ -14,7 +16,7 @@ import ToasterContext from "../context/ToastContext";
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
-import ChatbaseScript from "../../components/ChatbaseScript";
+import ChatbaseScript from "@/components/ChatbaseScript";
 import { Toaster } from "sonner";
 import { usePathname } from "next/navigation";
 const inter = Inter({

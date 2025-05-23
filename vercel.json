@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "reportgov.pebec.gov.ng"
+        }
+      ],
+      "destination": "https://www.pebec.gov.ng/reportgov-ng",
+      "permanent": true
+    }
+  ]
+}
