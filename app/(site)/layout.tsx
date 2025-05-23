@@ -35,10 +35,7 @@ export default function RootLayout({
     const timer = setTimeout(() => setIsLoading(false), 1500);
     return () => clearTimeout(timer);
   }, []);
-  return <ClerkProvider
-           publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-           frontendApi = {process.env.CLERK_JWT_ISSUER_DOMAIN}
-           >
+  return <ClerkProvider>
     
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <html lang="en" suppressHydrationWarning>
