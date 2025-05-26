@@ -35,17 +35,15 @@ export default function ReportsPage() {
   }, [searchQuery, startDate, endDate, allReports]);
   return <main className="pb-16 mt-25">
       {}
-      <section className="relative bg-cover bg-center text-white flex items-center justify-center px-6 py-20" style={{
-      backgroundImage: "url('/images/reports-banner.jpg')"
-    }}>
+      <section className="relative bg-cover bg-center text-black bg-gray-200 flex items-center justify-center px-6 py-20">
         <div className="text-center max-w-2xl">
           <h1 className="text-4xl font-extrabold">PEBEC Reports</h1>
-          <p className="text-lg text-gray-200 mt-2">
+          <p className="text-lg text-black mt-2">
             Explore and download all official reports from PEBEC.
           </p>
           {}
           <div className="mt-6 flex justify-center">
-            <div className="relative flex items-center w-full max-w-lg bg-[#73781d] shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full overflow-hidden transition-all duration-300 hover:w-[350px]">
+            <div className="relative flex items-center w-full max-w-lg bg-green-600 shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full overflow-hidden transition-all duration-300 hover:w-[350px]">
               {}
               <div className="flex items-center justify-center p-4">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" className="fill-white">
