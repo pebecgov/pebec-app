@@ -36,7 +36,7 @@ export default function StaffPage() {
       <div className="mt-5 mb-5">
         <StaffAnalytics />
       </div>
-      <div className="mt-5 mb-5">
+      {/* <div className="mt-5 mb-5">
         <UsersCard />
       </div>
       <div className="mt-5 mb-5">
@@ -47,6 +47,6 @@ export default function StaffPage() {
       </div>
       <div className="mt-5 mb-5">
         <AdminMonthlyTicketsReport />
-      </div>
+      </div> */}
     </div>;
 }
