@@ -90,18 +90,20 @@ export default function Sidebar({
       name: "Reforms",
       path: "/staff/reforms"
     }]
-  }, {
+  },
+  ...(staffStream === "innovation" ? [{
     name: "ReportGov",
     icon: <ExclamationTriangleIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/reportgov"
   }, {
-    name: "Meetings",
-    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/meetings"
-  }, {
     name: "BFA Reports",
     icon: <ChartBarIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/bfa-reports"
+  }] : []),
+  {
+    name: "Meetings",
+    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+    path: "/staff/meetings"
   }, {
     name: "Deputies Reports",
     icon: <UsersIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
