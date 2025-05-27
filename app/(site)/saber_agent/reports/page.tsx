@@ -28,7 +28,6 @@ export default function SaberAgentReportPage() {
   const myReports = useQuery(api.saber_reports.getMyReports) ?? [];
   
   // Mutations
-  const generateUploadUrl = useMutation(api.saber_reports.generateUploadUrl);
   const submitReport = useMutation(api.saber_reports.submitReport);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -55,28 +54,14 @@ export default function SaberAgentReportPage() {
       const pdfBlob = doc.output('blob');
 
       // Get upload URL and upload PDF
-      const uploadUrl = await generateUploadUrl();
-      const result = await fetch(uploadUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/pdf"
-        },
-        body: pdfBlob
-      });
-
-      if (!result.ok) {
-        throw new Error('Failed to upload file');
-      }
-
-      const { storageId } = await result.json();
-
+   
+   
       // Submit report
       await submitReport({
         title: formData.title,
         description: formData.description,
         state: formData.state,
         numberOfReports: formData.numberOfReports,
-        fileId: storageId,
         fileSize: pdfBlob.size,
       });
 
