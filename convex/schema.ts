@@ -401,5 +401,20 @@ export default defineSchema({
     storageId: v.id("_storage"),
     fileName: v.string(),
     uploadedAt: v.number()
-  })
+  }),
+  saber_reports: defineTable({
+    submittedBy: v.id("users"),
+    userName: v.string(),
+    title: v.string(),
+    description: v.string(),
+    state: v.string(),
+    numberOfReports: v.string(),
+    fileId: v.optional(v.id("_storage")),
+    fileUrl: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    submittedAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    comments: v.optional(v.string())
+  }).index("bySubmittedBy", ["submittedBy"]).index("byState", ["state"]).index("byStatus", ["status"]).index("byDate", ["submittedAt"])
 });
