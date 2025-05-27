@@ -58,6 +58,9 @@ export default function SaberAgentReportPage() {
       const uploadUrl = await generateUploadUrl();
       const result = await fetch(uploadUrl, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/pdf"
+        },
         body: pdfBlob
       });
 
@@ -65,7 +68,7 @@ export default function SaberAgentReportPage() {
         throw new Error('Failed to upload file');
       }
 
-      const fileId = await result.json();
+      const { storageId } = await result.json();
 
       // Submit report
       await submitReport({
@@ -73,7 +76,7 @@ export default function SaberAgentReportPage() {
         description: formData.description,
         state: formData.state,
         numberOfReports: formData.numberOfReports,
-        fileId,
+        fileId: storageId,
         fileSize: pdfBlob.size,
       });
 
