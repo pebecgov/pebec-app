@@ -106,7 +106,7 @@ export default function InternalApprovals() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Roles</SelectItem>
-            <SelectItem value="mda">MDA - ReportGov Agent</SelectItem>
+            <SelectItem value="mda">ReportGov Agent</SelectItem>
             <SelectItem value="reform_champion">MDA - Reform Champion</SelectItem>
             <SelectItem value="magistrates">Magistrates</SelectItem>
             <SelectItem value="deputies">Deputies</SelectItem>
