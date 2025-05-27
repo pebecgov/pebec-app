@@ -70,7 +70,12 @@ export default function Sidebar({
     items: [{
       name: "Overview",
       path: "/admin/saber-overview"
-    }, {
+    },
+    {
+      name: "Reports",
+      path: "/admin/saber-reports"
+    },
+    {
       name: "DLIs Management - SA",
       path: "/admin/dli"
     }, {

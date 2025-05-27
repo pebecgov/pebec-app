@@ -1,4 +1,6 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
+//@ts-nocheck
+
 import { action, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";

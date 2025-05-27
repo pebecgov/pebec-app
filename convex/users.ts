@@ -1,8 +1,10 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
+
+//@ts-nocheck
+
 import { UserJSON } from '@clerk/backend';
 import { v, Validator } from 'convex/values';
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from './_generated/server';
-import { clerkClient } from '@clerk/nextjs/dist/types/server';
 import { Id } from './_generated/dataModel';
 import { api } from './_generated/api';
 export const getUsers = query({

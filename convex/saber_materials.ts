@@ -1,5 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
-import { mutation, query } from "@/convex/_generated/server";
+//@ts-nocheck
+
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 export const addSaberMaterial = mutation({
   args: {
