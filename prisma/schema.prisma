@@ -1,0 +1,13 @@
+model Report {
+  id             String   @id @default(cuid())
+  agentName      String
+  state          String
+  numberOfReports Int
+  role           String
+  type           String
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("reports")
+} 
