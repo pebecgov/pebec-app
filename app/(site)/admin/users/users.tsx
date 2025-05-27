@@ -89,7 +89,7 @@ export default function Admin() {
       await setRole(formData);
       const existingUser = users.find(u => u.clerkUserId === selectedUser);
       const wasInMDA = !!existingUser?.mdaId;
-      if (["reform_champion", "state_governor", "saber_agent", "magistrates", "deputies"].includes(selectedRole)) {
+      if (["state_governor", "saber_agent", "magistrates", "deputies"].includes(selectedRole)) {
         if (!selectedState || selectedState.trim() === "") {
           toast("Missing State", {
             description: "Please select a state for this role."
@@ -180,7 +180,7 @@ export default function Admin() {
         <SelectItem value="all">All Roles</SelectItem>
           <SelectItem value="user">User</SelectItem>
           <SelectItem value="admin">Admin</SelectItem>
-          <SelectItem value="mda">MDA - ReportGov Agent</SelectItem>
+          <SelectItem value="mda">ReportGov Agent</SelectItem>
           <SelectItem value="staff">Staff</SelectItem>
           <SelectItem value="saber_agent">Saber Agent</SelectItem>
           <SelectItem value="deputies">Deputies</SelectItem>
@@ -311,7 +311,7 @@ export default function Admin() {
                   <SelectContent className="max-h-60 overflow-y-auto">
                   <SelectItem value="user">User</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="mda">MDA - ReportGov Agent</SelectItem>
+                    <SelectItem value="mda">ReportGov Agent</SelectItem>
                     <SelectItem value="staff">Staff</SelectItem>
                     <SelectItem value="reform_champion">Reform Champion</SelectItem>
                     <SelectItem value="saber_agent">Saber</SelectItem>
