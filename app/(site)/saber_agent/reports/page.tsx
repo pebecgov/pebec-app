@@ -5,40 +5,62 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead } from "@/components/ui/table";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableHead,
+} from "@/components/ui/table";
 import { FileDown, FileSpreadsheet, Save } from "lucide-react";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import Type1DataForm from "@/components/Type1DataForm";
+interface FormData {
+  reportType: "type1" | "type2" | "type3";
+ 
+  question2?: string[]; // Assuming array based on v.array(v.string())
+  question3?: string;
+  question4?: string;
+  question5?: string[];
+  question6?: string;
+  question7?: string[];
+  question8?: string[];
+  question9?: string[];
+  question10?: string[];
+  question11?: string[];
+  // --- Fields for type2 ---
+  announceInvestment?: string[];
+  dateOfAnnouncement?: string;
+  media_platform?: string;
+  // --- Fields for type3 ---
+  noim?: string[];
+  lri?: string[];
+  sectors?: string[];
+  elibility?: string[];
+  description?: string[];
+  duration?: string[];
+  aaia?: string[];
+  noiri2022?: string[];
+  noiri2023?: string[];
+  noiri2024?: string[];
+}
 
 export default function SaberAgentReportPage() {
-  const { user } = useUser();
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    state: "",
-    numberOfReports: "",
-  });
+const { user } = useUser();
+
 
   // Get user's submitted reports
   const myReports = useQuery(api.saber_reports.getMyReports) ?? [];
-  
+
   // Mutations
   const submitReport = useMutation(api.saber_reports.submitReport);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+ ;
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
@@ -46,34 +68,45 @@ export default function SaberAgentReportPage() {
       const doc = new jsPDF();
       doc.text("Saber Agent Report", 20, 10);
       doc.text(`Agent Name: ${user?.fullName || ""}`, 20, 30);
-      doc.text(`State: ${formData.state}`, 20, 40);
-      doc.text(`Number of Reports: ${formData.numberOfReports}`, 20, 50);
-      doc.text(`Description: ${formData.description}`, 20, 60);
-      
+      doc.text(`question2: ${formData.question2}`, 20, 40);
+      doc.text(`question3: ${formData.question3}`, 20, 50);
+      doc.text(`question4: ${formData.question4}`, 20, 50);
+      doc.text(`question5: ${formData.question5}`, 20, 50);
+      doc.text(`question6: ${formData.question6}`, 20, 50);
+      doc.text(`question7: ${formData.question7}`, 20, 50);
+      doc.text(`question8: ${formData.question8}`, 20, 50);
+      doc.text(`question9: ${formData.question9}`, 20, 50);
+      doc.text(`question10: ${formData.question10}`, 20, 50);
+      doc.text(`question11: ${formData.question11}`, 20, 50);
+
       // Convert PDF to blob
-      const pdfBlob = doc.output('blob');
+      const pdfBlob = doc.output("blob");
 
       // Get upload URL and upload PDF
-   
-   
+
       // Submit report
       await submitReport({
-        title: formData.title,
-        description: formData.description,
-        state: formData.state,
-        numberOfReports: formData.numberOfReports,
+        question2: formData.question2,
+        question3: formData.question3,
+        question4: formData.question4,
+        question5: [formData.question5],
+        question6: formData.question6,
+        question7: [formData.question7],
+        question8: [formData.question8],
+        question9: [formData.question9],
+        question10: [formData.question10],
+        question11: [formData.question11],
         fileSize: pdfBlob.size,
       });
 
       toast.success("Report submitted successfully");
-      
+
       // Clear form
-      setFormData({
-        title: "",
-        description: "",
-        state: "",
-        numberOfReports: "",
-      });
+      // setFormData({
+      //   title: "",
+      //   description: "",
+      //   numberOfReports: "",
+      // });
     } catch (error) {
       toast.error("Failed to submit report");
       console.error("Error submitting report:", error);
@@ -91,14 +124,16 @@ export default function SaberAgentReportPage() {
   };
 
   const downloadAsExcel = (report) => {
-    const ws = XLSX.utils.json_to_sheet([{
-      "Title": report.title,
-      "State": report.state,
-      "Number of Reports": report.numberOfReports,
-      "Description": report.description,
-      "Status": report.status,
-      "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
-    }]);
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        Title: report.title,
+        State: report.state,
+        "Number of Reports": report.numberOfReports,
+        Description: report.description,
+        Status: report.status,
+        "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
+      },
+    ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Report");
     XLSX.writeFile(wb, `saber-report-${report.title}.xlsx`);
@@ -106,67 +141,7 @@ export default function SaberAgentReportPage() {
 
   return (
     <div className="container mx-auto py-10 space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Submit Saber Agent Report</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="title">Report Title</Label>
-              <Input
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                placeholder="e.g., Monthly Report - Lagos State"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder="Provide details about your report"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="state">State</Label>
-              <Input
-                id="state"
-                name="state"
-                value={formData.state}
-                onChange={handleInputChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="numberOfReports">Number of Reports</Label>
-              <Input
-                id="numberOfReports"
-                name="numberOfReports"
-                type="number"
-                value={formData.numberOfReports}
-                onChange={handleInputChange}
-                required
-              />
-            </div>
-
-            <Button type="submit">
-              <Save className="w-4 h-4 mr-2" />
-              Submit Report
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
+      <Type1DataForm/>
       {/* My Submitted Reports */}
       <Card>
         <CardHeader>
@@ -191,15 +166,22 @@ export default function SaberAgentReportPage() {
                       <TableCell>{report.title}</TableCell>
                       <TableCell>{report.state}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          report.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          report.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            report.status === "approved"
+                              ? "bg-green-100 text-green-800"
+                              : report.status === "rejected"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {report.status.charAt(0).toUpperCase() +
+                            report.status.slice(1)}
                         </span>
                       </TableCell>
-                      <TableCell>{new Date(report.submittedAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {new Date(report.submittedAt).toLocaleDateString()}
+                      </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           {report.fileUrl ? (
@@ -237,7 +219,10 @@ export default function SaberAgentReportPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4 text-gray-500">
+                    <TableCell
+                      colSpan={5}
+                      className="text-center py-4 text-gray-500"
+                    >
                       No reports submitted yet
                     </TableCell>
                   </TableRow>
@@ -249,4 +234,4 @@ export default function SaberAgentReportPage() {
       </Card>
     </div>
   );
-} 
+}

@@ -837,3 +837,16 @@ export const generateMonthlyAccessCodeInternal = internalMutation({
     return code;
   }
 });
+export const getUserState = query({
+  handler: async (ctx) => {
+    const user = await ctx.auth.getUserIdentity();
+    if (!user) throw new Error("Unauthorized");
+
+    const userDoc = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("clerkUserId"), user.subject))
+      .unique();
+
+    return userDoc?.roleRequest?.state || userDoc?.state;
+  },
+});

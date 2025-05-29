@@ -405,10 +405,8 @@ export default defineSchema({
   saber_reports: defineTable({
     submittedBy: v.id("users"),
     userName: v.string(),
-    title: v.string(),
-    description: v.string(),
-    state: v.string(),
-    numberOfReports: v.string(),
+    title:v.string(),
+    state: v.optional(v.string()),
     fileId: v.optional(v.id("_storage")),
     fileUrl: v.optional(v.string()),
     fileSize: v.optional(v.number()),
