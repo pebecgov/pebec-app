@@ -110,21 +110,23 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
 };
 
 // Function to get report title from template type
-const getReportTitle = (reportType: FormData["reportType"]): string => {
+const getReportTitle = (reportType: FormData["reportType"], userState?: string): string => {
+  const statePrefix = userState ? `${userState} ` : "";
+  
   switch (reportType) {
     case "type1":
-      return "State Investor Aftercare and Retention Program";
+      return `${statePrefix}State's Investor Aftercare and Retention Program`;
     case "type2":
-      return "Announce Investment";
+      return `${statePrefix}Announce Investment Report`;
     case "type3":
-      return "Inventory Incentive";
+      return `${statePrefix}Inventory Incentive Report`;
     default:
-      return "Saber Agent Report";
+      return `${statePrefix}Saber Agent Report`;
   }
 };
 
 export default function SaberAgentReportPage() {
-const { user } = useUser();
+  const { user } = useUser();
 
   // Template form state
   const [templateFormData, setTemplateFormData] = useState<FormData>(
@@ -133,7 +135,12 @@ const { user } = useUser();
 
   // Get user's submitted reports
   const myReports = useQuery(api.saber_reports.getMyReports) ?? [];
-
+  
+  // Get current user data to access state
+  const currentUser = useQuery(api.users.getUserByClerkId, 
+    user?.id ? { clerkUserId: user.id } : "skip"
+  );
+  
   // Mutations
   const submitReport = useMutation(api.saber_reports.submitReport);
   const generateUploadUrl = useMutation(api.saber_reports.generateUploadUrl);
@@ -277,7 +284,7 @@ const { user } = useUser();
           className="mt-2"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add {placeholder}
+          Add Answer
         </Button>
       </div>
     );
@@ -786,7 +793,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       // Submit report with simple form data + PDF
       await submitReport({
-        title: getReportTitle(templateFormData.reportType),
+        title: getReportTitle(templateFormData.reportType, currentUser?.state),
         fileId: storageId,
         fileSize: pdfBlob.size,
       });
