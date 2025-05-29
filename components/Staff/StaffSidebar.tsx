@@ -62,7 +62,13 @@ export default function Sidebar({
     icon: <EnvelopeOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/business-letters"
   }, {
-    name: staffStream === "innovation" ? "Innovation Tools" : staffStream === "regulatory" ? "Regulatory Tools" : staffStream === "judiciary" ? "Judiciary Tools" : staffStream === "communications" ? "Comms" : staffStream === "investments" ? "Investments" : "Reports & Templates",
+    name: staffStream === "innovation" ? "Innovation Tools" : 
+          staffStream === "regulatory" ? "Regulatory Tools" : 
+          staffStream === "sub_national" ? "Sub-National Tools" :
+          staffStream === "judiciary" ? "Judiciary Tools" : 
+          staffStream === "communications" ? "Comms" : 
+          staffStream === "investments" ? "Investments" : 
+          "Reports & Templates",
     icon: <FolderOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     children: [{
       name: "Tickets",

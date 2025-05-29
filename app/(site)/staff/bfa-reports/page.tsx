@@ -41,7 +41,7 @@ export default function BFAReportsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
   const [selectedMda, setSelectedMda] = useState("all");
-  const allowedStreams = ["regulatory", "innovation", "communications"];
+  const allowedStreams = ["regulatory", "innovation", "communications", "sub_national"];
   const userRole = user?.publicMetadata?.role as string | undefined;
   const userStream = user?.publicMetadata?.staffStream as string | undefined;
   const today = new Date();
