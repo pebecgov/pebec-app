@@ -124,7 +124,7 @@ const getReportTitle = (reportType: FormData["reportType"]): string => {
 };
 
 export default function SaberAgentReportPage() {
-  const { user } = useUser();
+const { user } = useUser();
 
   // Template form state
   const [templateFormData, setTemplateFormData] = useState<FormData>(
@@ -133,7 +133,7 @@ export default function SaberAgentReportPage() {
 
   // Get user's submitted reports
   const myReports = useQuery(api.saber_reports.getMyReports) ?? [];
-  
+
   // Mutations
   const submitReport = useMutation(api.saber_reports.submitReport);
   const generateUploadUrl = useMutation(api.saber_reports.generateUploadUrl);
@@ -821,7 +821,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       "Title": report.title,
       "State": report.state,
       "Status": report.status,
-      "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
+        "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Report");

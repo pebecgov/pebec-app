@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 
 // Submit a new saber report
@@ -156,5 +156,49 @@ export const getReportsByDateRange = query({
 export const generateUploadUrl = mutation({
   handler: async (ctx) => {
     return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// Migration to clean up existing documents with old schema fields
+export const cleanupOldReports = internalMutation({
+  handler: async (ctx) => {
+    const reports = await ctx.db.query("saber_reports").collect();
+    
+    for (const report of reports) {
+      // Check if report has the old fields
+      if ("description" in report || "numberOfReports" in report) {
+        // Create a new object without the old fields
+        const cleanedReport = {
+          submittedBy: report.submittedBy,
+          userName: report.userName,
+          title: report.title,
+          state: report.state,
+          fileId: report.fileId,
+          fileUrl: report.fileUrl,
+          fileSize: report.fileSize,
+          status: report.status,
+          submittedAt: report.submittedAt,
+          updatedAt: report.updatedAt,
+          comments: report.comments,
+        };
+        
+        // Delete the old document and insert the cleaned one
+        await ctx.db.delete(report._id);
+        await ctx.db.insert("saber_reports", cleanedReport);
+      }
+    }
+    
+    return { message: "Migration completed" };
+  },
+});
+
+// Delete specific problematic document
+export const deleteProblematicReport = internalMutation({
+  args: {
+    reportId: v.id("saber_reports"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.reportId);
+    return { message: `Deleted report ${args.reportId}` };
   },
 }); 
