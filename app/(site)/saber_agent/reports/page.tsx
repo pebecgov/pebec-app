@@ -68,16 +68,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       const doc = new jsPDF();
       doc.text("Saber Agent Report", 20, 10);
       doc.text(`Agent Name: ${user?.fullName || ""}`, 20, 30);
-      doc.text(`question2: ${formData.question2}`, 20, 40);
-      doc.text(`question3: ${formData.question3}`, 20, 50);
-      doc.text(`question4: ${formData.question4}`, 20, 50);
-      doc.text(`question5: ${formData.question5}`, 20, 50);
-      doc.text(`question6: ${formData.question6}`, 20, 50);
-      doc.text(`question7: ${formData.question7}`, 20, 50);
-      doc.text(`question8: ${formData.question8}`, 20, 50);
-      doc.text(`question9: ${formData.question9}`, 20, 50);
-      doc.text(`question10: ${formData.question10}`, 20, 50);
-      doc.text(`question11: ${formData.question11}`, 20, 50);
+     
 
       // Convert PDF to blob
       const pdfBlob = doc.output("blob");
@@ -86,16 +77,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       // Submit report
       await submitReport({
-        question2: formData.question2,
-        question3: formData.question3,
-        question4: formData.question4,
-        question5: [formData.question5],
-        question6: formData.question6,
-        question7: [formData.question7],
-        question8: [formData.question8],
-        question9: [formData.question9],
-        question10: [formData.question10],
-        question11: [formData.question11],
+     
         fileSize: pdfBlob.size,
       });
 

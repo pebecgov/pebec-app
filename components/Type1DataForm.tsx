@@ -19,6 +19,8 @@ import jsPDF from "jspdf";
 import { toast } from "sonner";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+const currentYear = new Date().getFullYear();
+const yearsToShow = [currentYear - 3, currentYear - 2, currentYear -1];
 
 interface Type1Data {
   question2: string[];
@@ -701,7 +703,7 @@ const DynamicReportForm: React.FC = () => {
               "DESCRIPTION OF BENEFITS",
               "DURATION",
               "AWARDING IMPLEMENTING AGENCYAWARDING IMPLEMENTING AGENCY",
-              "NUMBER OF INCENTIVES RESCIPIENTS IN 2022",
+              `NUMBER OF INCENTIVES RESCIPIENTS IN ${yearsToShow}`,
               "NUMBER OF INCENTIVES RESCIPIENTS IN 2023",
               "NUMBER OF INCENTIVES RESCIPIENTS IN 2024"
             );
@@ -1068,27 +1070,15 @@ const DynamicReportForm: React.FC = () => {
             "Enter AIA detail",
             false
           )}
-          {renderArrayInputs(
-            "type3Data",
-            "noiri2022",
-            "NUMBER OF INCENTIVES RESCIPIENTS IN 2022",
-            "Enter 2022 data",
-            false
-          )}
-          {renderArrayInputs(
-            "type3Data",
-            "noiri2023",
-            "NUMBER OF INCENTIVES RESCIPIENTS IN 2023",
-            "Enter 2023 data",
-            false
-          )}
-          {renderArrayInputs(
-            "type3Data",
-            "noiri2024",
-            "NUMBER OF INCENTIVES RESCIPIENTS IN 2024",
-            "Enter 2024 data",
-            false
-          )}
+          {yearsToShow.map((year) => (
+  renderArrayInputs(
+    "type3Data",
+    `noiri${year}`as keyof Type3Data, 
+    `NUMBER OF INCENTIVES RECIPIENTS IN ${year}`,
+    `Enter ${year} data`,
+    false
+  )
+))}
         </Box>
       )}
 
