@@ -17,8 +17,7 @@ import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline"; /
 import autoTable from "jspdf-autotable";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
+
 const currentYear = new Date().getFullYear();
 const yearsToShow = [currentYear - 3, currentYear - 2, currentYear -1];
 
@@ -111,8 +110,7 @@ const DynamicReportForm: React.FC = () => {
     getInitialFormData("type1")
   );
 
-   const userState = useQuery(api.users.getUserState);
-  
+   
 
   const handleTypeDataStringChange = <T extends keyof ReportTypeDataMap>(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -315,7 +313,7 @@ const DynamicReportForm: React.FC = () => {
       const type1Data = cleanedFormData.type1Data;
 
       // Prepare text for sections that will be directly printed
-      const introductionText = `${userState || ""} The purpose of this Investor Aftercare and Retention Strategy document is to articulate a proactive approach to supporting and sustaining investments within our state. Recognizing that the retention and expansion of existing investors is as critical as attracting new ones, this strategy outlines the sectors we prioritize, the criteria for aftercare eligibility, and the mechanisms we will use to deliver consistent and responsive support services to investors.`;
+      const introductionText = `The purpose of this Investor Aftercare and Retention Strategy document is to articulate a proactive approach to supporting and sustaining investments within our state. Recognizing that the retention and expansion of existing investors is as critical as attracting new ones, this strategy outlines the sectors we prioritize, the criteria for aftercare eligibility, and the mechanisms we will use to deliver consistent and responsive support services to investors.`;
       const criterionText = `Our Aftercare and Retention Program will initially target strategic sectors that align with our state’s development priorities and offer high economic impact. These include :`;
       const investmentSizeText = `Aftercare and Retention services will be extended to investors in the State particularly those with a capital base above ${type1Data.question3 || "N/A"} or employing ${type1Data.question4 || "N/A"} or more people. However, we recognize that certain high-impact small enterprises, especially those in innovation-driven sectors, may also warrant strategic aftercare.`;
       const investmentCriteriaText = `In addition, investments will be assessed based on the following criteria:`;
