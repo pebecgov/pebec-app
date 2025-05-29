@@ -17,7 +17,6 @@ import {
 import { FileDown, FileSpreadsheet, Save } from "lucide-react";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
-import { toast } from "sonner";
 import Type1DataForm from "@/components/Type1DataForm";
 interface FormData {
   reportType: "type1" | "type2" | "type3";
@@ -50,50 +49,14 @@ interface FormData {
 }
 
 export default function SaberAgentReportPage() {
-const { user } = useUser();
 
 
   // Get user's submitted reports
   const myReports = useQuery(api.saber_reports.getMyReports) ?? [];
 
-  // Mutations
-  const submitReport = useMutation(api.saber_reports.submitReport);
 
- ;
-const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+ 
 
-    try {
-      // Generate PDF for storage
-      const doc = new jsPDF();
-      doc.text("Saber Agent Report", 20, 10);
-      doc.text(`Agent Name: ${user?.fullName || ""}`, 20, 30);
-     
-
-      // Convert PDF to blob
-      const pdfBlob = doc.output("blob");
-
-      // Get upload URL and upload PDF
-
-      // Submit report
-      await submitReport({
-     
-        fileSize: pdfBlob.size,
-      });
-
-      toast.success("Report submitted successfully");
-
-      // Clear form
-      // setFormData({
-      //   title: "",
-      //   description: "",
-      //   numberOfReports: "",
-      // });
-    } catch (error) {
-      toast.error("Failed to submit report");
-      console.error("Error submitting report:", error);
-    }
-  };
 
   const downloadAsPDF = (report) => {
     const doc = new jsPDF();
