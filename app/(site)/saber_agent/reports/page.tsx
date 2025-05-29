@@ -71,14 +71,6 @@ interface FormData {
   type3Data?: Type3Data;
 }
 
-// Simple form data for database storage
-interface SimpleFormData {
-  title: string;
-  description: string;
-  state: string;
-  numberOfReports: string;
-}
-
 const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
   const base: FormData = { reportType };
   if (reportType === "type1") {
@@ -117,16 +109,22 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
   return base;
 };
 
+// Function to get report title from template type
+const getReportTitle = (reportType: FormData["reportType"]): string => {
+  switch (reportType) {
+    case "type1":
+      return "State Investor Aftercare and Retention Program";
+    case "type2":
+      return "Announce Investment";
+    case "type3":
+      return "Inventory Incentive";
+    default:
+      return "Saber Agent Report";
+  }
+};
+
 export default function SaberAgentReportPage() {
   const { user } = useUser();
-  
-  // Simple form state
-  const [simpleFormData, setSimpleFormData] = useState<SimpleFormData>({
-    title: "",
-    description: "",
-    state: "",
-    numberOfReports: "",
-  });
 
   // Template form state
   const [templateFormData, setTemplateFormData] = useState<FormData>(
@@ -139,14 +137,6 @@ export default function SaberAgentReportPage() {
   // Mutations
   const submitReport = useMutation(api.saber_reports.submitReport);
   const generateUploadUrl = useMutation(api.saber_reports.generateUploadUrl);
-
-  const handleSimpleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setSimpleFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
 
   const handleTemplateDataStringChange = <T extends keyof ReportTypeDataMap>(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -777,7 +767,7 @@ export default function SaberAgentReportPage() {
     return doc;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
@@ -796,23 +786,14 @@ export default function SaberAgentReportPage() {
 
       // Submit report with simple form data + PDF
       await submitReport({
-        title: simpleFormData.title,
-        description: simpleFormData.description,
-        state: simpleFormData.state,
-        numberOfReports: simpleFormData.numberOfReports,
+        title: getReportTitle(templateFormData.reportType),
         fileId: storageId,
         fileSize: pdfBlob.size,
       });
 
       toast.success("Report submitted successfully");
-      
+
       // Clear forms
-      setSimpleFormData({
-        title: "",
-        description: "",
-        state: "",
-        numberOfReports: "",
-      });
       setTemplateFormData(getInitialFormData("type1"));
     } catch (error) {
       toast.error("Failed to submit report");
@@ -830,8 +811,8 @@ export default function SaberAgentReportPage() {
     doc.text("Saber Agent Report", 20, 10);
     doc.text(`Agent Name: ${report.userName}`, 20, 30);
     doc.text(`State: ${report.state}`, 20, 40);
-    doc.text(`Number of Reports: ${report.numberOfReports}`, 20, 50);
-    doc.text(`Description: ${report.description}`, 20, 60);
+    doc.text(`Title: ${report.title}`, 20, 50);
+    doc.text(`Status: ${report.status}`, 20, 60);
     doc.save(`saber-report-${report.title}.pdf`);
   };
 
@@ -839,8 +820,6 @@ export default function SaberAgentReportPage() {
     const ws = XLSX.utils.json_to_sheet([{
       "Title": report.title,
       "State": report.state,
-      "Number of Reports": report.numberOfReports,
-      "Description": report.description,
       "Status": report.status,
       "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
     }]);
@@ -857,58 +836,6 @@ export default function SaberAgentReportPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Simple Form Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-dashed border-gray-300 rounded-lg">
-              <h3 className="col-span-full text-lg font-semibold mb-2">Basic Report Information</h3>
-              
-              <div className="space-y-2">
-                <Label htmlFor="title">Report Title</Label>
-                <Input
-                  id="title"
-                  name="title"
-                  value={simpleFormData.title}
-                  onChange={handleSimpleInputChange}
-                  placeholder="e.g., Monthly Report - Lagos State"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="state">State</Label>
-                <Input
-                  id="state"
-                  name="state"
-                  value={simpleFormData.state}
-                  onChange={handleSimpleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="numberOfReports">Number of Reports</Label>
-                <Input
-                  id="numberOfReports"
-                  name="numberOfReports"
-                  type="number"
-                  value={simpleFormData.numberOfReports}
-                  onChange={handleSimpleInputChange}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  value={simpleFormData.description}
-                  onChange={handleSimpleInputChange}
-                  placeholder="Provide details about your report"
-                  required
-                />
-              </div>
-            </div>
-
             {/* Template Form */}
             <div className="p-4 border border-dashed border-gray-300 rounded-lg">
               <h3 className="text-lg font-semibold mb-4">Select Report Template</h3>
@@ -1235,4 +1162,4 @@ export default function SaberAgentReportPage() {
       </Card>
     </div>
   );
-} 
+}

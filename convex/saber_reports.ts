@@ -6,9 +6,6 @@ import { getCurrentUserOrThrow } from "./users";
 export const submitReport = mutation({
   args: {
     title: v.string(),
-    description: v.string(),
-    state: v.string(),
-    numberOfReports: v.string(),
     fileId: v.optional(v.id("_storage")),
     fileSize: v.optional(v.number()),
   },
@@ -26,6 +23,7 @@ export const submitReport = mutation({
       ...args,
       submittedBy: userId._id,
       userName: `${userId.firstName ?? ""} ${userId.lastName ?? ""}`.trim(),
+      state: userId.state ?? "Unknown",
       status: "pending",
       submittedAt: Date.now(),
     });
