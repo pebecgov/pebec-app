@@ -3,7 +3,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import AdminTicketsPage from "@/components/AdminTickets";
-const allowedStreams = ["regulatory", "innovation", "communications"];
+const allowedStreams = ["regulatory", "innovation", "communications", "sub_national"];
 export default function TicketsPage() {
   const {
     user,

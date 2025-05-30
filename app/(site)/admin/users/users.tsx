@@ -207,8 +207,9 @@ export default function Admin() {
           <SelectContent>
             <SelectItem value="all">All Streams</SelectItem>
             <SelectItem value="regulatory">Regulatory</SelectItem>
+            <SelectItem value="sub_national">Sub National</SelectItem>
             <SelectItem value="innovation">Innovation</SelectItem>
-            <SelectItem value="judiciary">Judiciary</SelectItem>
+            <SelectItem value="judiciary">Judicial</SelectItem>
             <SelectItem value="communications">Communications</SelectItem>
             <SelectItem value="investments">Investments</SelectItem>
             <SelectItem value="receptionist">Receptionist - Front Officer</SelectItem>
@@ -352,8 +353,9 @@ export default function Admin() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="regulatory">Regulatory</SelectItem>
+                      <SelectItem value="sub_national">Sub National</SelectItem>
                       <SelectItem value="innovation">Innovation</SelectItem>
-                      <SelectItem value="judiciary">Judiciary</SelectItem>
+                      <SelectItem value="judiciary">Judicial</SelectItem>
                       <SelectItem value="communications">Communications</SelectItem>
                       <SelectItem value="investments">Investments</SelectItem>
                       <SelectItem value="receptionist">Receptionist - Front Officer</SelectItem>

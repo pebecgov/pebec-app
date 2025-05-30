@@ -24,7 +24,7 @@ export default function SubmitLetterForm({
   const [department, setDepartment] = useState("");
   const [selectedStream, setSelectedStream] = useState("");
   const [selectedUser, setSelectedUser] = useState<Id<"users"> | null>(null);
-  const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
+  const staffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
   const filteredUsers = department === "admin" ? users.filter(u => u.role === "admin") : users.filter(u => u.staffStream === selectedStream);
   const handleSubmit = async () => {
     if (!letterName.trim() || !fileId || !selectedUser) {

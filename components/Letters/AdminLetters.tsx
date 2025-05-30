@@ -13,7 +13,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 const ROLES_WITH_STATE_SELECTION = ["reform_champion", "deputies", "magistrates", "state_governor"];
 const ALLOWED_ROLES = ["admin", "staff", "mda", "reform_champion", "deputies", "magistrates", "state_governor"];
-const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
+const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor", "sub_national"];
 export default function SubmitLetterForm({
   onClose
 }: {

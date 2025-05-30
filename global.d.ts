@@ -6,7 +6,7 @@ declare global {
 }
 export {};
 export type Roles = "admin" | "user" | "mda" | "staff" | "reform_champion" | "federal" | "deputies" | "magistrates" | "state_governor" | "president" | "vice_president" | "saber_agent";
-export type StaffStream = "regulatory" | "innovation" | "judiciary" | "communications" | "investments" | "receptionist" | "account" | "auditor";
+export type StaffStream = "regulatory" | "innovation" | "judiciary" | "communications" | "investments" | "receptionist" | "account" | "auditor" | "sub_national";
 declare global {
   interface CustomJwtSessionClaims {
     metadata: {
