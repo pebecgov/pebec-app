@@ -90,6 +90,7 @@ export default function SendLetterModal({
         title: "Letter Submitted",
         description: "Your letter has been successfully submitted."
       });
+      console.log("error")
       setOpen(false);
       setTitle("");
       setCompanyName("");
