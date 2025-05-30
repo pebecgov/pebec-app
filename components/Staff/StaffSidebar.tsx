@@ -64,10 +64,10 @@ export default function Sidebar({
   }, {
     name: staffStream === "innovation" ? "Innovation Tools" : 
           staffStream === "regulatory" ? "Regulatory Tools" : 
-          staffStream === "sub_national" ? "Sub-National Tools" :
-          staffStream === "judiciary" ? "Judiciary Tools" : 
+          staffStream === "sub_national" ? "Sub National Tools" :
+          staffStream === "judiciary" ? "Judicial Tools" : 
           staffStream === "communications" ? "Comms" : 
-          staffStream === "investments" ? "Investments" : 
+          staffStream === "investments" ? "High-Impact Investments" : 
           "Reports & Templates",
     icon: <FolderOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     children: [{
@@ -111,7 +111,7 @@ export default function Sidebar({
     icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/meetings"
   }, {
-    name: "Deputies Reports",
+    name: "Sherrifs Reports",
     icon: <UsersIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/deputies-reports"
   }, {
