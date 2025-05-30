@@ -15,9 +15,12 @@ export const submitReport = mutation({
 
     const userId = await ctx.db
       .query("users")
-      .filter(q => q.eq(q.field("clerkUserId"), user.subject))
+      .filter((q) => q.eq(q.field("clerkUserId"), user.subject))
       .unique();
     if (!userId) throw new Error("User not found");
+
+    const state = userId.roleRequest?.state || userId.state;
+    if (!state) throw new Error("User must have a state assigned");
 
     return await ctx.db.insert("saber_reports", {
       ...args,
@@ -34,7 +37,7 @@ export const submitReport = mutation({
 export const getMyReports = query({
   handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
-    
+
     const reports = await ctx.db
       .query("saber_reports")
       .withIndex("bySubmittedBy", (q) => q.eq("submittedBy", user._id))
@@ -44,7 +47,9 @@ export const getMyReports = query({
     return Promise.all(
       reports.map(async (report) => ({
         ...report,
-        fileUrl: report.fileId ? await ctx.storage.getUrl(report.fileId) : undefined,
+        fileUrl: report.fileId
+          ? await ctx.storage.getUrl(report.fileId)
+          : undefined,
       }))
     );
   },
@@ -53,15 +58,14 @@ export const getMyReports = query({
 // Get all reports (for admin)
 export const getAllReports = query({
   handler: async (ctx) => {
-    const reports = await ctx.db
-      .query("saber_reports")
-      .order("desc")
-      .collect();
+    const reports = await ctx.db.query("saber_reports").order("desc").collect();
 
     return Promise.all(
       reports.map(async (report) => ({
         ...report,
-        fileUrl: report.fileId ? await ctx.storage.getUrl(report.fileId) : undefined,
+        fileUrl: report.fileId
+          ? await ctx.storage.getUrl(report.fileId)
+          : undefined,
       }))
     );
   },
@@ -71,7 +75,11 @@ export const getAllReports = query({
 export const updateReportStatus = mutation({
   args: {
     reportId: v.id("saber_reports"),
-    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
     comments: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -98,7 +106,9 @@ export const getReportsByState = query({
     return Promise.all(
       reports.map(async (report) => ({
         ...report,
-        fileUrl: report.fileId ? await ctx.storage.getUrl(report.fileId) : undefined,
+        fileUrl: report.fileId
+          ? await ctx.storage.getUrl(report.fileId)
+          : undefined,
       }))
     );
   },
@@ -107,7 +117,11 @@ export const getReportsByState = query({
 // Get reports by status
 export const getReportsByStatus = query({
   args: {
-    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
   },
   handler: async (ctx, args) => {
     const reports = await ctx.db
@@ -119,7 +133,9 @@ export const getReportsByStatus = query({
     return Promise.all(
       reports.map(async (report) => ({
         ...report,
-        fileUrl: report.fileId ? await ctx.storage.getUrl(report.fileId) : undefined,
+        fileUrl: report.fileId
+          ? await ctx.storage.getUrl(report.fileId)
+          : undefined,
       }))
     );
   },
@@ -135,7 +151,7 @@ export const getReportsByDateRange = query({
     const reports = await ctx.db
       .query("saber_reports")
       .withIndex("byDate")
-      .filter((q) => 
+      .filter((q) =>
         q.and(
           q.gte(q.field("submittedAt"), args.startDate),
           q.lte(q.field("submittedAt"), args.endDate)
@@ -147,7 +163,9 @@ export const getReportsByDateRange = query({
     return Promise.all(
       reports.map(async (report) => ({
         ...report,
-        fileUrl: report.fileId ? await ctx.storage.getUrl(report.fileId) : undefined,
+        fileUrl: report.fileId
+          ? await ctx.storage.getUrl(report.fileId)
+          : undefined,
       }))
     );
   },

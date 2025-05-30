@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import FileUploader from "../file-uploader";
@@ -28,6 +28,7 @@ export default function SendLetterModal({
   const [supportingFileIds, setSupportingFileIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const createLetter = useMutation(api.business_letters.createBusinessLetter);
+   const sendEmail = useAction(api.sendEmail.sendEmail);
   const {
     toast
   } = useToast();
@@ -45,6 +46,37 @@ export default function SendLetterModal({
   const handleSubmit = async () => {
     if (!validateForm()) return;
     try {
+        const submissionDate = new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "2-digit"
+    });
+      const autoReply = `
+      <div style="font-family: Arial, sans-serif; font-size: 14px; color: #111;">
+        <p style="text-align: right;">${submissionDate}</p>
+        <p>
+          ${contactName}<br/>
+          ${companyName}
+        </p>
+        <p><strong>RE: ${title}</strong></p>
+        <p>
+          On behalf of the Presidential Enabling Business Environment Council (PEBEC), I acknowledge receipt of your letter dated <strong>${submissionDate}</strong>, highlighting <strong>${title}</strong>.
+        </p>
+        <p>
+          <strong>PEBEC</strong> was established with a dual mandate to remove bureaucratic and legislative constraints to doing business and to improve the perception of Nigeria’s business climate.
+        </p>
+        <p>
+          We understand the urgency of this matter and will keep you informed of any developments. If <strong>${companyName}</strong> wishes to make further inquiries or provide additional input, please send an email to <a href="mailto:infor@pebec.gov.ng">infor@pebec.gov.ng</a> or call 08075079164.
+        </p>
+        <p>Please accept the assurance of my best regards.</p>
+        <p><strong>For: Presidential Enabling Business Environment Council (PEBEC)</strong></p>
+      </div>
+    `;
+    await sendEmail({
+        to: email,
+      subject: `Acknowledgement of Your Letter - ${title}`,
+      html: autoReply
+      });
       await createLetter({
         title,
         companyName,
@@ -58,6 +90,7 @@ export default function SendLetterModal({
         title: "Letter Submitted",
         description: "Your letter has been successfully submitted."
       });
+      console.log("error")
       setOpen(false);
       setTitle("");
       setCompanyName("");
