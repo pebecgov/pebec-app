@@ -3,6 +3,8 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUserOrThrow } from "./users";
 import { api } from "./_generated/api";
+
+
 export const createBusinessLetter = mutation({
   args: {
     title: v.string(),
@@ -33,43 +35,43 @@ export const createBusinessLetter = mutation({
         createdAt: Date.now(),
         type: "business_letter"
       });
-      await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+      await ctx.scheduler.runAfter(1000, api.email.sendEmail, {
         to: admin.email,
         subject: `New Business Letter: ${args.title}`,
         html: `<p>A new letter titled <b>${args.title}</b> was submitted by <b>${args.companyName}</b>.</p>`
       });
     }
-    const submissionDate = new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "2-digit"
-    });
-    const autoReply = `
-      <div style="font-family: Arial, sans-serif; font-size: 14px; color: #111;">
-        <p style="text-align: right;">${submissionDate}</p>
-        <p>
-          ${args.contactName}<br/>
-          ${args.companyName}
-        </p>
-        <p><strong>RE: ${args.title}</strong></p>
-        <p>
-          On behalf of the Presidential Enabling Business Environment Council (PEBEC), I acknowledge receipt of your letter dated <strong>${submissionDate}</strong>, highlighting <strong>${args.title}</strong>.
-        </p>
-        <p>
-          <strong>PEBEC</strong> was established with a dual mandate to remove bureaucratic and legislative constraints to doing business and to improve the perception of Nigeria’s business climate.
-        </p>
-        <p>
-          We understand the urgency of this matter and will keep you informed of any developments. If <strong>${args.companyName}</strong> wishes to make further inquiries or provide additional input, please send an email to <a href="mailto:infor@pebec.gov.ng">infor@pebec.gov.ng</a> or call 08075079164.
-        </p>
-        <p>Please accept the assurance of my best regards.</p>
-        <p><strong>For: Presidential Enabling Business Environment Council (PEBEC)</strong></p>
-      </div>
-    `;
-    await ctx.scheduler.runAfter(0, api.email.sendEmail, {
-      to: args.email,
-      subject: `Acknowledgement of Your Letter - ${args.title}`,
-      html: autoReply
-    });
+    // const submissionDate = new Date().toLocaleDateString("en-US", {
+    //   year: "numeric",
+    //   month: "long",
+    //   day: "2-digit"
+    // });
+    // const autoReply = `
+    //   <div style="font-family: Arial, sans-serif; font-size: 14px; color: #111;">
+    //     <p style="text-align: right;">${submissionDate}</p>
+    //     <p>
+    //       ${args.contactName}<br/>
+    //       ${args.companyName}
+    //     </p>
+    //     <p><strong>RE: ${args.title}</strong></p>
+    //     <p>
+    //       On behalf of the Presidential Enabling Business Environment Council (PEBEC), I acknowledge receipt of your letter dated <strong>${submissionDate}</strong>, highlighting <strong>${args.title}</strong>.
+    //     </p>
+    //     <p>
+    //       <strong>PEBEC</strong> was established with a dual mandate to remove bureaucratic and legislative constraints to doing business and to improve the perception of Nigeria’s business climate.
+    //     </p>
+    //     <p>
+    //       We understand the urgency of this matter and will keep you informed of any developments. If <strong>${args.companyName}</strong> wishes to make further inquiries or provide additional input, please send an email to <a href="mailto:infor@pebec.gov.ng">infor@pebec.gov.ng</a> or call 08075079164.
+    //     </p>
+    //     <p>Please accept the assurance of my best regards.</p>
+    //     <p><strong>For: Presidential Enabling Business Environment Council (PEBEC)</strong></p>
+    //   </div>
+    // `;
+    // await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+    //   to: args.email,
+    //   subject: `Acknowledgement of Your Letter - ${args.title}`,
+    //   html: autoReply
+    // });
     return {
       letterId
     };
