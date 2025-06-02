@@ -48,7 +48,7 @@ export default function InternalRoleRequestForm({
     label: "Saber"
   }, {
     value: "deputies",
-    label: "Deputy"
+    label: "Sherrif"
   }, {
     value: "magistrates",
     label: "Magistrate"
@@ -218,7 +218,7 @@ export default function InternalRoleRequestForm({
                   label: "Saber"
                 }, {
                   value: "deputies",
-                  label: "Deputy"
+                  label: "Sherrif"
                 }, {
                   value: "magistrates",
                   label: "Magistrate"

@@ -487,7 +487,7 @@ export default function UserTicketForm({
             </div>
 
               <div className="flex flex-col space-y-1">
-                <Label className="font-semibold text-gray-700">State</Label>
+                <Label className="font-semibold text-gray-700">Place of Incident</Label>
                 <Select value={form.state} onValueChange={value => setForm({
                 ...form,
                 state: value

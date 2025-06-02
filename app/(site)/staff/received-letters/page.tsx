@@ -87,9 +87,9 @@ export default function ReceivedLettersPage() {
   const uniqueRoles = Array.from(new Set(allLetters.map(l => roleMap[l.userId])));
   const sendersByRole = allUsers.filter(u => allLetters.some(l => l.userId === u._id && roleMap[u._id] === filters.role));
   return <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
-      <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">📥 Received Letters</h1>
-        <Button variant="outline" onClick={() => setFilters({
+    <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
+      <h1 className="text-2xl font-bold text-gray-800">📥 Received Letters</h1>
+      <Button variant="outline" onClick={() => setFilters({
         search: "",
         role: "",
         sender: "",
@@ -97,49 +97,49 @@ export default function ReceivedLettersPage() {
         dateFrom: "",
         dateTo: ""
       })}>
-          <RefreshCcw className="w-4 h-4 mr-2" />
-          Reset Filters
-        </Button>
-      </div>
+        <RefreshCcw className="w-4 h-4 mr-2" />
+        Reset Filters
+      </Button>
+    </div>
 
-      {}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
-        <Input placeholder="Search letter..." value={filters.search} onChange={e => setFilters({
+    { }
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+      <Input placeholder="Search letter..." value={filters.search} onChange={e => setFilters({
         ...filters,
         search: e.target.value
       })} />
-        <select value={filters.status} onChange={e => setFilters({
+      <select value={filters.status} onChange={e => setFilters({
         ...filters,
         status: e.target.value
       })} className="border rounded-md p-2">
-          <option value="">Status</option>
-          <option value="sent">Awaiting Acknowledgment</option>
-          <option value="acknowledged">Acknowledged</option>
-          <option value="in_progress">In Progress</option>
-          <option value="resolved">Resolved</option>
-        </select>
-        <select value={filters.role} onChange={e => {
+        <option value="">Status</option>
+        <option value="sent">Awaiting Acknowledgment</option>
+        <option value="acknowledged">Acknowledged</option>
+        <option value="in_progress">In Progress</option>
+        <option value="resolved">Resolved</option>
+      </select>
+      <select value={filters.role} onChange={e => {
         setFilters({
           ...filters,
           role: e.target.value,
           sender: ""
         });
       }} className="border rounded-md p-2">
-          <option value="">Sender Role</option>
-          {uniqueRoles.map(role => <option key={role} value={role}>
-              {role}
-            </option>)}
-        </select>
-        {filters.role && <select value={filters.sender} onChange={e => setFilters({
+        <option value="">Sender Role</option>
+        {uniqueRoles.map(role => <option key={role} value={role}>
+          {role}
+        </option>)}
+      </select>
+      {filters.role && <select value={filters.sender} onChange={e => setFilters({
         ...filters,
         sender: e.target.value
       })} className="border rounded-md p-2">
-            <option value="">Sender</option>
-            {sendersByRole.map(u => <option key={u._id} value={u._id}>
-                {u.firstName} {u.lastName}
-              </option>)}
-          </select>}
-       <Input type="date" value={filters.dateFrom} max={filters.dateTo || undefined} onChange={e => {
+        <option value="">Sender</option>
+        {sendersByRole.map(u => <option key={u._id} value={u._id}>
+          {u.firstName} {u.lastName}
+        </option>)}
+      </select>}
+      <Input type="date" value={filters.dateFrom} max={filters.dateTo || undefined} onChange={e => {
         const newFrom = e.target.value;
         setFilters(prev => ({
           ...prev,
@@ -152,52 +152,52 @@ export default function ReceivedLettersPage() {
         dateTo: e.target.value
       })} />
 
-      </div>
+    </div>
 
-      {}
-      <div className="overflow-x-auto bg-white rounded-xl shadow-md">
-        <Table className="min-w-full text-sm">
-          <TableHeader className="bg-gray-100">
-            <TableRow>
-              <TableHead>Letter Name</TableHead>
-              <TableHead>Sent On</TableHead>
-              <TableHead>From</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginated.map(letter => <TableRow key={letter._id}>
-                <TableCell>{letter.letterName}</TableCell>
-                <TableCell>{format(new Date(letter.letterDate), "PPP p")}</TableCell>
-                <TableCell>
-  <div className="flex flex-col max-w-[220px] overflow-x-auto whitespace-normal">
-    {(() => {
+    { }
+    <div className="overflow-x-auto bg-white rounded-xl shadow-md">
+      <Table className="min-w-full text-sm">
+        <TableHeader className="bg-gray-100">
+          <TableRow>
+            <TableHead>Letter Name</TableHead>
+            <TableHead>Sent On</TableHead>
+            <TableHead>From</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-center">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {paginated.map(letter => <TableRow key={letter._id}>
+            <TableCell>{letter.letterName}</TableCell>
+            <TableCell>{format(new Date(letter.letterDate), "PPP p")}</TableCell>
+            <TableCell>
+              <div className="flex flex-col max-w-[220px] overflow-x-auto whitespace-normal">
+                {(() => {
                   const sender = allUsers.find(u => u._id === letter.userId);
                   if (!sender) return <span className="text-gray-500 italic">Unknown</span>;
                   return <>
-          <span className="font-medium text-gray-800">
-            {sender.firstName} {sender.lastName}
-          </span>
-          <span className="text-xs text-gray-500" style={{
+                    <span className="font-medium text-gray-800">
+                      {sender.firstName} {sender.lastName}
+                    </span>
+                    <span className="text-xs text-gray-500" style={{
                       whiteSpace: "nowrap",
                       overflowX: "auto"
                     }}>
-            {sender.role === "staff" ? `${sender.role} - ${sender.staffStream || "N/A"}` : sender.role}
-            {sender.jobTitle ? `, ${sender.jobTitle}` : ""}
-          </span>
-        </>;
+                      {sender.role === "staff" ? `${sender.role} - ${sender.staffStream || "N/A"}` : sender.role}
+                      {sender.jobTitle ? `, ${sender.jobTitle}` : ""}
+                    </span>
+                  </>;
                 })()}
-  </div>
+              </div>
             </TableCell>
 
-                <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[letter.status ?? "sent"]}`}>
-                    {letter.status?.replace("_", " ") || "Awaiting Acknowledgment"}
-                  </span>
-                </TableCell>
-                <TableCell className="flex flex-col gap-2 md:flex-row justify-center items-center">
-  {fileUrls[letter._id] && <Button size="sm" className="bg-blue-600 text-white" onClick={async () => {
+            <TableCell>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[letter.status ?? "sent"]}`}>
+                {letter.status?.replace("_", " ") || "Awaiting Acknowledgment"}
+              </span>
+            </TableCell>
+            <TableCell className="flex flex-col gap-2 md:flex-row justify-center items-center">
+              {fileUrls[letter._id] && <Button size="sm" className="bg-blue-600 text-white" onClick={async () => {
                 const fileData = fileUrls[letter._id];
                 if (!fileData) return;
                 try {
@@ -215,41 +215,73 @@ export default function ReceivedLettersPage() {
                   console.error("Download failed:", error);
                 }
               }}>
-    <Eye className="w-4 h-4 mr-1" />
-    Download
-  </Button>}
+                <Eye className="w-4 h-4 mr-1" />
+                Download
+              </Button>}
 
-  <select className="border rounded px-2 py-1 text-sm" value={letter.status ?? "sent"} onChange={e => handleStatusChange(letter._id, e.target.value as "acknowledged" | "in_progress" | "resolved")}>
+              {/* <select className="border rounded px-2 py-1 text-sm" value={letter.status ?? "sent"} onChange={e => handleStatusChange(letter._id, e.target.value as "acknowledged" | "in_progress" | "resolved")}>
     <option value="sent" disabled>
       Awaiting Acknowledgment
     </option>
     <option value="acknowledged">Acknowledged</option>
     <option value="in_progress">In Progress</option>
     <option value="resolved">Resolved</option>
-  </select>
+  </select> */}
+              <select
+                className="border rounded px-2 py-1 text-sm"
+                value={letter.status ?? "sent"}
+                onChange={e => handleStatusChange(letter._id, e.target.value as "acknowledged" | "in_progress" | "resolved")}
+              >
+                <option value="sent" disabled className="cursor-not-allowed text-gray-400">
+                  Awaiting Acknowledgment
+                </option>
+                <option
+                  value="acknowledged"
+                  disabled={letter.status === "in_progress" || letter.status === "resolved"}
+                  className={
+                    (letter.status === "in_progress" || letter.status === "resolved")
+                      ? "cursor-not-allowed text-gray-400"
+                      : ""
+                  }
+                >
+                  Acknowledged
+                </option>
+                <option
+                  value="in_progress"
+                  disabled={letter.status === "resolved"}
+                  className={
+                    letter.status === "resolved"
+                      ? "cursor-not-allowed text-gray-400"
+                      : ""
+                  }
+                >
+                  In Progress
+                </option>
+                <option value="resolved">Resolved</option>
+              </select>
             </TableCell>
 
-              </TableRow>)}
-            {paginated.length === 0 && <TableRow>
-                <TableCell colSpan={5} className="text-center text-gray-500 py-6">
-                  No letters found.
-                </TableCell>
-              </TableRow>}
-          </TableBody>
-        </Table>
-      </div>
+          </TableRow>)}
+          {paginated.length === 0 && <TableRow>
+            <TableCell colSpan={5} className="text-center text-gray-500 py-6">
+              No letters found.
+            </TableCell>
+          </TableRow>}
+        </TableBody>
+      </Table>
+    </div>
 
-      {}
-      <div className="flex justify-center items-center gap-4 mt-6">
-        <Button variant="outline" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-          Previous
-        </Button>
-        <span className="text-sm text-gray-600">
-          Page {currentPage} of {totalPages}
-        </span>
-        <Button variant="outline" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-          Next
-        </Button>
-      </div>
-    </div>;
+    { }
+    <div className="flex justify-center items-center gap-4 mt-6">
+      <Button variant="outline" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+        Previous
+      </Button>
+      <span className="text-sm text-gray-600">
+        Page {currentPage} of {totalPages}
+      </span>
+      <Button variant="outline" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+        Next
+      </Button>
+    </div>
+  </div>;
 }
