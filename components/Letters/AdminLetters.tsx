@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import FileUploader from "@/components/file-uploader";
 import { X } from "lucide-react";
 import Image from "next/image";
@@ -23,6 +24,7 @@ export default function SubmitLetterForm({
   const users = useQuery(api.users.getUsers) || [];
   const mdas = useQuery(api.users.getMDAs) || [];
   const [letterName, setLetterName] = useState("");
+  const [description, setDescription] = useState("");
   const [fileId, setFileId] = useState<Id<"_storage"> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
@@ -49,15 +51,16 @@ export default function SubmitLetterForm({
   });
   const selectedUserDetails = users.find(u => u._id === selectedUser);
   const handleSubmit = async () => {
-    if (!letterName.trim() || !fileId || !selectedUser) {
-      toast.error("Please complete all fields.");
+    if (!letterName.trim() || !description.trim() || !selectedUser) {
+      toast.error("Please complete all required fields.");
       return;
     }
     setIsSubmitting(true);
     try {
       await submitLetter({
         letterName,
-        letterUploadId: fileId,
+        description,
+        letterUploadId: fileId || undefined,
         sentTo: selectedUser
       });
       toast.success("✅ Letter Sent Successfully!");
@@ -77,7 +80,15 @@ export default function SubmitLetterForm({
 
         <h2 className="text-xl font-bold mb-4">Send Letter</h2>
 
-        <Input placeholder="Letter Title" value={letterName} onChange={e => setLetterName(e.target.value)} className="mb-3" />
+        <Input placeholder="Letter Subject" value={letterName} onChange={e => setLetterName(e.target.value)} className="mb-3" />
+        
+        <Textarea 
+          placeholder="Write your letter content here..."
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          className="mb-3 min-h-[100px] resize-none"
+          required
+        />
 
         <select value={selectedRole} onChange={e => {
         setSelectedRole(e.target.value);

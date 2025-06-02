@@ -252,8 +252,9 @@ export default defineSchema({
     sentTo: v.optional(v.id("users")),
     assignedTo: v.optional(v.id("users")),
     letterName: v.string(),
+    description: v.optional(v.string()),
     letterDate: v.number(),
-    letterUploadId: v.id("_storage")
+    letterUploadId: v.optional(v.id("_storage"))
   }).index("byUser", ["userId"]).index("byRole", ["userRole"]),
   dli_progress: defineTable({
     userId: v.id("users"),
