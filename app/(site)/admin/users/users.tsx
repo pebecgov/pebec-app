@@ -213,7 +213,7 @@ export default function Admin() {
             <SelectItem value="communications">Communications</SelectItem>
             <SelectItem value="investments">Investments</SelectItem>
             <SelectItem value="receptionist">Receptionist - Front Officer</SelectItem>
-            <SelectItem value="account">Account</SelectItem>
+            <SelectItem value="account">Finance & Account</SelectItem>
             <SelectItem value="auditor">Auditor</SelectItem>
 
 
