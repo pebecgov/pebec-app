@@ -155,7 +155,7 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
 };
 
 export default function SaberAgentReportPage() {
-  const { user } = useUser();
+const { user } = useUser();
 
   // Template form state
   const [templateFormData, setTemplateFormData] = useState<FormData>(
@@ -169,7 +169,7 @@ export default function SaberAgentReportPage() {
   const currentUser = useQuery(api.users.getUserByClerkId, 
     user?.id ? { clerkUserId: user.id } : "skip"
   );
-  
+
   // Mutations
   const submitReport = useMutation(api.saber_reports.submitReport);
   const generateUploadUrl = useMutation(api.saber_reports.generateUploadUrl);

@@ -6,7 +6,8 @@ import { api } from "./_generated/api";
 export const submitLetter = mutation({
   args: {
     letterName: v.string(),
-    letterUploadId: v.id("_storage"),
+    description: v.optional(v.string()),
+    letterUploadId: v.optional(v.id("_storage")),
     sentTo: v.optional(v.id("users"))
   },
   handler: async (ctx, args) => {
@@ -16,6 +17,7 @@ export const submitLetter = mutation({
       userFullName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
       userRole: user.role ?? "user",
       letterName: args.letterName,
+      description: args.description,
       letterDate: Date.now(),
       letterUploadId: args.letterUploadId,
       sentTo: args.sentTo,
@@ -30,11 +32,17 @@ export const submitLetter = mutation({
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
               <h2 style="color: #28a745;">You've Received a New Letter</h2>
-              <p><strong>Letter Name:</strong> ${args.letterName}</p>
+              <p><strong>Letter Subject:</strong> ${args.letterName}</p>
               <p><strong>Sent By:</strong> ${user.firstName} ${user.lastName}</p>
               <p><strong>Role:</strong> ${user.role}</p>
               <p><strong>Job Title:</strong> ${user.jobTitle || "N/A"}</p>
-              <p>Please check your dashboard to view it.</p>
+              ${args.description ? `
+              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <p><strong>Message:</strong></p>
+                <p style="white-space: pre-wrap;">${args.description}</p>
+              </div>
+              ` : ''}
+              <p>Please check your dashboard to view the full letter${args.letterUploadId ? ' and any attachments' : ''}.</p>
             </div>
           `
         });
