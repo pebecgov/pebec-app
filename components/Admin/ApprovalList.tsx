@@ -109,7 +109,7 @@ export default function InternalApprovals() {
             <SelectItem value="mda">ReportGov Agent</SelectItem>
             <SelectItem value="reform_champion">MDA - Reform Champion</SelectItem>
             <SelectItem value="magistrates">Magistrates</SelectItem>
-            <SelectItem value="deputies">Deputies</SelectItem>
+            <SelectItem value="deputies">Sherrif</SelectItem>
             <SelectItem value="saber_agent">SABER Agent</SelectItem>
             <SelectItem value="state_governor">State Governor</SelectItem>
           </SelectContent>
