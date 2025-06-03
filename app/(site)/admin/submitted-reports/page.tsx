@@ -211,7 +211,7 @@ export default function SubmittedReportsPage() {
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="reform_champion">MDA - Reform Champion</SelectItem>
-              <SelectItem value="deputies">Deputies</SelectItem>
+              <SelectItem value="deputies">Sherrif</SelectItem>
               <SelectItem value="magistrates">Magistrates</SelectItem>
               <SelectItem value="staff">Staff</SelectItem>
               

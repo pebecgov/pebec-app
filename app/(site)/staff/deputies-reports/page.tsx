@@ -154,7 +154,7 @@ export default function SubmittedReportsPage() {
     setEndDate(to.toISOString().split("T")[0]);
   };
   return <div className="p-6 bg-white rounded-lg shadow-sm max-w-7xl mx-auto">
-      <h2 className="text-xl font-semibold mb-4">Deputies Reports</h2>
+      <h2 className="text-xl font-semibold mb-4">Sherrif Reports</h2>
 
       {}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 items-end">

@@ -142,7 +142,7 @@ export default function ReportTemplatesList() {
               <SelectItem value="all">All Roles</SelectItem>
               <SelectItem value="mda">MDA</SelectItem>
               <SelectItem value="reform_champion">MDA - Reform Champion</SelectItem>
-              <SelectItem value="deputies">Deputies</SelectItem>
+              <SelectItem value="deputies">Sherrif</SelectItem>
               <SelectItem value="magistrates">Magistrates</SelectItem>
 
 

@@ -77,7 +77,7 @@ export default function AdminViewLettersPage() {
       <SelectItem value="staff">Staff</SelectItem>
       <SelectItem value="reform_champion">Reform Champions</SelectItem>
       <SelectItem value="federal">Federal</SelectItem>
-      <SelectItem value="deputies">Deputies</SelectItem>
+      <SelectItem value="deputies">Sherrif</SelectItem>
       <SelectItem value="magistrates">Magistrates</SelectItem>
       <SelectItem value="state_governor">State Governor</SelectItem>
       <SelectItem value="president">President</SelectItem>
