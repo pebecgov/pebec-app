@@ -34,3 +34,6 @@ yarn-error.log*
 
 # vercel
 .verceldev_backup.zip
+
+# clerk configuration (can include secrets)
+/.clerk/

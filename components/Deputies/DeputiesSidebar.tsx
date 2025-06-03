@@ -60,7 +60,7 @@ export default function DeputiesSidebar({
         {}
         <div className="flex items-center justify-between p-4 border-b border-gray-300">
           <h2 className={`text-lg font-semibold text-gray-700 ${isOpen ? "block" : "hidden"}`}>
-            Deputy Panel
+            Sherrif Panel
           </h2>
 
           {}

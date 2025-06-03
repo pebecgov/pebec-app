@@ -16,7 +16,7 @@ const isPresidentRoute = createRouteMatcher(["/president(.*)"]);
 const isVicePresidentRoute = createRouteMatcher(["/vice_president(.*)"]);
 const issaberAgent = createRouteMatcher(["/saber_agent(.*)"]);
 export default clerkMiddleware(async (auth, req) => {
-  const session = await auth();
+ const session = await auth();
   const role = session?.sessionClaims?.metadata?.role;
   const staffStream = session?.sessionClaims?.metadata?.staffStream;
   if (role === "staff" && staffStream === "investments" && req.nextUrl.pathname === "/staff") {
