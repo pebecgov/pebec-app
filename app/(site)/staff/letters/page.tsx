@@ -84,7 +84,7 @@ export default function AdminViewLettersPage() {
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="mda">MDA</SelectItem>
               <SelectItem value="staff">Staff</SelectItem>
-              <SelectItem value="deputies">Deputies</SelectItem>
+              <SelectItem value="deputies">Sherrif</SelectItem>
               <SelectItem value="magistrates">Magistrates</SelectItem>
               <SelectItem value="state_governor">State Governor</SelectItem>
               <SelectItem value="president">President</SelectItem>
