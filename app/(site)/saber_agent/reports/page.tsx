@@ -1,6 +1,30 @@
+// "use client";
+
+// import React, { useState } from "react";
+// import { useMutation, useQuery } from "convex/react";
+// import { api } from "@/convex/_generated/api";
+// import { useUser } from "@clerk/nextjs";
+// import { Button } from "@/components/ui/button";
+// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead } from "@/components/ui/table";
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from "@/components/ui/select";
+// import { FileDown, FileSpreadsheet, Save, Plus, Minus } from "lucide-react";
+// import { jsPDF } from "jspdf";
+// import autoTable from "jspdf-autotable";
+// import * as XLSX from "xlsx";
+// import Type1DataForm from "@/components/Type1DataForm";
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
+// import { toast } from "sonner";
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
@@ -22,9 +46,10 @@ import Type1DataForm from "@/components/Type1DataForm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { FaSpinner } from "react-icons/fa";
 interface FormData {
   reportType: "type1" | "type2" | "type3";
- 
+
   question2?: string[]; // Assuming array based on v.array(v.string())
   question3?: string;
   question4?: string;
@@ -70,7 +95,7 @@ interface Type1Data {
 
 interface Type2Data {
   announceInvestment: string[];
-  dateOfAnnouncement: string;
+  dateOfAnnouncement: string[];
   media_platform: string[];
 }
 
@@ -86,7 +111,50 @@ interface Type3Data {
   noiri2023: string[];
   noiri2024: string[];
 }
+interface DLICategory {
+  id: string;
+  name: string;
+  reportTypes: {
+    value: string;
+    label: string;
+  }[];
+}
 
+const dliCategories: DLICategory[] = [
+  {
+    id: "dli4",
+    name: "DLI-4",
+    reportTypes: [
+      { value: "type1", label: "State Investor Aftercare and Retention Program" },
+      { value: "type2", label: "Announce Investment" },
+      { value: "type3", label: "Inventory Incentive" }
+    ]
+  },
+  {
+    id: "dli5",
+    name: "DLI-5",
+    reportTypes: [
+      { value: "type4", label: "Investment Promotion Strategy" },
+      { value: "type5", label: "Investor Targeting Report" }
+    ]
+  },
+  {
+    id: "dli6",
+    name: "DLI-6",
+    reportTypes: [
+      { value: "type6", label: "Investment Facilitation Report" },
+      { value: "type7", label: "One-Stop Shop Metrics" }
+    ]
+  },
+  {
+    id: "dli8",
+    name: "DLI-8",
+    reportTypes: [
+      { value: "type8", label: "Gender Inclusion Report" },
+      { value: "type9", label: "Environmental Compliance Report" }
+    ]
+  }
+];
 type ReportTypeDataMap = {
   type1Data: Type1Data;
   type2Data: Type2Data;
@@ -118,7 +186,7 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
   } else if (reportType === "type2") {
     base.type2Data = {
       announceInvestment: [""],
-      dateOfAnnouncement: "",
+      dateOfAnnouncement: [""],
       media_platform: [""],
     };
   } else if (reportType === "type3") {
@@ -141,7 +209,7 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
 // Function to get report title from template type
 const getReportTitle = (reportType: FormData["reportType"], userState?: string): string => {
   const statePrefix = userState ? `${userState} ` : "";
-  
+
   switch (reportType) {
     case "type1":
       return `${statePrefix}State's Investor Aftercare and Retention Program`;
@@ -155,21 +223,30 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
 };
 
 export default function SaberAgentReportPage() {
-const { user } = useUser();
-
+  const { user } = useUser();
+  const [selectedDLI, setSelectedDLI] = useState<string>("dli4");
+  const [loading,setLoading] = useState(false)
   // Template form state
-  const [templateFormData, setTemplateFormData] = useState<FormData>(
-    getInitialFormData("type1")
-  );
+  const [templateFormData, setTemplateFormData] = useState<FormData>(() => {
+    const initialDLI = dliCategories.find(dli => dli.id === "dli4")!;
+    const firstReportType = initialDLI.reportTypes[0].value as FormData["reportType"];
+    return getInitialFormData(firstReportType);
+  });
 
   // Get user's submitted reports
   const myReports = useQuery(api.saber_reports.getMyReports) ?? [];
-  
+
   // Get current user data to access state
-  const currentUser = useQuery(api.users.getUserByClerkId, 
+  const currentUser = useQuery(api.users.getUserByClerkId,
     user?.id ? { clerkUserId: user.id } : "skip"
   );
-
+  useEffect(() => {
+    const currentDLI = dliCategories.find(dli => dli.id === selectedDLI);
+    if (currentDLI) {
+      const firstReportType = currentDLI.reportTypes[0].value as FormData["reportType"];
+      setTemplateFormData(getInitialFormData(firstReportType));
+    }
+  }, [selectedDLI]);
   // Mutations
   const submitReport = useMutation(api.saber_reports.submitReport);
   const generateUploadUrl = useMutation(api.saber_reports.generateUploadUrl);
@@ -215,6 +292,62 @@ const { user } = useUser();
     });
   };
 
+  const renderDateArrayInputs = <
+    T extends keyof ReportTypeDataMap,
+    K extends keyof ReportTypeDataMap[T],
+  >(
+    type: T,
+    fieldName: K,
+    label: string,
+    required: boolean = false
+  ) => {
+    const typeData = templateFormData[type];
+    const currentArray = (typeData && (typeData as any)[fieldName] as string[]) || [""];
+
+    return (
+      <div className="space-y-2 mb-4">
+        <Label className="text-sm font-medium">{label}</Label>
+        {currentArray.map((value, index) => (
+          <div key={`${String(fieldName)}-${index}`} className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={value}
+              onChange={(e) =>
+                handleTemplateDataArrayElementChange(
+                  type,
+                  fieldName,
+                  index,
+                  e.target.value
+                )
+              }
+              required={required && index === 0}
+              className="flex-1"
+            />
+            {currentArray.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleRemoveArrayElement(type, fieldName, index)}
+              >
+                <Minus className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => handleAddArrayElement(type, fieldName)}
+          className="mt-2"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add Date
+        </Button>
+      </div>
+    );
+  };
   const handleAddArrayElement = <
     T extends keyof ReportTypeDataMap,
     K extends keyof ReportTypeDataMap[T],
@@ -273,7 +406,7 @@ const { user } = useUser();
   ) => {
     const typeData = templateFormData[type];
     const currentArray = (typeData && (typeData as any)[fieldName] as string[]) || [""];
-    
+
     return (
       <div className="space-y-2 mb-4">
         <Label className="text-sm font-medium">{label}</Label>
@@ -386,7 +519,7 @@ const { user } = useUser();
       // Header
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("State's Investor Aftercare and Retention Program", marginX, y);
+      doc.text(`${currentUser?.state} State's Investor Aftercare and Retention Program`, marginX, y);
       y += 10;
 
       // Introduction
@@ -687,7 +820,7 @@ const { user } = useUser();
 
       // Continue with all the other sections...
       // (Implementation continues with all sections from the original template)
-      
+
     } else {
       // Type 2 and Type 3 table generation (same as original)
       const headers: string[] = [];
@@ -749,7 +882,7 @@ const { user } = useUser();
               currentRow.push(
                 i + 1,
                 cleanedFormData.type2Data.announceInvestment[i] || "",
-                i === 0 ? cleanedFormData.type2Data.dateOfAnnouncement || "" : "",
+                cleanedFormData.type2Data.dateOfAnnouncement[i] || "" ,
                 cleanedFormData.type2Data.media_platform[i] || ""
               );
             }
@@ -803,11 +936,12 @@ const { user } = useUser();
     return doc;
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       // Generate PDF from template
+      setLoading(true)
       const doc = generateTemplatePDF(templateFormData);
       const pdfBlob = doc.output('blob');
 
@@ -823,6 +957,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       const { storageId } = await result.json();
 
       // Submit report with simple form data + PDF
+      
       await submitReport({
         title: getReportTitle(templateFormData.reportType, currentUser?.state),
         fileId: storageId,
@@ -830,7 +965,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       });
 
       toast.success("Report submitted successfully");
-
+      setLoading(false)
       // Clear forms
       setTemplateFormData(getInitialFormData("type1"));
     } catch (error) {
@@ -859,7 +994,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       "Title": report.title,
       "State": report.state,
       "Status": report.status,
-        "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
+      "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Report");
@@ -875,10 +1010,22 @@ const handleSubmit = async (e: React.FormEvent) => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Template Form */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {dliCategories.map((dli) => (
+                <Button
+                  key={dli.id}
+                  type="button"
+                  variant={selectedDLI === dli.id ? "default" : "outline"}
+                  onClick={() => setSelectedDLI(dli.id)}
+                >
+                  {dli.name}
+                </Button>
+              ))}
+            </div>
             <div className="p-4 border border-dashed border-gray-300 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">Select Report Template</h3>
-              
-              <div className="space-y-2 mb-6">
+              {/* <h3 className="text-lg font-semibold mb-4">Select Report Template</h3> */}
+
+              {/* <div className="space-y-2 mb-6">
                 <Label>Report Type</Label>
                 <Select
                   value={templateFormData.reportType}
@@ -893,6 +1040,28 @@ const handleSubmit = async (e: React.FormEvent) => {
                     </SelectItem>
                     <SelectItem value="type2">Announce Investment</SelectItem>
                     <SelectItem value="type3">Inventory Incentive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div> */}
+              <h3 className="text-lg font-semibold mb-4">Select Report Template</h3>
+
+              <div className="space-y-2 mb-6">
+                <Label>Report Type</Label>
+                <Select
+                  value={templateFormData.reportType}
+                  onValueChange={handleReportTypeChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Report Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dliCategories
+                      .find(dli => dli.id === selectedDLI)
+                      ?.reportTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1015,16 +1184,12 @@ const handleSubmit = async (e: React.FormEvent) => {
                     false
                   )}
 
-                  <div className="space-y-2">
-                    <Label>DATE OF ANNOUNCEMENT</Label>
-                    <Input
-                      name="dateOfAnnouncement"
-                      type="date"
-                      value={templateFormData.type2Data.dateOfAnnouncement || ""}
-                      onChange={(e) => handleTemplateDataStringChange(e, "type2Data")}
-                      required
-                    />
-                  </div>
+                  {renderDateArrayInputs(  // Use the new date renderer
+                    "type2Data",
+                    "dateOfAnnouncement",
+                    "DATE OF ANNOUNCEMENT",
+                    true
+                  )}
 
                   {renderArrayInputs(
                     "type2Data",
@@ -1109,11 +1274,12 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </div>
               )}
             </div>
-
-            <Button type="submit" className="w-full">
+              {loading ?<div className="flex justify-center text-2xl items-center w-full"><FaSpinner className="animation-spin"/></div>  :<Button type="submit" className="w-full">
               <Save className="w-4 h-4 mr-2" />
               Submit Report
-            </Button>
+            </Button>}
+           
+            
           </form>
         </CardContent>
       </Card>
@@ -1143,13 +1309,12 @@ const handleSubmit = async (e: React.FormEvent) => {
                       <TableCell>{report.state}</TableCell>
                       <TableCell>
                         <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            report.status === "approved"
+                          className={`px-2 py-1 rounded-full text-xs ${report.status === "approved"
                               ? "bg-green-100 text-green-800"
                               : report.status === "rejected"
                                 ? "bg-red-100 text-red-800"
                                 : "bg-yellow-100 text-yellow-800"
-                          }`}
+                            }`}
                         >
                           {report.status.charAt(0).toUpperCase() +
                             report.status.slice(1)}

@@ -151,7 +151,7 @@ export default function SubmittedReportsPage() {
             <SelectItem value="all">All Roles</SelectItem>
             <SelectItem value="mda">MDA</SelectItem>
             <SelectItem value="sub_national">Sub-National</SelectItem>
-            <SelectItem value="deputies">Deputies</SelectItem>
+            <SelectItem value="deputies">Sherrif</SelectItem>
             <SelectItem value="federal">Federal</SelectItem>
             <SelectItem value="magistrates">Magistrates</SelectItem>
 

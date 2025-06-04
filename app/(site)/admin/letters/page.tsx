@@ -98,7 +98,7 @@ export default function AdminViewLettersPage() {
   return <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-center mb-6">Submitted Letters</h1>
 
-      {}
+      {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6 p-6 bg-white border rounded-lg shadow">
         <div className="w-full md:w-1/4">
           <Select onValueChange={setSelectedRole}>
@@ -110,7 +110,7 @@ export default function AdminViewLettersPage() {
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="mda">MDA</SelectItem>
               <SelectItem value="staff">Staff</SelectItem>
-              <SelectItem value="deputies">Deputies</SelectItem>
+              <SelectItem value="deputies">Sherrif</SelectItem>
               <SelectItem value="magistrates">Magistrates</SelectItem>
               <SelectItem value="state_governor">State Governor</SelectItem>
               <SelectItem value="president">President</SelectItem>
@@ -163,7 +163,7 @@ export default function AdminViewLettersPage() {
 
       <div className="flex flex-col gap-2 w-full md:w-1/2">
   <div className="flex gap-2">
-    {}
+    {/* Start Date */}
     <Input type="date" value={startDate || ""} max={endDate || undefined} onChange={e => {
             const newStart = e.target.value;
             setStartDate(newStart);
@@ -172,7 +172,7 @@ export default function AdminViewLettersPage() {
             }
           }} />
 
-    {}
+    {/* End Date */}
     <Input type="date" value={endDate || ""} min={startDate || undefined} onChange={e => setEndDate(e.target.value)} />
   </div>
       </div>
@@ -197,7 +197,7 @@ export default function AdminViewLettersPage() {
   </Select>
     </div>
 
-      {}
+      {/* Letters Table */}
       <div className="bg-white p-4 rounded-md shadow overflow-x-auto">
         <Table>
           <TableHeader>
@@ -234,7 +234,6 @@ export default function AdminViewLettersPage() {
                       Details
                     </Button>
                   </TableCell>
-
                 </TableRow>) : <TableRow>
                 <TableCell colSpan={6} className="text-center text-gray-500">
                   No letters found.
@@ -244,7 +243,7 @@ export default function AdminViewLettersPage() {
         </Table>
       </div>
 
-      {}
+      {/* Pagination */}
       {totalPages > 1 && <div className="flex justify-between items-center mt-6">
           <Button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
             Previous
@@ -255,7 +254,7 @@ export default function AdminViewLettersPage() {
           <Button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages}>
             Next
           </Button>
-        </div>}
+        </div</div>}
         
       {/* Letter Detail Modal */}
       <LetterDetailModal

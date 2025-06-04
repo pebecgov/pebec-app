@@ -183,7 +183,7 @@ export default function Admin() {
           <SelectItem value="mda">ReportGov Agent</SelectItem>
           <SelectItem value="staff">Staff</SelectItem>
           <SelectItem value="saber_agent">Saber Agent</SelectItem>
-          <SelectItem value="deputies">Deputies</SelectItem>
+          <SelectItem value="deputies">Sherrif</SelectItem>
           <SelectItem value="magistrates">Magistrates</SelectItem>
           <SelectItem value="state_governor">State Governor</SelectItem>
           <SelectItem value="president">President</SelectItem>
@@ -316,7 +316,7 @@ export default function Admin() {
                     <SelectItem value="staff">Staff</SelectItem>
                     <SelectItem value="reform_champion">Reform Champion</SelectItem>
                     <SelectItem value="saber_agent">Saber</SelectItem>
-                    <SelectItem value="deputies">Deputies</SelectItem>
+                    <SelectItem value="deputies">Sherrif</SelectItem>
                     <SelectItem value="magistrates">Magistrates</SelectItem>
                     <SelectItem value="state_governor">State Governor</SelectItem>
                     <SelectItem value="president">President</SelectItem>
