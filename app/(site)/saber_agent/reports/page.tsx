@@ -63,7 +63,7 @@ interface FormData {
   // --- Fields for type2 ---
   announceInvestment?: string[];
   dateOfAnnouncement?: string;
-  media_platform?: string;
+  media_platform?: string[];
   // --- Fields for type3 ---
   noim?: string[];
   lri?: string[];
@@ -947,12 +947,14 @@ export default function SaberAgentReportPage() {
 
       // Upload PDF to storage
       const uploadUrl = await generateUploadUrl();
-      const uploadResult = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/pdf" },
+      const result = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": pdfBlob.type,
+        },
         body: pdfBlob,
       });
-      const { storageId } = await uploadResult.json();
+      const { storageId } = await result.json();
 
       // Submit report with simple form data + PDF
       

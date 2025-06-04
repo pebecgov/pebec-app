@@ -79,12 +79,14 @@ export default function SubmitLetterForm({
     setIsUploading(true);
     try {
       const uploadUrl = await generateUploadUrl();
-      const uploadResponse = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": selectedFile.type },
-        body: selectedFile
+      const result = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": selectedFile.type,
+        },
+        body: selectedFile,
       });
-      const { storageId } = await uploadResponse.json();
+      const { storageId } = await result.json();
       
       await saveUploadedFile({
         storageId,

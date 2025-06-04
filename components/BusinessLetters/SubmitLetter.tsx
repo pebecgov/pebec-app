@@ -8,13 +8,15 @@ import { Button } from "@/components/ui/button";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import FileUploader from "../file-uploader";
+import FileUploader from "../file-uploader-comments";
 import MultiFileUploader from "../multi-file-uploader";
 import { useToast } from "@/hooks/use-toast";
+
 interface Props {
   open: boolean;
   setOpen: (open: boolean) => void;
 }
+
 export default function SendLetterModal({
   open,
   setOpen
@@ -28,10 +30,11 @@ export default function SendLetterModal({
   const [supportingFileIds, setSupportingFileIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const createLetter = useMutation(api.business_letters.createBusinessLetter);
-   const sendEmail = useAction(api.sendEmail.sendEmail);
+  const sendEmail = useAction(api.sendEmail.sendEmail);
   const {
     toast
   } = useToast();
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!title.trim()) newErrors.title = "Please enter a title.";
@@ -43,14 +46,20 @@ export default function SendLetterModal({
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  // Handle supporting files callback to match interface
+  const handleSupportingFilesUpload = (files: { storageId: string; fileName: string; }[]) => {
+    setSupportingFileIds(files.map(file => file.storageId));
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
     try {
-        const submissionDate = new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "2-digit"
-    });
+      const submissionDate = new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "2-digit"
+      });
       const autoReply = `
       <div style="font-family: Arial, sans-serif; font-size: 14px; color: #111;">
         <p style="text-align: right;">${submissionDate}</p>
@@ -63,7 +72,7 @@ export default function SendLetterModal({
           On behalf of the Presidential Enabling Business Environment Council (PEBEC), I acknowledge receipt of your letter dated <strong>${submissionDate}</strong>, highlighting <strong>${title}</strong>.
         </p>
         <p>
-          <strong>PEBEC</strong> was established with a dual mandate to remove bureaucratic and legislative constraints to doing business and to improve the perception of Nigeria’s business climate.
+          <strong>PEBEC</strong> was established with a dual mandate to remove bureaucratic and legislative constraints to doing business and to improve the perception of Nigeria's business climate.
         </p>
         <p>
           We understand the urgency of this matter and will keep you informed of any developments. If <strong>${companyName}</strong> wishes to make further inquiries or provide additional input, please send an email to <a href="mailto:infor@pebec.gov.ng">infor@pebec.gov.ng</a> or call 08075079164.
@@ -72,10 +81,10 @@ export default function SendLetterModal({
         <p><strong>For: Presidential Enabling Business Environment Council (PEBEC)</strong></p>
       </div>
     `;
-    await sendEmail({
+      await sendEmail({
         to: email,
-      subject: `Acknowledgement of Your Letter - ${title}`,
-      html: autoReply
+        subject: `Acknowledgement of Your Letter - ${title}`,
+        html: autoReply
       });
       await createLetter({
         title,
@@ -90,7 +99,7 @@ export default function SendLetterModal({
         title: "Letter Submitted",
         description: "Your letter has been successfully submitted."
       });
-      console.log("error")
+      console.log("error");
       setOpen(false);
       setTitle("");
       setCompanyName("");
@@ -109,60 +118,62 @@ export default function SendLetterModal({
       });
     }
   };
+
   return <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="w-full max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
-        <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl">
-            📨 Submit a Letter to PEBEC
-          </DialogTitle>
-        </DialogHeader>
+    <DialogContent className="w-full max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+      <DialogHeader>
+        <DialogTitle className="text-lg sm:text-xl flex items-center gap-2">
+          <span className="inline-block" style={{ verticalAlign: '-0.125em' }}>📨</span>
+          Submit a Letter to PEBEC
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="grid gap-4 text-sm">
-          <div>
-            <Input placeholder="Subject (Letter Title)" value={title} onChange={e => setTitle(e.target.value)} />
-            {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
-          </div>
-
-          <div>
-            <Input placeholder="Company Name" value={companyName} onChange={e => setCompanyName(e.target.value)} />
-            {errors.companyName && <p className="text-red-500 text-xs mt-1">{errors.companyName}</p>}
-          </div>
-
-          <div>
-            <Input placeholder="Contact Person's Name" value={contactName} onChange={e => setContactName(e.target.value)} />
-            {errors.contactName && <p className="text-red-500 text-xs mt-1">{errors.contactName}</p>}
-          </div>
-
-          <div>
-            <Input placeholder="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-          </div>
-
-          <div>
-            <Input placeholder="Phone Number" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
-            {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-          </div>
-
-          <div className="border rounded-md p-4">
-            <h4 className="text-sm font-medium mb-2">Upload Letter (PDF)</h4>
-            <FileUploader setFileId={id => setLetterFileId(id)} />
-            {errors.letter && <p className="text-red-500 text-xs mt-2">{errors.letter}</p>}
-          </div>
-
-          <div className="border rounded-md p-4">
-            <h4 className="text-sm font-medium mb-2">
-              Upload Supporting Documents{" "}
-              <span className="text-xs text-muted-foreground">
-                (Optional – Max: 6 files, 15MB total)
-              </span>
-            </h4>
-            <MultiFileUploader setFileIds={setSupportingFileIds} />
-          </div>
-
-          <Button onClick={handleSubmit} className="w-full mt-2 bg-black text-white hover:bg-zinc-800">
-            Submit Letter
-          </Button>
+      <div className="grid gap-4 text-sm">
+        <div>
+          <Input placeholder="Subject (Letter Title)" value={title} onChange={e => setTitle(e.target.value)} />
+          {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
         </div>
-      </DialogContent>
-    </Dialog>;
+
+        <div>
+          <Input placeholder="Company Name" value={companyName} onChange={e => setCompanyName(e.target.value)} />
+          {errors.companyName && <p className="text-red-500 text-xs mt-1">{errors.companyName}</p>}
+        </div>
+
+        <div>
+          <Input placeholder="Contact Person's Name" value={contactName} onChange={e => setContactName(e.target.value)} />
+          {errors.contactName && <p className="text-red-500 text-xs mt-1">{errors.contactName}</p>}
+        </div>
+
+        <div>
+          <Input placeholder="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+        </div>
+
+        <div>
+          <Input placeholder="Phone Number" type="tel" value={phone} onChange={e => setPhone(e.target.value)} />
+          {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+        </div>
+
+        <div className="border rounded-md p-4">
+          <h4 className="text-sm font-medium mb-2">Upload Letter (PDF)</h4>
+          <FileUploader setFileId={id => setLetterFileId(id)} />
+          {errors.letter && <p className="text-red-500 text-xs mt-2">{errors.letter}</p>}
+        </div>
+
+        <div className="border rounded-md p-4">
+          <h4 className="text-sm font-medium mb-2">
+            Upload Supporting Documents{" "}
+            <span className="text-xs text-muted-foreground">
+              (Optional – Max: 6 files, 15MB total)
+            </span>
+          </h4>
+          <MultiFileUploader setFileIds={handleSupportingFilesUpload} />
+        </div>
+
+        <Button onClick={handleSubmit} className="w-full mt-2 bg-black text-white hover:bg-zinc-800">
+          Submit Letter
+        </Button>
+      </div>
+    </DialogContent>
+  </Dialog>;
 }

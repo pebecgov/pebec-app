@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import FileUploader from "../file-uploader";
+import FileUploader from "../file-uploader-comments";
 import { Id } from "@/convex/_generated/dataModel";
 interface AddMaterialModalProps {
   open: boolean;

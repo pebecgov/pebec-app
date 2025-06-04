@@ -9,6 +9,7 @@ import SendLetterModal from "../BusinessLetters/SubmitLetter";
 import { useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast, Toaster } from "sonner";
+
 export const Contact = () => {
   const getAdminEmails = useMutation(api.users.getAdminEmails);
   const sendEmail = useAction(api.sendEmail.sendEmail);
@@ -22,29 +23,27 @@ export const Contact = () => {
     phone: "",
     message: ""
   });
+
   useEffect(() => {
     setHasMounted(true);
   }, []);
-  if (!hasMounted) return null;
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
     }));
   };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const {
-      name,
-      email,
-      subject,
-      phone,
-      message
-    } = formData;
+    const { name, email, subject, phone, message } = formData;
+    
     if (!name || !email || !subject || !message) {
       toast.error("Please fill in all required fields.");
       return;
     }
+    
     try {
       const adminEmails = await getAdminEmails();
       const htmlContent = `
@@ -54,11 +53,13 @@ export const Contact = () => {
         <p><strong>Phone:</strong> ${phone || "N/A"}</p>
         <p><strong>Message:</strong><br/>${message}</p>
       `;
+      
       await Promise.all(adminEmails.map((to: string) => sendEmail({
         to,
         subject: `[Contact] ${subject}`,
         html: htmlContent
       })));
+      
       toast.success("Message sent successfully!");
       setFormData({
         name: "",
@@ -72,25 +73,35 @@ export const Contact = () => {
       toast.error("Failed to send message.");
     }
   };
-  return <>
-      {}
+
+  if (!hasMounted) {
+    return (
+      <>
+        <Toaster />
+        <div></div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Toaster />
       <section id="support" className="px-4 md:px-8 2xl:px-0">
-      {}
-      <div className="bg-gray-100 py-10 px-6 rounded-xl shadow-sm mb-10 border border-gray-200">
-  <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-    <div>
-      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-        📄 Have a letter to send to PEBEC?
-      </h2>
-      <p className="text-gray-600 text-sm md:text-base max-w-xl">
-        Submit your official business letter with ease and receive a timely acknowledgment from the Council.
-      </p>
-    </div>
-    <Button onClick={() => setOpenModal(true)} className="text-white bg-black hover:bg-green-800 px-6 py-6 text-base md:text-lg rounded-md">
-    Send Us a Letter
-    </Button>
-  </div>
-      </div>
+        <div className="bg-gray-100 py-10 px-6 rounded-xl shadow-sm mb-10 border border-gray-200">
+          <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                📄 Have a letter to send to PEBEC?
+              </h2>
+              <p className="text-gray-600 text-sm md:text-base max-w-xl">
+                Submit your official business letter with ease and receive a timely acknowledgment from the Council.
+              </p>
+            </div>
+            <Button onClick={() => setOpenModal(true)} className="text-white bg-black hover:bg-green-800 px-6 py-6 text-base md:text-lg rounded-md">
+              Send Us a Letter
+            </Button>
+          </div>
+        </div>
 
         <div className="relative mx-auto max-w-c-1390 px-7.5 pt-10 lg:px-15 lg:pt-15 xl:px-20 xl:pt-20">
           <div className="absolute left-0 top-0 -z-1 h-2/3 w-full rounded-lg bg-gradient-to-t from-transparent to-[#dee7ff47] dark:bg-gradient-to-t dark:to-[#252A42]"></div>
@@ -146,7 +157,7 @@ export const Contact = () => {
     </svg>
   </span>
   <span className="text-sm max-w-[425px] text-gray-700 dark:text-white">
-    By clicking Checkbox, you agree to use our “Form” terms and consent to cookie usage in browser.
+    By clicking Checkbox, you agree to use our "Form" terms and consent to cookie usage in browser.
   </span>
                 </label>
 
@@ -211,9 +222,9 @@ export const Contact = () => {
           </div>
         </div>
         <SendLetterModal open={openModal} setOpen={setOpenModal} />
-      <Toaster />
       </section>
-      {}
-    </>;
+    </>
+  );
 };
+
 export default Contact;
