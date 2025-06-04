@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Id } from "@/convex/_generated/dataModel";
 import Letters from "@/components/Letters";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, FileText } from "lucide-react";
+import LetterDetailModal from "@/components/Letters/LetterDetailModal";
+
 export default function ViewLettersPage() {
   const allLetters = useQuery(api.letters.getUserLetters) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
@@ -18,6 +20,8 @@ export default function ViewLettersPage() {
     fileName: string;
   }>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedLetter, setSelectedLetter] = useState<typeof allLetters[0] | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const sortedLetters = [...allLetters].sort((a, b) => b.letterDate - a.letterDate);
@@ -68,7 +72,6 @@ export default function ViewLettersPage() {
           </Button>
         </div>
 
-        {}
         <div className="overflow-x-auto bg-white rounded-xl shadow-md">
           <Table className="min-w-full text-sm">
             <TableHeader className="bg-gray-100">
@@ -94,34 +97,25 @@ export default function ViewLettersPage() {
       </span>
     </TableCell>
     <TableCell className="text-center">
-  {fileUrls[letter._id] ? <Button variant="ghost" size="icon" className="bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm" title="Download Letter" onClick={async () => {
-                const fileMeta = fileUrls[letter._id];
-                if (!fileMeta) return;
-                try {
-                  const response = await fetch(fileMeta.url);
-                  const blob = await response.blob();
-                  const blobUrl = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.href = blobUrl;
-                  link.download = fileMeta.fileName || "Letter.pdf";
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(blobUrl);
-                } catch (err) {
-                  console.error("Download failed", err);
-                }
-              }}>
-      <Download className="w-4 h-4" />
-    </Button> : <Button disabled variant="ghost" size="icon" className="bg-gray-400 text-white rounded-full">
-      ...
-    </Button>}
-            </TableCell>
+      <Button 
+        size="sm" 
+        variant="outline"
+        onClick={() => {
+          setSelectedLetter(letter);
+          setIsDetailModalOpen(true);
+        }}
+        className="flex items-center gap-1"
+        title="View Details"
+      >
+        <FileText className="w-4 h-4" />
+        Details
+      </Button>
+    </TableCell>
 
 
 
                   </TableRow>) : <TableRow>
-                  <TableCell colSpan={4} className="text-center text-gray-500 py-6">
+                  <TableCell colSpan={5} className="text-center text-gray-500 py-6">
                     No letters found.
                   </TableCell>
                 </TableRow>}
@@ -129,7 +123,6 @@ export default function ViewLettersPage() {
           </Table>
         </div>
 
-        {}
         <div className="flex flex-col sm:flex-row justify-center items-center mt-6 gap-4">
           <Button variant="outline" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1}>
             ◀ Previous
@@ -142,7 +135,16 @@ export default function ViewLettersPage() {
           </Button>
         </div>
 
-        {}
         {isModalOpen && <Letters onClose={() => setIsModalOpen(false)} />}
+        
+        <LetterDetailModal
+          letter={selectedLetter}
+          isOpen={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setSelectedLetter(null);
+          }}
+          recipientName={selectedLetter?.sentTo ? userMap[selectedLetter.sentTo] : undefined}
+        />
       </div>;
 }

@@ -10,6 +10,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Input } from "@/components/ui/input";
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
+import { FileText } from "lucide-react";
+import LetterDetailModal from "@/components/Letters/LetterDetailModal";
+
 export default function AdminViewLettersPage() {
   const [selectedRole, setSelectedRole] = useState<string | undefined>();
   const [startDate, setStartDate] = useState<string | undefined>();
@@ -19,6 +22,8 @@ export default function AdminViewLettersPage() {
   const [selectedState, setSelectedState] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLetter, setSelectedLetter] = useState<any | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const recordsPerPage = 20;
   const roleFilter = selectedRole && selectedRole !== "all" ? selectedRole as "user" | "admin" | "mda" | "staff" | "federal" | "deputies" | "magistrates" | "state_governor" | "president" | "vice_president" : undefined;
   const startTimestamp = startDate ? new Date(startDate).getTime() : undefined;
@@ -215,29 +220,20 @@ export default function AdminViewLettersPage() {
                   <TableCell>{letter.letterName}</TableCell>
                   <TableCell>{format(new Date(letter.letterDate), "dd/MM/yyyy")}</TableCell>
                   <TableCell>
-  {fileUrls[letter._id] ? <Button className="bg-blue-600 text-white" onClick={async () => {
-                const fileMeta = fileUrls[letter._id];
-                if (!fileMeta) return;
-                try {
-                  const res = await fetch(fileMeta.url);
-                  const blob = await res.blob();
-                  const blobUrl = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.href = blobUrl;
-                  link.download = fileMeta.fileName;
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                  URL.revokeObjectURL(blobUrl);
-                } catch (err) {
-                  console.error("Download failed", err);
-                }
-              }}>
-      Download
-    </Button> : <Button className="bg-gray-400 text-white" disabled>
-      Loading...
-    </Button>}
-            </TableCell>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedLetter(letter);
+                        setIsDetailModalOpen(true);
+                      }}
+                      className="flex items-center gap-1"
+                      title="View Details"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Details
+                    </Button>
+                  </TableCell>
 
                 </TableRow>) : <TableRow>
                 <TableCell colSpan={6} className="text-center text-gray-500">
@@ -260,5 +256,15 @@ export default function AdminViewLettersPage() {
             Next
           </Button>
         </div>}
+        
+      {/* Letter Detail Modal */}
+      <LetterDetailModal
+        letter={selectedLetter}
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedLetter(null);
+        }}
+      />
     </div>;
 }
