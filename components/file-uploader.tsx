@@ -28,7 +28,7 @@ interface FileUploaderProps {
 export default function FileUploader({
   onFileUploaded,
   onFileRemoved,
-  existingFiles = [],
+  existingFiles,
 }: FileUploaderProps) {
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
   const saveUploadedFile = useMutation(api.tickets.saveUploadedFile);
@@ -108,7 +108,7 @@ export default function FileUploader({
 
       try {
         const uploadUrl = await generateUploadUrl();
-        const res = await fetch(uploadUrl, {
+        const uploadResponse = await fetch(uploadUrl, {
           method: "POST",
           headers: {
             "Content-Type": file.type,
@@ -116,7 +116,7 @@ export default function FileUploader({
           body: file,
         });
 
-        const { storageId } = await res.json();
+        const { storageId } = await uploadResponse.json();
 
         await saveUploadedFile({
           storageId,
@@ -206,23 +206,60 @@ export default function FileUploader({
                 <span className="text-sm">Choose file</span>
               </div>)}
               {entry.status === 'pending' && entry.file && `Selected: ${entry.file.name}`}
+              {entry.status === 'uploading' && <span className="flex items-center gap-1 text-blue-600"><Spinner size="sm" /> Uploading...</span>}
+              {entry.status === 'uploaded' && <span className="text-green-600">Uploaded: {entry.fileName}</span>}
+              {entry.status === 'error' && <span className="text-red-600">Error: {entry.errorMessage || 'Failed to select/upload'}</span>}
             </label>
 
             <Button
-              variant="ghost"
-              size="icon"
               onClick={() => handleRemoveEntry(entry.id)}
+              variant="ghost"
+              size="sm"
+              className="text-red-500 hover:text-red-700"
+              disabled={entry.status === 'uploading'}
             >
-              <Trash size={16} />
+
+              <Trash className="h-5 w-5" />
             </Button>
           </div>
         ))}
       </div>
 
-      <div className="flex justify-end">
-        <Button onClick={handleAddDocument}>Add File</Button>
-        <Button onClick={handleUploadAll}>Upload All</Button>
+      <div className="sticky bottom-0 bg-white pt-2 flex gap-2">
+        <Button onClick={handleAddDocument} variant="outline" className="w-1/2 bg-green-600 text-white hover:bg-green-700 hover:text-white">
+          Add Evidence
+        </Button>
+
+        <Button
+          onClick={handleUploadAll}
+         // disabled={filesToUpload.length === 0 || filesToUpload.some(f => f.status === 'uploading')}
+          className={`w-1/2 ${filesToUpload.length === 0 || filesToUpload.some(f => f.status === 'uploading') ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+        >
+          {filesToUpload.length > 0 ? `Upload (${filesToUpload.length}) File(s)` : 'Upload File(s)'}
+        </Button>
       </div>
+
+      {existingFiles.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-sm font-medium text-gray-600 mb-2">Already Uploaded Files:</h3>
+          <ul className="text-sm border rounded-md divide-y divide-gray-200">
+            {existingFiles.map(file => (
+              <li key={file.storageId} className="flex items-center justify-between py-2 px-3">
+                <span className="text-gray-700">{file.fileName}</span>
+                <Button
+                  onClick={() => onFileRemoved(file.storageId)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <XCircle className="h-5 w-5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
+
 }
