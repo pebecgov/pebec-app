@@ -49,7 +49,7 @@ import { toast } from "sonner";
 import { FaSpinner } from "react-icons/fa";
 interface FormData {
   reportType: "type1" | "type2" | "type3";
-
+ 
   question2?: string[]; // Assuming array based on v.array(v.string())
   question3?: string;
   question4?: string;
@@ -223,7 +223,7 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
 };
 
 export default function SaberAgentReportPage() {
-  const { user } = useUser();
+const { user } = useUser();
   const [selectedDLI, setSelectedDLI] = useState<string>("dli4");
   const [loading,setLoading] = useState(false)
   // Template form state
@@ -936,7 +936,7 @@ export default function SaberAgentReportPage() {
     return doc;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
@@ -994,7 +994,7 @@ export default function SaberAgentReportPage() {
       "Title": report.title,
       "State": report.state,
       "Status": report.status,
-      "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
+        "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Report");
@@ -1314,7 +1314,7 @@ export default function SaberAgentReportPage() {
                               : report.status === "rejected"
                                 ? "bg-red-100 text-red-800"
                                 : "bg-yellow-100 text-yellow-800"
-                            }`}
+                          }`}
                         >
                           {report.status.charAt(0).toUpperCase() +
                             report.status.slice(1)}

@@ -254,7 +254,7 @@ export default function AdminViewLettersPage() {
           <Button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages}>
             Next
           </Button>
-        </div</div>}
+        </div>}
         
       {/* Letter Detail Modal */}
       <LetterDetailModal
