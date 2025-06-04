@@ -205,4 +205,24 @@ export default function FileUploader({
                 <Upload size={16} />
                 <span className="text-sm">Choose file</span>
               </div>)}
-              {entry.status === 'pending' && entry.file && `Selected: ${entry.file.name}`
+              {entry.status === 'pending' && entry.file && `Selected: ${entry.file.name}`}
+            </label>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleRemoveEntry(entry.id)}
+            >
+              <Trash size={16} />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={handleAddDocument}>Add File</Button>
+        <Button onClick={handleUploadAll}>Upload All</Button>
+      </div>
+    </div>
+  );
+}
