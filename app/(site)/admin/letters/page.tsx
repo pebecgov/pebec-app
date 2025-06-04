@@ -10,6 +10,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Input } from "@/components/ui/input";
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
+import { FileText } from "lucide-react";
+import LetterDetailModal from "@/components/Letters/LetterDetailModal";
+
 export default function AdminViewLettersPage() {
   const [selectedRole, setSelectedRole] = useState<string | undefined>();
   const [startDate, setStartDate] = useState<string | undefined>();
@@ -19,6 +22,8 @@ export default function AdminViewLettersPage() {
   const [selectedState, setSelectedState] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLetter, setSelectedLetter] = useState<any | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const recordsPerPage = 20;
   const roleFilter = selectedRole && selectedRole !== "all" ? selectedRole as "user" | "admin" | "mda" | "staff" | "federal" | "deputies" | "magistrates" | "state_governor" | "president" | "vice_president" : undefined;
   const startTimestamp = startDate ? new Date(startDate).getTime() : undefined;
@@ -93,7 +98,7 @@ export default function AdminViewLettersPage() {
   return <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-center mb-6">Submitted Letters</h1>
 
-      {}
+      {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6 p-6 bg-white border rounded-lg shadow">
         <div className="w-full md:w-1/4">
           <Select onValueChange={setSelectedRole}>
@@ -158,7 +163,7 @@ export default function AdminViewLettersPage() {
 
       <div className="flex flex-col gap-2 w-full md:w-1/2">
   <div className="flex gap-2">
-    {}
+    {/* Start Date */}
     <Input type="date" value={startDate || ""} max={endDate || undefined} onChange={e => {
             const newStart = e.target.value;
             setStartDate(newStart);
@@ -167,7 +172,7 @@ export default function AdminViewLettersPage() {
             }
           }} />
 
-    {}
+    {/* End Date */}
     <Input type="date" value={endDate || ""} min={startDate || undefined} onChange={e => setEndDate(e.target.value)} />
   </div>
       </div>
@@ -192,7 +197,7 @@ export default function AdminViewLettersPage() {
   </Select>
     </div>
 
-      {}
+      {/* Letters Table */}
       <div className="bg-white p-4 rounded-md shadow overflow-x-auto">
         <Table>
           <TableHeader>
@@ -215,30 +220,20 @@ export default function AdminViewLettersPage() {
                   <TableCell>{letter.letterName}</TableCell>
                   <TableCell>{format(new Date(letter.letterDate), "dd/MM/yyyy")}</TableCell>
                   <TableCell>
-  {fileUrls[letter._id] ? <Button className="bg-blue-600 text-white" onClick={async () => {
-                const fileMeta = fileUrls[letter._id];
-                if (!fileMeta) return;
-                try {
-                  const res = await fetch(fileMeta.url);
-                  const blob = await res.blob();
-                  const blobUrl = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.href = blobUrl;
-                  link.download = fileMeta.fileName;
-                  document.body.appendChild(link);
-                  link.click();
-                  link.remove();
-                  URL.revokeObjectURL(blobUrl);
-                } catch (err) {
-                  console.error("Download failed", err);
-                }
-              }}>
-      Download
-    </Button> : <Button className="bg-gray-400 text-white" disabled>
-      Loading...
-    </Button>}
-            </TableCell>
-
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedLetter(letter);
+                        setIsDetailModalOpen(true);
+                      }}
+                      className="flex items-center gap-1"
+                      title="View Details"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Details
+                    </Button>
+                  </TableCell>
                 </TableRow>) : <TableRow>
                 <TableCell colSpan={6} className="text-center text-gray-500">
                   No letters found.
@@ -248,7 +243,7 @@ export default function AdminViewLettersPage() {
         </Table>
       </div>
 
-      {}
+      {/* Pagination */}
       {totalPages > 1 && <div className="flex justify-between items-center mt-6">
           <Button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}>
             Previous
@@ -259,6 +254,16 @@ export default function AdminViewLettersPage() {
           <Button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages}>
             Next
           </Button>
-        </div>}
+        </div</div>}
+        
+      {/* Letter Detail Modal */}
+      <LetterDetailModal
+        letter={selectedLetter}
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedLetter(null);
+        }}
+      />
     </div>;
 }

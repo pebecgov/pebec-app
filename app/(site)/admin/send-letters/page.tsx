@@ -8,9 +8,11 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Eye, Filter, RefreshCcw } from "lucide-react";
+import { Eye, Filter, RefreshCcw, FileText } from "lucide-react";
 import { format } from "date-fns";
 import SubmitLetterForm from "@/components/Letters/AdminLetters";
+import LetterDetailModal from "@/components/Letters/LetterDetailModal";
+
 export default function ViewLettersPage() {
   const allLetters = useQuery(api.letters.getUserLetters) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
@@ -19,6 +21,8 @@ export default function ViewLettersPage() {
     [key: string]: string;
   }>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedLetter, setSelectedLetter] = useState<typeof allLetters[0] | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
     search: "",
@@ -162,31 +166,19 @@ export default function ViewLettersPage() {
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
-                    {fileUrls[letter._id] ? <a href={fileUrls[letter._id]} target="_blank" rel="noopener noreferrer">
-                       <Button size="icon" className="bg-blue-600 hover:bg-blue-700 text-white rounded-full" title="Download Letter" onClick={async () => {
-                  const url = fileUrls[letter._id];
-                  if (!url) return;
-                  try {
-                    const response = await fetch(url);
-                    const blob = await response.blob();
-                    const blobUrl = window.URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = blobUrl;
-                    link.download = `${letter.letterName || "Letter"}.pdf`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(blobUrl);
-                  } catch (error) {
-                    console.error("Download failed", error);
-                  }
-                }}>
-  <Eye className="w-4 h-4" />
-                </Button>
-
-                      </a> : <Button size="icon" className="bg-gray-300 text-white rounded-full" disabled>
-                        ...
-                      </Button>}
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedLetter(letter);
+                        setIsDetailModalOpen(true);
+                      }}
+                      className="flex items-center gap-1"
+                      title="View Details"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Details
+                    </Button>
                   </TableCell>
                 </TableRow>) : <TableRow>
                 <TableCell colSpan={5} className="text-center text-gray-500 py-6">
@@ -210,5 +202,16 @@ export default function ViewLettersPage() {
 
       {}
       {isModalOpen && <SubmitLetterForm onClose={() => setIsModalOpen(false)} />}
+      
+      {/* Letter Detail Modal */}
+      <LetterDetailModal
+        letter={selectedLetter}
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedLetter(null);
+        }}
+        recipientName={selectedLetter?.sentTo ? userMap[selectedLetter.sentTo] : undefined}
+      />
     </div>;
 }
