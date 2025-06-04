@@ -170,7 +170,9 @@ export default function FileUploader({
     <div className="flex flex-col h-full">
       <div className="mb-4">
         <p className="mt-1 text-xs text-muted-foreground/60">
-          Accepted formats: .pdf, .doc, .docx, .pptx, .xls, .xlsx, .jpeg, .jpg, .png (Max 50MB per file)
+          Accepted formats: .pdf, .doc, .docx, .pptx, .xls, .xlsx,
+          .jpeg, .jpg, .png, .mp4, .mov, .avi, .mkv, .webm
+          (Max 50MB per file)
         </p>
       </div>
 
@@ -184,7 +186,7 @@ export default function FileUploader({
               id={`file-upload-${entry.id}`}
               name={`file-${entry.id}`}
               type="file"
-              accept=".pdf,.doc,.docx,.pptx,.xls,.xlsx,.jpeg,.jpg,.png"
+              accept=".pdf,.doc,.docx,.pptx,.xls,.xlsx,.jpeg,.jpg,.png,.mp4,.mov,.avi,.mkv,.webm"
               className="sr-only"
               onChange={onFileChange(entry.id)}
               ref={(el) => {
@@ -232,7 +234,7 @@ export default function FileUploader({
 
         <Button
           onClick={handleUploadAll}
-         // disabled={filesToUpload.length === 0 || filesToUpload.some(f => f.status === 'uploading')}
+          // disabled={filesToUpload.length === 0 || filesToUpload.some(f => f.status === 'uploading')}
           className={`w-1/2 ${filesToUpload.length === 0 || filesToUpload.some(f => f.status === 'uploading') ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
         >
           {filesToUpload.length > 0 ? `Upload (${filesToUpload.length}) File(s)` : 'Upload File(s)'}
