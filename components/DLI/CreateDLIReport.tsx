@@ -8,7 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import FileUploader from "@/components/file-uploader";
+import FileUploader from "@/components/file-uploader-comments";
 import { Plus, Trash2, X } from "lucide-react";
 interface Props {
   onClose?: () => void;

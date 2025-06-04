@@ -13,7 +13,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
 import { FaFileAlt } from "react-icons/fa";
-import FileUploader from "@/components/file-uploader";
+import FileUploader from "@/components/file-uploader-comments";
 import Link from "next/link";
 export default function AdminNewsletterDashboard() {
   const [page, setPage] = useState(0);

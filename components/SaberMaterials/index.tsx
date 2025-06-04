@@ -10,7 +10,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
-import FileUploader from "../file-uploader";
+import FileUploader from "../file-uploader-comments";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 const ROLES = ["admin", "mda", "staff", "reform_champion", "deputies", "saber_agent", "magistrates", "state_governor", "president", "vice_president"] as const;
 type Role = typeof ROLES[number];

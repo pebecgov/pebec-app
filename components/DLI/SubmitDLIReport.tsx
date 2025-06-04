@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Id } from "@/convex/_generated/dataModel";
 import ImageUploader from "../image-uploader";
-import FileUploader from "../file-uploader";
+import FileUploader from "../file-uploader-comments";
 import Stepper, { Step } from "../Stepper";
 interface Answer {
   question: string;
