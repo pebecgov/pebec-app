@@ -19,6 +19,14 @@ export default function Sidebar({
   const [openDropdowns, setOpenDropdowns] = useState({});
   const currentUser = useQuery(api.users.getCurrentUsers);
   const allowedPaths = currentUser?.permissions || [];
+  const userRole = currentUser?.role;
+  
+  // For admin users with no specific permissions set, show everything
+  // For staff users, only show what they have explicit permissions for
+  const shouldShowAllItems = userRole === "admin" && allowedPaths.length === 0;
+  
+
+
   useEffect(() => {
     if (!isOpen) setOpenDropdowns({});
   }, [isOpen]);
@@ -152,7 +160,7 @@ export default function Sidebar({
 
         <nav className="mt-6 flex-grow overflow-y-hidden hover:overflow-y-auto">
         {menuSections.filter(section => {
-          if (!allowedPaths.length) return true;
+          if (shouldShowAllItems) return true;
           if (section.path) return allowedPaths.includes(section.path);
           if (section.items) {
             return section.items.some(item => allowedPaths.includes(item.path));
@@ -171,7 +179,7 @@ export default function Sidebar({
                     {isOpen && (openDropdowns[section.name] ? <FaChevronUp /> : <FaChevronDown />)}
                   </div>
                   {openDropdowns[section.name] && <div className="pl-2 space-y-1">
-    {section.items.filter(item => !allowedPaths.length || allowedPaths.includes(item.path)).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
+    {section.items.filter(item => shouldShowAllItems || allowedPaths.includes(item.path)).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
           <div className={`pl-6 py-2 rounded-md transition-colors cursor-pointer
               ${pathname === item.path ? "bg-green-100 text-green-800 font-medium" : "text-gray-700 hover:bg-gray-100"}
             `}>

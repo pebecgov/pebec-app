@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "@clerk/nextjs";
@@ -12,6 +12,21 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { HomeIcon, NewspaperIcon, FolderOpenIcon, UsersIcon, ChartBarIcon, DocumentDuplicateIcon, CalendarDaysIcon, ClipboardDocumentIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EnvelopeIcon, BookOpenIcon, InboxArrowDownIcon, ExclamationTriangleIcon, EnvelopeOpenIcon } from "@heroicons/react/24/outline";
 import { FaEnvelopesBulk } from "react-icons/fa6";
+
+// Type definitions for menu items
+interface MenuItemChild {
+  name: string;
+  path: string;
+  icon?: React.ReactElement;
+}
+
+interface MenuItem {
+  name: string;
+  icon: React.ReactElement;
+  path?: string;
+  children?: MenuItemChild[];
+}
+
 export default function Sidebar({
   isOpen,
   setIsOpen
@@ -26,6 +41,7 @@ export default function Sidebar({
   const user = useQuery(api.users.getCurrentUsers);
   const allowed = user?.permissions ?? [];
   const staffStream = user?.staffStream;
+  
   useEffect(() => {
     if (!isOpen) setOpenDropdowns({});
   }, [isOpen]);
@@ -45,7 +61,7 @@ export default function Sidebar({
       }));
     }
   };
-  const menuItems = [{
+  const menuItems: MenuItem[] = [{
     name: "Dashboard",
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff"
@@ -152,16 +168,157 @@ export default function Sidebar({
     icon: <UserCircleIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/profile"
   }];
+
+  // Add admin features if user has admin permissions
+  const adminPermissions = allowed.filter(permission => permission.startsWith('/admin'));
+  if (adminPermissions.length > 0) {
+    // Add admin features section before profile
+    const adminMenuItems: MenuItem[] = [];
+    
+    // Saber Program section
+    const saberPermissions = adminPermissions.filter(p => 
+      p.includes('saber') || p.includes('dli')
+    );
+    if (saberPermissions.length > 0) {
+      const saberItems: MenuItemChild[] = [];
+      if (allowed.includes('/admin/saber-overview')) {
+        saberItems.push({ name: "Saber Overview", path: "/admin/saber-overview" });
+      }
+      if (allowed.includes('/admin/saber-reports')) {
+        saberItems.push({ name: "Saber Reports", path: "/admin/saber-reports" });
+      }
+      if (allowed.includes('/admin/dli')) {
+        saberItems.push({ name: "DLI Management", path: "/admin/dli" });
+      }
+      if (allowed.includes('/admin/saber-management')) {
+        saberItems.push({ name: "Saber Management", path: "/admin/saber-management" });
+      }
+      if (allowed.includes('/admin/saber')) {
+        saberItems.push({ name: "DLIs Status", path: "/admin/saber" });
+      }
+      
+      if (saberItems.length > 0) {
+        adminMenuItems.push({
+          name: "Saber Program",
+          icon: <ChartBarIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+          children: saberItems
+        });
+      }
+    }
+
+    // Reports & Analytics section
+    const reportsPermissions = adminPermissions.filter(p => 
+      p.includes('reports') || p.includes('tickets') || p.includes('analytics') || p === '/admin'
+    );
+    if (reportsPermissions.length > 0) {
+      const reportsItems: MenuItemChild[] = [];
+      if (allowed.includes('/admin')) {
+        reportsItems.push({ name: "Admin Dashboard", path: "/admin" });
+      }
+      if (allowed.includes('/admin/submitted-reports')) {
+        reportsItems.push({ name: "All Submitted Reports", path: "/admin/submitted-reports" });
+      }
+      if (allowed.includes('/admin/tickets')) {
+        reportsItems.push({ name: "All Tickets", path: "/admin/tickets" });
+      }
+      if (allowed.includes('/admin/analytics')) {
+        reportsItems.push({ name: "Analytics", path: "/admin/analytics" });
+      }
+      if (allowed.includes('/admin/generate-ticket-reports')) {
+        reportsItems.push({ name: "Generate Reports", path: "/admin/generate-ticket-reports" });
+      }
+      
+      if (reportsItems.length > 0) {
+        adminMenuItems.push({
+          name: "📊 Admin Reports",
+          icon: <DocumentDuplicateIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+          children: reportsItems
+        });
+      }
+    }
+
+    // User Management section
+    if (allowed.includes('/admin/users')) {
+      adminMenuItems.push({
+        name: "👥 User Management",
+        icon: <UsersIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+        path: "/admin/users"
+      });
+    }
+
+    // Content Management section
+    const contentPermissions = adminPermissions.filter(p => 
+      p.includes('posts') || p.includes('events') || p.includes('create-article') || p.includes('create-media')
+    );
+    if (contentPermissions.length > 0) {
+      const contentItems: MenuItemChild[] = [];
+      if (allowed.includes('/admin/posts')) {
+        contentItems.push({ name: "Manage Articles", path: "/admin/posts" });
+      }
+      if (allowed.includes('/admin/create-article')) {
+        contentItems.push({ name: "Create Articles", path: "/admin/create-article" });
+      }
+      if (allowed.includes('/admin/events')) {
+        contentItems.push({ name: "Manage Events", path: "/admin/events" });
+      }
+      if (allowed.includes('/admin/create-events')) {
+        contentItems.push({ name: "Create Events", path: "/admin/create-events" });
+      }
+      if (allowed.includes('/admin/create-media-posts')) {
+        contentItems.push({ name: "Media Posts", path: "/admin/create-media-posts" });
+      }
+      
+      if (contentItems.length > 0) {
+        adminMenuItems.push({
+          name: "📝 Content Management",
+          icon: <NewspaperIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+          children: contentItems
+        });
+      }
+    }
+
+    // Materials & Projects section  
+    const resourcePermissions = adminPermissions.filter(p => 
+      p.includes('materials') || p.includes('projects') || p.includes('kanban')
+    );
+    if (resourcePermissions.length > 0) {
+      const resourceItems: MenuItemChild[] = [];
+      if (allowed.includes('/admin/projects')) {
+        resourceItems.push({ name: "All Projects", path: "/admin/projects" });
+      }
+      if (allowed.includes('/admin/materials')) {
+        resourceItems.push({ name: "Material Management", path: "/admin/materials" });
+      }
+      if (allowed.includes('/admin/saber-materials')) {
+        resourceItems.push({ name: "Saber Materials", path: "/admin/saber-materials" });
+      }
+      if (allowed.includes('/admin/kanban')) {
+        resourceItems.push({ name: "Shared Tasks", path: "/admin/kanban" });
+      }
+      
+      if (resourceItems.length > 0) {
+        adminMenuItems.push({
+          name: "🎯 Admin Resources",
+          icon: <FolderOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+          children: resourceItems
+        });
+      }
+    }
+
+    // Add admin items to menu before profile
+    menuItems.splice(-1, 0, ...adminMenuItems);
+  }
+
   const filteredMenu = menuItems.map(section => {
     if (!section.children) {
-      return allowed.includes(section.path) ? section : null;
+      return allowed.includes(section.path!) ? section : null;
     }
     const visibleItems = section.children.filter(item => allowed.includes(item.path));
     return visibleItems.length > 0 ? {
       ...section,
       children: visibleItems
     } : null;
-  }).filter(Boolean);
+  }).filter(Boolean) as MenuItem[];
   return <>
       <aside className={`bg-white shadow-lg h-screen fixed transition-all duration-300 z-50 border-r border-gray-200 flex flex-col 
         ${isOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"} 

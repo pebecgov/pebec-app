@@ -110,7 +110,7 @@ export default function ViewLettersPage() {
         <FileText className="w-4 h-4" />
         Details
       </Button>
-    </TableCell>
+            </TableCell>
 
 
 

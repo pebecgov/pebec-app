@@ -84,7 +84,7 @@ export default function SaberUserPage() {
           (Business-Enabling Reform Action Plan) eligibility requirements.
         </p>
         <ul className="list-disc pl-5 mt-2 space-y-1">
-          <li>Improve land and property registration</li>
+          <li>gierty registration</li>
           <li>Promote private investment and PPPs</li>
           <li>Streamline tax and regulatory procedures</li>
           <li>Support transparency through budget and financial disclosures</li>
