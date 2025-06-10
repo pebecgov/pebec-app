@@ -61,6 +61,40 @@ export default function Admin() {
         setSelectedRole(user.role ?? "user");
         setSelectedStream(user.staffStream ?? "");
         setSelectedState(user.state ?? "");
+        
+        // Handle permissions for both admin and staff users
+        if (user.role === "admin" || user.role === "staff") {
+          if (user.role === "staff" && user.staffStream) {
+            // For staff users, extract only the additional admin permissions
+            // (exclude the base staff permissions that come from their stream)
+            const permissionMap: Record<string, string[]> = {
+              regulatory: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/profile"],
+              sub_national: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/profile"],
+              innovation: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/profile"],
+              judiciary: ["/staff", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/profile"],
+              communications: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/profile"],
+              investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/profile"],
+              receptionist: ["/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/profile"],
+              account: ["/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/profile"],
+              auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/profile"]
+            };
+            
+            const baseStaffPermissions = permissionMap[user.staffStream] ?? [];
+            const userPermissions = user.permissions ?? [];
+            
+            // Extract only additional admin permissions (not in base staff permissions)
+            const additionalPermissions = userPermissions.filter(
+              permission => !baseStaffPermissions.includes(permission)
+            );
+            setPermissions(additionalPermissions);
+          } else {
+            // For admin users, show all their permissions
+            setPermissions(user.permissions ?? []);
+          }
+        } else {
+          setPermissions([]);
+        }
+        
         if (mdas.length > 0 && user.mdaId) {
           const userMda = mdas.find(mda => mda._id === user.mdaId);
           if (userMda) {
@@ -104,7 +138,7 @@ export default function Admin() {
         ...(selectedRole === "staff" && selectedStream ? {
           staffStream: selectedStream
         } : {}),
-        ...(selectedRole === "admin" && permissions.length > 0 ? {
+        ...((selectedRole === "admin" || selectedRole === "staff") && permissions.length > 0 ? {
           permissions
         } : {}),
         ...(["reform_champion", "state_governor", "saber_agent", "magistrates", "deputies"].includes(selectedRole) ? {
@@ -324,26 +358,6 @@ export default function Admin() {
                   </SelectContent>
                 </Select>
 
-                {selectedRole === "admin" && <div className="mt-4">
-    <label className="block text-sm font-medium text-gray-700 mb-2">
-      Admin Page Access (optional)
-    </label>
-    <div className="flex flex-col gap-2 text-sm">
-      {[{
-                        label: "Dashboard",
-                        value: "/admin"
-                      }, {
-                        label: "ReportGov - Tickets",
-                        value: "/admin/tickets"
-                      }].map(item => <label key={item.value} className="flex items-center gap-2">
-          <input type="checkbox" checked={permissions.includes(item.value)} onChange={e => {
-                          const checked = e.target.checked;
-                          setPermissions(prev => checked ? [...prev, item.value] : prev.filter(p => p !== item.value));
-                        }} />
-          {item.label}
-        </label>)}
-    </div>
-  </div>}
 
 
                 {}
@@ -388,6 +402,220 @@ export default function Admin() {
     </SelectContent>
   </Select>}
 
+                {selectedRole === "admin" && <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Admin Page Access (optional)
+                    </label>
+                    <div className="flex flex-col gap-2 text-sm">
+                      {[{
+                        label: "Dashboard",
+                        value: "/admin"
+                      }, {
+                        label: "ReportGov - Tickets",
+                        value: "/admin/tickets"
+                      }].map(item => <label key={item.value} className="flex items-center gap-2">
+                          <input type="checkbox" checked={permissions.includes(item.value)} onChange={e => {
+                            const checked = e.target.checked;
+                            setPermissions(prev => checked ? [...prev, item.value] : prev.filter(p => p !== item.value));
+                          }} />
+                          {item.label}
+                        </label>)}
+                    </div>
+                  </div>}
+
+                {/* Staff Additional Admin Access */}
+                {selectedRole === "staff" && <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Additional Admin Access (optional)
+                  </label>
+                  <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md p-3">
+                    <div className="grid grid-cols-1 gap-3">
+                      
+                      {/* Saber Program Access */}
+                      <div className="border-b border-gray-100 pb-2">
+                        <h4 className="font-medium text-gray-800 mb-2">Saber Program</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          {[
+                            { label: "Saber Overview", value: "/admin/saber-overview" },
+                            { label: "Saber Reports", value: "/admin/saber-reports" },
+                            { label: "DLI Management", value: "/admin/dli" },
+                            { label: "Saber Management", value: "/admin/saber-management" },
+                            { label: "DLIs Status", value: "/admin/saber" }
+                          ].map(item => (
+                            <label key={item.value} className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions.includes(item.value)} 
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPermissions(prev => 
+                                    checked 
+                                      ? [...prev, item.value] 
+                                      : prev.filter(p => p !== item.value)
+                                  );
+                                }} 
+                              />
+                              {item.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* User & System Management */}
+                      <div className="border-b border-gray-100 pb-2">
+                        <h4 className="font-medium text-gray-800 mb-2">👥 User & System Management</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          {[
+                            { label: "User Management", value: "/admin/users" },
+                            { label: "Analytics Dashboard", value: "/admin/analytics" },
+                            { label: "Admin Dashboard", value: "/admin" }
+                          ].map(item => (
+                            <label key={item.value} className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions.includes(item.value)} 
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPermissions(prev => 
+                                    checked 
+                                      ? [...prev, item.value] 
+                                      : prev.filter(p => p !== item.value)
+                                  );
+                                }} 
+                              />
+                              {item.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Reports & Documentation */}
+                      <div className="border-b border-gray-100 pb-2">
+                        <h4 className="font-medium text-gray-800 mb-2">📊 Reports & Documentation</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          {[
+                            { label: "All Submitted Reports", value: "/admin/submitted-reports" },
+                            { label: "Report Templates", value: "/admin/internal-reports" },
+                            { label: "Generate Reports", value: "/admin/generate-ticket-reports" },
+                            { label: "All Tickets (ReportGov)", value: "/admin/tickets" }
+                          ].map(item => (
+                            <label key={item.value} className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions.includes(item.value)} 
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPermissions(prev => 
+                                    checked 
+                                      ? [...prev, item.value] 
+                                      : prev.filter(p => p !== item.value)
+                                  );
+                                }} 
+                              />
+                              {item.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Content Management */}
+                      <div className="border-b border-gray-100 pb-2">
+                        <h4 className="font-medium text-gray-800 mb-2">📝 Content Management</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          {[
+                            { label: "Manage Articles", value: "/admin/posts" },
+                            { label: "Create Articles", value: "/admin/create-article" },
+                            { label: "Upload Reports", value: "/admin/reports" },
+                            { label: "Manage Events", value: "/admin/events" },
+                            { label: "Create Events", value: "/admin/create-events" },
+                            { label: "Media Posts", value: "/admin/create-media-posts" }
+                          ].map(item => (
+                            <label key={item.value} className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions.includes(item.value)} 
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPermissions(prev => 
+                                    checked 
+                                      ? [...prev, item.value] 
+                                      : prev.filter(p => p !== item.value)
+                                  );
+                                }} 
+                              />
+                              {item.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Communications */}
+                      <div className="border-b border-gray-100 pb-2">
+                        <h4 className="font-medium text-gray-800 mb-2">📧 Communications</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          {[
+                            { label: "Newsletter Management", value: "/admin/newsletters" },
+                            { label: "Subscriber Management", value: "/admin/subscribers" },
+                            { label: "All Internal Letters", value: "/admin/letters" },
+                            { label: "Business Letters", value: "/admin/business-letters" },
+                            { label: "Send Letters", value: "/admin/send-letters" }
+                          ].map(item => (
+                            <label key={item.value} className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions.includes(item.value)} 
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPermissions(prev => 
+                                    checked 
+                                      ? [...prev, item.value] 
+                                      : prev.filter(p => p !== item.value)
+                                  );
+                                }} 
+                              />
+                              {item.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Project & Resource Management */}
+                      <div>
+                        <h4 className="font-medium text-gray-800 mb-2">🎯 Projects & Resources</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          {[
+                            { label: "All Projects", value: "/admin/projects" },
+                            { label: "Material Management", value: "/admin/materials" },
+                            { label: "Saber Materials", value: "/admin/saber-materials" },
+                            { label: "Shared Tasks (Kanban)", value: "/admin/kanban" },
+                            { label: "Meetings Management", value: "/admin/meetings" },
+                            { label: "Reforms Management", value: "/admin/reforms" }
+                          ].map(item => (
+                            <label key={item.value} className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions.includes(item.value)} 
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPermissions(prev => 
+                                    checked 
+                                      ? [...prev, item.value] 
+                                      : prev.filter(p => p !== item.value)
+                                  );
+                                }} 
+                              />
+                              {item.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 These permissions will be added to their existing staff stream permissions
+                  </p>
+                </div>}
 
                 <Button onClick={handleSave} disabled={isLoading} className="mt-6 w-full">
                   {isLoading ? "Saving..." : "Save Changes"}

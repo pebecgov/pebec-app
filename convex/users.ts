@@ -490,7 +490,15 @@ export const updateUserRoleInConvex = mutation({
         account: ["/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/profile"],
         auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/profile"]
       };
-      patchData.permissions = permissionMap[staffStream] ?? [];
+      
+      // Get base staff permissions
+      const baseStaffPermissions = permissionMap[staffStream] ?? [];
+      
+      // Merge with additional admin permissions if provided
+      const additionalPermissions = permissions ?? [];
+      const combinedPermissions = [...new Set([...baseStaffPermissions, ...additionalPermissions])];
+      
+      patchData.permissions = combinedPermissions;
       patchData.staffStream = staffStream;
     } else {
       patchData.permissions = permissions ?? undefined;
@@ -836,5 +844,29 @@ export const generateMonthlyAccessCodeInternal = internalMutation({
       generatedAt: Date.now()
     });
     return code;
+  }
+});
+export const debugUserPermissions = query({
+  args: {
+    clerkUserId: v.string()
+  },
+  handler: async (ctx, { clerkUserId }) => {
+    const user = await ctx.db.query("users")
+      .withIndex("byClerkUserId", q => q.eq("clerkUserId", clerkUserId))
+      .unique();
+    
+    if (!user) {
+      return { error: "User not found" };
+    }
+    
+    return {
+      userId: user._id,
+      role: user.role,
+      staffStream: user.staffStream,
+      permissions: user.permissions || [],
+      permissionsCount: (user.permissions || []).length,
+      adminPermissions: (user.permissions || []).filter(p => p.startsWith('/admin')),
+      hasDebugPermissions: true
+    };
   }
 });
