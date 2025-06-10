@@ -1,6 +1,6 @@
 {
-    "deployments": {
-      "dev": "https://neat-axolotl-857.convex.cloud",
-      "prod": "https://kindred-fox-158.convex.cloud"
-    }
+  "deployments": {
+    "dev": "https://neat-axolotl-857.convex.cloud",
+    "prod": "https://kindred-fox-158.convex.cloud"
   }
+}

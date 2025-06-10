@@ -208,7 +208,7 @@ export default function Admin() {
             <SelectItem value="all">All Streams</SelectItem>
             <SelectItem value="regulatory">Regulatory</SelectItem>
             <SelectItem value="sub_national">Sub National</SelectItem>
-            <SelectItem value="innovation">Innovation</SelectItem>
+            <SelectItem value="innovation">Innovation & Technology</SelectItem>
             <SelectItem value="judiciary">Judicial</SelectItem>
             <SelectItem value="communications">Communications</SelectItem>
             <SelectItem value="investments">Investments</SelectItem>
@@ -354,7 +354,7 @@ export default function Admin() {
                     <SelectContent>
                       <SelectItem value="regulatory">Regulatory</SelectItem>
                       <SelectItem value="sub_national">Sub National</SelectItem>
-                      <SelectItem value="innovation">Innovation</SelectItem>
+                      <SelectItem value="innovation">Innovation & Technology</SelectItem>
                       <SelectItem value="judiciary">Judicial</SelectItem>
                       <SelectItem value="communications">Communications</SelectItem>
                       <SelectItem value="investments">Investments</SelectItem>
