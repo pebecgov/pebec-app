@@ -27,8 +27,7 @@ export default function ReportCard({
   const coverImageUrl = useQuery(api.reports.getStorageUrl, report.reportCoverUrl ? {
     storageId: report.reportCoverUrl
   } : "skip");
-  const formattedDate = new Date(report.publishedAt).toLocaleDateString();
-  const formattedSize = `${report.fileSize.toFixed(2)} MB`;
+ const formattedSize = `${report.fileSize.toFixed(2)} MB`;
   return <div className="relative bg-white shadow-lg rounded-lg border border-gray-300 overflow-visible flex flex-col h-full transition-all hover:shadow-xl hover:-translate-y-1">
       {}
       <div className="absolute top-0 left-0 bg-red-600 text-white px-3 py-1 text-xs font-bold uppercase rounded-br-lg">
@@ -46,7 +45,6 @@ export default function ReportCard({
       {}
       <div className="p-5 flex flex-col flex-grow">
         <h2 className="text-lg font-semibold text-gray-900">{report.title}</h2>
-        <p className="text-xs text-gray-500 mt-1">📅 Uploaded on {formattedDate}</p>
         <p className="text-sm text-gray-700 mt-2">{report.description}</p>
 
         {}
