@@ -1,27 +1,3 @@
-// "use client";
-
-// import React, { useState } from "react";
-// import { useMutation, useQuery } from "convex/react";
-// import { api } from "@/convex/_generated/api";
-// import { useUser } from "@clerk/nextjs";
-// import { Button } from "@/components/ui/button";
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead } from "@/components/ui/table";
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from "@/components/ui/select";
-// import { FileDown, FileSpreadsheet, Save, Plus, Minus } from "lucide-react";
-// import { jsPDF } from "jspdf";
-// import autoTable from "jspdf-autotable";
-// import * as XLSX from "xlsx";
-// import Type1DataForm from "@/components/Type1DataForm";
-// import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label";
-// import { toast } from "sonner";
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -47,35 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { FaSpinner } from "react-icons/fa";
-interface FormData {
-  reportType: "type1" | "type2" | "type3";
- 
-  question2?: string[]; // Assuming array based on v.array(v.string())
-  question3?: string;
-  question4?: string;
-  question5?: string[];
-  question6?: string;
-  question7?: string[];
-  question8?: string[];
-  question9?: string[];
-  question10?: string[];
-  question11?: string[];
-  // --- Fields for type2 ---
-  announceInvestment?: string[];
-  dateOfAnnouncement?: string;
-  media_platform?: string[];
-  // --- Fields for type3 ---
-  noim?: string[];
-  lri?: string[];
-  sectors?: string[];
-  elibility?: string[];
-  description?: string[];
-  duration?: string[];
-  aaia?: string[];
-  noiri2022?: string[];
-  noiri2023?: string[];
-  noiri2024?: string[];
-}
 
 const currentYear = new Date().getFullYear();
 const yearsToShow = [currentYear - 3, currentYear - 2, currentYear - 1];
@@ -111,6 +58,33 @@ interface Type3Data {
   noiri2023: string[];
   noiri2024: string[];
 }
+
+interface Type4Data {
+  publishedDocumentLink: string;
+  legislativeActions: string[];
+  amendedLawLink: string;
+  verification1: {
+    confirmed: boolean;
+    evidence: string;
+  };
+  verification2: {
+    confirmed: boolean;
+    evidence: string;
+  };
+  verification3: {
+    confirmed: boolean;
+    evidence: string;
+  };
+  verification4: {
+    confirmed: boolean;
+    evidence: string;
+  };
+  verification5: {
+    confirmed: boolean;
+    evidence: string;
+  };
+}
+
 interface DLICategory {
   id: string;
   name: string;
@@ -134,8 +108,7 @@ const dliCategories: DLICategory[] = [
     id: "dli5",
     name: "DLI-5",
     reportTypes: [
-      { value: "type4", label: "Investment Promotion Strategy" },
-      { value: "type5", label: "Investor Targeting Report" }
+      { value: "type4", label: "State Schedule of Trade-Related Fees Compliance Report" }
     ]
   },
   {
@@ -155,17 +128,20 @@ const dliCategories: DLICategory[] = [
     ]
   }
 ];
+
 type ReportTypeDataMap = {
   type1Data: Type1Data;
   type2Data: Type2Data;
   type3Data: Type3Data;
+  type4Data: Type4Data;
 };
 
 interface FormData {
-  reportType: "type1" | "type2" | "type3";
+  reportType: "type1" | "type2" | "type3" | "type4";
   type1Data?: Type1Data;
   type2Data?: Type2Data;
   type3Data?: Type3Data;
+  type4Data?: Type4Data;
 }
 
 const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
@@ -202,6 +178,17 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
       noiri2023: [""],
       noiri2024: [""],
     };
+  } else if (reportType === "type4") {
+    base.type4Data = {
+      publishedDocumentLink: "",
+      legislativeActions: [""],
+      amendedLawLink: "",
+      verification1: { confirmed: false, evidence: "" },
+      verification2: { confirmed: false, evidence: "" },
+      verification3: { confirmed: false, evidence: "" },
+      verification4: { confirmed: false, evidence: "" },
+      verification5: { confirmed: false, evidence: "" },
+    };
   }
   return base;
 };
@@ -217,6 +204,8 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
       return `${statePrefix}Announce Investment Report`;
     case "type3":
       return `${statePrefix}Inventory Incentive Report`;
+    case "type4":
+      return `${statePrefix}State Schedule of Trade-Related Fees Compliance Report`;
     default:
       return `${statePrefix}Saber Agent Report`;
   }
@@ -487,6 +476,15 @@ const { user } = useUser();
         }
       });
     }
+    if (cleanedFormData.type4Data) {
+      Object.keys(cleanedFormData.type4Data).forEach((key) => {
+        if (Array.isArray(cleanedFormData.type4Data[key])) {
+          cleanedFormData.type4Data[key] = cleanedFormData.type4Data[
+            key
+          ].filter((item: string) => item.trim() !== "");
+        }
+      });
+    }
 
     if (formData.reportType === "type1" && cleanedFormData.type1Data) {
       const type1Data = cleanedFormData.type1Data;
@@ -588,16 +586,8 @@ const { user } = useUser();
         doc.text(line, marginX, y);
         y += 6;
       });
-      y += 8;
+      y += 5;
 
-      // Additional Investment Criteria section
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("Additional Investment Criteria", marginX, y);
-      y += 7;
-
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
       const investmentCriteriaLines = doc.splitTextToSize(investmentCriteriaText, 180);
       investmentCriteriaLines.forEach((line: string) => {
         if (y > doc.internal.pageSize.height - 20) {
@@ -639,7 +629,7 @@ const { user } = useUser();
       });
       y += 8;
 
-      // Methods of Delivery section
+      // Service Delivery Methods section
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text("Service Delivery Methods", marginX, y);
@@ -727,18 +717,10 @@ const { user } = useUser();
         doc.text(line, marginX, y);
         y += 6;
       });
-      y += 8;
+      y += 5;
 
-      // Complaints Channels section
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("Complaint Submission Channels", marginX, y);
-      y += 7;
-
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      const complaintsIntroLines = doc.splitTextToSize(complaintsChannelsIntro, 180);
-      complaintsIntroLines.forEach((line: string) => {
+      const complaintsChannelsLines = doc.splitTextToSize(complaintsChannelsIntro, 180);
+      complaintsChannelsLines.forEach((line: string) => {
         if (y > doc.internal.pageSize.height - 20) {
           doc.addPage();
           y = 20;
@@ -748,8 +730,8 @@ const { user } = useUser();
       });
       y += 3;
 
-      const complaintsLines = doc.splitTextToSize(complaintsChannelsList, 180);
-      complaintsLines.forEach((line: string) => {
+      const channelsLines = doc.splitTextToSize(complaintsChannelsList, 180);
+      channelsLines.forEach((line: string) => {
         if (y > doc.internal.pageSize.height - 20) {
           doc.addPage();
           y = 20;
@@ -817,16 +799,173 @@ const { user } = useUser();
         doc.text(line, marginX, y);
         y += 6;
       });
+    } else if (formData.reportType === "type4" && cleanedFormData.type4Data) {
+      // Generate comprehensive Type 4 PDF - State Schedule of Trade-Related Fees Compliance Report
+      const type4Data = cleanedFormData.type4Data;
+      let y = 20;
+      const marginX = 14;
 
-      // Continue with all the other sections...
-      // (Implementation continues with all sections from the original template)
+      // Header
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${currentUser?.state} State Schedule of Trade-Related Fees Compliance Report`, marginX, y);
+      y += 15;
 
+      // Introduction
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Introduction", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const introText = `This report outlines the status of compliance with the requirements for publishing a Schedule of Inter-State Trade-Related Fees as per the Disbursement Linked Indicator (DLI). The schedule is intended to consolidate all state-regulated trade-related fees to enhance transparency, reduce informal payments, and ensure efficient payment and collection mechanisms.`;
+      const introLines = doc.splitTextToSize(introText, 180);
+      introLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 10;
+
+      // Consolidated Schedule Section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Consolidated Schedule of Fees and Levies", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const scheduleText = `The state has developed a consolidated schedule of inter-state trade-related fees and levies, which includes all fees regulated by the state regardless of the agency collecting them. This document provides a comprehensive overview of all fees and levies relating to inter-state movement of goods.\n\nThe document includes the basis of calculation for each fee, even where the tax/revenue law does not specify the amount. Relevant laws, notifications, and regulations (whether part of the consolidated revenue code or not) are referenced and hyperlinked.`;
+      const scheduleLines = doc.splitTextToSize(scheduleText, 180);
+      scheduleLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 5;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Published Document Link:", marginX, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(type4Data.publishedDocumentLink || "Not provided", marginX + 45, y);
+      y += 10;
+
+      // Legislative Actions Section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Legislative and Executive Actions", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const legislativeText = `The state has eliminated haulage-related fees and levies through the following action(s):`;
+      doc.text(legislativeText, marginX, y);
+      y += 8;
+
+      type4Data.legislativeActions.forEach((action: string) => {
+        if (action.trim()) {
+          doc.text(`• ${action}`, marginX + 5, y);
+          y += 6;
+        }
+      });
+      y += 5;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Link to amended law or executive order:", marginX, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(type4Data.amendedLawLink || "Not provided", marginX + 65, y);
+      y += 15;
+
+      // Verification Checklist Section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Verification Checklist", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Please confirm and provide supporting evidence for the following:", marginX, y);
+      y += 8;
+
+      const verificationItems = [
+        "A single, consolidated document listing all inter-state trade-related fees and levies is available.",
+        "Each fee in the schedule includes a description and basis of estimation, even where amounts are not specified in the law.",
+        "The amended revenue law/consolidated code removing haulage fees is published on the state official website.",
+        "The removal of haulage fees is clearly reflected in the amended revenue law/consolidated revenue code.",
+        "Hyperlinks to relevant revenue laws and regulations are provided in the schedule document."
+      ];
+
+      verificationItems.forEach((item, index) => {
+        const verificationKey = `verification${index + 1}` as keyof typeof type4Data;
+        const verification = type4Data[verificationKey] as { confirmed: boolean; evidence: string };
+        
+        if (y > doc.internal.pageSize.height - 25) {
+          doc.addPage();
+          y = 20;
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.text(`${index + 1}.`, marginX, y);
+        doc.setFont("helvetica", "normal");
+        
+        const itemLines = doc.splitTextToSize(item, 170);
+        itemLines.forEach((line: string, lineIndex: number) => {
+          doc.text(line, marginX + 10, y + (lineIndex * 6));
+        });
+        y += itemLines.length * 6 + 3;
+
+        doc.setFont("helvetica", "bold");
+        doc.text(`Status: ${verification.confirmed ? "✓ Confirmed" : "✗ Not Confirmed"}`, marginX + 15, y);
+        y += 6;
+
+        if (verification.evidence) {
+          doc.setFont("helvetica", "normal");
+          doc.text("Evidence:", marginX + 15, y);
+          const evidenceLines = doc.splitTextToSize(verification.evidence, 160);
+          evidenceLines.forEach((line: string, lineIndex: number) => {
+            doc.text(line, marginX + 35, y + 6 + (lineIndex * 6));
+          });
+          y += (evidenceLines.length * 6) + 6;
+        }
+        y += 8;
+      });
+
+      // Conclusion Section
+      if (y > doc.internal.pageSize.height - 40) {
+        doc.addPage();
+        y = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Conclusion", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const conclusionText = `This initiative promotes openness and efficiency in revenue administration. A consolidated and transparent schedule of fees minimizes informal charges and strengthens the investment environment. The removal of unauthorized haulage fees further reinforces the state's commitment to trade facilitation and legal compliance.`;
+      const conclusionLines = doc.splitTextToSize(conclusionText, 180);
+      conclusionLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
     } else {
       // Type 2 and Type 3 table generation (same as original)
       const headers: string[] = [];
       const allRows: any[][] = [];
       let maxRows = 1;
-      let typeSpecificData: Type1Data | Type2Data | Type3Data | undefined;
+      let typeSpecificData: Type1Data | Type2Data | Type3Data | Type4Data | undefined;
       let reportTitlePrefix = "Saber Agent Report";
 
       switch (cleanedFormData.reportType) {
@@ -871,6 +1010,35 @@ const { user } = useUser();
             );
           }
           break;
+        case "type4":
+          typeSpecificData = cleanedFormData.type4Data;
+          reportTitlePrefix = "STATE SCHEDULE OF TRADE-RELATED FEES COMPLIANCE REPORT";
+          if (typeSpecificData) {
+            headers.push(
+              "S.No.",
+              "PUBLISHED DOCUMENT LINK",
+              "LEGAL ACTIONS",
+              "AMENDED LAW LINK",
+              "VERIFICATION 1",
+              "VERIFICATION 2",
+              "VERIFICATION 3",
+              "VERIFICATION 4",
+              "VERIFICATION 5"
+            );
+            const type4Data = typeSpecificData as Type4Data;
+            maxRows = Math.max(
+              maxRows,
+              type4Data.publishedDocumentLink.length,
+              type4Data.legislativeActions.length,
+              type4Data.amendedLawLink.length,
+              type4Data.verification1.confirmed ? 1 : 0,
+              type4Data.verification2.confirmed ? 1 : 0,
+              type4Data.verification3.confirmed ? 1 : 0,
+              type4Data.verification4.confirmed ? 1 : 0,
+              type4Data.verification5.confirmed ? 1 : 0
+            );
+          }
+          break;
       }
 
       for (let i = 0; i < maxRows; i++) {
@@ -901,6 +1069,26 @@ const { user } = useUser();
                 cleanedFormData.type3Data.noiri2022[i] || "",
                 cleanedFormData.type3Data.noiri2023[i] || "",
                 cleanedFormData.type3Data.noiri2024[i] || ""
+              );
+            }
+            break;
+          case "type4":
+            if (cleanedFormData.type4Data) {
+              currentRow.push(
+                i + 1,
+                cleanedFormData.type4Data.publishedDocumentLink || "",
+                cleanedFormData.type4Data.legislativeActions.join(", ") || "",
+                cleanedFormData.type4Data.amendedLawLink || "",
+                cleanedFormData.type4Data.verification1.confirmed ? "Confirmed" : "Not Confirmed",
+                cleanedFormData.type4Data.verification1.evidence || "",
+                cleanedFormData.type4Data.verification2.confirmed ? "Confirmed" : "Not Confirmed",
+                cleanedFormData.type4Data.verification2.evidence || "",
+                cleanedFormData.type4Data.verification3.confirmed ? "Confirmed" : "Not Confirmed",
+                cleanedFormData.type4Data.verification3.evidence || "",
+                cleanedFormData.type4Data.verification4.confirmed ? "Confirmed" : "Not Confirmed",
+                cleanedFormData.type4Data.verification4.evidence || "",
+                cleanedFormData.type4Data.verification5.confirmed ? "Confirmed" : "Not Confirmed",
+                cleanedFormData.type4Data.verification5.evidence || ""
               );
             }
             break;
@@ -1271,6 +1459,108 @@ const handleSubmit = async (e: React.FormEvent) => {
                       false
                     )
                   ))}
+                </div>
+              )}
+
+              {/* Type 4 Form Fields */}
+              {templateFormData.reportType === "type4" && templateFormData.type4Data && (
+                <div className="space-y-4">
+                  <h4 className="text-lg font-medium">STATE SCHEDULE OF TRADE-RELATED FEES COMPLIANCE REPORT</h4>
+                  
+                  <div className="space-y-2">
+                    <Label>Provide link to published document:</Label>
+                    <Input
+                      name="publishedDocumentLink"
+                      value={templateFormData.type4Data.publishedDocumentLink || ""}
+                      onChange={(e) => handleTemplateDataStringChange(e, "type4Data")}
+                      placeholder="Enter published document link"
+                      type="url"
+                      required
+                    />
+                  </div>
+
+                  {renderArrayInputs(
+                    "type4Data",
+                    "legislativeActions",
+                    "Legislative and Executive Actions (Select all that apply):",
+                    "Enter legislative action",
+                    false
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Provide link to amended law or executive order:</Label>
+                    <Input
+                      name="amendedLawLink"
+                      value={templateFormData.type4Data.amendedLawLink || ""}
+                      onChange={(e) => handleTemplateDataStringChange(e, "type4Data")}
+                      placeholder="Enter amended law link"
+                      type="url"
+                      required
+                    />
+                  </div>
+
+                  {/* Verification Checklist */}
+                  <div className="space-y-4 mt-6">
+                    <h5 className="font-medium">Verification Checklist</h5>
+                    
+                    <div className="space-y-4">
+                      {[
+                        "A single, consolidated document listing all inter-state trade-related fees and levies is available.",
+                        "Each fee in the schedule includes a description and basis of estimation, even where amounts are not specified in the law.",
+                        "The amended revenue law/consolidated code removing haulage fees is published on the state official website.",
+                        "The removal of haulage fees is clearly reflected in the amended revenue law/consolidated revenue code.",
+                        "Hyperlinks to relevant revenue laws and regulations are provided in the schedule document."
+                      ].map((item, index) => {
+                        const verificationKey = `verification${index + 1}` as keyof Type4Data;
+                        const verification = templateFormData.type4Data![verificationKey] as { confirmed: boolean; evidence: string };
+                        
+                        return (
+                          <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={verification.confirmed}
+                                onChange={(e) => {
+                                  setTemplateFormData((prev) => ({
+                                    ...prev,
+                                    type4Data: {
+                                      ...prev.type4Data!,
+                                      [verificationKey]: {
+                                        ...verification,
+                                        confirmed: e.target.checked
+                                      }
+                                    }
+                                  }));
+                                }}
+                                className="mt-1"
+                              />
+                              <Label className="text-sm flex-1">{index + 1}. {item}</Label>
+                            </div>
+                            <div className="ml-6">
+                              <Label className="text-xs text-gray-600">Supporting Evidence:</Label>
+                              <Input
+                                value={verification.evidence}
+                                onChange={(e) => {
+                                  setTemplateFormData((prev) => ({
+                                    ...prev,
+                                    type4Data: {
+                                      ...prev.type4Data!,
+                                      [verificationKey]: {
+                                        ...verification,
+                                        evidence: e.target.value
+                                      }
+                                    }
+                                  }));
+                                }}
+                                placeholder="Enter supporting evidence or reference"
+                                className="text-sm"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
