@@ -209,7 +209,7 @@ export default function InternalRoleRequestForm({
                 <SelectContent>
                 {[{
                   value: "mda",
-                  label: "Ministries, Departments & Agencies (MDA) - ReportGov Agent"
+                  label: "ReportGov Agent"
                 }, {
                   value: "reform_champion",
                   label: "Reform Champion"
