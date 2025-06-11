@@ -61,7 +61,10 @@ interface Type3Data {
 
 interface Type4Data {
   publishedDocumentLink: string;
-  legislativeActions: string[];
+  legislativeActions: {
+    amendmentToRevenueCode: boolean;
+    executiveOrder: boolean;
+  };
   amendedLawLink: string;
   verification1: {
     confirmed: boolean;
@@ -82,6 +85,41 @@ interface Type4Data {
   verification5: {
     confirmed: boolean;
     evidence: string;
+  };
+}
+
+interface Type5Data {
+  // Section 2: Functions of SCEP
+  scepMandateLink: string;
+  
+  // Section 3: Export Strategy
+  hasExportStrategy: boolean;
+  exportStrategyLink: string;
+  
+  // Section 4: Stakeholder Consultation
+  stakeholderConsultation: {
+    attendanceSheets: string;
+    meetingMinutes: string;
+    privateContributors: string[];
+    feedbackSummary: string;
+  };
+  
+  // Section 5: Operational Budget
+  budgetDocuments: string;
+  
+  // Section 6: Implementation Activities
+  implementationReports: string[];
+  
+  // Checklist items
+  checklist: {
+    exportStrategyDoc: boolean;
+    publicationLink: boolean;
+    attendanceSheets: boolean;
+    privateContributors: boolean;
+    budgetLineItems: boolean;
+    nepcCertification: boolean;
+    exportActivities: boolean;
+    institutionalFramework: boolean;
   };
 }
 
@@ -108,15 +146,15 @@ const dliCategories: DLICategory[] = [
     id: "dli5",
     name: "DLI-5",
     reportTypes: [
-      { value: "type4", label: "State Schedule of Trade-Related Fees Compliance Report" }
+      // Type 4 moved to DLI-6
     ]
   },
   {
     id: "dli6",
     name: "DLI-6",
     reportTypes: [
-      { value: "type6", label: "Investment Facilitation Report" },
-      { value: "type7", label: "One-Stop Shop Metrics" }
+      { value: "type4", label: "State Schedule of Trade-Related Fees Compliance Report" },
+      { value: "type5", label: "State Committee on Export Promotion (SCEP) Report" }
     ]
   },
   {
@@ -134,14 +172,16 @@ type ReportTypeDataMap = {
   type2Data: Type2Data;
   type3Data: Type3Data;
   type4Data: Type4Data;
+  type5Data: Type5Data;
 };
 
 interface FormData {
-  reportType: "type1" | "type2" | "type3" | "type4";
+  reportType: "type1" | "type2" | "type3" | "type4" | "type5";
   type1Data?: Type1Data;
   type2Data?: Type2Data;
   type3Data?: Type3Data;
   type4Data?: Type4Data;
+  type5Data?: Type5Data;
 }
 
 const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
@@ -181,13 +221,40 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
   } else if (reportType === "type4") {
     base.type4Data = {
       publishedDocumentLink: "",
-      legislativeActions: [""],
+      legislativeActions: {
+        amendmentToRevenueCode: false,
+        executiveOrder: false,
+      },
       amendedLawLink: "",
       verification1: { confirmed: false, evidence: "" },
       verification2: { confirmed: false, evidence: "" },
       verification3: { confirmed: false, evidence: "" },
       verification4: { confirmed: false, evidence: "" },
       verification5: { confirmed: false, evidence: "" },
+    };
+  } else if (reportType === "type5") {
+    base.type5Data = {
+      scepMandateLink: "",
+      hasExportStrategy: false,
+      exportStrategyLink: "",
+      stakeholderConsultation: {
+        attendanceSheets: "",
+        meetingMinutes: "",
+        privateContributors: [],
+        feedbackSummary: "",
+      },
+      budgetDocuments: "",
+      implementationReports: [],
+      checklist: {
+        exportStrategyDoc: false,
+        publicationLink: false,
+        attendanceSheets: false,
+        privateContributors: false,
+        budgetLineItems: false,
+        nepcCertification: false,
+        exportActivities: false,
+        institutionalFramework: false,
+      },
     };
   }
   return base;
@@ -206,6 +273,8 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
       return `${statePrefix}Inventory Incentive Report`;
     case "type4":
       return `${statePrefix}State Schedule of Trade-Related Fees Compliance Report`;
+    case "type5":
+      return `${statePrefix}State Committee on Export Promotion (SCEP) Report`;
     default:
       return `${statePrefix}Saber Agent Report`;
   }
@@ -231,7 +300,7 @@ const { user } = useUser();
   );
   useEffect(() => {
     const currentDLI = dliCategories.find(dli => dli.id === selectedDLI);
-    if (currentDLI) {
+    if (currentDLI && currentDLI.reportTypes.length > 0) {
       const firstReportType = currentDLI.reportTypes[0].value as FormData["reportType"];
       setTemplateFormData(getInitialFormData(firstReportType));
     }
@@ -480,6 +549,15 @@ const { user } = useUser();
       Object.keys(cleanedFormData.type4Data).forEach((key) => {
         if (Array.isArray(cleanedFormData.type4Data[key])) {
           cleanedFormData.type4Data[key] = cleanedFormData.type4Data[
+            key
+          ].filter((item: string) => item.trim() !== "");
+        }
+      });
+    }
+    if (cleanedFormData.type5Data) {
+      Object.keys(cleanedFormData.type5Data).forEach((key) => {
+        if (Array.isArray(cleanedFormData.type5Data[key])) {
+          cleanedFormData.type5Data[key] = cleanedFormData.type5Data[
             key
           ].filter((item: string) => item.trim() !== "");
         }
@@ -869,19 +947,48 @@ const { user } = useUser();
       doc.text(legislativeText, marginX, y);
       y += 8;
 
-      type4Data.legislativeActions.forEach((action: string) => {
-        if (action.trim()) {
-          doc.text(`• ${action}`, marginX + 5, y);
-          y += 6;
-        }
-      });
-      y += 5;
+      // Display selected legislative actions
+      const selectedActions: string[] = [];
+      if (type4Data.legislativeActions.amendmentToRevenueCode) {
+        selectedActions.push("Amendment to the existing consolidated revenue code or revenue law, passed by the State House of Assembly and assented to by the Governor");
+      }
+      if (type4Data.legislativeActions.executiveOrder) {
+        selectedActions.push("Executive order by the Governor (if applicable)");
+      }
+
+      if (selectedActions.length > 0) {
+        selectedActions.forEach((action) => {
+          // Use text wrapping for long legislative action text
+          const actionLines = doc.splitTextToSize(`• ${action}`, 175);
+          actionLines.forEach((line: string, lineIndex: number) => {
+            if (y > doc.internal.pageSize.height - 20) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.text(line, marginX + 5, y + (lineIndex * 6));
+          });
+          y += (actionLines.length * 6) + 4; // Add spacing after each action
+        });
+      } else {
+        doc.text(`• No actions selected`, marginX + 5, y);
+        y += 6;
+      }
+      y += 8;
 
       doc.setFont("helvetica", "bold");
       doc.text("Link to amended law or executive order:", marginX, y);
+      y += 8; // More space between label and link
       doc.setFont("helvetica", "normal");
-      doc.text(type4Data.amendedLawLink || "Not provided", marginX + 65, y);
-      y += 15;
+      const linkText = type4Data.amendedLawLink || "Not provided";
+      const linkLines = doc.splitTextToSize(linkText, 175);
+      linkLines.forEach((line: string, lineIndex: number) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y + (lineIndex * 6)); // Remove the +5 offset to align with margin
+      });
+      y += (linkLines.length * 6) + 10;
 
       // Verification Checklist Section
       doc.setFontSize(14);
@@ -915,24 +1022,55 @@ const { user } = useUser();
         doc.text(`${index + 1}.`, marginX, y);
         doc.setFont("helvetica", "normal");
         
-        const itemLines = doc.splitTextToSize(item, 170);
+        // For item 1, modify the text based on the answer
+        let displayItem = item;
+        if (index === 0) {
+          displayItem = verification.confirmed 
+            ? "A single, consolidated document listing all inter-state trade-related fees and levies is available."
+            : "A single, consolidated document listing all inter-state trade-related fees and levies is NOT available.";
+        }
+        
+        const itemLines = doc.splitTextToSize(displayItem, 170);
         itemLines.forEach((line: string, lineIndex: number) => {
           doc.text(line, marginX + 10, y + (lineIndex * 6));
         });
         y += itemLines.length * 6 + 3;
 
-        doc.setFont("helvetica", "bold");
-        doc.text(`Status: ${verification.confirmed ? "✓ Confirmed" : "✗ Not Confirmed"}`, marginX + 15, y);
-        y += 6;
+        // Handle different verification formats based on item index
+        if (index === 0) {
+          // Item 1: Show "Affirmative" or "Not Affirmative"
+          doc.setFont("helvetica", "bold");
+          const response = verification.confirmed ? "Affirmative" : "Not Affirmative";
+          doc.text(`Response: ${response}`, marginX + 15, y);
+          y += 6;
+        } else {
+          // Items 2-5: Show Yes/No with appropriate evidence
+          doc.setFont("helvetica", "bold");
+          doc.text(`Answer: ${verification.confirmed ? "Yes" : "No"}`, marginX + 15, y);
+          y += 6;
 
-        if (verification.evidence) {
-          doc.setFont("helvetica", "normal");
-          doc.text("Evidence:", marginX + 15, y);
-          const evidenceLines = doc.splitTextToSize(verification.evidence, 160);
-          evidenceLines.forEach((line: string, lineIndex: number) => {
-            doc.text(line, marginX + 35, y + 6 + (lineIndex * 6));
-          });
-          y += (evidenceLines.length * 6) + 6;
+          if (verification.evidence && verification.evidence.trim()) {
+            doc.setFont("helvetica", "normal");
+            let evidenceLabel = "Evidence:";
+            
+            // Determine appropriate label based on item and status
+            if (index === 1) {
+              evidenceLabel = "Link:";
+            } else if (index === 2) {
+              evidenceLabel = "Link:";
+            } else if (index === 3) {
+              evidenceLabel = "Link:";
+            } else if (index === 4) {
+              evidenceLabel = verification.confirmed ? "Link:" : "Explanation:";
+            }
+            
+            doc.text(evidenceLabel, marginX + 15, y);
+            const evidenceLines = doc.splitTextToSize(verification.evidence, 160);
+            evidenceLines.forEach((line: string, lineIndex: number) => {
+              doc.text(line, marginX + 35, y + 6 + (lineIndex * 6));
+            });
+            y += (evidenceLines.length * 6) + 6;
+          }
         }
         y += 8;
       });
@@ -960,12 +1098,337 @@ const { user } = useUser();
         doc.text(line, marginX, y);
         y += 6;
       });
+    } else if (formData.reportType === "type5" && cleanedFormData.type5Data) {
+      // Generate comprehensive Type 5 PDF - State Committee on Export Promotion (SCEP) Report
+      const type5Data = cleanedFormData.type5Data;
+      let y = 20;
+      const marginX = 14;
+
+      // Header
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${currentUser?.state} State Committee on Export Promotion (SCEP) Report`, marginX, y);
+      y += 15;
+
+      // 1. Introduction
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("1. Introduction", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const introText = `The State Committee on Export Promotion (SCEP) is established under Act 64 of 1992 and is domiciled in the State Ministry of Commerce and Industry. The committee plays a pivotal role in promoting export activities in the state by leveraging local comparative advantages to enhance economic growth, value chain development, and socioeconomic inclusion.`;
+      const introLines = doc.splitTextToSize(introText, 180);
+      introLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 10;
+
+      // 2. Functions of SCEP
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("2. Functions of SCEP", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const functionsText = `The SCEP performs the following statutory functions:\n• Constitutes a forum for the promotion of principal exportable products of the state.\n• Advises the Nigeria Export Promotion Council (NEPC) on strategies to achieve its mandate in the state.\n• Carries out additional functions as may be directed by the NEPC.`;
+      const functionsLines = doc.splitTextToSize(functionsText, 180);
+      functionsLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 8;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("SCEP Mandate Documentation Link:", marginX, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      const mandateText = type5Data.scepMandateLink || "Not provided";
+      const mandateLines = doc.splitTextToSize(mandateText, 175);
+      mandateLines.forEach((line: string, lineIndex: number) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y + (lineIndex * 6));
+      });
+      y += (mandateLines.length * 6) + 10;
+
+      // 3. Export Strategy and Guideline Document
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("3. Export Strategy and Guideline Document", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const strategyText = `The State has developed a comprehensive Export Strategy and Guidelines Document aimed at:\n• Empowering states and communities through exports\n• Developing product value chains to enhance competitiveness\n• Reducing poverty and fostering socioeconomic inclusion\n\nKey contents of the document include:\n• Sectoral analysis of principal and potential export products\n• Export support strategies (products and market access)\n• Institutional mechanisms and partnerships\n• Strategic activities and timelines`;
+      const strategyLines = doc.splitTextToSize(strategyText, 180);
+      strategyLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 8;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Export Strategy Document Status:", marginX, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(type5Data.hasExportStrategy ? "Available" : "Not Available", marginX + 55, y);
+      y += 8;
+
+      if (type5Data.hasExportStrategy && type5Data.exportStrategyLink) {
+        doc.setFont("helvetica", "bold");
+        doc.text("Published Document Link:", marginX, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        const linkLines = doc.splitTextToSize(type5Data.exportStrategyLink, 175);
+        linkLines.forEach((line: string, lineIndex: number) => {
+          if (y > doc.internal.pageSize.height - 20) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(line, marginX, y + (lineIndex * 6));
+        });
+        y += (linkLines.length * 6) + 10;
+      }
+
+      // 4. Stakeholder Consultation Process
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("4. Stakeholder Consultation Process", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const consultationText = `The export strategy was developed in consultation with private sector actors across relevant industries. The consultation process included:\n• Stakeholder meetings/workshops\n• Roundtable discussions with exporters, aggregators, SMEs\n• Inputs from chambers of commerce and cooperative societies\n\nEvidence of consultation:\n• Meeting attendance sheets and signed participant lists\n• Meeting minutes and presentation materials\n• Sample verification with listed private sector representatives`;
+      const consultationLines = doc.splitTextToSize(consultationText, 180);
+      consultationLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 8;
+
+      // Attendance Sheets
+      doc.setFont("helvetica", "bold");
+      doc.text("Attendance Sheets Link:", marginX, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      const attendanceText = type5Data.stakeholderConsultation.attendanceSheets || "Not provided";
+      const attendanceLines = doc.splitTextToSize(attendanceText, 175);
+      attendanceLines.forEach((line: string, lineIndex: number) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y + (lineIndex * 6));
+      });
+      y += (attendanceLines.length * 6) + 6;
+
+      // Meeting Minutes
+      doc.setFont("helvetica", "bold");
+      doc.text("Meeting Minutes Link:", marginX, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      const minutesText = type5Data.stakeholderConsultation.meetingMinutes || "Not provided";
+      const minutesLines = doc.splitTextToSize(minutesText, 175);
+      minutesLines.forEach((line: string, lineIndex: number) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y + (lineIndex * 6));
+      });
+      y += (minutesLines.length * 6) + 6;
+
+      // Private Contributors
+      if (type5Data.stakeholderConsultation.privateContributors && type5Data.stakeholderConsultation.privateContributors.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.text("Private Sector Contributors:", marginX, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        type5Data.stakeholderConsultation.privateContributors.forEach((contributor) => {
+          if (contributor.trim()) {
+            if (y > doc.internal.pageSize.height - 20) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.text(`• ${contributor}`, marginX + 5, y);
+            y += 6;
+          }
+        });
+        y += 6;
+      }
+
+      // Feedback Summary
+      if (type5Data.stakeholderConsultation.feedbackSummary) {
+        doc.setFont("helvetica", "bold");
+        doc.text("Private Sector Feedback Summary:", marginX, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        const feedbackLines = doc.splitTextToSize(type5Data.stakeholderConsultation.feedbackSummary, 180);
+        feedbackLines.forEach((line: string) => {
+          if (y > doc.internal.pageSize.height - 20) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(line, marginX, y);
+          y += 6;
+        });
+        y += 10;
+      }
+
+      // 5. Operational Budget Allocation
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("5. Operational Budget Allocation", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const budgetText = `The SCEP has been allocated an operational budget in the state's approved fiscal budget for 2024 and 2025. This funding supports its activities including training, sensitization, research, and implementation of the export strategy.`;
+      const budgetLines = doc.splitTextToSize(budgetText, 180);
+      budgetLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 8;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Budget Documents Link:", marginX, y);
+      y += 6;
+      doc.setFont("helvetica", "normal");
+      const budgetDocText = type5Data.budgetDocuments || "Not provided";
+      const budgetDocLines = doc.splitTextToSize(budgetDocText, 175);
+      budgetDocLines.forEach((line: string, lineIndex: number) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y + (lineIndex * 6));
+      });
+      y += (budgetDocLines.length * 6) + 10;
+
+      // 6. Implementation Activities and Institutional Mechanism
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("6. Implementation Activities and Institutional Mechanism", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const implementationText = `The strategy identifies a set of prioritized activities and the corresponding agencies responsible for delivery. Activities include:\n• Capacity building programs for MSMEs\n• Market expansion support (trade fairs, match-making)\n• Export readiness assessments and trainings\n• Compliance and product certification support\n\nInstitutional mechanisms include:\n• Technical working groups\n• Public-private export facilitation platforms\n• Monthly coordination meetings`;
+      const implementationLines = doc.splitTextToSize(implementationText, 180);
+      implementationLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 8;
+
+      // Implementation Reports
+      if (type5Data.implementationReports && type5Data.implementationReports.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.text("Implementation Activity Reports:", marginX, y);
+        y += 6;
+        doc.setFont("helvetica", "normal");
+        type5Data.implementationReports.forEach((report, index) => {
+          if (report.trim()) {
+            if (y > doc.internal.pageSize.height - 20) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.text(`${index + 1}. ${report}`, marginX + 5, y);
+            y += 6;
+          }
+        });
+        y += 10;
+      }
+
+      // 7. Conclusion
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("7. Conclusion", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      const conclusionText = `The State Committee on Export Promotion represents a strategic commitment to diversify the state economy through increased non-oil exports. With an inclusive export strategy, strong private sector engagement, and a results-oriented approach, the state aims to position itself competitively in regional and global markets.`;
+      const conclusionLines = doc.splitTextToSize(conclusionText, 180);
+      conclusionLines.forEach((line: string) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.text(line, marginX, y);
+        y += 6;
+      });
+      y += 10;
+
+      // Checklist Section
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Checklist of Required Attachments/Links", marginX, y);
+      y += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Please ensure the following are included in your submission:", marginX, y);
+      y += 8;
+
+      const checklistItems = [
+        { key: "exportStrategyDoc", label: "Export Strategy and Guidelines Document (PDF or Word)" },
+        { key: "publicationLink", label: "Publication link to state website hosting the strategy" },
+        { key: "attendanceSheets", label: "Signed meeting attendance sheets and consultation minutes" },
+        { key: "privateContributors", label: "Names/contacts of sampled private sector contributors" },
+        { key: "budgetLineItems", label: "Budget line items from FY2024 and FY2025 budgets" },
+        { key: "nepcCertification", label: "NEPC certification baseline data and 2025 firm data" },
+        { key: "exportActivities", label: "Evidence of export promotion activities executed by the SCEP" },
+        { key: "institutionalFramework", label: "Institutional mechanism and implementation framework" }
+      ];
+
+      checklistItems.forEach((item) => {
+        if (y > doc.internal.pageSize.height - 20) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        const isChecked = type5Data.checklist[item.key] || false;
+        const checkSymbol = isChecked ? "☑" : "☐";
+        doc.text(`${checkSymbol} ${item.label}`, marginX, y);
+        y += 6;
+      });
     } else {
       // Type 2 and Type 3 table generation (same as original)
       const headers: string[] = [];
       const allRows: any[][] = [];
       let maxRows = 1;
-      let typeSpecificData: Type1Data | Type2Data | Type3Data | Type4Data | undefined;
+      let typeSpecificData: Type1Data | Type2Data | Type3Data | Type4Data | Type5Data | undefined;
       let reportTitlePrefix = "Saber Agent Report";
 
       switch (cleanedFormData.reportType) {
@@ -1029,7 +1492,8 @@ const { user } = useUser();
             maxRows = Math.max(
               maxRows,
               type4Data.publishedDocumentLink.length,
-              type4Data.legislativeActions.length,
+              type4Data.legislativeActions.amendmentToRevenueCode ? 1 : 0,
+              type4Data.legislativeActions.executiveOrder ? 1 : 0,
               type4Data.amendedLawLink.length,
               type4Data.verification1.confirmed ? 1 : 0,
               type4Data.verification2.confirmed ? 1 : 0,
@@ -1039,6 +1503,7 @@ const { user } = useUser();
             );
           }
           break;
+
       }
 
       for (let i = 0; i < maxRows; i++) {
@@ -1077,7 +1542,8 @@ const { user } = useUser();
               currentRow.push(
                 i + 1,
                 cleanedFormData.type4Data.publishedDocumentLink || "",
-                cleanedFormData.type4Data.legislativeActions.join(", ") || "",
+                cleanedFormData.type4Data.legislativeActions.amendmentToRevenueCode ? "Amendment to Revenue Code" : "No Amendment",
+                cleanedFormData.type4Data.legislativeActions.executiveOrder ? "Executive Order" : "No Executive Order",
                 cleanedFormData.type4Data.amendedLawLink || "",
                 cleanedFormData.type4Data.verification1.confirmed ? "Confirmed" : "Not Confirmed",
                 cleanedFormData.type4Data.verification1.evidence || "",
@@ -1092,6 +1558,7 @@ const { user } = useUser();
               );
             }
             break;
+
         }
         allRows.push(currentRow);
       }
@@ -1136,7 +1603,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       // Upload PDF to storage
       const uploadUrl = await generateUploadUrl();
       const result = await fetch(uploadUrl, {
-        method: "PUT",
+        method: "POST",
         headers: {
           "Content-Type": pdfBlob.type,
         },
@@ -1465,10 +1932,10 @@ const handleSubmit = async (e: React.FormEvent) => {
               {/* Type 4 Form Fields */}
               {templateFormData.reportType === "type4" && templateFormData.type4Data && (
                 <div className="space-y-4">
-                  <h4 className="text-lg font-medium">STATE SCHEDULE OF TRADE-RELATED FEES COMPLIANCE REPORT</h4>
+                  <h4 className="text-lg font-medium text-uppercase">Schedule of trade related fees and levies on inter-state movement of goods;</h4>
                   
                   <div className="space-y-2">
-                    <Label>Provide link to published document:</Label>
+                    <Label>Has the State Published a Consolidated Schedule of Interstate Trade-Related Fees and Levies? Provide link to published document:</Label>
                     <Input
                       name="publishedDocumentLink"
                       value={templateFormData.type4Data.publishedDocumentLink || ""}
@@ -1479,13 +1946,51 @@ const handleSubmit = async (e: React.FormEvent) => {
                     />
                   </div>
 
-                  {renderArrayInputs(
-                    "type4Data",
-                    "legislativeActions",
-                    "Legislative and Executive Actions (Select all that apply):",
-                    "Enter legislative action",
-                    false
-                  )}
+                  <div className="space-y-2">
+                    <Label>The state has eliminated haulage-related fees and levies through the following action(s):</Label>
+                    <div className="space-y-3 mt-2">
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={templateFormData.type4Data.legislativeActions.amendmentToRevenueCode}
+                          onChange={(e) => {
+                            setTemplateFormData((prev) => ({
+                              ...prev,
+                              type4Data: {
+                                ...prev.type4Data!,
+                                legislativeActions: {
+                                  ...prev.type4Data!.legislativeActions,
+                                  amendmentToRevenueCode: e.target.checked
+                                }
+                              }
+                            }));
+                          }}
+                          className="mt-1"
+                        />
+                        <Label className="text-sm flex-1">Amendment to the existing consolidated revenue code or revenue law, passed by the State House of Assembly and assented to by the Governor</Label>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={templateFormData.type4Data.legislativeActions.executiveOrder}
+                          onChange={(e) => {
+                            setTemplateFormData((prev) => ({
+                              ...prev,
+                              type4Data: {
+                                ...prev.type4Data!,
+                                legislativeActions: {
+                                  ...prev.type4Data!.legislativeActions,
+                                  executiveOrder: e.target.checked
+                                }
+                              }
+                            }));
+                          }}
+                          className="mt-1"
+                        />
+                        <Label className="text-sm flex-1">Executive order by the Governor (if applicable)</Label>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="space-y-2">
                     <Label>Provide link to amended law or executive order:</Label>
@@ -1504,61 +2009,513 @@ const handleSubmit = async (e: React.FormEvent) => {
                     <h5 className="font-medium">Verification Checklist</h5>
                     
                     <div className="space-y-4">
-                      {[
-                        "A single, consolidated document listing all inter-state trade-related fees and levies is available.",
-                        "Each fee in the schedule includes a description and basis of estimation, even where amounts are not specified in the law.",
-                        "The amended revenue law/consolidated code removing haulage fees is published on the state official website.",
-                        "The removal of haulage fees is clearly reflected in the amended revenue law/consolidated revenue code.",
-                        "Hyperlinks to relevant revenue laws and regulations are provided in the schedule document."
-                      ].map((item, index) => {
-                        const verificationKey = `verification${index + 1}` as keyof Type4Data;
-                        const verification = templateFormData.type4Data![verificationKey] as { confirmed: boolean; evidence: string };
-                        
-                        return (
-                          <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
-                            <div className="flex items-start gap-3">
+                      {/* Verification Item 1 - Yes/No radio buttons with affirmative/not affirmative output */}
+                      <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+                        <div className="flex items-start gap-3">
+                          <Label className="text-sm flex-1">1. A single, consolidated document listing all inter-state trade-related fees and levies is available.</Label>
+                        </div>
+                        <div className="ml-6 space-y-2">
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-2">
                               <input
-                                type="checkbox"
-                                checked={verification.confirmed}
-                                onChange={(e) => {
+                                type="radio"
+                                name="verification1"
+                                checked={templateFormData.type4Data!.verification1.confirmed === true}
+                                onChange={() => {
                                   setTemplateFormData((prev) => ({
                                     ...prev,
                                     type4Data: {
                                       ...prev.type4Data!,
-                                      [verificationKey]: {
-                                        ...verification,
-                                        confirmed: e.target.checked
+                                      verification1: {
+                                        ...prev.type4Data!.verification1,
+                                        confirmed: true
                                       }
                                     }
                                   }));
                                 }}
-                                className="mt-1"
                               />
-                              <Label className="text-sm flex-1">{index + 1}. {item}</Label>
-                            </div>
-                            <div className="ml-6">
-                              <Label className="text-xs text-gray-600">Supporting Evidence:</Label>
-                              <Input
-                                value={verification.evidence}
-                                onChange={(e) => {
+                              Yes
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="verification1"
+                                checked={templateFormData.type4Data!.verification1.confirmed === false}
+                                onChange={() => {
                                   setTemplateFormData((prev) => ({
                                     ...prev,
                                     type4Data: {
                                       ...prev.type4Data!,
-                                      [verificationKey]: {
-                                        ...verification,
-                                        evidence: e.target.value
+                                      verification1: {
+                                        ...prev.type4Data!.verification1,
+                                        confirmed: false
                                       }
                                     }
                                   }));
                                 }}
-                                placeholder="Enter supporting evidence or reference"
-                                className="text-sm"
                               />
-                            </div>
+                              No
+                            </label>
                           </div>
-                        );
-                      })}
+                        </div>
+                      </div>
+
+                      {/* Verification Item 2 - Yes/No checkbox then provide link */}
+                      <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={templateFormData.type4Data!.verification2.confirmed}
+                            onChange={(e) => {
+                              setTemplateFormData((prev) => ({
+                                ...prev,
+                                type4Data: {
+                                  ...prev.type4Data!,
+                                  verification2: {
+                                    ...prev.type4Data!.verification2,
+                                    confirmed: e.target.checked
+                                  }
+                                }
+                              }));
+                            }}
+                            className="mt-1"
+                          />
+                          <Label className="text-sm flex-1">2. Each fee in the schedule includes a description and basis of estimation, even where amounts are not specified in the law.</Label>
+                        </div>
+                        {templateFormData.type4Data!.verification2.confirmed && (
+                          <div className="ml-6">
+                            <Label className="text-xs text-gray-600">Provide link:</Label>
+                            <Input
+                              value={templateFormData.type4Data!.verification2.evidence}
+                              onChange={(e) => {
+                                setTemplateFormData((prev) => ({
+                                  ...prev,
+                                  type4Data: {
+                                    ...prev.type4Data!,
+                                    verification2: {
+                                      ...prev.type4Data!.verification2,
+                                      evidence: e.target.value
+                                    }
+                                  }
+                                }));
+                              }}
+                              placeholder="Enter link"
+                              type="url"
+                              className="text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Verification Item 3 - Yes/No checkbox then provide link if yes only */}
+                      <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={templateFormData.type4Data!.verification3.confirmed}
+                            onChange={(e) => {
+                              setTemplateFormData((prev) => ({
+                                ...prev,
+                                type4Data: {
+                                  ...prev.type4Data!,
+                                  verification3: {
+                                    ...prev.type4Data!.verification3,
+                                    confirmed: e.target.checked,
+                                    evidence: e.target.checked ? prev.type4Data!.verification3.evidence : ""
+                                  }
+                                }
+                              }));
+                            }}
+                            className="mt-1"
+                          />
+                          <Label className="text-sm flex-1">3. The amended revenue law/consolidated code removing haulage fees is published on the state official website.</Label>
+                        </div>
+                        {templateFormData.type4Data!.verification3.confirmed && (
+                          <div className="ml-6">
+                            <Label className="text-xs text-gray-600">Provide link:</Label>
+                            <Input
+                              value={templateFormData.type4Data!.verification3.evidence}
+                              onChange={(e) => {
+                                setTemplateFormData((prev) => ({
+                                  ...prev,
+                                  type4Data: {
+                                    ...prev.type4Data!,
+                                    verification3: {
+                                      ...prev.type4Data!.verification3,
+                                      evidence: e.target.value
+                                    }
+                                  }
+                                }));
+                              }}
+                              placeholder="Enter link"
+                              type="url"
+                              className="text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Verification Item 4 - Yes/No checkbox then provide link if yes or explanation */}
+                      <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={templateFormData.type4Data!.verification4.confirmed}
+                            onChange={(e) => {
+                              setTemplateFormData((prev) => ({
+                                ...prev,
+                                type4Data: {
+                                  ...prev.type4Data!,
+                                  verification4: {
+                                    ...prev.type4Data!.verification4,
+                                    confirmed: e.target.checked
+                                  }
+                                }
+                              }));
+                            }}
+                            className="mt-1"
+                          />
+                          <Label className="text-sm flex-1">4. The removal of haulage fees is clearly reflected in the amended revenue law/consolidated revenue code.</Label>
+                        </div>
+                        <div className="ml-6">
+                          <Label className="text-xs text-gray-600">
+                            {templateFormData.type4Data!.verification4.confirmed ? "Provide link:" : "Explanation:"}
+                          </Label>
+                          <Input
+                            value={templateFormData.type4Data!.verification4.evidence}
+                            onChange={(e) => {
+                              setTemplateFormData((prev) => ({
+                                ...prev,
+                                type4Data: {
+                                  ...prev.type4Data!,
+                                  verification4: {
+                                    ...prev.type4Data!.verification4,
+                                    evidence: e.target.value
+                                  }
+                                }
+                              }));
+                            }}
+                            placeholder={templateFormData.type4Data!.verification4.confirmed ? "Enter link" : "Enter explanation"}
+                            type={templateFormData.type4Data!.verification4.confirmed ? "url" : "text"}
+                            className="text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Verification Item 5 - Yes/No checkbox */}
+                      <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={templateFormData.type4Data!.verification5.confirmed}
+                            onChange={(e) => {
+                              setTemplateFormData((prev) => ({
+                                ...prev,
+                                type4Data: {
+                                  ...prev.type4Data!,
+                                  verification5: {
+                                    ...prev.type4Data!.verification5,
+                                    confirmed: e.target.checked
+                                  }
+                                }
+                              }));
+                            }}
+                            className="mt-1"
+                          />
+                          <Label className="text-sm flex-1">5. Hyperlinks to relevant revenue laws and regulations are provided in the schedule document.</Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Type 5: State Committee on Export Promotion (SCEP) Report */}
+              {templateFormData.reportType === "type5" && (
+                <div className="space-y-6">
+                  <h4 className="text-lg font-semibold">State Committee on Export Promotion (SCEP) Report</h4>
+                  
+                  {/* Section 2: Functions of SCEP */}
+                  <div className="space-y-4">
+                    <h5 className="font-medium">2. Functions of SCEP</h5>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-4">
+                        The SCEP performs the following statutory functions:<br/>
+                        • Constitutes a forum for the promotion of principal exportable products of the state.<br/>
+                        • Advises the Nigeria Export Promotion Council (NEPC) on strategies to achieve its mandate in the state.<br/>
+                        • Carries out additional functions as may be directed by the NEPC.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Insert link to state law, gazette, or mandate documentation confirming the existence of the SCEP:</Label>
+                      <Input
+                        name="scepMandateLink"
+                        value={templateFormData.type5Data?.scepMandateLink || ""}
+                        onChange={(e) => handleTemplateDataStringChange(e, "type5Data")}
+                        placeholder="Enter SCEP mandate documentation link"
+                        type="url"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Section 3: Export Strategy */}
+                  <div className="space-y-4">
+                    <h5 className="font-medium">3. Export Strategy and Guideline Document</h5>
+                    
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={templateFormData.type5Data?.hasExportStrategy || false}
+                        onChange={(e) => {
+                          setTemplateFormData((prev) => ({
+                            ...prev,
+                            type5Data: {
+                              ...prev.type5Data!,
+                              hasExportStrategy: e.target.checked
+                            }
+                          }));
+                        }}
+                        className="mt-1"
+                      />
+                      <Label className="text-sm">The state has developed a comprehensive Export Strategy and Guidelines Document</Label>
+                    </div>
+
+                    {templateFormData.type5Data?.hasExportStrategy && (
+                      <div className="space-y-2">
+                        <Label>Provide link to the published Export Strategy document:</Label>
+                        <Input
+                          name="exportStrategyLink"
+                          value={templateFormData.type5Data?.exportStrategyLink || ""}
+                          onChange={(e) => handleTemplateDataStringChange(e, "type5Data")}
+                          placeholder="Enter export strategy document link"
+                          type="url"
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section 4: Stakeholder Consultation */}
+                  <div className="space-y-4">
+                    <h5 className="font-medium">4. Stakeholder Consultation Process</h5>
+                    
+                    <div className="space-y-2">
+                      <Label>Attendance Sheets (Link to document):</Label>
+                      <Input
+                        name="attendanceSheets"
+                        value={templateFormData.type5Data?.stakeholderConsultation.attendanceSheets || ""}
+                        onChange={(e) => {
+                          setTemplateFormData((prev) => ({
+                            ...prev,
+                            type5Data: {
+                              ...prev.type5Data!,
+                              stakeholderConsultation: {
+                                ...prev.type5Data!.stakeholderConsultation,
+                                attendanceSheets: e.target.value
+                              }
+                            }
+                          }));
+                        }}
+                        placeholder="Enter link to attendance sheets"
+                        type="url"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Meeting Minutes (Link to document):</Label>
+                      <Input
+                        name="meetingMinutes"
+                        value={templateFormData.type5Data?.stakeholderConsultation.meetingMinutes || ""}
+                        onChange={(e) => {
+                          setTemplateFormData((prev) => ({
+                            ...prev,
+                            type5Data: {
+                              ...prev.type5Data!,
+                              stakeholderConsultation: {
+                                ...prev.type5Data!.stakeholderConsultation,
+                                meetingMinutes: e.target.value
+                              }
+                            }
+                          }));
+                        }}
+                        placeholder="Enter link to meeting minutes"
+                        type="url"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Names and contacts of private sector contributors:</Label>
+                      {(templateFormData.type5Data?.stakeholderConsultation.privateContributors || [""]).map((value, index) => (
+                        <div key={`privateContributors-${index}`} className="flex items-center gap-2">
+                          <Input
+                            value={value}
+                            onChange={(e) => {
+                              const newValue = e.target.value;
+                              setTemplateFormData((prev) => {
+                                const currentContributors = [...(prev.type5Data?.stakeholderConsultation.privateContributors || [])];
+                                currentContributors[index] = newValue;
+                                return {
+                                  ...prev,
+                                  type5Data: {
+                                    ...prev.type5Data!,
+                                    stakeholderConsultation: {
+                                      ...prev.type5Data!.stakeholderConsultation,
+                                      privateContributors: currentContributors
+                                    }
+                                  }
+                                };
+                              });
+                            }}
+                            placeholder="Enter name and contact"
+                            className="flex-1"
+                            required
+                          />
+                          {(templateFormData.type5Data?.stakeholderConsultation.privateContributors?.length || 0) > 1 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setTemplateFormData((prev) => {
+                                  const currentContributors = [...(prev.type5Data?.stakeholderConsultation.privateContributors || [])];
+                                  currentContributors.splice(index, 1);
+                                  return {
+                                    ...prev,
+                                    type5Data: {
+                                      ...prev.type5Data!,
+                                      stakeholderConsultation: {
+                                        ...prev.type5Data!.stakeholderConsultation,
+                                        privateContributors: currentContributors
+                                      }
+                                    }
+                                  };
+                                });
+                              }}
+                            >
+                              <Minus className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setTemplateFormData((prev) => {
+                            const currentContributors = [...(prev.type5Data?.stakeholderConsultation.privateContributors || []), ""];
+                            return {
+                              ...prev,
+                              type5Data: {
+                                ...prev.type5Data!,
+                                stakeholderConsultation: {
+                                  ...prev.type5Data!.stakeholderConsultation,
+                                  privateContributors: currentContributors
+                                }
+                              }
+                            };
+                          });
+                        }}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Contributor
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Narrative summary of private sector feedback:</Label>
+                      <textarea
+                        name="feedbackSummary"
+                        value={templateFormData.type5Data?.stakeholderConsultation.feedbackSummary || ""}
+                        onChange={(e) => {
+                          setTemplateFormData((prev) => ({
+                            ...prev,
+                            type5Data: {
+                              ...prev.type5Data!,
+                              stakeholderConsultation: {
+                                ...prev.type5Data!.stakeholderConsultation,
+                                feedbackSummary: e.target.value
+                              }
+                            }
+                          }));
+                        }}
+                        placeholder="Provide a summary of how private sector feedback influenced the final document"
+                        className="w-full min-h-[100px] p-3 border border-gray-300 rounded-md"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Section 5: Operational Budget */}
+                  <div className="space-y-4">
+                    <h5 className="font-medium">5. Operational Budget Allocation</h5>
+                    
+                    <div className="space-y-2">
+                      <Label>Budget Documents (Link to relevant pages from 2024 and 2025 Approved Budgets):</Label>
+                      <Input
+                        name="budgetDocuments"
+                        value={templateFormData.type5Data?.budgetDocuments || ""}
+                        onChange={(e) => handleTemplateDataStringChange(e, "type5Data")}
+                        placeholder="Enter link to budget documents showing SCEP allocation"
+                        type="url"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Section 6: Implementation Activities */}
+                  <div className="space-y-4">
+                    <h5 className="font-medium">6. Implementation Activities and Institutional Mechanism</h5>
+                    
+                    {renderArrayInputs(
+                      "type5Data",
+                      "implementationReports",
+                      "Implementation Activity Reports (Links to 2 or more reports):",
+                      "Enter link to implementation report",
+                      true
+                    )}
+                  </div>
+
+                  {/* Checklist */}
+                  <div className="space-y-4">
+                    <h5 className="font-medium">Checklist of Required Attachments/Links</h5>
+                    
+                    <div className="space-y-3">
+                      {[
+                        { key: "exportStrategyDoc", label: "Export Strategy and Guidelines Document (PDF or Word)" },
+                        { key: "publicationLink", label: "Publication link to state website hosting the strategy" },
+                        { key: "attendanceSheets", label: "Signed meeting attendance sheets and consultation minutes" },
+                        { key: "privateContributors", label: "Names/contacts of sampled private sector contributors" },
+                        { key: "budgetLineItems", label: "Budget line items from FY2024 and FY2025 budgets" },
+                        { key: "nepcCertification", label: "NEPC certification baseline data and 2025 firm data" },
+                        { key: "exportActivities", label: "Evidence of export promotion activities executed by the SCEP" },
+                        { key: "institutionalFramework", label: "Institutional mechanism and implementation framework" }
+                      ].map((item) => (
+                        <div key={item.key} className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={templateFormData.type5Data?.checklist[item.key] || false}
+                            onChange={(e) => {
+                              setTemplateFormData((prev) => ({
+                                ...prev,
+                                type5Data: {
+                                  ...prev.type5Data!,
+                                  checklist: {
+                                    ...prev.type5Data!.checklist,
+                                    [item.key]: e.target.checked
+                                  }
+                                }
+                              }));
+                            }}
+                            className="mt-1"
+                          />
+                          <Label className="text-sm">{item.label}</Label>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>

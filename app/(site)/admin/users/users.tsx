@@ -402,27 +402,6 @@ export default function Admin() {
     </SelectContent>
   </Select>}
 
-                {selectedRole === "admin" && <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Admin Page Access (optional)
-                    </label>
-                    <div className="flex flex-col gap-2 text-sm">
-                      {[{
-                        label: "Dashboard",
-                        value: "/admin"
-                      }, {
-                        label: "ReportGov - Tickets",
-                        value: "/admin/tickets"
-                      }].map(item => <label key={item.value} className="flex items-center gap-2">
-                          <input type="checkbox" checked={permissions.includes(item.value)} onChange={e => {
-                            const checked = e.target.checked;
-                            setPermissions(prev => checked ? [...prev, item.value] : prev.filter(p => p !== item.value));
-                          }} />
-                          {item.label}
-                        </label>)}
-                    </div>
-                  </div>}
-
                 {/* Staff Additional Admin Access */}
                 {selectedRole === "staff" && <div className="mt-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
