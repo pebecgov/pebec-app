@@ -970,7 +970,7 @@ const { user } = useUser();
 
       switch (cleanedFormData.reportType) {
         case "type2":
-          reportTitlePrefix = "ANNOUNCE INVESTMENT REPORT";
+          reportTitlePrefix = `${currentUser?.state} ANNOUNCE INVESTMENT REPORT`;
           typeSpecificData = cleanedFormData.type2Data;
           if (typeSpecificData) {
             headers.push("S.No.", "Announce Investment", "Date of Announcement", "Media Platform");
@@ -979,7 +979,7 @@ const { user } = useUser();
           break;
         case "type3":
           typeSpecificData = cleanedFormData.type3Data;
-          reportTitlePrefix = "INCENTIVE INVESTMENT REPORT";
+          reportTitlePrefix = `${currentUser?.state} INCENTIVE INVESTMENT REPORT`;
           if (typeSpecificData) {
             headers.push(
               "S.No.",
@@ -1012,7 +1012,7 @@ const { user } = useUser();
           break;
         case "type4":
           typeSpecificData = cleanedFormData.type4Data;
-          reportTitlePrefix = "STATE SCHEDULE OF TRADE-RELATED FEES COMPLIANCE REPORT";
+          reportTitlePrefix = `${currentUser?.state} STATE SCHEDULE OF TRADE-RELATED FEES COMPLIANCE REPORT`;
           if (typeSpecificData) {
             headers.push(
               "S.No.",
