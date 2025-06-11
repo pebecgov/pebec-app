@@ -33,7 +33,29 @@ export default function Sidebar({
     name: "Dashboard",
     icon: <HomeIcon className="w-5 h-5" />,
     path: "/saber_agent"
-  }, {
+  }, 
+  {
+    name: "Saber",
+    icon: <Squares2X2Icon className="w-5 h-5" />,
+    items: [
+       {
+      name: "DLIs",
+      path: "/saber_agent/dli"
+    },
+      {
+      name: "Overview",
+      path: "/saber_agent/saber-overview"
+    }, {
+      name: "Materials",
+      path: "/saber_agent/materials"
+    }]
+  },
+  {
+    name: "Submit Report",
+    icon: <DocumentTextIcon className="w-5 h-5" />,
+    path: "/saber_agent/reports"
+  },
+  {
     name: "Send a Letter",
     icon: <EnvelopeIcon className="w-5 h-5" />,
     path: "/saber_agent/send-letters"
@@ -41,23 +63,6 @@ export default function Sidebar({
     name: "Received Letters",
     icon: <InboxArrowDownIcon className="w-5 h-5" />,
     path: "/saber_agent/received-letters"
-  }, {
-    name: "Submit Report",
-    icon: <DocumentTextIcon className="w-5 h-5" />,
-    path: "/saber_agent/reports"
-  }, {
-    name: "Saber",
-    icon: <Squares2X2Icon className="w-5 h-5" />,
-    items: [{
-      name: "Overview",
-      path: "/saber_agent/saber-overview"
-    }, {
-      name: "Materials",
-      path: "/saber_agent/materials"
-    }, {
-      name: "DLIs",
-      path: "/saber_agent/dli"
-    }]
   }, {
     name: "Profile",
     icon: <UserCircleIcon className="w-5 h-5" />,
