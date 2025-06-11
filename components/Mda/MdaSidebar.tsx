@@ -34,11 +34,8 @@ export default function Sidebar({
     name: "Meetings",
     icon: <CalendarDaysIcon className="w-5 h-5" />,
     path: "/mda/meetings"
-  }, {
-    name: "Reports",
-    icon: <DocumentTextIcon className="w-5 h-5" />,
-    path: "/mda/reports"
-  }, {
+  }, 
+   {
     name: "Send letter",
     icon: <EnvelopeIcon className="w-5 h-5" />,
     path: "/mda/send-letters"
@@ -46,12 +43,8 @@ export default function Sidebar({
     name: "Received Letters",
     icon: <EnvelopeIcon className="w-5 h-5" />,
     path: "/mda/received-letters"
-  }, {
-    name: "Materials",
-    icon: <BookOpenIcon className="w-5 h-5" />,
-    path: "/mda/materials"
-  }, {
-    name: "Profile",
+  }, 
+  {name: "Profile",
     icon: <UserCircleIcon className="w-5 h-5" />,
     path: "/mda/profile"
   }];
