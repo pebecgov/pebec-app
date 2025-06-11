@@ -39,7 +39,7 @@ export default function RootLayout({
     
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <html lang="en" suppressHydrationWarning>
-          <body className={`dark:bg-white ${inter.className}`}>
+          <body className={`dark:bg-white ${inter.className}`} suppressHydrationWarning>
             <ThemeProvider enableSystem={false} attribute="class" defaultTheme="light">
             {isLoading ? <div className="flex h-screen w-full items-center justify-center bg-white">
     <div className="flex flex-col items-center justify-center gap-6">
