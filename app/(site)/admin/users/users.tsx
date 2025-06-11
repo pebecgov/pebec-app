@@ -362,45 +362,53 @@ export default function Admin() {
 
                 {}
                 {selectedRole === "staff" && <Select value={selectedStream} onValueChange={val => setSelectedStream(val)}>
-                    <SelectTrigger className="mt-4">
-                      <SelectValue placeholder="Select Staff Stream" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="regulatory">Regulatory</SelectItem>
-                      <SelectItem value="sub_national">Sub National</SelectItem>
-                      <SelectItem value="innovation">Innovation & Technology</SelectItem>
-                      <SelectItem value="judiciary">Judicial</SelectItem>
-                      <SelectItem value="communications">Communications</SelectItem>
-                      <SelectItem value="investments">Investments</SelectItem>
-                      <SelectItem value="receptionist">Receptionist - Front Officer</SelectItem>
-                      <SelectItem value="account">Account</SelectItem>
-                     <SelectItem value="auditor">Auditor</SelectItem>
-                    </SelectContent>
-                  </Select>}
+                  <SelectTrigger className="mt-4 w-[90%] whitespace-normal break-words min-h-[2.5rem]">
+                    <SelectValue placeholder="Select Staff Stream" className="whitespace-normal break-words" />
+                  </SelectTrigger>
+                  <SelectContent className="whitespace-normal break-words">
+                    <SelectItem value="regulatory" className="whitespace-normal break-words">Regulatory</SelectItem>
+                    <SelectItem value="sub_national" className="whitespace-normal break-words">Sub National</SelectItem>
+                    <SelectItem value="innovation" className="whitespace-normal break-words">Innovation & Technology</SelectItem>
+                    <SelectItem value="judiciary" className="whitespace-normal break-words">Judicial</SelectItem>
+                    <SelectItem value="communications" className="whitespace-normal break-words">Communications</SelectItem>
+                    <SelectItem value="investments" className="whitespace-normal break-words">Investments</SelectItem>
+                    <SelectItem value="receptionist" className="whitespace-normal break-words">Receptionist - Front Officer</SelectItem>
+                    <SelectItem value="account" className="whitespace-normal break-words">Account</SelectItem>
+                    <SelectItem value="auditor" className="whitespace-normal break-words">Auditor</SelectItem>
+                  </SelectContent>
+                </Select>}
 
                 {}
                 {["state_governor", "saber_agent", "magistrates", "deputies"].includes(selectedRole) && <Select value={selectedState} onValueChange={setSelectedState}>
-                    <SelectTrigger className="mt-4">
-                      <SelectValue placeholder="Select State" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {nigeriaStates.map(state => <SelectItem key={state} value={state}>
-                          {state}
-                        </SelectItem>)}
-                    </SelectContent>
-                  </Select>}
+                  <SelectTrigger className="mt-4 w-[90%] whitespace-normal break-words min-h-[2.5rem]">
+                    <SelectValue placeholder="Select State" className="whitespace-normal break-words" />
+                  </SelectTrigger>
+                  <SelectContent className="whitespace-normal break-words">
+                    {nigeriaStates.map(state => <SelectItem key={state} value={state} className="whitespace-normal break-words">{state}</SelectItem>)}
+                  </SelectContent>
+                </Select>}
 
                 {}
-                {["mda", "reform_champion"].includes(selectedRole) && <Select value={selectedMda} onValueChange={setSelectedMda}>
-    <SelectTrigger className="mt-4">
-      <SelectValue placeholder="Select MDA" />
-    </SelectTrigger>
-    <SelectContent className="max-h-64 overflow-auto">
-      {mdasList.map((mda, index) => <SelectItem key={index} value={`${mda.abbreviation} - ${mda.name}`} className="whitespace-normal break-words">
-          {mda.abbreviation} - {mda.name}
-        </SelectItem>)}
-    </SelectContent>
-  </Select>}
+                {["mda", "reform_champion"].includes(selectedRole) && (
+                  <div className="w-full bg-transparent  p-0.5 overflow-x-hidden">
+                    <Select value={selectedMda} onValueChange={setSelectedMda}>
+                      <SelectTrigger className="mt-4 w-full whitespace-normal break-words min-h-[2.5rem]">
+                        <SelectValue placeholder="Select MDA" className="whitespace-normal break-words" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64 overflow-auto whitespace-normal break-words">
+                        {mdasList.map((mda, index) => (
+                          <SelectItem
+                            key={index}
+                            value={`${mda.abbreviation} - ${mda.name}`}
+                            className="whitespace-normal break-words"
+                          >
+                            {mda.abbreviation} - {mda.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {selectedRole === "admin" && <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
