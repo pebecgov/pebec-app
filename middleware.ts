@@ -16,6 +16,7 @@ const isMagistratesRoute = createRouteMatcher(["/magistrates(.*)"]);
 const isPresidentRoute = createRouteMatcher(["/president(.*)"]);
 const isVicePresidentRoute = createRouteMatcher(["/vice_president(.*)"]);
 const issaberAgent = createRouteMatcher(["/saber_agent(.*)"]);
+const isWorldBankRoute = createRouteMatcher(["/world_bank(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
  const session = await auth();
@@ -43,6 +44,11 @@ export default clerkMiddleware(async (auth, req) => {
   // Enhanced admin route check - Allow both admin and staff users
   if (isAdminRoute(req) && role !== "admin" && role !== "staff") {
     return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  // World Bank role: restrict to /world_bank only
+  if (role === "world_bank" && !isWorldBankRoute(req)) {
+    return NextResponse.redirect(new URL("/world_bank", req.url));
   }
 
   // Rest of the route checks remain the same

@@ -117,7 +117,21 @@ export const getUserByClerkId = query({
 export const setUserRole = mutation({
   args: {
     userId: v.id("users"),
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president"))
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    )
   },
   handler: async (ctx, {
     userId,
@@ -416,7 +430,21 @@ export const getUsersWithRole = query({
 export const updateUserInConvex = mutation({
   args: {
     clerkUserId: v.string(),
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda")),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
     mdaId: v.optional(v.id("mdas")),
     mdaName: v.optional(v.string()),
     description: v.optional(v.string()),
@@ -454,7 +482,21 @@ export async function getCurrentUserOrNull(ctx: QueryCtx | MutationCtx) {
 export const updateUserRoleInConvex = mutation({
   args: {
     clerkUserId: v.string(),
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president")),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
     staffStream: v.optional(v.string()),
     state: v.optional(v.string()),
     permissions: v.optional(v.array(v.string()))
@@ -651,7 +693,16 @@ export const isAdmin = (user: {
     throw new Error("Forbidden: Admins only.");
   }
 };
-const allowedRoles = v.union(v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("saber_agent"), v.literal("state_governor"), v.literal("deputies"), v.literal("magistrates"));
+const allowedRoles = v.union(
+  v.literal("mda"),
+  v.literal("staff"),
+  v.literal("reform_champion"),
+  v.literal("saber_agent"),
+  v.literal("state_governor"),
+  v.literal("deputies"),
+  v.literal("magistrates"),
+  v.literal("world_bank")
+);
 export const requestInternalRole = mutation({
   args: {
     requestedRole: allowedRoles,

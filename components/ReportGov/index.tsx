@@ -85,7 +85,7 @@ export default function ReportGovPage() {
 
         <div className="md:w-1/2 flex flex-col items-center justify-center">
           <div className="text-center mb-6">
-            <h3 className="text-2xl font-semibold text-gray-900">Choose How You’d Like to Proceed</h3>
+            <h3 className="text-2xl font-semibold text-gray-900">Choose How You'd Like to Proceed</h3>
             <p className="text-gray-600 text-sm">Select one of the options below to get started</p>
           </div>
 
@@ -119,7 +119,16 @@ export default function ReportGovPage() {
   <button onClick={() => {
               if (!isSignedIn) return handleSignInClick();
               const role = user?.publicMetadata?.role;
-              if (role === "admin") router.push("/admin");else if (role === "staff") router.push("/staff");else if (role === "mda") router.push("/mda");else if (role === "reform_champion") router.push("/reform_champion");else if (role === "saber_agent") router.push("/saber_agent");else if (role === "president") router.push("/president");else if (role === "vice_president") router.push("/vice_president");else if (role === "user") router.push("/reportgov");else router.push("/");
+              if (role === "admin") router.push("/admin");
+              else if (role === "staff") router.push("/staff");
+              else if (role === "mda") router.push("/mda");
+              else if (role === "reform_champion") router.push("/reform_champion");
+              else if (role === "saber_agent") router.push("/saber_agent");
+              else if (role === "president") router.push("/president");
+              else if (role === "vice_president") router.push("/vice_president");
+              else if (role === "world_bank") router.push("/world_bank");
+              else if (role === "user") router.push("/reportgov");
+              else router.push("/");
             }} className="w-[140px] h-[140px] bg-green-800 rounded-[10px_10px_140px_10px] shadow-xl hover:scale-105 hover:bg-green-700 transition-all flex items-center justify-center">
     {isSignedIn ? <MdDashboard className="text-white text-5xl" /> : <FaSignInAlt className="text-white text-5xl" />}
   </button>

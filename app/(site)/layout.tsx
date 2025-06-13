@@ -30,7 +30,17 @@ export default function RootLayout({
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const pathname = usePathname();
-  const isHiddenPath = pathname.startsWith("/admin") || pathname.startsWith("/mda") || pathname.startsWith("/staff") || pathname.startsWith("/reform_champion") || pathname.startsWith("/deputies") || pathname.startsWith("/magistrates") || pathname.startsWith("/state_governor") || pathname.startsWith("/vice_president") || pathname.startsWith("/president") || pathname.startsWith("/saber_agent");
+  const isHiddenPath = pathname.startsWith("/admin") || 
+    pathname.startsWith("/mda") || 
+    pathname.startsWith("/staff") || 
+    pathname.startsWith("/reform_champion") || 
+    pathname.startsWith("/deputies") || 
+    pathname.startsWith("/magistrates") || 
+    pathname.startsWith("/state_governor") || 
+    pathname.startsWith("/vice_president") || 
+    pathname.startsWith("/president") || 
+    pathname.startsWith("/saber_agent") ||
+    pathname.startsWith("/world_bank");
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 1500);
     return () => clearTimeout(timer);

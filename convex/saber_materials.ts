@@ -11,7 +11,21 @@ export const addSaberMaterial = mutation({
     materialUploadId: v.id("_storage"),
     createdBy: v.id("users"),
     createdAt: v.number(),
-    roles: v.array(v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president"))),
+    roles: v.array(v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    )),
     reference: v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework"))
   },
   handler: async (ctx, args) => {
@@ -60,7 +74,21 @@ export const getSaberMaterialsByReference = query({
 export const updateSaberMaterialRoles = mutation({
   args: {
     materialId: v.id("saber_materials"),
-    roles: v.array(v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president")))
+    roles: v.array(v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ))
   },
   handler: async (ctx, {
     materialId,
