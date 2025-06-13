@@ -6,7 +6,21 @@ export const createReportTemplate = mutation({
   args: {
     title: v.string(),
     description: v.optional(v.string()),
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president")),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
     createdBy: v.id("users"),
     headers: v.array(v.object({
       name: v.string(),
@@ -24,7 +38,21 @@ export const createReportTemplate = mutation({
 export const submitReport = mutation({
   args: {
     submittedBy: v.id("users"),
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president")),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
     fileId: v.optional(v.id("_storage")),
     fileUrl: v.optional(v.string()),
     fileName: v.optional(v.string()),
@@ -45,7 +73,21 @@ export const submitReport = mutation({
 });
 export const getReportTemplates = query({
   args: {
-    role: v.optional(v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president")))
+    role: v.optional(v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ))
   },
   handler: async (ctx, {
     role
@@ -95,7 +137,21 @@ export const updateReportTemplate = mutation({
     id: v.id("report_templates"),
     title: v.string(),
     description: v.optional(v.string()),
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president")),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
     headers: v.array(v.object({
       name: v.string(),
       type: v.union(v.literal("text"), v.literal("number"), v.literal("textarea"), v.literal("dropdown"), v.literal("checkbox"), v.literal("date")),
@@ -135,7 +191,21 @@ export const submitInternalReport = mutation({
   args: {
     templateId: v.id("report_templates"),
     submittedBy: v.id("users"),
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president")),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
     data: v.array(v.array(v.string()))
   },
   handler: async (ctx, args) => {
@@ -176,7 +246,21 @@ export const generateUploadUrl = mutation({
 });
 export const getAvailableReports = query({
   args: {
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president"))
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    )
   },
   handler: async (ctx, {
     role
@@ -186,7 +270,22 @@ export const getAvailableReports = query({
 });
 export const getAvailableReportsforAdmin = query({
   args: {
-    role: v.optional(v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president"), v.literal("all")))
+    role: v.optional(v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank"),
+      v.literal("all")
+    ))
   },
   handler: async (ctx, {
     role

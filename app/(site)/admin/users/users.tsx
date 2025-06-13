@@ -222,6 +222,7 @@ export default function Admin() {
           <SelectItem value="state_governor">State Governor</SelectItem>
           <SelectItem value="president">President</SelectItem>
           <SelectItem value="vice_president">Vice President</SelectItem>
+          <SelectItem value="world_bank">World Bank</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -355,6 +356,7 @@ export default function Admin() {
                     <SelectItem value="state_governor">State Governor</SelectItem>
                     <SelectItem value="president">President</SelectItem>
                     <SelectItem value="vice_president">Vice President</SelectItem>
+                    <SelectItem value="world_bank">World Bank</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -364,7 +366,7 @@ export default function Admin() {
                 {selectedRole === "staff" && <Select value={selectedStream} onValueChange={val => setSelectedStream(val)}>
                   <SelectTrigger className="mt-4 w-[90%] whitespace-normal break-words min-h-[2.5rem]">
                     <SelectValue placeholder="Select Staff Stream" className="whitespace-normal break-words" />
-                  </SelectTrigger>
+                    </SelectTrigger>
                   <SelectContent className="whitespace-normal break-words">
                     <SelectItem value="regulatory" className="whitespace-normal break-words">Regulatory</SelectItem>
                     <SelectItem value="sub_national" className="whitespace-normal break-words">Sub National</SelectItem>
@@ -375,18 +377,18 @@ export default function Admin() {
                     <SelectItem value="receptionist" className="whitespace-normal break-words">Receptionist - Front Officer</SelectItem>
                     <SelectItem value="account" className="whitespace-normal break-words">Account</SelectItem>
                     <SelectItem value="auditor" className="whitespace-normal break-words">Auditor</SelectItem>
-                  </SelectContent>
-                </Select>}
+                    </SelectContent>
+                  </Select>}
 
                 {}
                 {["state_governor", "saber_agent", "magistrates", "deputies"].includes(selectedRole) && <Select value={selectedState} onValueChange={setSelectedState}>
                   <SelectTrigger className="mt-4 w-[90%] whitespace-normal break-words min-h-[2.5rem]">
                     <SelectValue placeholder="Select State" className="whitespace-normal break-words" />
-                  </SelectTrigger>
+                    </SelectTrigger>
                   <SelectContent className="whitespace-normal break-words">
                     {nigeriaStates.map(state => <SelectItem key={state} value={state} className="whitespace-normal break-words">{state}</SelectItem>)}
-                  </SelectContent>
-                </Select>}
+                    </SelectContent>
+                  </Select>}
 
                 {}
                 {["mda", "reform_champion"].includes(selectedRole) && (
@@ -394,7 +396,7 @@ export default function Admin() {
                     <Select value={selectedMda} onValueChange={setSelectedMda}>
                       <SelectTrigger className="mt-4 w-full whitespace-normal break-words min-h-[2.5rem]">
                         <SelectValue placeholder="Select MDA" className="whitespace-normal break-words" />
-                      </SelectTrigger>
+    </SelectTrigger>
                       <SelectContent className="max-h-64 overflow-auto whitespace-normal break-words">
                         {mdasList.map((mda, index) => (
                           <SelectItem
@@ -402,10 +404,10 @@ export default function Admin() {
                             value={`${mda.abbreviation} - ${mda.name}`}
                             className="whitespace-normal break-words"
                           >
-                            {mda.abbreviation} - {mda.name}
+          {mda.abbreviation} - {mda.name}
                           </SelectItem>
                         ))}
-                      </SelectContent>
+    </SelectContent>
                     </Select>
                   </div>
                 )}

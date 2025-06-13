@@ -43,8 +43,37 @@ const MobileMenu = () => {
   const router = useRouter();
   const userRole = user?.publicMetadata?.role;
   const staffStream = user?.publicMetadata?.stream;
-  const dashboardLink = userRole === "admin" ? "/admin" : userRole === "mda" ? "/mda" : userRole === "staff" && staffStream === "investments" ? "/staff/projects" : userRole === "staff" && staffStream === "receptionist" ? "/staff/letters" : userRole === "staff" ? "/staff" : userRole === "reform_champion" ? "/reform_champion" : userRole === "deputies" ? "/deputies" : userRole === "magistrates" ? "/magistrates" : userRole === "state_governor" ? "/state_governor" : userRole === "vice_president" ? "/vice_president" : userRole === "president" ? "/president" : userRole === "receiptionist" ? "/receiptionist" : userRole === "account" ? "/account" : userRole === "auditor" ? "/auditor" : userRole === "saber_agent" ? "/saber_agent" : "/reportgov";
-  const userRoleText = userRole === "staff" && staffStream === "investments" ? "Investments Dashboard" : userRole === "staff" && staffStream === "receptionist" ? "Reception Desk" : userRole === "admin" ? "Admin" : userRole === "mda" ? "ReportGov Agent" : userRole === "staff" ? "Staff Center" : userRole === "reform_champion" ? "Reform Champion" : userRole === "deputies" ? "Sheriffs Dashboard" : userRole === "magistrates" ? "Magistrate Center" : userRole === "state_governor" ? "State Governor" : userRole === "vice_president" ? "VP Dashboard" : userRole === "president" ? "President Dashboard" : userRole === "saber_agent" ? "Saber Dashboard" : "Dashboard";
+  const dashboardLink = userRole === "admin" ? "/admin" : 
+    userRole === "mda" ? "/mda" : 
+    userRole === "staff" && staffStream === "investments" ? "/staff/projects" : 
+    userRole === "staff" && staffStream === "receptionist" ? "/staff/letters" : 
+    userRole === "staff" ? "/staff" : 
+    userRole === "reform_champion" ? "/reform_champion" : 
+    userRole === "deputies" ? "/deputies" : 
+    userRole === "magistrates" ? "/magistrates" : 
+    userRole === "state_governor" ? "/state_governor" : 
+    userRole === "vice_president" ? "/vice_president" : 
+    userRole === "president" ? "/president" : 
+    userRole === "receiptionist" ? "/receiptionist" : 
+    userRole === "account" ? "/account" : 
+    userRole === "auditor" ? "/auditor" : 
+    userRole === "saber_agent" ? "/saber_agent" : 
+    userRole === "world_bank" ? "/world_bank" : 
+    "/reportgov";
+  const userRoleText = userRole === "staff" && staffStream === "investments" ? "Investments Dashboard" : 
+    userRole === "staff" && staffStream === "receptionist" ? "Reception Desk" : 
+    userRole === "admin" ? "Admin" : 
+    userRole === "mda" ? "ReportGov Agent" : 
+    userRole === "staff" ? "Staff Center" : 
+    userRole === "reform_champion" ? "Reform Champion" : 
+    userRole === "deputies" ? "Sheriffs Dashboard" : 
+    userRole === "magistrates" ? "Magistrate Center" : 
+    userRole === "state_governor" ? "State Governor" : 
+    userRole === "vice_president" ? "VP Dashboard" : 
+    userRole === "president" ? "President Dashboard" : 
+    userRole === "saber_agent" ? "Saber Dashboard" : 
+    userRole === "world_bank" ? "World Bank DLI Status" : 
+    "Dashboard";
   const handleReportGovClick = () => {
     if (!user) {
       openSignIn();
@@ -213,7 +242,7 @@ const MobileMenu = () => {
                       <div className="mt-4 bg-green-600 text-white p-4 rounded-lg shadow-md text-center">
                         <h5 className="text-lg font-bold">Our Mission & Vision</h5>
                         <p className="text-sm mt-2 opacity-95">
-                          Transforming Nigeria’s business environment.
+                          Transforming Nigeria's business environment.
                         </p>
                         <Link href="/vision-mission">
                           <button className="mt-3 bg-white text-green-700 px-4 py-1 rounded-md shadow-md transition-all hover:bg-gray-200">

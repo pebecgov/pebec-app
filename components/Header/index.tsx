@@ -65,8 +65,37 @@ const Header = () => {
   } = useUser();
   const userRole = user?.publicMetadata?.role;
   const staffStream = user?.publicMetadata?.stream;
-  const dashboardLink = userRole === "admin" ? "/admin" : userRole === "mda" ? "/mda" : userRole === "staff" && staffStream === "investments" ? "/staff/projects" : userRole === "staff" && staffStream === "receptionist" ? "/staff/letters" : userRole === "staff" ? "/staff" : userRole === "reform_champion" ? "/reform_champion" : userRole === "deputies" ? "/deputies" : userRole === "magistrates" ? "/magistrates" : userRole === "state_governor" ? "/state_governor" : userRole === "vice_president" ? "/vice_president" : userRole === "president" ? "/president" : userRole === "receiptionist" ? "/receiptionist" : userRole === "account" ? "/account" : userRole === "auditor" ? "/auditor" : userRole === "saber_agent" ? "/saber_agent" : "/reportgov";
-  const userRoleText = userRole === "staff" && staffStream === "investments" ? "Investments Dashboard" : userRole === "staff" && staffStream === "receptionist" ? "Reception Desk" : userRole === "admin" ? "Admin" : userRole === "mda" ? "ReportGov Agent" : userRole === "staff" ? "Staff Center" : userRole === "reform_champion" ? "Reform Champion" : userRole === "deputies" ? "Sheriffs Dashboard" : userRole === "magistrates" ? "Magistrate Center" : userRole === "state_governor" ? "State Governor " : userRole === "vice_president" ? "VP Dashboard" : userRole === "president" ? "President Dashboard" : userRole === "saber_agent" ? "Saber Dashboard" : "Dashboard";
+  const dashboardLink = userRole === "admin" ? "/admin" : 
+    userRole === "mda" ? "/mda" : 
+    userRole === "staff" && staffStream === "investments" ? "/staff/projects" : 
+    userRole === "staff" && staffStream === "receptionist" ? "/staff/letters" : 
+    userRole === "staff" ? "/staff" : 
+    userRole === "reform_champion" ? "/reform_champion" : 
+    userRole === "deputies" ? "/deputies" : 
+    userRole === "magistrates" ? "/magistrates" : 
+    userRole === "state_governor" ? "/state_governor" : 
+    userRole === "vice_president" ? "/vice_president" : 
+    userRole === "president" ? "/president" : 
+    userRole === "receiptionist" ? "/receiptionist" : 
+    userRole === "account" ? "/account" : 
+    userRole === "auditor" ? "/auditor" : 
+    userRole === "saber_agent" ? "/saber_agent" : 
+    userRole === "world_bank" ? "/world_bank" : 
+    "/reportgov";
+  const userRoleText = userRole === "staff" && staffStream === "investments" ? "Investments Dashboard" : 
+    userRole === "staff" && staffStream === "receptionist" ? "Reception Desk" : 
+    userRole === "admin" ? "Admin" : 
+    userRole === "mda" ? "ReportGov Agent" : 
+    userRole === "staff" ? "Staff Center" : 
+    userRole === "reform_champion" ? "Reform Champion" : 
+    userRole === "deputies" ? "Sheriffs Dashboard" : 
+    userRole === "magistrates" ? "Magistrate Center" : 
+    userRole === "state_governor" ? "State Governor " : 
+    userRole === "vice_president" ? "VP Dashboard" : 
+    userRole === "president" ? "President Dashboard" : 
+    userRole === "saber_agent" ? "Saber Dashboard" : 
+    userRole === "world_bank" ? "World Bank DLI Status" : 
+    "Dashboard";
   const pathUrl = usePathname();
   useEffect(() => {
     const handleStickyMenu = () => setStickyMenu(window.scrollY >= 80);
