@@ -698,6 +698,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   type="button"
                   variant={selectedDLI === dli.id ? "default" : "outline"}
                   onClick={() => setSelectedDLI(dli.id)}
+                  size={"lg"}
                 >
                   {dli.name}
                 </Button>
