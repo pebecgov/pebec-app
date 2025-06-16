@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
+import { Save, FileText, Trash2 } from "lucide-react";
 export default function FillReportPage() {
   const {
     fillId
@@ -34,6 +36,9 @@ export default function FillReportPage() {
     createdBy: Id<"users">;
   }>(null);
   const [formData, setFormData] = useState<string[][]>([]);
+  const [currentDraft, setCurrentDraft] = useState<Id<"submitted_reports"> | null>(null);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? {
     clerkUserId: user.id
   } : "skip");
@@ -41,18 +46,38 @@ export default function FillReportPage() {
   const availableReports = useQuery(api.internal_reports.getAvailableReports, convexUser?.role ? {
     role: convexUser.role as "admin" | "user" | "mda" | "staff" | "deputies" | "magistrates" | "reform_champion" | "state_governor" | "president" | "vice_president" | "reform_champion"
   } : "skip") ?? [];
+  
+  // Draft-related mutations and queries
+  const saveDraft = useMutation(api.internal_reports.saveDraftReport);
+  const submitDraftReport = useMutation(api.internal_reports.submitDraftReport);
+  const deleteDraft = useMutation(api.internal_reports.deleteDraftReport);
+  const drafts = useQuery(api.internal_reports.getDraftReports, convexUserId ? {
+    submittedBy: convexUserId,
+    templateId: fillId as Id<"report_templates">
+  } : "skip") ?? [];
+  
   useEffect(() => {
     if (fillId && availableReports.length > 0) {
       const foundTemplate = availableReports.find(t => t._id === fillId);
       if (foundTemplate) {
         setTemplate(foundTemplate);
-        setFormData([foundTemplate.headers.map(() => "")]);
+        
+        // Check if there's an existing draft
+        const existingDraft = drafts.find(draft => draft.templateId === fillId);
+        if (existingDraft && existingDraft.data) {
+          setFormData(existingDraft.data);
+          setCurrentDraft(existingDraft._id);
+          setLastSavedAt(new Date(existingDraft.updatedAt || existingDraft.submittedAt));
+        } else {
+          setFormData([foundTemplate.headers.map(() => "")]);
+        }
       } else {
         toast.error("Report template not found.");
         router.push("/mda/reports");
       }
     }
-  }, [fillId, availableReports, router]);
+  }, [fillId, availableReports, drafts, router]);
+  
   const submitReport = useMutation(api.internal_reports.submitInternalReport);
   const handleChange = (rowIndex: number, colIndex: number, value: string) => {
     setFormData(prev => {
@@ -61,32 +86,145 @@ export default function FillReportPage() {
       return updated;
     });
   };
-  const addRow = () => {
+  const addRow = (autofill = false) => {
     if (!template) return;
-    setFormData([...formData, template.headers.map(() => "")]);
+    
+    let newRow: string[];
+    
+    if (autofill && formData.length > 0) {
+      // Use the last row's data as the template for the new row
+      const lastRow = formData[formData.length - 1];
+      newRow = [...lastRow];
+    } else {
+      // Empty row
+      newRow = template.headers.map(() => "");
+    }
+    
+    setFormData([...formData, newRow]);
   };
-  const handleSubmit = async () => {
+
+  const handleSaveDraft = async () => {
     if (!convexUserId || !template) {
       toast.error("User not found in the database.");
       return;
     }
     try {
-      await submitReport({
+      const draftId = await saveDraft({
         templateId: template._id,
         submittedBy: convexUserId as Id<"users">,
         role: template.role as "admin" | "user" | "mda" | "staff" | "federal" | "reform_champion" | "deputies" | "magistrates" | "state_governor" | "president" | "vice_president",
-        data: formData
+        data: formData,
+        draftId: currentDraft || undefined
       });
+      setCurrentDraft(draftId);
+      setLastSavedAt(new Date());
+      toast.success("Draft saved successfully!");
+    } catch {
+      toast.error("Failed to save draft.");
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!convexUserId || !template) {
+      toast.error("User not found in the database.");
+      return;
+    }
+    
+    try {
+      if (currentDraft) {
+        // Update the draft data first, then submit it
+        await saveDraft({
+          templateId: template._id,
+          submittedBy: convexUserId as Id<"users">,
+          role: template.role as "admin" | "user" | "mda" | "staff" | "federal" | "reform_champion" | "deputies" | "magistrates" | "state_governor" | "president" | "vice_president",
+          data: formData,
+          draftId: currentDraft
+        });
+        
+        // Submit the draft as final report
+        await submitDraftReport({
+          draftId: currentDraft
+        });
+      } else {
+        // Submit directly
+        await submitReport({
+          templateId: template._id,
+          submittedBy: convexUserId as Id<"users">,
+          role: template.role as "admin" | "user" | "mda" | "staff" | "federal" | "reform_champion" | "deputies" | "magistrates" | "state_governor" | "president" | "vice_president",
+          data: formData
+        });
+      }
       toast.success("Report submitted successfully!");
       router.push("/mda/reports");
     } catch {
       toast.error("Failed to submit report.");
     }
   };
+
+  const handleDeleteDraft = async () => {
+    if (!currentDraft) return;
+    
+    try {
+      await deleteDraft({ draftId: currentDraft });
+      setCurrentDraft(null);
+      setLastSavedAt(null);
+      // Reset form to empty
+      if (template) {
+        setFormData([template.headers.map(() => "")]);
+      }
+      toast.success("Draft deleted successfully!");
+      setShowDraftDialog(false);
+    } catch {
+      toast.error("Failed to delete draft.");
+    }
+  };
   if (!template) return <p className="text-center p-6 text-gray-500">Loading Report...</p>;
   return <div className="p-6 bg-white rounded-lg shadow-md overflow-x-auto">
-      <h2 className="text-xl font-semibold">{template.title}</h2>
-      <p className="text-gray-600 mb-4">{template.description}</p>
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h2 className="text-xl font-semibold">{template.title}</h2>
+          <p className="text-gray-600">{template.description}</p>
+          {currentDraft && lastSavedAt && (
+            <p className="text-sm text-green-600 mt-1">
+              💾 Draft saved at {lastSavedAt.toLocaleString()}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.back()}>← Go Back</Button>
+          {currentDraft && (
+            <Dialog open={showDraftDialog} onOpenChange={setShowDraftDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FileText className="w-4 h-4 mr-1" />
+                  Draft Options
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Draft Management</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    You have a saved draft for this report. Last saved: {lastSavedAt?.toLocaleString()}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleDeleteDraft}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete Draft
+                    </Button>
+                    <Button onClick={() => setShowDraftDialog(false)}>Close</Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </div>
 
       {}
       <div className="overflow-x-auto">
@@ -99,7 +237,7 @@ export default function FillReportPage() {
           <TableBody>
             {formData.map((row, rowIndex) => <TableRow key={rowIndex}>
                 {row.map((cell, colIndex) => <TableCell key={colIndex}>
-                 {template.headers[colIndex].type === "dropdown" ? <Select onValueChange={val => handleChange(rowIndex, colIndex, val)}>
+                 {template.headers[colIndex].type === "dropdown" ? <Select value={cell} onValueChange={val => handleChange(rowIndex, colIndex, val)}>
                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                      <SelectContent>
                        {template.headers[colIndex].options?.map((option, i) => <SelectItem key={i} value={option}>{option}</SelectItem>)}
@@ -111,7 +249,32 @@ export default function FillReportPage() {
         </Table>
       </div>
 
-      <Button onClick={addRow} className="mr-2">➕ Add Row</Button>
-      <Button onClick={handleSubmit} className="bg-green-600 text-white">✅ Submit Report</Button>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Button onClick={() => addRow(false)} variant="outline" className="mr-2">
+          ➕ Add Empty Row
+        </Button>
+        <Button 
+          onClick={() => addRow(true)} 
+          variant="outline" 
+          className="mr-2"
+          disabled={formData.length === 0}
+        >
+          📋 Add Row with Previous Data
+        </Button>
+      </div>
+
+      <div className="flex gap-2">
+        <Button 
+          onClick={handleSaveDraft} 
+          variant="outline"
+          className="flex items-center gap-1"
+        >
+          <Save className="w-4 h-4" />
+          Save as Draft
+        </Button>
+        <Button onClick={handleSubmit} className="bg-green-600 text-white">
+          ✅ Submit Report
+        </Button>
+      </div>
     </div>;
 }

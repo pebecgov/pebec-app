@@ -217,8 +217,105 @@ export const submitInternalReport = mutation({
       role: args.role,
       data: args.data,
       mdaName,
-      submittedAt: Date.now()
+      submittedAt: Date.now(),
+      isDraft: false
     });
+  }
+});
+
+// Save draft report
+export const saveDraftReport = mutation({
+  args: {
+    templateId: v.id("report_templates"),
+    submittedBy: v.id("users"),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
+    data: v.array(v.array(v.string())),
+    draftId: v.optional(v.id("submitted_reports"))
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.submittedBy);
+    const mdaName = user?.mdaName ?? undefined;
+    const now = Date.now();
+    
+    if (args.draftId) {
+      // Update existing draft
+      await ctx.db.patch(args.draftId, {
+        data: args.data,
+        updatedAt: now
+      });
+      return args.draftId;
+    } else {
+      // Create new draft
+      const draftId = await ctx.db.insert("submitted_reports", {
+        templateId: args.templateId,
+        submittedBy: args.submittedBy,
+        role: args.role,
+        data: args.data,
+        mdaName,
+        submittedAt: now,
+        updatedAt: now,
+        isDraft: true
+      });
+      return draftId;
+    }
+  }
+});
+
+// Get draft reports for a user
+export const getDraftReports = query({
+  args: {
+    submittedBy: v.id("users"),
+    templateId: v.optional(v.id("report_templates"))
+  },
+  handler: async (ctx, { submittedBy, templateId }) => {
+    let query = ctx.db.query("submitted_reports")
+      .withIndex("bySubmittedByAndDraft", q => q.eq("submittedBy", submittedBy).eq("isDraft", true));
+    
+    const drafts = await query.collect();
+    
+    if (templateId) {
+      return drafts.filter(draft => draft.templateId === templateId);
+    }
+    
+    return drafts;
+  }
+});
+
+// Submit draft as final report
+export const submitDraftReport = mutation({
+  args: {
+    draftId: v.id("submitted_reports")
+  },
+  handler: async (ctx, { draftId }) => {
+    await ctx.db.patch(draftId, {
+      isDraft: false,
+      submittedAt: Date.now(),
+      updatedAt: Date.now()
+    });
+  }
+});
+
+// Delete draft
+export const deleteDraftReport = mutation({
+  args: {
+    draftId: v.id("submitted_reports")
+  },
+  handler: async (ctx, { draftId }) => {
+    await ctx.db.delete(draftId);
   }
 });
 export const getSubmittedInternalReports = query({
