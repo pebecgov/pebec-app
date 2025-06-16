@@ -86,6 +86,20 @@ export default function FillReportPage() {
         draft.isDraft === true
       );
       if (existingDraft && existingDraft.data && Array.isArray(existingDraft.data)) {
+        console.log("🔍 Debug - Loading draft data:", existingDraft.data);
+        console.log("🔍 Debug - Draft structure:", {
+          totalRows: existingDraft.data.length,
+          totalColumns: existingDraft.data[0]?.length || 0,
+          sampleRow: existingDraft.data[0]
+        });
+        
+        // Debug field mapping
+        console.log("🔍 Debug - Field mapping when loading:");
+        template.headers.forEach((header, index) => {
+          const value = existingDraft.data?.[0]?.[index] || "";
+          console.log(`  [${index}] ${header.name} (${header.type}): "${value}"`);
+        });
+        
         setFormData(existingDraft.data);
         setCurrentDraft(existingDraft._id);
         setLastSavedAt(new Date(existingDraft.updatedAt || existingDraft.submittedAt));
@@ -101,6 +115,21 @@ export default function FillReportPage() {
   
   const submitReport = useMutation(api.internal_reports.submitInternalReport);
   const handleChange = (rowIndex: number, colIndex: number, value: string) => {
+    const fieldName = template?.headers[colIndex]?.name;
+    const fieldType = template?.headers[colIndex]?.type;
+    
+    // Debug logging for specific problematic fields
+    if (fieldName && (
+      fieldName.includes("DATE OF COMPLETION") || 
+      fieldName.includes("EXPECTED TIMELINE") || 
+      fieldName.includes("APPROVAL/REJECTION") || 
+      fieldName.includes("COST") || 
+      fieldName.includes("ANY ISSUE") || 
+      fieldName.includes("RESOLUTION DECISION")
+    )) {
+      console.log(`🔍 Debug - Changing field "${fieldName}" (${fieldType}) at [${rowIndex}][${colIndex}] to:`, value);
+    }
+    
     setFormData(prev => {
       const updated = [...prev];
       updated[rowIndex][colIndex] = value;
@@ -128,6 +157,23 @@ export default function FillReportPage() {
       toast.error("User not found in the database.");
       return;
     }
+    
+    // Debug logging
+    console.log("🔍 Debug - Template headers:", template.headers.map((h, i) => ({ index: i, name: h.name, type: h.type })));
+    console.log("🔍 Debug - Form data being saved:", formData);
+    console.log("🔍 Debug - Form data structure:", {
+      totalRows: formData.length,
+      totalColumns: formData[0]?.length || 0,
+      sampleRow: formData[0]
+    });
+    
+    // Debug field mapping when saving
+    console.log("🔍 Debug - Field mapping when saving:");
+    template.headers.forEach((header, index) => {
+      const value = formData[0]?.[index] || "";
+      console.log(`  [${index}] ${header.name} (${header.type}): "${value}"`);
+    });
+    
     try {
       const draftId = await saveDraft({
         templateId: template._id,
@@ -139,7 +185,8 @@ export default function FillReportPage() {
       setCurrentDraft(draftId);
       setLastSavedAt(new Date());
       toast.success("Draft saved successfully!");
-    } catch {
+    } catch (error) {
+      console.error("❌ Failed to save draft:", error);
       toast.error("Failed to save draft.");
     }
   };
