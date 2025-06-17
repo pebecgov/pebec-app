@@ -619,9 +619,25 @@ export const deleteMDA = mutation({
     console.log(`🔥 Deleted MDA: ${mda.name}`);
   }
 });
+// Email blacklist for admins who should not receive notifications
+const EMAIL_NOTIFICATION_BLACKLIST = [
+ "zahrah.mustaphaaudu@pebec.gov.ng"
+];
+
+// Helper function to filter admins based on notification blacklist
+export function filterAdminsForNotifications(admins: any[]) {
+  return admins.filter(admin => 
+    admin.email && !EMAIL_NOTIFICATION_BLACKLIST.includes(admin.email)
+  );
+}
+
 export const getAdminEmails = mutation(async ctx => {
   const users = await ctx.db.query("users").collect();
-  const admins = users.filter(u => u.role === "admin" && u.email);
+  const admins = users.filter(u => 
+    u.role === "admin" && 
+    u.email &&
+    !EMAIL_NOTIFICATION_BLACKLIST.includes(u.email)
+  );
   return admins.map(u => u.email);
 });
 export const getGrowthStats = query(async ({
@@ -739,7 +755,8 @@ export const requestInternalRole = mutation({
         submittedAt: Date.now()
       }
     });
-    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
       await ctx.db.insert("notifications", {
         userId: admin._id,

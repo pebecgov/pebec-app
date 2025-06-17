@@ -2,7 +2,7 @@
 //@ts-nocheck
 
 import { mutation, query } from "./_generated/server";
-import { getCurrentUserOrThrow } from "./users";
+import { getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { v } from "convex/values";
 import { PDFDocument, rgb } from 'pdf-lib';
 import QRCode from 'qrcode';
@@ -148,7 +148,8 @@ export const rsvpEvent = mutation({
     } else {
       console.warn("⚠️ No email found — ticket email skipped.");
     }
-    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
       await ctx.db.insert("notifications", {
         userId: admin._id,

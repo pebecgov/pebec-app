@@ -3,7 +3,7 @@
 
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUserOrNull, getCurrentUserOrThrow } from "./users";
+import { getCurrentUserOrNull, getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 function generateTicketNumber() {
@@ -73,7 +73,8 @@ export const createTicket = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
-    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
       await ctx.db.insert("notifications", {
         userId: admin._id,
@@ -613,7 +614,8 @@ export const cancelTicket = mutation({
         });
       }
     }
-    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
       await ctx.db.insert("notifications", {
         userId: admin._id,
@@ -661,8 +663,9 @@ export const reopenTicket = mutation({
         });
       }
     }
-    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
-    for (const admin of admins) {
+    const allAdminsReopen = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const adminsReopen = filterAdminsForNotifications(allAdminsReopen);
+    for (const admin of adminsReopen) {
       await ctx.db.insert("notifications", {
         userId: admin._id,
         ticketId,
@@ -730,8 +733,9 @@ export const deleteTicketMutation = mutation({
         });
       }
     }
-    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
-    for (const admin of admins) {
+    const allAdminsDelete = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const adminsDelete = filterAdminsForNotifications(allAdminsDelete);
+    for (const admin of adminsDelete) {
       await ctx.db.insert("notifications", {
         userId: admin._id,
         ticketId,
@@ -756,7 +760,7 @@ export const deleteTicketMutation = mutation({
         });
       }
     }
-    for (const admin of admins) {
+    for (const admin of adminsDelete) {
       await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
         to: admin.email,
         subject: `Ticket #${ticket.ticketNumber} Has Been Deleted`,

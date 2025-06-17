@@ -87,10 +87,7 @@ export default function FillReportPage() {
       );
       if (existingDraft && existingDraft.data && Array.isArray(existingDraft.data)) {
        
-        
-        // Debug field mapping
-       
-        
+    
         setFormData(existingDraft.data);
         setCurrentDraft(existingDraft._id);
         setLastSavedAt(new Date(existingDraft.updatedAt || existingDraft.submittedAt));

@@ -40,12 +40,12 @@ export default function DLIProgressTable() {
   const statesWithNoDLIs = nigeriaStates.filter(state => !statesWithDLIs.has(state));
   const overallPercentage = (statesWithCompleted.size / nigeriaStates.length * 100).toFixed(1).replace('.', ',');
   return <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Nation-wide DLI Table</h1>
+      <h1 className="text-2xl font-bold mb-6">Nation-wide DLI Status</h1>
 
       {}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow flex flex-col">
-          <p className="text-sm text-gray-500 mb-1">Total Completed DLIs</p>
+          <p className="text-sm text-gray-500 mb-1">Total Number of Completed DLIs</p>
           <p className="text-2xl font-bold text-green-600">{completedDLIs.length}</p>
         </div>
 
@@ -63,7 +63,7 @@ export default function DLIProgressTable() {
       {}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow">
-          <p className="text-sm text-gray-500 mb-1">States that Completed ≥ 1 DLI</p>
+          <p className="text-sm text-gray-500 mb-1">States that Completed More than 1 DLI</p>
           <p className="text-xl font-bold text-green-700">{statesWithCompleted.size}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
@@ -71,7 +71,7 @@ export default function DLIProgressTable() {
           <p className="text-xl font-bold text-yellow-600">{statesWithInProgress.size}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
-          <p className="text-sm text-gray-500 mb-1">States Without Any DLI</p>
+          <p className="text-sm text-gray-500 mb-1">States With Uncompleted DLIs</p>
           <p className="text-xl font-bold text-gray-500">{statesWithNoDLIs.length}</p>
         </div>
       </div>
@@ -102,8 +102,6 @@ export default function DLIProgressTable() {
             <SelectItem value="completed">Completed</SelectItem>
           </SelectContent>
         </Select>
-
-        <Input placeholder="Search Reform Champion" value={reformChampionSearch} onChange={e => setReformChampionSearch(e.target.value)} />
       </div>
 
       {}
