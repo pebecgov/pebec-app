@@ -235,8 +235,10 @@ export default defineSchema({
     fileName: v.optional(v.string()),
     reportName: v.optional(v.string()),
     mdaName: v.optional(v.string()),
-    fileSize: v.optional(v.number())
-  }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]),
+    fileSize: v.optional(v.number()),
+    isDraft: v.optional(v.boolean()),
+    updatedAt: v.optional(v.number())
+  }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]),
   tasks: defineTable({
     title: v.string(),
     description: v.optional(v.string()),

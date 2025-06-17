@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUserOrThrow } from "./users";
+import { getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { api } from "./_generated/api";
 
 
@@ -26,7 +26,8 @@ export const createBusinessLetter = mutation({
       supportingFileIds: args.supportingFileIds ?? [],
       createdAt: Date.now()
     });
-    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
       await ctx.db.insert("notifications", {
         userId: admin._id,
@@ -172,7 +173,8 @@ export const updateLetterStatus = mutation({
     });
     const staffUsers = await ctx.db.query("users").filter(q => q.or(...(letter.assignedTo ?? []).map(id => q.eq(q.field("_id"), id)))).collect();
     const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
-    const notifyUsers = [...staffUsers, ...allAdmins];
+    const filteredAdmins = filterAdminsForNotifications(allAdmins);
+    const notifyUsers = [...staffUsers, ...filteredAdmins];
     for (const user of notifyUsers) {
       await ctx.db.insert("notifications", {
         userId: user._id,

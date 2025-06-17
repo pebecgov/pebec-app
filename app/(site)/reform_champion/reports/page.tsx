@@ -41,6 +41,9 @@ export default function ReportsPage() {
   const submittedReports = useQuery(api.internal_reports.getSubmittedReports, convexUserId ? {
     submittedBy: convexUserId
   } : "skip") ?? [];
+  const drafts = useQuery(api.internal_reports.getDraftReports, convexUserId ? {
+    submittedBy: convexUserId
+  } : "skip") ?? [];
   useEffect(() => {
     const fetchFileUrls = async () => {
       if (submittedReports.length > 0) {
@@ -153,16 +156,55 @@ export default function ReportsPage() {
       {}
       <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">📋 Available Reports</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {availableReports.length > 0 ? availableReports.map(template => <div key={template._id} className="p-3 border rounded-md shadow-sm bg-gray-50 flex justify-between items-center">
+        {availableReports.length > 0 ? availableReports.map(template => {
+          const hasDraft = drafts.some(draft => draft.templateId === template._id);
+          return <div key={template._id} className="p-3 border rounded-md shadow-sm bg-gray-50 flex justify-between items-center">
               <div>
                 <h3 className="text-sm font-semibold">{template.title}</h3>
                 <p className="text-xs text-gray-600">{template.description}</p>
+                {hasDraft && (
+                  <p className="text-xs text-green-600 mt-1">💾 Draft available</p>
+                )}
               </div>
               <Button size="sm" onClick={() => router.push(`/reform_champion/reports/fill/${template._id}`)}>
-                📝 Fill
+                {hasDraft ? "📝 Continue Draft" : "📝 Fill"}
               </Button>
-            </div>) : <p className="text-gray-500 text-sm">No reports available for your role.</p>}
+            </div>;
+        }) : <p className="text-gray-500 text-sm">No reports available for your role.</p>}
       </div>
+
+      {/* Drafts Section */}
+      {drafts.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">💾 Saved Drafts</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {drafts.map(draft => {
+              const template = availableReports.find(t => t._id === draft.templateId);
+              return (
+                <div key={draft._id} className="p-3 border rounded-md shadow-sm bg-yellow-50 border-yellow-200 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-sm font-semibold">{template?.title || "Unknown Report"}</h3>
+                    <p className="text-xs text-gray-600">
+                      Last saved: {new Date(draft.updatedAt || draft.submittedAt).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-yellow-700">
+                      {draft.data?.length || 0} row(s) of data
+                    </p>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => router.push(`/reform_champion/reports/fill/${draft.templateId}`)}
+                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                  >
+                    📝 Continue
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
   
       {}
       <div className="flex flex-col md:flex-row md:items-center justify-between mt-6 gap-4">

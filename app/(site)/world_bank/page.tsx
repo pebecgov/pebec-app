@@ -52,12 +52,12 @@ export default function DLIProgressTable() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Nation-wide DLI Table</h1>
+      <h1 className="text-2xl font-bold mb-6">Nation-wide DLI Status</h1>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow flex flex-col">
-          <p className="text-sm text-gray-500 mb-1">Total Completed DLIs</p>
+          <p className="text-sm text-gray-500 mb-1">Total Number of Completed DLIs</p>
           <p className="text-2xl font-bold text-green-600">{completedDLIs.length}</p>
         </div>
 
@@ -75,7 +75,7 @@ export default function DLIProgressTable() {
       {/* State Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow">
-          <p className="text-sm text-gray-500 mb-1">States that Completed ≥ 1 DLI</p>
+          <p className="text-sm text-gray-500 mb-1">States that Completed More than 1 DLI</p>
           <p className="text-xl font-bold text-green-700">{statesWithCompleted.size}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
@@ -83,7 +83,7 @@ export default function DLIProgressTable() {
           <p className="text-xl font-bold text-yellow-600">{statesWithInProgress.size}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
-          <p className="text-sm text-gray-500 mb-1">States Without Any DLI</p>
+          <p className="text-sm text-gray-500 mb-1">States With Uncompleted DLIs</p>
           <p className="text-xl font-bold text-gray-500">{statesWithNoDLIs.length}</p>
         </div>
       </div>
@@ -119,11 +119,7 @@ export default function DLIProgressTable() {
           </SelectContent>
         </Select>
 
-        <Input 
-          placeholder="Search Reform Champion" 
-          value={reformChampionSearch} 
-          onChange={e => setReformChampionSearch(e.target.value)} 
-        />
+     
       </div>
 
       {/* Actions */}
