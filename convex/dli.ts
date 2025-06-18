@@ -376,3 +376,107 @@ export const getStateDLIsReformChampion = query({
     });
   }
 });
+export const getDLIStepAnalysis = query({
+  args: {
+    dliTemplateId: v.id("dli_templates")
+  },
+  handler: async (ctx, args) => {
+    // Get the DLI template to get step names
+    const dliTemplate = await ctx.db.get(args.dliTemplateId);
+    if (!dliTemplate) return null;
+
+    // All Nigerian states
+    const nigeriaStates = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
+
+    // Get all progress records for this DLI template
+    const allProgress = await ctx.db.query("dli_progress")
+      .filter(q => q.eq(q.field("dliTemplateId"), args.dliTemplateId))
+      .collect();
+
+    // Get users for state information
+    const users = await ctx.db.query("users").collect();
+    const userMap = new Map(users.map(u => [u._id, u]));
+
+    // Create a map of states that have progress records
+    const stateProgressMap = new Map();
+    allProgress.forEach(progress => {
+      const user = userMap.get(progress.userId);
+      const state = user?.state || progress.state;
+      if (state) {
+        stateProgressMap.set(state, progress);
+      }
+    });
+
+    // Create step analysis
+    const stepAnalysis = dliTemplate.steps.map((stepTitle, stepIndex) => {
+      const completed: any[] = [];
+      const inProgress: any[] = [];
+      const notStarted: any[] = [];
+
+      // Check each Nigerian state
+      nigeriaStates.forEach(state => {
+        const progress = stateProgressMap.get(state);
+        
+        if (!progress) {
+          // State has no DLI progress record at all
+          notStarted.push({
+            state,
+            startedBy: "No Reform Champion",
+            progress: 0,
+            status: "not_started",
+            dliProgressId: null
+          });
+        } else {
+          const user = userMap.get(progress.userId);
+          const progressStep = progress.steps[stepIndex];
+          
+          if (!progressStep) {
+            // Step doesn't exist in this progress (DLI started but this step not reached)
+            notStarted.push({
+              state,
+              startedBy: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Unknown",
+              progress: 0,
+              status: "not_started",
+              dliProgressId: progress._id
+            });
+          } else if (progressStep.completed) {
+            // Step is completed
+            completed.push({
+              state,
+              startedBy: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Unknown",
+              completedAt: progressStep.completedAt,
+              progress: 100,
+              status: "completed",
+              dliProgressId: progress._id
+            });
+          } else {
+            // Step exists but not completed (in progress)
+            const progressPercentage = Math.round((progress.completedSteps / progress.totalSteps) * 100);
+            inProgress.push({
+              state,
+              startedBy: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Unknown", 
+              progress: progressPercentage,
+              currentStep: progress.completedSteps + 1,
+              totalSteps: progress.totalSteps,
+              status: "in_progress",
+              dliProgressId: progress._id
+            });
+          }
+        }
+      });
+
+      return {
+        stepIndex,
+        stepTitle,
+        completed,
+        inProgress,
+        notStarted
+      };
+    });
+
+    return {
+      dliTemplate,
+      stepAnalysis
+    };
+  }
+});

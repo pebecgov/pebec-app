@@ -29,7 +29,7 @@ export default function FillReportPage() {
     description?: string;
     headers: {
       name: string;
-      type: "text" | "number" | "textarea" | "dropdown" | "checkbox";
+      type: "text" | "number" | "textarea" | "dropdown" | "checkbox" | "date";
       options?: string[];
     }[];
     role: "admin" | "user" | "mda" | "staff" | "reform_champion" | "federal" | "deputies" | "magistrates" | "state_governor" | "president" | "vice_president" | (string & {});
