@@ -9,7 +9,7 @@ The PEBEC DLI Management System is designed to streamline the implementation and
 ## 🏛️ Supported Government Roles
 
 ### Federal Level
-- **President** - Presidential DLI step-by-step analysis and oversight
+- **President** - Presidential DLI Dashboard Analysis  and oversight
 - **Vice President** - Vice Presidential DLI monitoring and reporting
 - **Admin** - System administration and comprehensive DLI management
 - **World Bank** - International development partner access with detailed step analysis

@@ -14,6 +14,7 @@ import "../globals.css";
 import "../prosemirror.css";
 import ToasterContext from "../context/ToastContext";
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { Analytics } from '@vercel/analytics/next';
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import ChatbaseScript from "@/components/ChatbaseScript";
@@ -73,6 +74,7 @@ export default function RootLayout({
                   {}
                 </>}
             </ThemeProvider>
+            <Analytics />
           </body>
         </html>
       </ConvexProviderWithClerk>

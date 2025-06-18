@@ -34,7 +34,7 @@ export default function PresidentDLIAnalysis() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Presidential DLI Step-by-Step Analysis</h1>
+      <h1 className="text-3xl font-bold mb-6">Presidential DLI Dashboard Analysis </h1>
 
       {/* DLI Selection */}
       <div className="mb-8">
