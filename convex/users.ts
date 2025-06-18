@@ -203,6 +203,17 @@ export const getUserByIds = query({
     return user;
   }
 });
+export const getUserByIdSafe = query({
+  args: {
+    id: v.id("users")
+  },
+  handler: async (ctx, {
+    id
+  }) => {
+    const user = await ctx.db.get(id);
+    return user;
+  }
+});
 export const getCurrentUsers = query({
   args: {},
   handler: async ctx => {

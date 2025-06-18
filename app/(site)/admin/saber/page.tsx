@@ -140,7 +140,7 @@ export default function DLIProgressTable() {
                       {percentage}%
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" className="text-sm" onClick={() => window.location.href = `/vice_president/saber/${dli._id}`}>
+                      <Button size="sm" className="text-sm" onClick={() => window.location.href = `/admin/saber/${dli._id}`}>
                         View
                       </Button>
                     </TableCell>
