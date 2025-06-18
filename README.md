@@ -1,6 +1,6 @@
-# PEBEC DLI Management System
+# PEBEC Portal System
 
-A comprehensive **Development Learning Initiative (DLI)** management platform for the Nigerian Presidential Enabling Business Environment Council (PEBEC). This system facilitates the tracking, monitoring, and reporting of DLI progress across all 37 Nigerian states and various government levels.
+A comprehensive management platform for the Nigerian Presidential Enabling Business Environment Council (PEBEC). This system facilitates the tracking, monitoring, and reporting of DLI progress across all 37 Nigerian states and various government levels.
 
 ## 🎯 Overview
 
