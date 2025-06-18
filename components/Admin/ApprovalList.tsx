@@ -13,6 +13,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { mdasList } from "../mdaList";
 import { setRole } from "@/app/(site)/admin/users/action";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 const rolesRequiringMda = ["mda", "reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
 const rolesRequiringState = ["reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
 const allStates = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
@@ -90,6 +91,25 @@ export default function InternalApprovals() {
       });
     }
   };
+  const handleDownloadExcel = () => {
+    // Prepare data for export
+    const data = filteredRequests.map(user => ({
+      "Name": `${user.firstName} ${user.lastName}`,
+      "Email": user.email,
+      "Requested Role": user.roleRequest?.requestedRole || "—",
+      "Job Title": user.roleRequest?.jobTitle || "—",
+      "MDA Name": user.roleRequest?.mdaName || "—",
+      "State": user.roleRequest?.state || "—"
+    }));
+
+    // Create worksheet and workbook
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Internal Approvals");
+
+    // Download
+    XLSX.writeFile(workbook, "internal-approvals.xlsx");
+  };
   return <div className="p-6">
       <h2 className="text-xl font-semibold mb-4">Pending Internal Approvals</h2>
 
@@ -116,7 +136,12 @@ export default function InternalApprovals() {
         </Select>
       </div>
 
-      {}
+      {filteredRequests.length > 0 && (
+        <Button className="mb-4" variant="outline" onClick={handleDownloadExcel}>
+          ⬇️ Download as Excel
+        </Button>
+      )}
+
       <div className="flex gap-4 mb-6">
         {rolesRequiringMda.includes(roleFilter) && <Select value={selectedMda} onValueChange={setSelectedMda}>
             <SelectTrigger className="w-full md:w-1/3">
