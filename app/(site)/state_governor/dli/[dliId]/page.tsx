@@ -19,7 +19,7 @@ export default function StateDLIProgressPage() {
     id: dliId as Id<"dli_progress">
   });
   const dliTemplate = useQuery(api.dli.getDliTemplate, dliProgress?.dliTemplateId ? {
-    id: dliProgress.dliTemplateIdgit 
+    id: dliProgress.dliTemplateId
   } : "skip");
   const user = useQuery(api.users.getUserByIdSafe, dliProgress?.userId ? {
     id: dliProgress.userId
