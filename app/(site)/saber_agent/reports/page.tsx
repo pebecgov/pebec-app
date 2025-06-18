@@ -26,6 +26,7 @@ import { FaSpinner } from "react-icons/fa";
 import { generateTemplatePDF } from "./genrateTemplatePDF";
 import DLI4Form from "./DLI4Form";
 import DLI6Form from "./DLI6Form";
+import DLI8Form from "./DLI8Form";
 
 const currentYear = new Date().getFullYear();
 const yearsToShow = [currentYear - 3, currentYear - 2, currentYear - 1];
@@ -43,7 +44,7 @@ export interface Type1Data {
   question11: string[];
 }
 
- export interface Type2Data {
+export interface Type2Data {
   announceInvestment: string[];
   dateOfAnnouncement: string[];
   media_platform: string[];
@@ -182,6 +183,61 @@ export interface Type6Data {
   };
 }
 
+export interface Type8Data {
+  courtAddress: string;
+  dayOf: string;
+  month: string;
+  year: string;
+  nameOfMagistrate: string;
+  signature: string;
+}
+
+export interface Type9Data {
+  courtAddress: string;
+  dayOf: string;
+  month: string;
+  year: string;
+  nameOfSheriff: string;
+  signature: string;
+}
+
+export interface Type10Data {
+  address: string;
+  month: string;
+  year: string;
+  suitNoAndParties: string[];
+  dateOfJudgment: string[];
+  dateOfExecution: string[];
+  durationFromJudgmentToExecution: string[];
+  statusOfJudgmentsNotExecuted: string[];
+  numberOfCasesExecuted: string;
+  numberOfCasesNotExecuted: string;
+  nameOfDeputySheriff: string;
+  date: string;
+  signature: string;
+}
+
+export interface Type11Data {
+  month: string;
+  year: string;
+  address: string;
+  suitNoAndParties: string[];
+  dateOfFiling: string[];
+  dateOfAssignment: string[];
+  dateOfService: string[];
+  dateOfCommencementOfHearing: string[];
+  numberOfAdjournments: string[];
+  reasonForAdjournment: string[];
+  dateOfJudgment: string[];
+  stageOfPendingClaims: string[];
+  durationFromFilingTillJudgment: string[];
+  numberOfPendingCasesForTheMonth: string;
+  numberOfDisposedCasesForTheMonth: string;
+  nameOfMagistrate: string;
+  date: string;
+  signature: string;
+}
+
 interface DLICategory {
   id: string;
   name: string;
@@ -205,7 +261,7 @@ const dliCategories: DLICategory[] = [
     id: "dli5",
     name: "DLI-5",
     reportTypes: [
-      // Type 4 moved to DLI-6
+     
     ]
   },
   {
@@ -221,8 +277,10 @@ const dliCategories: DLICategory[] = [
     id: "dli8",
     name: "DLI-8",
     reportTypes: [
-      { value: "type8", label: "Gender Inclusion Report" },
-      { value: "type9", label: "Environmental Compliance Report" }
+      { value: "type8", label: "Certificate of Authentication of Small Claims Court Reports" },
+      { value: "type9", label: "Certificate of Authentication of Small Claims Court Execution Reports" },
+      { value: "type10", label: "Small Claims Court Execution Report For The Month" },
+      { value: "type11", label: "Small Claims Court Time To Disposition Indicator For The Month"}
     ]
   }
 ];
@@ -237,14 +295,19 @@ type ReportTypeDataMap = {
 };
 
 export interface FormData {
-  reportType: "type1" | "type2" | "type3" | "type4" | "type5" | "type6";
+  reportType: "type1" | "type2" | "type3" | "type4" | "type5" | "type6" | "type8" | "type9" | "type10" | "type11";
   type1Data?: Type1Data;
   type2Data?: Type2Data;
   type3Data?: Type3Data;
   type4Data?: Type4Data;
   type5Data?: Type5Data;
   type6Data?: Type6Data;
+  type8Data?: Type8Data;
+  type9Data?: Type9Data;
+  type10Data?: Type10Data;
+  type11Data?: Type11Data;
 }
+
 
 const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
   const base: FormData = { reportType };
@@ -380,6 +443,14 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
       return `${statePrefix}State Committee on Export Promotion (SCEP) Report`;
     case "type6":
       return `${statePrefix}Grievance Redress Mechanism (GRM) Report`;
+    case "type8":
+      return `${statePrefix}Certificate of Authentication of Small Claims Court Reports`;
+    case "type9":
+      return `${statePrefix}Certificate of Authentication of Small Claims Court Execution Reports`;
+    case "type10":
+      return `${statePrefix}Small Claims Court Execution Report For The Month`;
+    case "type11":
+      return `${statePrefix}Small Claims Court Time To Disposition Indicator For The Month`;
     default:
       return `${statePrefix}Saber Agent Report`;
   }
@@ -774,6 +845,19 @@ const handleSubmit = async (e: React.FormEvent) => {
                 handleTemplateDataArrayElementChange={handleTemplateDataArrayElementChange}
                 handleAddArrayElement={handleAddArrayElement}
                 handleRemoveArrayElement={handleRemoveArrayElement}
+              />
+            )}
+            {/* Dli6 form */}
+            {selectedDLI === "dli8" && (
+              <DLI8Form
+                templateFormData={templateFormData}
+                setTemplateFormData={setTemplateFormData}
+                renderArrayInputs={renderArrayInputs}
+               renderDateArrayInputs={renderDateArrayInputs}
+                handleTemplateDataStringChange={handleTemplateDataStringChange}
+                // handleTemplateDataArrayElementChange={handleTemplateDataArrayElementChange}
+                // handleAddArrayElement={handleAddArrayElement}
+                // handleRemoveArrayElement={handleRemoveArrayElement}
               />
             )}
             </div>
