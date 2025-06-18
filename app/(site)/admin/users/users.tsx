@@ -16,6 +16,7 @@ import { mdasList } from "@/components/mdaList";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 export default function Admin() {
   const users = useQuery(api.users.getUsers) || [];
@@ -178,6 +179,25 @@ export default function Admin() {
       setIsLoading(false);
     }
   };
+  const handleDownloadExcel = () => {
+    // Prepare data for export (filteredUsers, not paginatedUsers)
+    const data = filteredUsers.map(user => ({
+      "First Name": user.firstName,
+      "Last Name": user.lastName,
+      "Email": user.email ?? "—",
+      "Phone": user.phoneNumber ?? "—",
+      "Role": user.role,
+      "Stream / MDA": user.role === "staff" ? user.staffStream ?? "—" : user.mdaName ?? "—"
+    }));
+  
+    // Create worksheet and workbook
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+  
+    // Download
+    XLSX.writeFile(workbook, "users.xlsx");
+  };
   const filteredUsers = users.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_")).filter(user => {
     const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field => field?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
@@ -257,6 +277,12 @@ export default function Admin() {
       </div>}
   </div>
     </div>
+
+    {filteredUsers.length > 0 && (
+      <Button className="mb-4" variant="outline" onClick={handleDownloadExcel}>
+        ⬇️ Export to Excel
+      </Button>
+    )}
 
     <div className="relative w-full overflow-x-auto rounded-md border border-gray-300 shadow-sm scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100">
       <Table className="min-w-[1200px]">
