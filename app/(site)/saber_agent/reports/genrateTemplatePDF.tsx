@@ -1,4 +1,3 @@
-
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -92,7 +91,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     // Header
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`${currentUserState} State's Investor Aftercare and Retention Program`, marginX, y);
+    doc.text(`${(currentUserState || "XYZ").toUpperCase()} State's Investor Aftercare and Retention Program`, marginX, y);
     y += 10;
 
     // Introduction
@@ -383,7 +382,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     // Header
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`${currentUserState} State Schedule of Trade-Related Fees Compliance Report`, marginX, y);
+    doc.text(`${(currentUserState || "XYZ").toUpperCase()} State Schedule of Trade-Related Fees Compliance Report`, marginX, y);
     y += 15;
 
     // Introduction
@@ -509,7 +508,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     verificationItems.forEach((item, index) => {
       const verificationKey = `verification${index + 1}` as keyof typeof type4Data;
       const verification = type4Data[verificationKey] as { confirmed: boolean; evidence: string };
-      
+
       if (y > doc.internal.pageSize.height - 25) {
         doc.addPage();
         y = 20;
@@ -518,15 +517,15 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
       doc.setFont("helvetica", "bold");
       doc.text(`${index + 1}.`, marginX, y);
       doc.setFont("helvetica", "normal");
-      
+
       // For item 1, modify the text based on the answer
       let displayItem = item;
       if (index === 0) {
-        displayItem = verification.confirmed 
+        displayItem = verification.confirmed
           ? "A single, consolidated document listing all inter-state trade-related fees and levies is available."
           : "A single, consolidated document listing all inter-state trade-related fees and levies is NOT available.";
       }
-      
+
       const itemLines = doc.splitTextToSize(displayItem, 170);
       itemLines.forEach((line: string, lineIndex: number) => {
         doc.text(line, marginX + 10, y + (lineIndex * 6));
@@ -549,7 +548,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
         if (verification.evidence && verification.evidence.trim()) {
           doc.setFont("helvetica", "normal");
           let evidenceLabel = "Evidence:";
-          
+
           // Determine appropriate label based on item and status
           if (index === 1) {
             evidenceLabel = "Link:";
@@ -560,7 +559,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
           } else if (index === 4) {
             evidenceLabel = verification.confirmed ? "Link:" : "Explanation:";
           }
-          
+
           doc.text(evidenceLabel, marginX + 15, y);
           const evidenceLines = doc.splitTextToSize(verification.evidence, 160);
           evidenceLines.forEach((line: string, lineIndex: number) => {
@@ -604,7 +603,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     // Header
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`${currentUserState} State Committee on Export Promotion (SCEP) Report`, marginX, y);
+    doc.text(`${(currentUserState || "XYZ").toUpperCase()} State Committee on Export Promotion (SCEP) Report`, marginX, y);
     y += 15;
 
     // 1. Introduction
@@ -914,7 +913,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
         doc.addPage();
         y = 20;
       }
-      
+
       const isChecked = type5Data.checklist[item.key] || false;
       const checkSymbol = isChecked ? "☑" : "☐";
       doc.text(`${checkSymbol} ${item.label}`, marginX, y);
@@ -929,7 +928,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     // Header
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`${currentUserState} Grievance Redress Mechanism (GRM) Report`, marginX, y);
+    doc.text(`${(currentUserState || "XYZ").toUpperCase()} Grievance Redress Mechanism (GRM) Report`, marginX, y);
     y += 15;
 
     // 1. Introduction
@@ -1316,14 +1315,312 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
         doc.addPage();
         y = 20;
       }
-      
+
       const isChecked = type6Data.checklist[item.key] || false;
       const checkSymbol = isChecked ? "☑" : "☐";
       doc.text(`${checkSymbol} ${item.label}`, marginX, y);
       y += 6;
     });
+  } else if (formData.reportType === "type8" && cleanedFormData.type8Data) {
+    const type8Data = cleanedFormData.type8Data;
+    let y = 30;
+    const marginX = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const centerX = pageWidth / 2;
+    const state = (currentUserState || "XYZ").toUpperCase();
+    const address = type8Data.courtAddress || "[Court Address]";
+    const day = type8Data.dayOf || "[Day]";
+    const month = type8Data.month || "[Month]";
+    const year = type8Data.year || "[Year]";
+    const nameOfMagistrate = type8Data.nameOfMagistrate || "[Name of Magistrate]";
+    const signature = type8Data.signature || "[Signature]";
+
+    // Header - Centered
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${state} STATE JUDICIARY`, centerX, y, { align: "center" });
+    y += 10;
+    doc.text("SMALL CLAIMS COURT", centerX, y, { align: "center" });
+    y += 10;
+    doc.setFontSize(13);
+    doc.text("CERTIFICATE OF AUTHENTICATION OF SMALL CLAIMS COURT REPORTS", centerX, y, { align: "center" });
+    y += 18; // Extra padding below the last header
+
+    // Body - Larger font and more padding between paragraphs
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "normal");
+    const certText1 = `This is to certify that the Time to Disposition Report of ${state} State Small Claims Court No 1 sitting at ${address} uploaded on the judiciary's website from January to December ${year} are genuine and accurate documents.`;
+    const certText2 = `I verify that the reports have not been altered or tampered with and accurately reflects the performance of the SCC1 ${address}.`;
+    const certLines1 = doc.splitTextToSize(certText1, 170);
+    certLines1.forEach((line) => {
+      doc.text(line, marginX, y);
+      y += 8;
+    });
+    y += 6; // Padding between paragraphs
+    const certLines2 = doc.splitTextToSize(certText2, 170);
+    certLines2.forEach((line) => {
+      doc.text(line, marginX, y);
+      y += 8;
+    });
+    y += 12;
+    doc.setFont("helvetica", "bold");
+    doc.text(`Dated this ${day} day of ${month} ${year}`, marginX, y);
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.text(`Name of Magistrate: ${nameOfMagistrate}`, marginX, y);
+    y += 10;
+    doc.text(`Signature: ${signature}`, marginX, y);
+    return doc;
+  } else if (formData.reportType === "type9" && cleanedFormData.type9Data) {
+    const type9Data = cleanedFormData.type9Data;
+    let y = 30;
+    const marginX = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const centerX = pageWidth / 2;
+    const state = (currentUserState || "XYZ").toUpperCase();
+    const address = type9Data.courtAddress || "[Court Address]";
+    const day = type9Data.dayOf || "[Day]";
+    const month = type9Data.month || "[Month]";
+    const year = type9Data.year || "[Year]";
+    const nameOfSheriff = type9Data.nameOfSheriff || "[Name of Sheriff]";
+    const signature = type9Data.signature || "[Signature]";
+
+    // Header - Centered
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${state} STATE JUDICIARY`, centerX, y, { align: "center" });
+    y += 10;
+    doc.text("SMALL CLAIMS COURT", centerX, y, { align: "center" });
+    y += 10;
+    doc.setFontSize(13);
+    doc.text("CERTIFICATE OF AUTHENTICATION OF SMALL CLAIMS COURT EXECUTION REPORTS", centerX, y, { align: "center" });
+    y += 18; // Extra padding below the last header
+
+    // Body - Larger font and more padding between paragraphs
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "normal");
+    const certText1 = `This is to certify that the Execution Report of ${state} State Small Claims Court No 1 sitting at ${address} uploaded on the judiciary's website from January to December ${year} are genuine and accurate documents.`;
+    const certText2 = `I verify that the reports have not been altered or tampered with and accurately reflects the execution performance of the SCC1 ${address}.`;
+    const certLines1 = doc.splitTextToSize(certText1, 170);
+    certLines1.forEach((line) => {
+      doc.text(line, marginX, y);
+      y += 8;
+    });
+    y += 6; // Padding between paragraphs
+    const certLines2 = doc.splitTextToSize(certText2, 170);
+    certLines2.forEach((line) => {
+      doc.text(line, marginX, y);
+      y += 8;
+    });
+    y += 12;
+    doc.setFont("helvetica", "bold");
+    doc.text(`Dated this ${day} day of ${month} ${year}`, marginX, y);
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.text(`Name of Sheriff: ${nameOfSheriff}`, marginX, y);
+    y += 10;
+    doc.text(`Signature: ${signature}`, marginX, y);
+    return doc;
+  } else if (formData.reportType === "type10" && cleanedFormData.type10Data) {
+    // Use landscape orientation for type10
+    const docLandscape = new jsPDF({ orientation: "landscape", unit: "mm" });
+    const type10Data = cleanedFormData.type10Data;
+    let y = 30;
+    const marginX = 20;
+    const pageWidth = docLandscape.internal.pageSize.getWidth();
+    const centerX = pageWidth / 2;
+    const state = (currentUserState || "XYZ").toUpperCase();
+    const month = type10Data.month || "[Month]";
+    const year = type10Data.year || "[Year]";
+    const address = type10Data.address || "[Court Address]";
+    const numberOfCasesExecuted = type10Data.numberOfCasesExecuted || "";
+    const numberOfCasesNotExecuted = type10Data.numberOfCasesNotExecuted || "";
+    const nameOfDeputySheriff = type10Data.nameOfDeputySheriff || "";
+    const date = type10Data.date || "";
+    const signature = type10Data.signature || "";
+
+    // Header
+    docLandscape.setFontSize(16);
+    docLandscape.setFont("helvetica", "bold");
+    docLandscape.text(`${state} STATE JUDICIARY`, centerX, y, { align: "center" });
+    y += 10;
+    docLandscape.text("SMALL CLAIMS COURT", centerX, y, { align: "center" });
+    y += 10;
+    docLandscape.setFontSize(13);
+    docLandscape.text(`EXECUTION REPORT FOR THE MONTH OF ${month.toUpperCase()}, ${year}`, centerX, y, { align: "center" });
+    y += 10;
+    docLandscape.text(`SMALL CLAIMS COURT NO 1 ${address.toUpperCase()}`, centerX, y, { align: "center" });
+    y += 14;
+
+    // Table
+    const tableHeaders = [
+      [
+        "SUIT NO. AND PARTIES",
+        "DATE OF JUDGMENT",
+        "DATE OF EXECUTION",
+        "DURATION FROM JUDGMENT TO EXECUTION",
+        "STATUS OF JUDGMENTS NOT EXECUTED (WHETHER ON APPEAL)"
+      ]
+    ];
+    const numRows = Math.max(
+      type10Data.suitNoAndParties?.length || 0,
+      type10Data.dateOfJudgment?.length || 0,
+      type10Data.dateOfExecution?.length || 0,
+      type10Data.durationFromJudgmentToExecution?.length || 0,
+      type10Data.statusOfJudgmentsNotExecuted?.length || 0
+    );
+    const tableRows: string[][] = [];
+    for (let i = 0; i < numRows; i++) {
+      tableRows.push([
+        type10Data.suitNoAndParties?.[i] || "",
+        type10Data.dateOfJudgment?.[i] || "",
+        type10Data.dateOfExecution?.[i] || "",
+        type10Data.durationFromJudgmentToExecution?.[i] || "",
+        type10Data.statusOfJudgmentsNotExecuted?.[i] || ""
+      ]);
+    }
+    autoTable(docLandscape, {
+      head: tableHeaders,
+      body: tableRows,
+      startY: y,
+      theme: "grid",
+      styles: {
+        fontSize: 10,
+        cellPadding: 2,
+      },
+      headStyles: {
+        fillColor: [22, 160, 133],
+        textColor: 255,
+        fontStyle: "bold",
+      },
+      alternateRowStyles: {
+        fillColor: [240, 240, 240],
+      },
+    });
+ 
+    // After the table, add the summary fields at the bottom
+    let summaryY = (docLandscape as any).lastAutoTable?.finalY || (y + 60);
+    summaryY += 12;
+    docLandscape.setFontSize(12);
+    docLandscape.setFont("helvetica", "normal");
+    docLandscape.text(`NUMBER OF CASES EXECUTED: ${numberOfCasesExecuted}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`NUMBER OF CASES NOT EXECUTED: ${numberOfCasesNotExecuted}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`NAME OF DEPUTY SHERIFF: ${nameOfDeputySheriff}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`DATE: ${date}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`SIGNATURE: ${signature}`, marginX, summaryY);
+    return docLandscape;
+  } else if (formData.reportType === "type11" && cleanedFormData.type11Data) {
+    // Use landscape orientation for type11
+    const docLandscape = new jsPDF({ orientation: "landscape", unit: "mm" });
+    const type11Data = cleanedFormData.type11Data;
+    let y = 30;
+    const marginX = 20;
+    const pageWidth = docLandscape.internal.pageSize.getWidth();
+    const centerX = pageWidth / 2;
+    const state = (currentUserState || "XYZ").toUpperCase();
+    const month = type11Data.month || "[Month]";
+    const year = type11Data.year || "[Year]";
+    const address = type11Data.address || "[Court Address]";
+    const numberOfPendingCasesForTheMonth = type11Data.numberOfPendingCasesForTheMonth || "";
+    const numberOfDisposedCasesForTheMonth = type11Data.numberOfDisposedCasesForTheMonth || "";
+    const nameOfMagistrate = type11Data.nameOfMagistrate || "";
+    const date = type11Data.date || "";
+    const signature = type11Data.signature || "";
+
+    // Header
+    docLandscape.setFontSize(16);
+    docLandscape.setFont("helvetica", "bold");
+    docLandscape.text(`${state} STATE JUDICIARY`, centerX, y, { align: "center" });
+    y += 10;
+    docLandscape.text("SMALL CLAIMS COURT", centerX, y, { align: "center" });
+    y += 10;
+    docLandscape.setFontSize(13);
+    docLandscape.text(`TIME TO DISPOSITION INDICATOR FOR THE MONTH OF ${month.toUpperCase()}, ${year}`, centerX, y, { align: "center" });
+    y += 10;
+    docLandscape.text(`SMALL CLAIMS COURT NO 1 ${address.toUpperCase()}`, centerX, y, { align: "center" });
+    y += 14;
+
+    // Table
+    const tableHeaders = [
+      [
+        "SUIT NO. AND PARTIES",
+        "DATE OF FILLING",
+        "DATE OF ASSIGNMENT",
+        "DATE OF SERVICE",
+        "DATE OF COMMENCEMENT OF HEARING",
+        "NO. OF ADJOURNMENTS",
+        "REASON FOR ADJOURNMENT (WHERE MORE THAN ONCE)",
+        "DATE OF JUDGMENT",
+        "STAGE OF PENDING CLAIMS (WHERE JUDGEMENT HAS NOT BEEN DELIVERED)",
+        "DURATION FROM FILING TILL JUDGMENT"
+      ]
+    ];
+    const numRows = Math.max(
+      type11Data.suitNoAndParties?.length || 0,
+      type11Data.dateOfFiling?.length || 0,
+      type11Data.dateOfAssignment?.length || 0,
+      type11Data.dateOfService?.length || 0,
+      type11Data.dateOfCommencementOfHearing?.length || 0,
+      type11Data.numberOfAdjournments?.length || 0,
+      type11Data.reasonForAdjournment?.length || 0,
+      type11Data.dateOfJudgment?.length || 0,
+      type11Data.stageOfPendingClaims?.length || 0,
+      type11Data.durationFromFilingTillJudgment?.length || 0
+    );
+    const tableRows: string[][] = [];
+    for (let i = 0; i < numRows; i++) {
+      tableRows.push([
+        type11Data.suitNoAndParties?.[i] || "",
+        type11Data.dateOfFiling?.[i] || "",
+        type11Data.dateOfAssignment?.[i] || "",
+        type11Data.dateOfService?.[i] || "",
+        type11Data.dateOfCommencementOfHearing?.[i] || "",
+        type11Data.numberOfAdjournments?.[i] || "",
+        type11Data.reasonForAdjournment?.[i] || "",
+        type11Data.dateOfJudgment?.[i] || "",
+        type11Data.stageOfPendingClaims?.[i] || "",
+        type11Data.durationFromFilingTillJudgment?.[i] || ""
+      ]);
+    }
+    autoTable(docLandscape, {
+      head: tableHeaders,
+      body: tableRows,
+      startY: y,
+      theme: "grid",
+      styles: {
+        fontSize: 10,
+        cellPadding: 2,
+      },
+      headStyles: {
+        fillColor: [22, 160, 133],
+        textColor: 255,
+        fontStyle: "bold",
+      },
+      alternateRowStyles: {
+        fillColor: [240, 240, 240],
+      },
+    });
+
+    let summaryY = (docLandscape as any).lastAutoTable?.finalY || (y + 60);
+    summaryY += 12;
+    docLandscape.setFontSize(12);
+    docLandscape.setFont("helvetica", "normal");
+    docLandscape.text(`NO. OF PENDING CASES FOR THE MONTH: ${numberOfPendingCasesForTheMonth}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`NO. OF DISPOSED CASES FOR THE MONTH: ${numberOfDisposedCasesForTheMonth}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`NAME OF MAGISTRATE: ${nameOfMagistrate}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`DATE: ${date}`, marginX, summaryY);
+    summaryY += 12;
+    docLandscape.text(`SIGNATURE: ${signature}`, marginX, summaryY);
+    return docLandscape;
   } else {
-    // Type 2 and Type 3 table generation (same as original)
+
     const headers: string[] = [];
     const allRows: any[][] = [];
     let maxRows = 1;
@@ -1332,7 +1629,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
 
     switch (cleanedFormData.reportType) {
       case "type2":
-        reportTitlePrefix = `${currentUserState} ANNOUNCE INVESTMENT REPORT`;
+        reportTitlePrefix = `${(currentUserState || "XYZ").toUpperCase()} ANNOUNCE INVESTMENT REPORT`;
         typeSpecificData = cleanedFormData.type2Data;
         if (typeSpecificData) {
           headers.push("S.No.", "Announce Investment", "Date of Announcement", "Media Platform");
@@ -1341,7 +1638,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
         break;
       case "type3":
         typeSpecificData = cleanedFormData.type3Data;
-        reportTitlePrefix = `${currentUserState} INCENTIVE INVESTMENT REPORT`;
+        reportTitlePrefix = `${(currentUserState || "XYZ").toUpperCase()} INCENTIVE INVESTMENT REPORT`;
         if (typeSpecificData) {
           headers.push(
             "S.No.",
@@ -1374,7 +1671,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
         break;
       case "type4":
         typeSpecificData = cleanedFormData.type4Data;
-        reportTitlePrefix = `${currentUserState} STATE SCHEDULE OF TRADE-RELATED FEES COMPLIANCE REPORT`;
+        reportTitlePrefix = `${(currentUserState || "XYZ").toUpperCase()} STATE SCHEDULE OF TRADE-RELATED FEES COMPLIANCE REPORT`;
         if (typeSpecificData) {
           headers.push(
             "S.No.",
@@ -1443,7 +1740,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
             currentRow.push(
               i + 1,
               cleanedFormData.type2Data.announceInvestment[i] || "",
-              cleanedFormData.type2Data.dateOfAnnouncement[i] || "" ,
+              cleanedFormData.type2Data.dateOfAnnouncement[i] || "",
               cleanedFormData.type2Data.media_platform[i] || ""
             );
           }
