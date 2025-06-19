@@ -22,7 +22,7 @@ export default function AdminDashboard() {
             <X className="w-5 h-5" />
           </button>
           <h1 className="text-2xl font-bold text-gray-800">
-            Welcome, Mr. Vice President {firstName} {lastName}
+            Welcome
           </h1>
           <p className="text-gray-600 mt-1">Please use the left side bar navigation to discover ReportGov Analytics, Saber Program Overview, Submitted Reports & Resource Materials.</p>
         </div>}
