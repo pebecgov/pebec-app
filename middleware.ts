@@ -23,6 +23,18 @@ export default clerkMiddleware(async (auth, req) => {
   const role = session?.sessionClaims?.metadata?.role;
   const staffStream = session?.sessionClaims?.metadata?.staffStream;
 
+  // If not authenticated, redirect to home (except for public routes)
+  if (!session) {
+    
+    if (
+      req.nextUrl.pathname !== "/" &&
+      req.nextUrl.pathname !== "/sign-in" &&
+      req.nextUrl.pathname !== "/sign-up" 
+    ) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+  }
+
   // Staff redirects for specific streams
   if (role === "staff" && staffStream === "investments" && req.nextUrl.pathname === "/staff") {
     const url = new URL("/staff/projects", req.url);
