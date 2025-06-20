@@ -27,6 +27,7 @@ import { generateTemplatePDF } from "./genrateTemplatePDF";
 import DLI4Form from "./DLI4Form";
 import DLI6Form from "./DLI6Form";
 import DLI8Form from "./DLI8Form";
+import DLI5Form from "./DLI5Form";
 
 const currentYear = new Date().getFullYear();
 const yearsToShow = [currentYear - 3, currentYear - 2, currentYear - 1];
@@ -182,7 +183,12 @@ export interface Type6Data {
     communicationMaterials: boolean;
   };
 }
-
+export interface Type7Data{
+evidenceOfCommittedTurnaroundLink: string;
+year2024Link?: string;
+year2025Link?: string;
+monthlyComplianceLink?: string;
+}
 export interface Type8Data {
   courtAddress: string;
   dayOf: string;
@@ -237,6 +243,20 @@ export interface Type11Data {
   date: string;
   signature: string;
 }
+export interface Type12Data{
+fiveMDA?: string[];
+executiveOrderLink?: string;
+ backEndVerf?: string
+mdaRecords: {
+    NameOfMDA: string;
+    titleOfRP: string;
+    WebLinkPI: string;
+    link2Sr?: string;
+    link2Sup?: string;
+    slaRef?: string;
+   
+  }[];
+}
 
 interface DLICategory {
   id: string;
@@ -261,7 +281,8 @@ const dliCategories: DLICategory[] = [
     id: "dli5",
     name: "DLI-5",
     reportTypes: [
-     
+      { value: "type7", label: "Operational GRMs in Two Key BEE MDAs – Compliance Report Template" },
+      {value: "type12", label: "Compliance Report: Publication of Business Regulatory Processes by BEE State MDAs" },
     ]
   },
   {
@@ -273,6 +294,7 @@ const dliCategories: DLICategory[] = [
         { value: "type6", label: "Grievance Redress Mechanism (GRM) Report" }
       ]
   },
+
   {
     id: "dli8",
     name: "DLI-8",
@@ -292,20 +314,24 @@ type ReportTypeDataMap = {
   type4Data: Type4Data;
   type5Data: Type5Data;
   type6Data: Type6Data;
+  type7Data: Type7Data;
+  type12Data: Type12Data;
 };
 
 export interface FormData {
-  reportType: "type1" | "type2" | "type3" | "type4" | "type5" | "type6" | "type8" | "type9" | "type10" | "type11";
+  reportType: "type1" | "type2" | "type3" | "type4" | "type5" | "type6" | "type7" | "type8" | "type9" | "type10" | "type11" | "type12";
   type1Data?: Type1Data;
   type2Data?: Type2Data;
   type3Data?: Type3Data;
   type4Data?: Type4Data;
   type5Data?: Type5Data;
   type6Data?: Type6Data;
+  type7Data?: Type7Data;
   type8Data?: Type8Data;
   type9Data?: Type9Data;
   type10Data?: Type10Data;
   type11Data?: Type11Data;
+  type12Data?: Type12Data;
 }
 
 
@@ -423,6 +449,31 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
       },
     };
   }
+  else if (reportType === "type7") {
+    base.type7Data = {
+      evidenceOfCommittedTurnaroundLink: "",
+      year2024Link: "",
+      year2025Link: "",
+      monthlyComplianceLink: "",
+    };
+  }
+  else if (reportType === "type12") {
+    base.type12Data = {
+      fiveMDA: [""],
+       backEndVerf: "",
+      mdaRecords: [
+        {
+          NameOfMDA: "",
+          titleOfRP: "",
+          WebLinkPI: "",
+          link2Sr: "",
+          link2Sup: "",
+          slaRef: "",
+         
+        },
+      ],
+    };
+  }
   return base;
 };
 
@@ -443,6 +494,8 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
       return `${statePrefix}State Committee on Export Promotion (SCEP) Report`;
     case "type6":
       return `${statePrefix}Grievance Redress Mechanism (GRM) Report`;
+    case "type7":
+      return `${statePrefix}Operational GRMs in Two Key BEE MDAs – Compliance Report Template`;
     case "type8":
       return `${statePrefix}Certificate of Authentication of Small Claims Court Reports`;
     case "type9":
@@ -451,7 +504,10 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
       return `${statePrefix}Small Claims Court Execution Report For The Month`;
     case "type11":
       return `${statePrefix}Small Claims Court Time To Disposition Indicator For The Month`;
-    default:
+    case "type12":
+      return `${statePrefix}Compliance Report: Publication of Business Regulatory Processes by BEE State MDAs`;
+
+      default:
       return `${statePrefix}Saber Agent Report`;
   }
 };
@@ -502,29 +558,40 @@ const { user } = useUser();
     });
   };
 
-  const handleTemplateDataArrayElementChange = <
-    T extends keyof ReportTypeDataMap,
-    K extends keyof ReportTypeDataMap[T],
-  >(
-    type: T,
-    fieldName: K,
-    index: number,
-    value: string
-  ) => {
-    setTemplateFormData((prev) => {
-      const currentTypeData = (prev[type] || {}) as ReportTypeDataMap[T];
-      const currentArray = ((currentTypeData[fieldName] as string[]) || []).slice();
-      currentArray[index] = value;
+ const handleTemplateDataArrayElementChange = <
+  T extends keyof ReportTypeDataMap,
+  K extends keyof ReportTypeDataMap[T]
+>(
+  type: T,
+  fieldName: K,
+  index: number,
+  valueOrField: string,
+  maybeValue?: string
+) => {
+  setTemplateFormData((prev) => {
+    const currentTypeData = (prev[type] || {}) as ReportTypeDataMap[T];
+    const currentArray = [...(currentTypeData[fieldName] as any[])];
 
-      return {
-        ...prev,
-        [type]: {
-          ...currentTypeData,
-          [fieldName]: currentArray,
-        },
+    // If only valueOrField is passed → treat as string[] update
+    if (maybeValue === undefined) {
+      currentArray[index] = valueOrField;
+    } else {
+      // valueOrField is the field name, maybeValue is the new value
+      currentArray[index] = {
+        ...currentArray[index],
+        [valueOrField]: maybeValue,
       };
-    });
-  };
+    }
+
+    return {
+      ...prev,
+      [type]: {
+        ...currentTypeData,
+        [fieldName]: currentArray,
+      },
+    };
+  });
+};
 
   const renderDateArrayInputs = <
     T extends keyof ReportTypeDataMap,
@@ -832,7 +899,16 @@ const handleSubmit = async (e: React.FormEvent) => {
                   handleRemoveArrayElement={handleRemoveArrayElement}
                 />
               )}       
-
+              <DLI5Form
+                templateFormData={templateFormData}
+                setTemplateFormData={setTemplateFormData}
+                renderArrayInputs={renderArrayInputs}
+               renderDateArrayInputs={renderDateArrayInputs}
+                handleTemplateDataStringChange={handleTemplateDataStringChange}
+                handleTemplateDataArrayElementChange={handleTemplateDataArrayElementChange}
+                handleAddArrayElement={handleAddArrayElement}
+                handleRemoveArrayElement={handleRemoveArrayElement}
+              />
 
             {/* Dli6 form */}
             {selectedDLI === "dli6" && (
@@ -860,6 +936,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 // handleRemoveArrayElement={handleRemoveArrayElement}
               />
             )}
+            
             </div>
               {loading ?<div className="flex justify-center text-2xl items-center w-full"><FaSpinner className="animation-spin"/></div>  :<Button type="submit" className="w-full">
               <Save className="w-4 h-4 mr-2" />

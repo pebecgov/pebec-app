@@ -5,7 +5,7 @@ import autoTable from "jspdf-autotable";
 const currentYear = new Date().getFullYear();
 const yearsToShow = [currentYear - 3, currentYear - 2, currentYear - 1];
 
-import type { FormData, Type1Data, Type2Data, Type3Data, Type4Data, Type5Data, Type6Data } from "./page";
+import type { FormData, Type12Data, Type1Data, Type2Data, Type3Data, Type4Data, Type5Data, Type6Data, Type7Data } from "./page";
 
 export function generateTemplatePDF(formData: FormData, currentUserState: string | undefined) {
   const doc = new jsPDF({
@@ -60,6 +60,24 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
       }
     });
   }
+  if (cleanedFormData.type7Data) {
+    Object.keys(cleanedFormData.type7Data).forEach((key) => {
+      if (Array.isArray(cleanedFormData.type7Data[key])) {
+        cleanedFormData.type7Data[key] = cleanedFormData.type7Data[
+          key
+        ].filter((item: string) => item.trim() !== "");
+      }
+    });
+  }
+  if (cleanedFormData.type12Data) {
+  Object.keys(cleanedFormData.type12Data).forEach((key) => {
+    if (Array.isArray(cleanedFormData.type12Data[key])) {
+      cleanedFormData.type12Data[key] = cleanedFormData.type12Data[key].filter(
+        (item: any) => typeof item === "string" ? item.trim() !== "" : true
+      );
+    }
+  });
+}
   if (formData.reportType === "type1" && cleanedFormData.type1Data) {
     const type1Data = cleanedFormData.type1Data;
 
@@ -1321,7 +1339,153 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
       doc.text(`${checkSymbol} ${item.label}`, marginX, y);
       y += 6;
     });
-  } else if (formData.reportType === "type8" && cleanedFormData.type8Data) {
+  }
+  else if (cleanedFormData.reportType === "type7" && cleanedFormData.type7Data) {
+  const {
+    evidenceOfCommittedTurnaroundLink,
+    year2024Link,
+    year2025Link,
+    monthlyComplianceLink,
+  } = cleanedFormData.type7Data;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginLeft = 20;
+  const marginX = 14
+  const maxWidth = pageWidth - marginLeft * 2;
+  let y = 20;
+
+  // Styled Header
+  const addHeader = (text: string, spacing = 10) => {
+    if (y + 16 > 280) {
+      doc.addPage();
+      y = 20;
+    }
+
+    y += spacing;
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text(text, marginLeft, y);
+    y += 6;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+  };
+
+  const addParagraph = (text: string, spacing = 6) => {
+    const lines = doc.splitTextToSize(text, maxWidth);
+    const requiredHeight = lines.length * spacing;
+
+    if (y + requiredHeight > 280) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+
+    lines.forEach((line) => {
+      const urls = line.match(urlRegex);
+      if (urls) {
+        let startX = marginLeft;
+        const parts = line.split(urlRegex);
+
+        parts.forEach((part) => {
+          if (urlRegex.test(part)) {
+            doc.setTextColor(0, 0, 255);
+            doc.textWithLink(part, startX, y, { url: part });
+            const partWidth = doc.getTextWidth(part);
+            startX += partWidth;
+          } else {
+            doc.setTextColor(0, 0, 0);
+            doc.text(part, startX, y);
+            const partWidth = doc.getTextWidth(part);
+            startX += partWidth;
+          }
+        });
+      } else {
+        doc.setTextColor(0, 0, 0);
+        doc.text(line, marginLeft, y);
+      }
+
+      y += spacing;
+    });
+
+    doc.setTextColor(0, 0, 0);
+  };
+
+  // Title
+ 
+   doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("Compliance Report: Operational GRMs \n" +
+      " in Two Key BEE MDAs  ", 35, y);
+    y += 14;
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+
+  // Main content
+  addParagraph(
+    "This report provides a comprehensive overview and compliance verification of operational Grievance Redress Mechanisms (GRMs) in two key Business Enabling Environment (BEE) State MDAs, in line with the requirements of the State Action on Business Enabling Reforms (SABER) Verification Protocol (Version 3.0, March 5, 2024). It details the operational status of GRMs, response timelines, and grievance handling outcomes within the stipulated timeframe."
+  );
+
+  addHeader("GRM System and Documentation");
+
+  addParagraph(
+    "Each of the two key BEE MDAs has an established and operational GRM, equipped to capture essential grievance details through a manual and/or online register. This includes, at a minimum:\n" +
+      "- Name of complainant\n" +
+      "- Contact information\n" +
+      "- Date grievance was received\n" +
+      "- Description of the issue\n" +
+      "- Date of response and/or acknowledgement by the MDA"
+  );
+
+  addParagraph(`Evidence of committed turnaround time to resolve grievances received communicated to the public or SLA on GRM on the MDA or state official website: ${evidenceOfCommittedTurnaroundLink || "N/A"}`);
+
+  addParagraph(
+    "Evidence of this should include scanned pages or screenshots of the grievance register, indicating entries from January 1, 2024 to December 31, 2024 (for Year 2) and from January 1, 2025 to December 31, 2025 (for Year 3)."
+  );
+
+  addParagraph(`- For 2024 (Year 2): GRM Report link: ${year2024Link || "N/A"}`);
+  addParagraph("At least 50% of received grievances were resolved within the SLA timeline.");
+
+  addParagraph(`- For 2025 (Year 3):GRM Report link: ${year2025Link || "N/A"}`);
+  addParagraph("At least 75% of received grievances were resolved within the SLA timeline.");
+
+  addHeader("Communication Channel Verification");
+
+  addParagraph(
+    "The contact information (email or telephone) published for each MDA has been tested and verified for responsiveness during working hours. The IVA attempted contact over a maximum of 72 hours. Evidence of this includes timestamped call logs or email correspondences, demonstrating:\n" +
+      "- Date and time of contact attempt\n" +
+      "- MDA’s response (automated or human)\n" +
+      "- Clarity of information received (location and operational hours)"
+  );
+
+  addHeader("Monthly Publication of Compliance Statistics");
+
+  addParagraph(
+    "Starting from January 1, 2025, each of the five key BEE MDAs have published monthly statistics on their official website. These statistics must include:\n" +
+      "- Committed turnaround times (service delivery timelines) per business regulatory process\n" +
+      "- Percentage of total request for services rendered completed within the committed timelines (service delivery timelines) for each regulatory process"
+  );
+
+  addParagraph(`Compliance Report link: ${monthlyComplianceLink || "N/A"}`);
+
+  doc.setFont("helvetica", "bold");
+  addParagraph(
+    "At least nine (9) monthly publications must be made available by December 31, 2025, and each report must be published within three months of the month’s end. Backend timestamp evidence will be used to verify the publication date.\n\n" +
+      "Hyperlinks to the relevant state portals or MDA websites must be included in the report."
+  );
+  doc.setFont("helvetica", "normal");
+
+  addHeader("Conclusion");
+  addParagraph(
+    "This verification template supports the structured validation of GRM functionality and responsiveness within the two designated MDAs. It ensures transparency, strengthens institutional trust, and fosters an inclusive grievance resolution culture among businesses and the general public. All relevant documents including screenshots, registers, SLA documents, and links to publication websites should be attached as annexes."
+  );
+}
+  else if (formData.reportType === "type8" && cleanedFormData.type8Data) {
     const type8Data = cleanedFormData.type8Data;
     let y = 30;
     const marginX = 20;
@@ -1619,13 +1783,146 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     summaryY += 12;
     docLandscape.text(`SIGNATURE: ${signature}`, marginX, summaryY);
     return docLandscape;
+  } 
+  if (cleanedFormData.reportType === "type12" && cleanedFormData.type12Data) {
+  const {
+    executiveOrderLink,
+    fiveMDA = [],
+    mdaRecords = [],
+    backEndVerf,
+  } = cleanedFormData.type12Data;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginLeft = 20;
+  const maxWidth = pageWidth - marginLeft * 2;
+  let y = 20;
+
+  const addHeader = (text: string, spacing = 10) => {
+    if (y + 16 > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    y += spacing;
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text(text, marginLeft, y);
+    y += 6;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+  };
+
+  const addParagraph = (text: string, spacing = 6) => {
+    const lines = doc.splitTextToSize(text, maxWidth);
+    const requiredHeight = lines.length * spacing;
+
+    if (y + requiredHeight > 280) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+
+    lines.forEach((line) => {
+      const urls = line.match(urlRegex);
+      if (urls) {
+        let startX = marginLeft;
+        const parts = line.split(urlRegex);
+
+        parts.forEach((part) => {
+          if (urlRegex.test(part)) {
+            doc.setTextColor(0, 0, 255);
+            doc.textWithLink(part, startX, y, { url: part });
+            startX += doc.getTextWidth(part);
+          } else {
+            doc.setTextColor(0, 0, 0);
+            doc.text(part, startX, y);
+            startX += doc.getTextWidth(part);
+          }
+        });
+      } else {
+        doc.setTextColor(0, 0, 0);
+        doc.text(line, marginLeft, y);
+      }
+      y += spacing;
+    });
+
+    doc.setTextColor(0, 0, 0);
+  };
+
+  // Title
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text(
+    "Compliance Report: Publication of Business Regulatory  \n" +
+    "Processes by BEE State MDAs"
+    , marginLeft, y);
+  y += 10;
+  
+  addHeader("Introduction");
+  addParagraph("This compliance report outlines the publication status of business regulatory processes, fees, service procedures, timelines, and relevant administrative protocols by the five key Business Enabling Environment (BEE) State MDAs, in line with the requirements under the Disbursement Linked Indicator (DLI5). The report also includes verification of the issuance and implementation of an Executive Order mandating transparency and public availability of this information.");
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+
+  addHeader("Key Publication Requirements");
+  addParagraph("Each of the five selected BEE State MDAs has published comprehensive information on at least one core business regulatory process not covered under other DLIs (e.g., not Right of Way, Certificate of Occupancy, or construction permits). The information is published on the state’s official website or the MDAs’ websites. ");
+
+  if (fiveMDA.length > 0) {
+    addParagraph("The Five MDAs Selected for Our State are:");
+    fiveMDA.forEach((mda, i) => {
+      addParagraph(`- ${mda}`);
+    });
+  }
+
+  addHeader("Executive Order Verification");
+  addParagraph(
+    "The State Governor has issued an Executive Order directing five selected BEE State MDAs to publish the following on official websites:\n" +
+      "- Service Fees\n" +
+      "- Procedures\n" +
+      "- Service Level Agreements (SLAs)\n" +
+      "- Grievance Redress Mechanisms (GRMs)\n" +
+      "- Rules for mandatory advance communication of upcoming changes to regulations or procedures"
+  );
+  addParagraph(`Executive Order link: ${executiveOrderLink || "N/A"}`);
+  
+  addHeader("Online Publication Verification (for all 5 BEE MDAs)");
+  addParagraph(
+    "For each of the five selected BEE MDAs, provide the following:"
+  );
+  if (mdaRecords.length === 0) {
+    addParagraph("No MDA publication records available.");
   } else {
+    mdaRecords.forEach((record, index) => {
+      addHeader(`MDA ${index + 1}: ${record.NameOfMDA || "Unnamed MDA"}`, 8);
+
+      addParagraph(`• Title of Regulatory Process: ${record.titleOfRP || "N/A"}`);
+      addParagraph(`• Web Link to Published Info: ${record.WebLinkPI || "N/A"}`);
+      addParagraph(`• Screenshot/Date Stamp Link: ${record.link2Sr || "N/A"}`);
+      addParagraph(`• Supporting Docs / Step-by-step Procedure: ${record.link2Sup || "N/A"}`);
+      addParagraph(`• SLA References / Timeline Commitments: ${record.slaRef || "N/A"}`);
+    });
+  }
+
+  addHeader("Backend Verification");
+  addParagraph("States are required to provide backend timestamp data to verify that publication occurred before the deadline. This evidence should be collected directly from web platform administrators or IT teams of the respective MDAs or state ICT office.");
+  addParagraph(`Backend verification evidence link: ${backEndVerf || "N/A"}`);
+
+  addHeader("Conclusion");
+  addParagraph(
+    "By implementing these transparency mechanisms, the state demonstrates its commitment to improving the business environment. Public access to regulatory information helps businesses make informed decisions and builds public trust in administrative processes."
+  );
+}
+  else {
 
     const headers: string[] = [];
     const allRows: any[][] = [];
     let maxRows = 1;
-    let typeSpecificData: Type1Data | Type2Data | Type3Data | Type4Data | Type5Data | Type6Data | undefined;
-    let reportTitlePrefix = "Saber Agent Report";
+    let typeSpecificData: Type1Data | Type2Data | Type3Data | Type4Data | Type5Data | Type6Data | Type7Data | Type12Data | undefined;
+    let reportTitlePrefix = " ";
 
     switch (cleanedFormData.reportType) {
       case "type2":
