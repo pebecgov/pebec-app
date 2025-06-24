@@ -34,11 +34,7 @@ export default function Sidebar({
     name: "Meetings",
     icon: <CalendarDaysIcon className="w-5 h-5" />,
     path: "/mda/meetings"
-  }, {
-    name: "Reports",
-    icon: <DocumentTextIcon className="w-5 h-5" />,
-    path: "/mda/reports"
-  }, {
+  },{
     name: "Send letter",
     icon: <EnvelopeIcon className="w-5 h-5" />,
     path: "/mda/send-letters"
@@ -63,7 +59,7 @@ export default function Sidebar({
         {}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className={`text-lg font-bold text-gray-700 ${isOpen ? "block" : "hidden"}`}>
-            MDA Panel
+            ReportGov Panel
           </h2>
           <button className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full" onClick={toggleSidebar}>
             {isOpen ? <FaAngleDoubleLeft className="text-gray-600" /> : <FaAngleDoubleRight className="text-gray-600" />}
