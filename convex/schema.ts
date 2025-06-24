@@ -398,18 +398,18 @@ export default defineSchema({
     updates: v.array(v.object({
       text: v.string(),
       timestamp: v.number(),
-      authorId: v.id("users"),
-      authorName: v.string()
+      authorId: v.optional(v.id("users")),
+      authorName: v.optional(v.string())
     })),
-    collaborators: v.array(v.object({
+    collaborators: v.optional(v.array(v.object({
       userId: v.id("users"),
       role: v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer")),
       addedAt: v.number(),
       addedBy: v.id("users")
-    })),
-    visibility: v.union(v.literal("private"), v.literal("workstream"), v.literal("cross_workstream"), v.literal("public")),
-    allowedWorkstreams: v.array(v.string()),
-    primaryWorkstream: v.string(),
+    }))),
+    visibility: v.optional(v.union(v.literal("private"), v.literal("workstream"), v.literal("cross_workstream"), v.literal("public"))),
+    allowedWorkstreams: v.optional(v.array(v.string())),
+    primaryWorkstream: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.optional(v.number())

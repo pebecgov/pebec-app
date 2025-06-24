@@ -1,6 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import { getCurrentUserOrThrow } from "./users";
 
 export const createProject = mutation({
@@ -24,7 +25,12 @@ export const createProject = mutation({
     const createdAt = Date.now();
 
     // Build collaborators array with creator as owner
-    const collaborators = [
+    const collaborators: Array<{
+      userId: Id<"users">;
+      role: "owner" | "editor" | "viewer";
+      addedAt: number;
+      addedBy: Id<"users">;
+    }> = [
       {
         userId: user._id,
         role: "owner" as const,
@@ -37,7 +43,8 @@ export const createProject = mutation({
     if (initialCollaborators) {
       for (const collab of initialCollaborators) {
         collaborators.push({
-          ...collab,
+          userId: collab.userId,
+          role: collab.role,
           addedAt: createdAt,
           addedBy: user._id
         });
@@ -202,11 +209,11 @@ export const addCollaborator = mutation({
     if (!project) throw new Error("Project not found");
 
     // Check if user is owner
-    const isOwner = project.collaborators.some(c => c.userId === user._id && c.role === "owner");
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
     if (!isOwner) throw new Error("Only project owners can add collaborators");
 
     // Check if user is already a collaborator
-    const existingCollab = project.collaborators.find(c => c.userId === userId);
+    const existingCollab = project.collaborators?.find(c => c.userId === userId);
     if (existingCollab) throw new Error("User is already a collaborator");
 
     const newCollaborator = {
@@ -216,8 +223,11 @@ export const addCollaborator = mutation({
       addedBy: user._id
     };
 
+    // Initialize collaborators array if it doesn't exist
+    const currentCollaborators = project.collaborators || [];
+
     await ctx.db.patch(projectId, {
-      collaborators: [...project.collaborators, newCollaborator],
+      collaborators: [...currentCollaborators, newCollaborator],
       updatedAt: Date.now()
     });
 
@@ -244,8 +254,10 @@ export const updateCollaboratorRole = mutation({
     if (!project) throw new Error("Project not found");
 
     // Check if user is owner
-    const isOwner = project.collaborators.some(c => c.userId === user._id && c.role === "owner");
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
     if (!isOwner) throw new Error("Only project owners can update collaborator roles");
+
+    if (!project.collaborators) throw new Error("No collaborators found");
 
     const updatedCollaborators = project.collaborators.map(collab => 
       collab.userId === userId 
@@ -271,12 +283,14 @@ export const removeCollaborator = mutation({
     if (!project) throw new Error("Project not found");
 
     // Check if user is owner or removing themselves
-    const isOwner = project.collaborators.some(c => c.userId === user._id && c.role === "owner");
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
     const isSelf = user._id === userId;
     
     if (!isOwner && !isSelf) {
       throw new Error("You can only remove yourself or be removed by the project owner");
     }
+
+    if (!project.collaborators) throw new Error("No collaborators found");
 
     // Can't remove the owner
     const targetCollab = project.collaborators.find(c => c.userId === userId);
@@ -306,7 +320,7 @@ export const updateProjectSettings = mutation({
     if (!project) throw new Error("Project not found");
 
     // Check if user is owner
-    const isOwner = project.collaborators.some(c => c.userId === user._id && c.role === "owner");
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
     if (!isOwner) throw new Error("Only project owners can update project settings");
 
     const updates: any = { updatedAt: Date.now() };
@@ -323,10 +337,11 @@ export const getMyProjects = query({
   handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     
-    // Get projects where user is a collaborator
+    // Get projects where user is a collaborator or creator
     const allProjects = await ctx.db.query("projects").collect();
     const myProjects = allProjects.filter(project => 
-      project.collaborators.some(collab => collab.userId === user._id)
+      project.collaborators?.some(collab => collab.userId === user._id) ||
+      project.createdBy === user._id
     );
 
     return myProjects;
@@ -347,17 +362,20 @@ export const getWorkstreamProjects = query({
       // Check if user has access to this project
       const hasAccess = 
         // User is a collaborator
-        project.collaborators.some(collab => collab.userId === user._id) ||
+        project.collaborators?.some(collab => collab.userId === user._id) ||
+        // User is the creator (backward compatibility)
+        project.createdBy === user._id ||
         // Project is visible to workstream and user is in that workstream
         (project.visibility === "workstream" && project.primaryWorkstream === targetWorkstream) ||
         // Project allows cross-workstream and user's workstream is allowed
-        (project.visibility === "cross_workstream" && project.allowedWorkstreams.includes(targetWorkstream)) ||
-        // Project is public
-        project.visibility === "public";
+        (project.visibility === "cross_workstream" && project.allowedWorkstreams?.includes(targetWorkstream)) ||
+        // Project is public or has no visibility set
+        (!project.visibility || project.visibility === "public");
 
       return hasAccess && (
         project.primaryWorkstream === targetWorkstream ||
-        project.allowedWorkstreams.includes(targetWorkstream)
+        project.allowedWorkstreams?.includes(targetWorkstream) ||
+        !project.primaryWorkstream // backward compatibility
       );
     });
   }
@@ -390,10 +408,11 @@ export const searchProjects = query({
     return allProjects.filter(project => {
       // Check access permissions
       const hasAccess = 
-        project.collaborators.some(collab => collab.userId === user._id) ||
+        project.collaborators?.some(collab => collab.userId === user._id) ||
+        project.createdBy === user._id ||
         (project.visibility === "workstream" && project.primaryWorkstream === user.staffStream) ||
-        (project.visibility === "cross_workstream" && project.allowedWorkstreams.includes(user.staffStream || "")) ||
-        project.visibility === "public";
+        (project.visibility === "cross_workstream" && project.allowedWorkstreams?.includes(user.staffStream || "")) ||
+        (!project.visibility || project.visibility === "public");
 
       if (!hasAccess) return false;
 
@@ -404,7 +423,7 @@ export const searchProjects = query({
 
       const matchesWorkstream = !workstreamFilter || 
         project.primaryWorkstream === workstreamFilter ||
-        project.allowedWorkstreams.includes(workstreamFilter);
+        project.allowedWorkstreams?.includes(workstreamFilter);
 
       const matchesStatus = !statusFilter || project.status === statusFilter;
 
@@ -448,7 +467,11 @@ export const getProjectCollaborators = query({
     const hasAccess = await hasViewPermission(ctx, user._id, project);
     if (!hasAccess) return [];
 
-    // Get user details for each collaborator
+    // Get user details for each collaborator (handle projects without collaborators field)
+    if (!project.collaborators) {
+      return [];
+    }
+
     const collaboratorsWithDetails = await Promise.all(
       project.collaborators.map(async (collab) => {
         const collaboratorUser = await ctx.db.get(collab.userId);
@@ -520,8 +543,8 @@ export const deleteProject = mutation({
     const project = await ctx.db.get(projectId);
     if (!project) throw new Error("Project not found");
 
-    // Only owner can delete
-    const isOwner = project.collaborators.some(c => c.userId === user._id && c.role === "owner");
+    // Only owner can delete (check both collaborators and creator for backward compatibility)
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
     if (!isOwner) throw new Error("Only project owners can delete projects");
 
     await ctx.db.delete(projectId);
@@ -536,19 +559,24 @@ async function hasViewPermission(ctx: any, userId: string, project: any): Promis
   // Admin always has access
   if (user.role === "admin") return true;
 
-  // Check if user is a collaborator
-  if (project.collaborators.some((collab: any) => collab.userId === userId)) {
+  // Check if user is a collaborator (handle projects without collaborators field)
+  if (project.collaborators && project.collaborators.some((collab: any) => collab.userId === userId)) {
     return true;
   }
 
-  // Check visibility rules
-  if (project.visibility === "public") return true;
+  // If no collaborators field, check if user is the creator (backward compatibility)
+  if (!project.collaborators && project.createdBy === userId) {
+    return true;
+  }
+
+  // Check visibility rules (handle projects without visibility field)
+  if (!project.visibility || project.visibility === "public") return true;
   
   if (project.visibility === "workstream" && project.primaryWorkstream === user.staffStream) {
     return true;
   }
 
-  if (project.visibility === "cross_workstream" && project.allowedWorkstreams.includes(user.staffStream)) {
+  if (project.visibility === "cross_workstream" && project.allowedWorkstreams && project.allowedWorkstreams.includes(user.staffStream)) {
     return true;
   }
 
@@ -562,11 +590,88 @@ async function hasEditPermission(ctx: any, userId: string, project: any): Promis
   // Admin always has access
   if (user.role === "admin") return true;
 
-  // Check if user is a collaborator with edit permissions
-  const collaboration = project.collaborators.find((collab: any) => collab.userId === userId);
-  if (collaboration && (collaboration.role === "owner" || collaboration.role === "editor")) {
+  // If no collaborators field, check if user is the creator (backward compatibility)
+  if (!project.collaborators && project.createdBy === userId) {
     return true;
+  }
+
+  // Check if user is a collaborator with edit permissions
+  if (project.collaborators) {
+    const collaboration = project.collaborators.find((collab: any) => collab.userId === userId);
+    if (collaboration && (collaboration.role === "owner" || collaboration.role === "editor")) {
+      return true;
+    }
   }
 
   return false;
 }
+
+// Data migration helper - run this to upgrade existing projects
+export const migrateProjectsToCollaboration = mutation({
+  handler: async (ctx) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    // Only admins can run migrations
+    if (user.role !== "admin") {
+      throw new Error("Only admins can run migrations");
+    }
+
+    const allProjects = await ctx.db.query("projects").collect();
+    let migrationCount = 0;
+
+    for (const project of allProjects) {
+      // Check if project needs migration (missing new fields)
+      const needsMigration = !project.collaborators || !project.visibility || !project.primaryWorkstream;
+      
+      if (needsMigration) {
+        const updates: any = {};
+        
+        // Add collaborators field with creator as owner
+        if (!project.collaborators) {
+          updates.collaborators = [
+            {
+              userId: project.createdBy,
+              role: "owner" as const,
+              addedAt: project.createdAt,
+              addedBy: project.createdBy
+            }
+          ];
+        }
+        
+        // Add visibility field (default to workstream)
+        if (!project.visibility) {
+          updates.visibility = "workstream";
+        }
+        
+        // Add allowedWorkstreams field
+        if (!project.allowedWorkstreams) {
+          updates.allowedWorkstreams = [];
+        }
+        
+        // Add primaryWorkstream field (try to get from creator's workstream)
+        if (!project.primaryWorkstream) {
+          const creator = await ctx.db.get(project.createdBy);
+          updates.primaryWorkstream = creator?.staffStream || "general";
+        }
+        
+        // Update authorId and authorName in updates array if missing
+        if (project.updates && project.updates.length > 0) {
+          const updatedUpdates = project.updates.map(update => ({
+            ...update,
+            authorId: update.authorId || project.createdBy,
+            authorName: update.authorName || "Unknown User"
+          }));
+          updates.updates = updatedUpdates;
+        }
+        
+        await ctx.db.patch(project._id, updates);
+        migrationCount++;
+      }
+    }
+
+    return {
+      message: `Migration completed. Updated ${migrationCount} projects.`,
+      migratedProjects: migrationCount
+    };
+  }
+});
