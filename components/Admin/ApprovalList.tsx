@@ -200,7 +200,7 @@ export default function InternalApprovals() {
       {/* MDA Agent/Champion Count Filters */}
       {(roleFilter === "all" || rolesRequiringMda.includes(roleFilter)) && (
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-4">Filter by MDA Agent/Champion Count</h3>
+          <h3 className="text-sm font-medium text-gray-700 mb-4">Filter by Count</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Report Gov Agents Filter */}
             <div className="space-y-2">
