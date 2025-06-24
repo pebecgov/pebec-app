@@ -949,3 +949,42 @@ export const debugUserPermissions = query({
     };
   }
 });
+
+// Get MDA statistics for filtering by number of agents and reform champions
+export const getMDAStatistics = query({
+  args: {},
+  handler: async (ctx) => {
+    const admin = await getCurrentUserOrThrow(ctx);
+    if (admin.role !== "admin") throw new Error("Unauthorized");
+    
+    // Get all users with specific roles
+    const allUsers = await ctx.db.query("users").collect();
+    
+    // Group users by MDA name and count agents and champions
+    const mdaStats: Record<string, {
+      mdaName: string;
+      reportGovAgents: number;
+      reformChampions: number;
+    }> = {};
+    
+    for (const user of allUsers) {
+      if (user.mdaName && (user.role === "mda" || user.role === "reform_champion")) {
+        if (!mdaStats[user.mdaName]) {
+          mdaStats[user.mdaName] = {
+            mdaName: user.mdaName,
+            reportGovAgents: 0,
+            reformChampions: 0
+          };
+        }
+        
+        if (user.role === "mda") {
+          mdaStats[user.mdaName].reportGovAgents++;
+        } else if (user.role === "reform_champion") {
+          mdaStats[user.mdaName].reformChampions++;
+        }
+      }
+    }
+    
+    return Object.values(mdaStats);
+  }
+});
