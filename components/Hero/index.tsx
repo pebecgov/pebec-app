@@ -102,7 +102,7 @@ const Hero = () => {
             <p className="text-gray-700 text-base md:text-lg leading-relaxed font-[Inter] tracking-wide max-w-2xl mx-auto md:mx-0">
             The Presidential Enabling
 Business Environment Council
-(PEBEC) is driving impactful reforms to make business in Nigeria Nigeria easier, more transparent, and less bureaucratic.  From simplified processes to digital innovations, we’re creating an environment where businesses can start, grow, and thrive with ease.
+(PEBEC) is driving impactful reforms to make business in Nigeria easier, more transparent, and less bureaucratic.  From simplified processes to digital innovations, we’re creating an environment where businesses can start, grow, and thrive with ease.
             </p>
 
             <div className="mt-10 flex flex-col sm:flex-row sm:justify-center md:justify-start gap-4 w-full items-center">
