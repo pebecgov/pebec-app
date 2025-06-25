@@ -30,6 +30,13 @@ export default function TicketSummary() {
     toDate: to?.getTime(),
     mdaId: mdaId ? mdaId as Id<"mdas"> : undefined
   });
+
+  useEffect(() => {
+    if (stats === null) {
+      router.replace("/");
+    }
+  }, [stats, router]);
+
   const mdas = useQuery(api.tickets.getAllMdas);
   const handleExport = () => {
     if (!stats) return;
@@ -86,13 +93,7 @@ export default function TicketSummary() {
     }]
   };
 
-  useEffect(() => {
-    if (!isSignedIn) {
-      router.replace("/");
-    }
-  }, [isSignedIn, router]);
 
-  if (!isSignedIn) return null;
 
   if (!stats || !mdas) return <div className="text-center mt-10">Loading analytics...</div>;
   const sparklineMock = (base: number) => Array.from({

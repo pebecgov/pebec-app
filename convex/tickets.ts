@@ -1073,6 +1073,7 @@ export const getAdminMonthlyTopResolved = query({
   args: {},
   handler: async ctx => {
     const user = await getCurrentUserOrThrow(ctx);
+    if (!user) return null;
     const allowedRoles = ["admin", "staff", "president", "vice_president"];
     if (!user.role || !allowedRoles.includes(user.role)) {
       throw new Error("Unauthorized");
