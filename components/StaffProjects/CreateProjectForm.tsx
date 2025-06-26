@@ -9,63 +9,464 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Users, Shield, Tag, Plus, X } from "lucide-react";
+import { Id } from "@/convex/_generated/dataModel";
+import { useToast } from "@/hooks/use-toast";
+
+const workstreams = [
+  "regulatory", "innovation", "judiciary", "communications", 
+  "investments", "receptionist", "account", "auditor", "sub_national"
+];
+
+const commonTags = [
+  "High Priority", "Quick Win", "Strategic", "Technical", "Research",
+  "Compliance", "Innovation", "Process Improvement", "Training"
+];
+
 export default function CreateProjectForm() {
-  const {
-    user
-  } = useUser();
+  const { user } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
+  
   const createProject = useMutation(api.staff_projects.createProject);
   const convexUser = useQuery(api.users.getUserByClerkId, {
     clerkUserId: user?.id ?? ""
   });
+  const allUsers = useQuery(api.users.getAllUsers) || [];
+
+  // Basic project info
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [steps, setSteps] = useState([{
-    title: "",
-    completed: false
-  }]);
+  
+  // Steps
+  const [steps, setSteps] = useState([{ title: "", completed: false }]);
+  
+  // Collaboration settings
+  const [visibility, setVisibility] = useState<"private" | "workstream" | "cross_workstream" | "public">("workstream");
+  const [allowedWorkstreams, setAllowedWorkstreams] = useState<string[]>([]);
+  const [collaborators, setCollaborators] = useState<Array<{ userId: Id<"users">; role: "editor" | "viewer" }>>([]);
+  
+  // Tags
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState("");
+  
+  // Loading state
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Get available users for collaboration (excluding current user)
+  const availableUsers = allUsers.filter(u => 
+    u._id !== convexUser?._id && 
+    u.role === "staff" &&
+    !collaborators.some(c => c.userId === u._id)
+  );
+
   const handleStepChange = (index: number, value: string) => {
     const updated = [...steps];
     updated[index].title = value;
     setSteps(updated);
   };
+
   const addStep = () => {
-    setSteps([...steps, {
-      title: "",
-      completed: false
-    }]);
+    setSteps([...steps, { title: "", completed: false }]);
   };
+
+  const removeStep = (index: number) => {
+    if (steps.length > 1) {
+      setSteps(steps.filter((_, i) => i !== index));
+    }
+  };
+
+  const addCollaborator = (userId: Id<"users">, role: "editor" | "viewer") => {
+    setCollaborators([...collaborators, { userId, role }]);
+  };
+
+  const removeCollaborator = (userId: Id<"users">) => {
+    setCollaborators(collaborators.filter(c => c.userId !== userId));
+  };
+
+  const updateCollaboratorRole = (userId: Id<"users">, newRole: "editor" | "viewer") => {
+    setCollaborators(collaborators.map(c => 
+      c.userId === userId ? { ...c, role: newRole } : c
+    ));
+  };
+
+  const toggleWorkstream = (workstream: string) => {
+    setAllowedWorkstreams(prev => 
+      prev.includes(workstream)
+        ? prev.filter(w => w !== workstream)
+        : [...prev, workstream]
+    );
+  };
+
+  const addTag = () => {
+    if (newTag.trim() && !tags.includes(newTag.trim())) {
+      setTags([...tags, newTag.trim()]);
+      setNewTag("");
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  const addCommonTag = (tag: string) => {
+    if (!tags.includes(tag)) {
+      setTags([...tags, tag]);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!convexUser?._id) {
-      console.error("User ID missing from Convex user lookup.");
+      toast({
+        title: "Error",
+        description: "User ID missing. Please refresh and try again.",
+        variant: "destructive"
+      });
       return;
     }
-    await createProject({
-      name,
-      description,
-      createdBy: convexUser._id,
-      steps
-    });
-    router.push("/staff/projects");
+
+    if (!name.trim() || !description.trim()) {
+      toast({
+        title: "Error", 
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const validSteps = steps.filter(step => step.title.trim());
+    if (validSteps.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please add at least one project step.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    
+    try {
+      await createProject({
+        name: name.trim(),
+        description: description.trim(),
+        visibility,
+        allowedWorkstreams: visibility === "cross_workstream" ? allowedWorkstreams : [],
+        tags: tags.length > 0 ? tags : undefined,
+        steps: validSteps,
+        initialCollaborators: collaborators.length > 0 ? collaborators : undefined
+      });
+
+      toast({
+        title: "Success",
+        description: "Project created successfully!",
+      });
+
+      router.push("/staff/projects");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create project. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreating(false);
+    }
   };
-  if (!user || !convexUser) return <p className="text-center mt-10">Loading...</p>;
-  return <div className="max-w-2xl mx-auto p-6 bg-white rounded shadow">
-      <h2 className="text-2xl font-bold mb-4">Create New Project</h2>
 
-      <label className="block font-medium mb-1">Project Name</label>
-      <Input value={name} onChange={e => setName(e.target.value)} className="mb-4" />
+  if (!user || !convexUser) {
+    return <p className="text-center mt-10">Loading...</p>;
+  }
 
-      <label className="block font-medium mb-1">Description</label>
-      <Textarea value={description} onChange={e => setDescription(e.target.value)} className="mb-4" />
+  return (
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold">Create New Project</h2>
+        <p className="text-gray-600 mt-2">Set up your project with team collaboration and visibility settings</p>
+      </div>
 
-      <label className="block font-medium mb-2">Steps</label>
-      {steps.map((step, idx) => <Input key={idx} value={step.title} onChange={e => handleStepChange(idx, e.target.value)} placeholder={`Step ${idx + 1}`} className="mb-2" />)}
-      <Button onClick={addStep} variant="outline" className="mb-4">
-        + Add Step
-      </Button>
+      {/* Basic Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="name">Project Name *</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter project name"
+              className="mt-1"
+            />
+          </div>
 
-      <Button onClick={handleSubmit} disabled={!name || !description}>
-        Create Project
-      </Button>
-    </div>;
+          <div>
+            <Label htmlFor="description">Description *</Label>
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe your project goals and objectives"
+              className="mt-1"
+              rows={3}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Project Steps */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Steps</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {steps.map((step, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <Input
+                value={step.title}
+                onChange={(e) => handleStepChange(idx, e.target.value)}
+                placeholder={`Step ${idx + 1}`}
+                className="flex-1"
+              />
+              {steps.length > 1 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => removeStep(idx)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addStep}
+            className="w-full"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Step
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Visibility & Access */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Visibility & Access
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Project Visibility</Label>
+            <Select value={visibility} onValueChange={(value: any) => setVisibility(value)}>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="private">Private - Only collaborators</SelectItem>
+                <SelectItem value="workstream">Workstream - My workstream team</SelectItem>
+                <SelectItem value="cross_workstream">Cross-Workstream - Selected workstreams</SelectItem>
+                <SelectItem value="public">Public - All PEBEC staff</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {visibility === "cross_workstream" && (
+            <div>
+              <Label>Allowed Workstreams</Label>
+              <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
+                {workstreams.map((workstream) => (
+                  <div key={workstream} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={workstream}
+                      checked={allowedWorkstreams.includes(workstream)}
+                      onCheckedChange={() => toggleWorkstream(workstream)}
+                    />
+                    <Label htmlFor={workstream} className="text-sm capitalize">
+                      {workstream}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Team Collaboration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Team Collaboration
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Add Team Members</Label>
+            <div className="mt-2 space-y-2">
+              {availableUsers.length > 0 ? (
+                <Select onValueChange={(userId) => {
+                  const user = availableUsers.find(u => u._id === userId);
+                  if (user) {
+                    addCollaborator(user._id, "editor");
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select team member to add" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableUsers.map((user) => (
+                      <SelectItem key={user._id} value={user._id}>
+                        {user.firstName} {user.lastName} - {user.staffStream}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-gray-500">No available users to add</p>
+              )}
+            </div>
+          </div>
+
+          {/* Current Collaborators */}
+          {collaborators.length > 0 && (
+            <div>
+              <Label>Team Members ({collaborators.length})</Label>
+              <div className="mt-2 space-y-2">
+                {collaborators.map((collab) => {
+                  const user = allUsers.find(u => u._id === collab.userId);
+                  return (
+                    <div key={collab.userId} className="flex items-center justify-between p-2 border rounded">
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <p className="font-medium">{user?.firstName} {user?.lastName}</p>
+                          <p className="text-sm text-gray-500">{user?.staffStream}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={collab.role}
+                          onValueChange={(role: "editor" | "viewer") => 
+                            updateCollaboratorRole(collab.userId, role)
+                          }
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="editor">Editor</SelectItem>
+                            <SelectItem value="viewer">Viewer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeCollaborator(collab.userId)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tags */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="h-5 w-5" />
+            Tags
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Add Custom Tag</Label>
+            <div className="mt-1 flex gap-2">
+              <Input
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                placeholder="Enter tag name"
+                onKeyPress={(e) => e.key === "Enter" && addTag()}
+              />
+              <Button type="button" onClick={addTag} variant="outline">
+                Add
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <Label>Common Tags</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {commonTags.map((tag) => (
+                <Button
+                  key={tag}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addCommonTag(tag)}
+                  disabled={tags.includes(tag)}
+                >
+                  {tag}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {tags.length > 0 && (
+            <div>
+              <Label>Selected Tags</Label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                    {tag}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0"
+                      onClick={() => removeTag(tag)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={() => router.back()}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleSubmit} 
+          disabled={isCreating || !name.trim() || !description.trim()}
+        >
+          {isCreating ? "Creating..." : "Create Project"}
+        </Button>
+      </div>
+    </div>
+  );
 }

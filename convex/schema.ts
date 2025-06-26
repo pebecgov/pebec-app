@@ -391,15 +391,32 @@ export default defineSchema({
     status: v.union(v.literal("open"), v.literal("in_progress"), v.literal("completed")),
     steps: v.array(v.object({
       title: v.string(),
-      completed: v.boolean()
+      completed: v.boolean(),
+      completedBy: v.optional(v.id("users")),
+      completedAt: v.optional(v.number())
     })),
     updates: v.array(v.object({
       text: v.string(),
-      timestamp: v.number()
+      timestamp: v.number(),
+      authorId: v.optional(v.id("users")),
+      authorName: v.optional(v.string())
     })),
+    collaborators: v.optional(v.array(v.object({
+      userId: v.id("users"),
+      role: v.union(v.literal("owner"), v.literal("editor"), v.literal("viewer")),
+      addedAt: v.number(),
+      addedBy: v.id("users")
+    }))),
+    visibility: v.optional(v.union(v.literal("private"), v.literal("workstream"), v.literal("cross_workstream"), v.literal("public"))),
+    allowedWorkstreams: v.optional(v.array(v.string())),
+    primaryWorkstream: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
-  }).index("byCreatedBy", ["createdBy"]),
+  }).index("byCreatedBy", ["createdBy"])
+   .index("byPrimaryWorkstream", ["primaryWorkstream"])
+   .index("byVisibility", ["visibility"])
+   .index("byCollaborator", ["collaborators"]),
   availability: defineTable({
     userId: v.id("users"),
     day: v.string(),
