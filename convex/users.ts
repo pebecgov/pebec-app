@@ -89,10 +89,9 @@ export const deleteFromClerk = internalMutation({
 });
 export async function getCurrentUserOrThrow(ctx: QueryCtx) {
   const userRecord = await getCurrentUser(ctx);
-  if (!userRecord) {
-    throw new Error("User not found");
-  }
-  return userRecord ;
+  if (!userRecord) throw new Error("Can't get current user");
+  return userRecord;
+
 }
 export async function getCurrentUser(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();
