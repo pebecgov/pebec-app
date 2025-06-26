@@ -89,27 +89,27 @@ export default function InternalApprovals() {
   const filteredRequests = pendingRequests.filter(user => {
     const matchesSearch = `${user.firstName} ${user.lastName}`.toLowerCase().includes(search.toLowerCase());
     const matchesRole = roleFilter === "all" || user.roleRequest?.requestedRole === roleFilter;
-    const matchesMda = !rolesRequiringMda.includes(roleFilter) || selectedMda === "all" || user.roleRequest?.mdaName === selectedMda;
+    const matchesMda =  selectedMda === "all" || getDisplayMdaName(user.roleRequest?.mdaName) === selectedMda;
     const matchesState = !rolesRequiringState.includes(roleFilter) || selectedState === "all" || user.roleRequest?.state === selectedState;
     
-    // MDA-based filtering using dropdown ranges
+    
     let matchesMdaFilters = true;
     if (user.roleRequest?.mdaName) {
       const mdaStats = mdaStatsMap[user.roleRequest.mdaName];
       
       if (mdaStats) {
-        // MDA has statistics
+      
         const matchesAgentFilter = matchesRange(mdaStats.reportGovAgents, reportGovAgentsFilter);
         const matchesChampionFilter = matchesRange(mdaStats.reformChampions, reformChampionsFilter);
         matchesMdaFilters = matchesAgentFilter && matchesChampionFilter;
       } else {
-        // MDA has no statistics (0 agents, 0 champions)
+        
         const matchesAgentFilter = matchesRange(0, reportGovAgentsFilter);
         const matchesChampionFilter = matchesRange(0, reformChampionsFilter);
         matchesMdaFilters = matchesAgentFilter && matchesChampionFilter;
       }
     } else if (reportGovAgentsFilter !== "all" || reformChampionsFilter !== "all") {
-      // No MDA specified but filters are set, exclude
+   
       matchesMdaFilters = false;
     }
     
@@ -194,6 +194,12 @@ export default function InternalApprovals() {
     XLSX.writeFile(workbook, "internal-approvals.xlsx");
   };
 
+  function getDisplayMdaName(mdaName) {
+    if (!mdaName) return "—";
+    const foundMda = mdasList.find(mda => mda.name.toLowerCase() === mdaName.toLowerCase());
+    return foundMda ? `${foundMda.abbreviation} - ${foundMda.name}` : mdaName;
+  }
+
   return (
     <div className="p-6">
       <h2 className="text-xl font-semibold mb-4">Pending Internal Approvals</h2>
@@ -227,6 +233,26 @@ export default function InternalApprovals() {
             <SelectItem value="state_governor">State Governor</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select
+          value={selectedMda}
+          onValueChange={val => setSelectedMda(val)}
+        >
+          <SelectTrigger className="w-full md:w-1/4">
+            <SelectValue placeholder="Filter by MDA" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All MDAs</SelectItem>
+            {mdasList.map(mda => (
+              <SelectItem
+                key={mda.name}
+                value={`${mda.abbreviation} - ${mda.name}`}
+              >
+                {mda.abbreviation} - {mda.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
 
@@ -251,10 +277,10 @@ export default function InternalApprovals() {
                 <TableRow key={user._id}>
                   <TableCell className="truncate">{user.firstName} {user.lastName}</TableCell>
                   <TableCell className="truncate">{user.email}</TableCell>
-                  <TableCell className="capitalize truncate">{user.roleRequest?.requestedRole}</TableCell>
+                  <TableCell className="capitalize truncate">{user.roleRequest?.requestedRole === "mda" ? "ReportGov Agent" : user.roleRequest?.requestedRole === "reform_champion" ? "Reform Champion" : user.roleRequest?.requestedRole}</TableCell>
                   <TableCell className="truncate">{user.roleRequest?.jobTitle || "—"}</TableCell>
                   <TableCell className="truncate">
-                    {user.roleRequest?.mdaName || "—"}
+                    {getDisplayMdaName(user.roleRequest?.mdaName)}
                     {/* Show MDA stats if available */}
                     {user.roleRequest?.mdaName && mdaStatsMap[user.roleRequest.mdaName] && (
                       <div className="text-xs text-gray-500 mt-1">
