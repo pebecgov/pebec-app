@@ -13,6 +13,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { mdasList } from "../mdaList";
 import { setRole } from "@/app/(site)/admin/users/action";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 
 const rolesRequiringMda = ["mda", "reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
 const rolesRequiringState = ["reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
@@ -153,6 +154,7 @@ export default function InternalApprovals() {
       });
     }
   };
+
   const handleReject = async (user: any) => {
     try {
       await rejectRequest({
@@ -171,17 +173,47 @@ export default function InternalApprovals() {
       });
     }
   };
-  return <div className="p-6">
+
+  const handleDownloadExcel = () => {
+    // Prepare data for export
+    const data = filteredRequests.map(user => ({
+      "Name": `${user.firstName} ${user.lastName}`,
+      "Email": user.email,
+      "Requested Role": user.roleRequest?.requestedRole || "—",
+      "Job Title": user.roleRequest?.jobTitle || "—",
+      "MDA Name": user.roleRequest?.mdaName || "—",
+      "State": user.roleRequest?.state || "—"
+    }));
+
+    // Create worksheet and workbook
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Internal Approvals");
+
+    // Download
+    XLSX.writeFile(workbook, "internal-approvals.xlsx");
+  };
+
+  return (
+    <div className="p-6">
       <h2 className="text-xl font-semibold mb-4">Pending Internal Approvals</h2>
 
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
-        <Input placeholder="Search by name..." value={search} onChange={e => setSearch(e.target.value)} className="w-full md:w-1/2" />
+        <Input 
+          placeholder="Search by name..." 
+          value={search} 
+          onChange={e => setSearch(e.target.value)} 
+          className="w-full md:w-1/2" 
+        />
 
-        <Select value={roleFilter} onValueChange={val => {
-        setRoleFilter(val);
-        setSelectedMda("all");
-        setSelectedState("all");
-      }}>
+        <Select 
+          value={roleFilter} 
+          onValueChange={val => {
+            setRoleFilter(val);
+            setSelectedMda("all");
+            setSelectedState("all");
+          }}
+        >
           <SelectTrigger className="w-full md:w-1/4">
             <SelectValue placeholder="Filter by Role" />
           </SelectTrigger>
@@ -198,7 +230,10 @@ export default function InternalApprovals() {
       </div>
 
 
-      {filteredRequests.length === 0 ? <p>No pending requests.</p> : <div className="overflow-x-auto w-full">
+      {filteredRequests.length === 0 ? (
+        <p>No pending requests.</p>
+      ) : (
+        <div className="overflow-x-auto w-full">
           <Table className="min-w-[1000px] table-fixed">
             <TableHeader>
               <TableRow>
@@ -212,7 +247,8 @@ export default function InternalApprovals() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRequests.map(user => <TableRow key={user._id}>
+              {filteredRequests.map(user => (
+                <TableRow key={user._id}>
                   <TableCell className="truncate">{user.firstName} {user.lastName}</TableCell>
                   <TableCell className="truncate">{user.email}</TableCell>
                   <TableCell className="capitalize truncate">{user.roleRequest?.requestedRole}</TableCell>
@@ -237,9 +273,12 @@ export default function InternalApprovals() {
                       </Link>
                     </div>
                   </TableCell>
-                </TableRow>)}
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
-        </div>}
-    </div>;
+        </div>
+      )}
+    </div>
+  );
 }

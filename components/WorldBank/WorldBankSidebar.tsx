@@ -58,7 +58,7 @@ export default function WorldBankSidebar({
           {menuSections.map(section => (
             <Link key={section.name} href={section.path} onClick={handleCloseSidebar}>
               <div className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-300 ${
-                pathname === section.path ? "bg-green-500 text-white font-semibold" : ""
+                pathname === section.path ? "bg-green-500 text-white hover:text-green-600 font-semibold" : ""
               }`}>
                 <img src={section.icon} alt={section.name} className="w-5 h-5 object-contain" />
                 <span className={`ml-4 ${isOpen ? "block" : "hidden"}`}>{section.name}</span>

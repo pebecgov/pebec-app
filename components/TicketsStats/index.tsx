@@ -3,7 +3,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import DatePicker from "react-datepicker";
@@ -16,8 +16,12 @@ import * as XLSX from "xlsx";
 import { Briefcase, CheckCircle, AlertTriangle } from "lucide-react";
 import { Line } from "react-chartjs-2";
 import { Clock, Timer, BarChart2, TrendingUp } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 Chart.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 export default function TicketSummary() {
+  const { isSignedIn } = useAuth();
+  const router = useRouter();
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
   const [mdaId, setMdaId] = useState<string>("");
@@ -26,6 +30,13 @@ export default function TicketSummary() {
     toDate: to?.getTime(),
     mdaId: mdaId ? mdaId as Id<"mdas"> : undefined
   });
+
+  useEffect(() => {
+    if (stats === null) {
+      router.replace("/");
+    }
+  }, [stats, router]);
+
   const mdas = useQuery(api.tickets.getAllMdas);
   const handleExport = () => {
     if (!stats) return;
@@ -81,6 +92,9 @@ export default function TicketSummary() {
       barThickness: 35
     }]
   };
+
+
+
   if (!stats || !mdas) return <div className="text-center mt-10">Loading analytics...</div>;
   const sparklineMock = (base: number) => Array.from({
     length: 6
