@@ -20,22 +20,24 @@ import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 Chart.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 export default function TicketSummary() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn } =  useAuth();
+
+  
+
   const router = useRouter();
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
   const [mdaId, setMdaId] = useState<string>("");
-  const stats = useQuery(api.tickets.getTicketStats, {
-    fromDate: from?.getTime(),
-    toDate: to?.getTime(),
-    mdaId: mdaId ? mdaId as Id<"mdas"> : undefined
-  });
 
-  useEffect(() => {
-    if (stats === null) {
-      router.replace("/");
-    }
-  }, [stats, router]);
+  const stats = isSignedIn
+    ? useQuery(api.tickets.getTicketStats, {
+        fromDate: from?.getTime(),
+        toDate: to?.getTime(),
+        mdaId: mdaId ? (mdaId as Id<"mdas">) : undefined,
+      })
+    : null;
+
+  
 
   const mdas = useQuery(api.tickets.getAllMdas);
   const handleExport = () => {
