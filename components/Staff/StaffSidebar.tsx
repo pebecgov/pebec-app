@@ -12,6 +12,7 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { HomeIcon, NewspaperIcon, FolderOpenIcon, UsersIcon, ChartBarIcon, DocumentDuplicateIcon, CalendarDaysIcon, ClipboardDocumentIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EnvelopeIcon, BookOpenIcon, InboxArrowDownIcon, ExclamationTriangleIcon, EnvelopeOpenIcon } from "@heroicons/react/24/outline";
 import { FaEnvelopesBulk } from "react-icons/fa6";
+import { formatWorkstream } from "@/lib/formatters";
 
 // Type definitions for menu items
 interface MenuItemChild {
@@ -78,12 +79,12 @@ export default function Sidebar({
     icon: <EnvelopeOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/business-letters"
   }, {
-    name: staffStream === "innovation" ? "Innovation Tools" : 
+    name: staffStream === "innovation" ? "Innovation & Technology Tools" : 
           staffStream === "regulatory" ? "Regulatory Tools" : 
           staffStream === "sub_national" ? "Sub National Tools" :
           staffStream === "judiciary" ? "Judicial Tools" : 
           staffStream === "communications" ? "Comms" : 
-          staffStream === "investments" ? "High-Impact Investments" : 
+          staffStream === "investments" ? "High Impact Tools" : 
           "Reports & Templates",
     icon: <FolderOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     children: [{

@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X, Paperclip, FileText, Upload, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
 
 export default function SubmitLetterForm({
   onClose
@@ -141,7 +142,7 @@ export default function SubmitLetterForm({
       }} className="w-full border rounded-md p-2 mb-3">
             <option value="">Select Staff Stream</option>
             {staffStreams.map(stream => <option key={stream} value={stream}>
-                {stream.charAt(0).toUpperCase() + stream.slice(1)}
+                {formatWorkstream(stream)}
               </option>)}
           </select>}
 
@@ -150,7 +151,7 @@ export default function SubmitLetterForm({
             <option value="">Select User</option>
             {filteredUsers.map(user => <option key={user._id} value={user._id}>
     {user.firstName} {user.lastName}
-    {user.jobTitle ? ` (${user.jobTitle})` : ""} - {user.staffStream || user.role}
+    {user.jobTitle ? ` (${user.jobTitle})` : ""} - {formatRoleAndWorkstream(user.role || "", user.staffStream)}
   </option>)}
           </select>}
 
@@ -166,7 +167,7 @@ export default function SubmitLetterForm({
                     </p>
                     <p className="text-xs text-gray-500">
   {user.jobTitle ? `${user.jobTitle}, ` : ""}
-  {user.staffStream || user.role}
+  {formatRoleAndWorkstream(user.role || "", user.staffStream)}
               </p>
                   </div>
                 </> : null;

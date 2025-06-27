@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Download, FileBarChart2, FileText, Trash2 } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import classNames from "classnames";
+import { formatRole } from "@/lib/formatters";
+
 export default function SubmittedReportsPage() {
   const {
     user
@@ -235,7 +237,7 @@ export default function SubmittedReportsPage() {
     ? "Reform Champion"
     : r.role === "mda"
     ? "ReportGov Agent"
-    : r.role}
+    : formatRole(r.role)}
 </p>
     </div>
   </div>
@@ -243,7 +245,7 @@ export default function SubmittedReportsPage() {
 
 
 
-                  <TableCell>{r.role === "reform_champion" ? "Reform Champion" : r.role === "mda" ? "ReportGov Agent" : r.role}</TableCell>
+                  <TableCell>{formatRole(r.role)}</TableCell>
                   <TableCell>{r.mdaName || "-"}</TableCell>
                   <TableCell>{r.reportName || template?.title || "—"}</TableCell>
                   <TableCell>{new Date(r.submittedAt).toLocaleDateString()}</TableCell>

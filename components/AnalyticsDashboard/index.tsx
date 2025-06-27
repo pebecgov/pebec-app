@@ -17,6 +17,7 @@ import autoTable from "jspdf-autotable";
 import TicketsChart from "../AnalyticsCharts/TicketsChart";
 import UsersChart from "../AnalyticsCharts/UsersChart";
 import MdaChart from "../AnalyticsCharts/MdaChart";
+import { formatRole } from "@/lib/formatters";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement, PointElement, LineElement);
 export default function AnalyticsDashboard() {
   const incidentsStats = useQuery(api.tickets.getIncidentsStats) || {
@@ -76,7 +77,7 @@ export default function AnalyticsDashboard() {
     const filteredData = users.map(user => ({
       Name: `${user.firstName || ""} ${user.lastName || ""}`,
       Email: user.email || "",
-      Role: user.role || "user"
+      Role: formatRole(user.role) || "User"
     }));
     const ws = XLSX.utils.json_to_sheet(filteredData);
     const wb = XLSX.utils.book_new();
@@ -92,7 +93,7 @@ export default function AnalyticsDashboard() {
     doc.text("Users Report", 14, 10);
     autoTable(doc, {
       head: [["Name", "Email", "Role"]],
-      body: users.map(user => [`${user.firstName || ""} ${user.lastName || ""}`, user.email || "", user.role || "user"])
+      body: users.map(user => [`${user.firstName || ""} ${user.lastName || ""}`, user.email || "", formatRole(user.role) || "User"])
     });
     doc.save("users_report.pdf");
     toast({

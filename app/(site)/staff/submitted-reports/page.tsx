@@ -15,6 +15,8 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
+import { formatRole } from "@/lib/formatters";
+
 export default function SubmittedReportsPage() {
   const {
     user
@@ -178,7 +180,7 @@ export default function SubmittedReportsPage() {
             const template = reportTemplates.find(t => t._id === report.templateId);
             return <TableRow key={index}>
             <TableCell>{report.userName}</TableCell>
-            <TableCell>{report.role === "reform_champion" ? "Reform Champion" : report.role === "mda" ? "ReportGov Agent" : report.role.toUpperCase()}</TableCell>
+            <TableCell>{formatRole(report.role)}</TableCell>
             <TableCell>{report.reportName || template?.title || "Unknown Report"}</TableCell>
             <TableCell>{new Date(report.submittedAt).toLocaleDateString()}</TableCell>
             <TableCell className="flex gap-2">

@@ -15,6 +15,8 @@ import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import { CameraIcon, KeyIcon } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
+import { formatRole, formatWorkstream } from "@/lib/formatters";
+
 export default function UserProfile() {
   const {
     user
@@ -213,17 +215,17 @@ export default function UserProfile() {
             {form.firstName} {form.lastName}
           </h1>
           <p className="text-sm text-gray-500 break-words">
-         Primary email address: {user.primaryEmailAddress?.emailAddress}
+         {user.primaryEmailAddress?.emailAddress}
           </p>
             {}
   {user.emailAddresses?.filter(email => email.id !== user.primaryEmailAddress?.id).map(email => <p key={email.id} className="text-xs text-gray-400 italic">
         Secondary: {email.emailAddress}
       </p>)}
           <p className="text-sm text-gray-600 mt-1">
-            <strong>Role:</strong> {role === "reform_champion" ? "Reform Champion" : role === "mda" ? "ReportGov Agent" : role}
+            <strong>Role:</strong> {formatRole(role || "")}
           </p>
           {role === "staff" && <p className="text-sm text-gray-600">
-              <strong>Staff Stream:</strong> {userProfile.staffStream || "—"}
+              <strong>Staff Stream:</strong> {formatWorkstream(userProfile.staffStream || "") || "—"}
             </p>}
           {role === "mda" && <p className="text-sm text-gray-600">
               <strong>MDA:</strong> {userProfile.mdaName || "—"}

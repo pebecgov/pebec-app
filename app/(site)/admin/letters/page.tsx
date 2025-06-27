@@ -12,6 +12,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
 import LetterDetailModal from "@/components/Letters/LetterDetailModal";
+import { formatRole } from "@/lib/formatters";
 
 export default function AdminViewLettersPage() {
   const [selectedRole, setSelectedRole] = useState<string | undefined>();
@@ -92,9 +93,6 @@ export default function AdminViewLettersPage() {
     return sortOrder === "newest" ? b.letterDate - a.letterDate : a.letterDate - b.letterDate;
   });
   const paginatedLetters = sortedLetters.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
-  function formatRole(role: string): string {
-    return role.split("_").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-  }
   return <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-center mb-6">Submitted Letters</h1>
 

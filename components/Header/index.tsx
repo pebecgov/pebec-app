@@ -21,6 +21,7 @@ import { FaCameraRetro } from "react-icons/fa";
 import { toast } from "sonner";
 import VerifyPrimaryEmail from "../VerifyPrimaryEmail";
 import { Menu, Transition } from "@headlessui/react";
+import { formatWorkstream } from "@/lib/formatters";
 const Header = () => {
   let hoverTimeout: NodeJS.Timeout;
   const [stickyMenu, setStickyMenu] = useState(false);
@@ -82,7 +83,7 @@ const Header = () => {
     userRole === "saber_agent" ? "/saber_agent" : 
     userRole === "world_bank" ? "/world_bank" : 
     "/reportgov";
-  const userRoleText = userRole === "staff" && staffStream === "investments" ? "Investments Dashboard" : 
+  const userRoleText = userRole === "staff" && staffStream === "investments" ? "High Impact Dashboard" : 
     userRole === "staff" && staffStream === "receptionist" ? "Reception Desk" : 
     userRole === "admin" ? "Admin" : 
     userRole === "mda" ? "ReportGov Agent" : 
