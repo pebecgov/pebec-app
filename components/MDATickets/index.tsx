@@ -170,7 +170,7 @@ export default function MdaTicketsDashboard() {
             <TableHead>Title</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Submitted Date</TableHead>
-            <TableHead>View</TableHead>
+            <TableHead>Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -186,7 +186,7 @@ export default function MdaTicketsDashboard() {
                 <TableCell>{ticket.ticketNumber}</TableCell>
                 <TableCell>{ticket.title}</TableCell>
                 <TableCell>
-  <Badge className={ticket.status === "resolved" ? "bg-green-100 text-green-800" : ticket.status === "in_progress" ? "bg-yellow-100 text-yellow-800" : ticket.status === "closed" ? "bg-red-100 text-red-800" : ticket.status === "open" ? "bg-orange-100 text-orange-800" : "bg-gray-100 text-gray-800"}>
+  <Badge className={ticket.status === "resolved" ? "bg-green-100 hover:bg-green-200 text-green-800" : ticket.status === "in_progress" ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" : ticket.status === "closed" ? "bg-red-100 hover:bg-red-200 text-red-800" : ticket.status === "open" ? "bg-orange-100 hover:bg-orange-200 text-orange-800" : "bg-gray-100 hover:bg-gray-200 text-gray-800"}>
     {ticket.status.replace("_", " ").toUpperCase()}
   </Badge>
           </TableCell>
