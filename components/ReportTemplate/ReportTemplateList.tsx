@@ -18,6 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "../ui/toaster";
 import { FaFileExcel, FaFilePdf, FaPlusSquare } from "react-icons/fa";
 import { DialogDescription } from "@radix-ui/react-dialog";
+import { formatRole } from "@/lib/formatters";
+
 interface ReportTemplate {
   id: Id<"report_templates">;
   title: string;
@@ -184,7 +186,7 @@ export default function ReportTemplatesList() {
           <tbody>
             {filteredReports.length > 0 ? filteredReports.map(template => <tr key={template.id} className="border-b dark:border-gray-700">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{template.title}</td>
-                  <td className="px-4 py-3 text-sm font-medium">{template.role.toUpperCase()}</td>
+                  <td className="px-4 py-3 text-sm font-medium">{formatRole(template.role)}</td>
                   <td className="px-4 py-3">{getCreatorName(template.createdBy)}</td>
 
                   <td className="px-4 py-3 flex items-center space-x-3">

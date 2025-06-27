@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { toast } from "sonner";
+import { formatRole, formatWorkstream } from "@/lib/formatters";
+
 export default function UserProfilePage() {
   const {
     userId
@@ -80,8 +82,8 @@ export default function UserProfilePage() {
 
         <div className="mt-6">
           <span className="px-4 py-2 text-sm font-medium rounded-full bg-blue-100 text-blue-800 capitalize">
-            {user.role === "reform_champion" ? "Reform Champion"  : user.role === "mda" ? "ReportGov Agent"   : user.role || "user"}
-            </span>
+            {formatRole(user.role) || "User"}
+          </span>
         </div>
       </div>
 
@@ -103,8 +105,8 @@ export default function UserProfilePage() {
         <div className="bg-white p-6 rounded-xl shadow-sm border">
           <h2 className="text-lg font-semibold mb-4 border-b pb-2">System Information</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <InfoRow label="Role" value={user.role} />
-            {user.role === "staff" && <InfoRow label="Staff Stream" value={user.staffStream} />}
+            <InfoRow label="Role" value={formatRole(user.role)} />
+            {user.role === "staff" && <InfoRow label="Staff Stream" value={formatWorkstream(user.staffStream)} />}
             {user.role && ["mda", "reform_champion"].includes(user.role) && <InfoRow label="MDA Name" value={user.mdaName} />}
             {user.role === "saber_agent" && <InfoRow label="EC Confirmed" value={user.ecConfirmed ? "✅ Yes" : "❌ No"} />}
           </div>

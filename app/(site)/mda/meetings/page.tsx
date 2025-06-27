@@ -14,6 +14,8 @@ import { Id } from "@/convex/_generated/dataModel";
 import { toast, Toaster } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { X } from "lucide-react";
+import { formatWorkstream } from "@/lib/formatters";
+
 export default function MdaSlots() {
   const {
     user
@@ -139,8 +141,8 @@ export default function MdaSlots() {
             }}>
       <option value="">-- Select Department --</option>
       {staffWorkstreams.map(ws => <option key={ws} value={ws}>
-          {displayNames[ws] || ws}
-        </option>)}
+        {formatWorkstream(ws)}
+      </option>)}
     </select>
 
     {}
@@ -215,7 +217,7 @@ export default function MdaSlots() {
           {format(start, "EEEE, MMM d")} | {format(start, "h:mm a")} - {format(end, "h:mm a")}
         </p>
         <p className="text-sm text-gray-500">
-          Department: {displayNames[slot.workstream] || slot.workstream}
+          Department: {formatWorkstream(slot.workstream)}
         </p>
 
         {activeTab === "upcoming" && <p className="text-sm text-gray-700">

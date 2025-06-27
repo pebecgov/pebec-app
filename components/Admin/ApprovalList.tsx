@@ -15,6 +15,7 @@ import { setRole } from "@/app/(site)/admin/users/action";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { FaFilterCircleXmark } from "react-icons/fa6";
+import { formatRole } from "@/lib/formatters";
 
 const rolesRequiringMda = ["mda", "reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
 const rolesRequiringState = ["reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
@@ -305,7 +306,7 @@ export default function InternalApprovals() {
                 <TableRow key={user._id}>
                   <TableCell className="truncate">{user.firstName} {user.lastName}</TableCell>
                   <TableCell className="truncate">{user.email}</TableCell>
-                  <TableCell className="capitalize truncate">{user.roleRequest?.requestedRole === "mda" ? "ReportGov Agent" : user.roleRequest?.requestedRole === "reform_champion" ? "Reform Champion" : user.roleRequest?.requestedRole}</TableCell>
+                  <TableCell className="capitalize truncate">{formatRole(user.roleRequest?.requestedRole)}</TableCell>
                   <TableCell className="truncate">{user.roleRequest?.jobTitle || "—"}</TableCell>
                   <TableCell className="truncate">
                     {getDisplayMdaName(user.roleRequest?.mdaName)}

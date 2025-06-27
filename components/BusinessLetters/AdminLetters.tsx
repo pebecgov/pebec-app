@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@clerk/nextjs";
+import { formatWorkstream } from "@/lib/formatters";
+
 export default function BusinessLettersAdmin() {
   const [refreshKey, setRefreshKey] = useState(0);
   const {
@@ -360,7 +362,7 @@ export default function BusinessLettersAdmin() {
             setSelectedStaffIds([]);
           }} className="w-full border rounded px-3 py-2">
   <option value="">Select Stream</option>
-  {staffStreams.map(stream => <option key={stream} value={stream}>{stream}</option>)}
+  {staffStreams.map(stream => <option key={stream} value={stream}>{formatWorkstream(stream)}</option>)}
           </select>
 
   <div className="flex items-center gap-2 mt-2">

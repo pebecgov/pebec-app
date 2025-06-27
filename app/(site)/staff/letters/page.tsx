@@ -10,6 +10,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Input } from "@/components/ui/input";
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
+import { formatRole } from "@/lib/formatters";
+
 export default function AdminViewLettersPage() {
   const [selectedRole, setSelectedRole] = useState<string | undefined>();
   const [startDate, setStartDate] = useState<string | undefined>();
@@ -165,7 +167,7 @@ export default function AdminViewLettersPage() {
           <TableBody>
             {paginatedLetters.length > 0 ? paginatedLetters.map(letter => <TableRow key={letter._id}>
                   <TableCell>{letter.userFullName}</TableCell>
-                  <TableCell>{letter.userRole === "reform_champion" ? "Reform Champion" : letter.userRole === "mda" ? "ReportGov Agent" : letter.userRole}</TableCell>
+                  <TableCell>{formatRole(letter.userRole)}</TableCell>
                   <TableCell>
                     {letter.mdaName || letter.staffStream || letter.state || "—"}
                   </TableCell>

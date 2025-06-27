@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
 import { FaTicket } from "react-icons/fa6";
+import { formatWorkstream } from "@/lib/formatters";
+
 interface NavItemProps {
   id: string;
   href: string;
@@ -60,7 +62,7 @@ const MobileMenu = () => {
     userRole === "saber_agent" ? "/saber_agent" : 
     userRole === "world_bank" ? "/world_bank" : 
     "/reportgov";
-  const userRoleText = userRole === "staff" && staffStream === "investments" ? "Investments Dashboard" : 
+  const userRoleText = userRole === "staff" && staffStream === "investments" ? "High Impact Dashboard" : 
     userRole === "staff" && staffStream === "receptionist" ? "Reception Desk" : 
     userRole === "admin" ? "Admin" : 
     userRole === "mda" ? "ReportGov Agent" : 

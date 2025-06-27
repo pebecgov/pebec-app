@@ -10,6 +10,8 @@ import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useState } from "react";
 import { setRole } from "@/app/(site)/admin/users/action";
+import { formatRole } from "@/lib/formatters";
+
 type AllowedRole = "mda" | "staff" | "reform_champion" | "saber_agent" | "deputies" | "magistrates" | "state_governor";
 export default function ViewInternalRequest() {
   const router = useRouter();
@@ -107,12 +109,7 @@ export default function ViewInternalRequest() {
       <div><strong>Full Name:</strong> {user.firstName} {user.lastName}</div>
       <div><strong>Email:</strong> {user.email}</div>
       <div><strong>Phone Number:</strong> {user.phoneNumber || "—"}</div>
-      <div><strong>Requested Role:</strong> {user.roleRequest?.requestedRole === "reform_champion"
-        ? "Reform Champion"
-        : user.roleRequest?.requestedRole === "mda"
-          ? "ReportGov Agent"
-          : user.roleRequest?.requestedRole}
-      </div>
+      <div><strong>Requested Role:</strong> {formatRole(user.roleRequest?.requestedRole)}</div>
       <div><strong>Job Title:</strong> {user.roleRequest?.jobTitle || "—"}</div>
       <div><strong>MDA Name:</strong> {user.roleRequest?.mdaName || "—"}</div>
       <div><strong>State:</strong> {user.roleRequest?.state || "—"}</div>

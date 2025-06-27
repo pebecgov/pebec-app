@@ -14,6 +14,8 @@ import { Id } from "@/convex/_generated/dataModel";
 import { toast, Toaster } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { X } from "lucide-react";
+import { formatWorkstream } from "@/lib/formatters";
+
 export default function MdaSlots() {
   const {
     user
@@ -105,9 +107,7 @@ export default function MdaSlots() {
   };
   const visibleSlots = activeTab === "available" ? slotsForDay : showAllMeetings ? bookedSlots : bookedSlots.filter(slot => selectedDate ? isSameDay(parseISO(`${slot.date}T${slot.startTime}`), selectedDate) : true);
   return <div className="max-w-7xl mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold flex items-center gap-2 mb-6">
-        📅 My Appointments
-      </h1>
+     
 
     {showAvailabilityHint && selectedUserObj && firstAvailableSlot && <div className="bg-yellow-100 text-yellow-900 border border-yellow-300 px-4 py-3 rounded-md shadow-md max-w-md ml-auto mb-4 relative">
     <button onClick={() => setShowAvailabilityHint(false)} className="absolute top-1 right-2 text-lg font-bold text-yellow-900 hover:text-yellow-700">
@@ -139,8 +139,8 @@ export default function MdaSlots() {
             }}>
       <option value="">-- Select Department --</option>
       {staffWorkstreams.map(ws => <option key={ws} value={ws}>
-          {displayNames[ws] || ws}
-        </option>)}
+        {formatWorkstream(ws)}
+      </option>)}
     </select>
 
     {}
@@ -215,7 +215,7 @@ export default function MdaSlots() {
           {format(start, "EEEE, MMM d")} | {format(start, "h:mm a")} - {format(end, "h:mm a")}
         </p>
         <p className="text-sm text-gray-500">
-          Department: {displayNames[slot.workstream] || slot.workstream}
+          Department: {formatWorkstream(slot.workstream)}
         </p>
 
         {activeTab === "upcoming" && <p className="text-sm text-gray-700">

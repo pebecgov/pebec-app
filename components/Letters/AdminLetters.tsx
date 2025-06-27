@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X, Paperclip, FileText, Upload, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
 
 const ROLES_WITH_STATE_SELECTION = ["reform_champion", "deputies", "magistrates", "state_governor"];
 const ALLOWED_ROLES = ["admin", "staff", "mda", "reform_champion", "deputies", "magistrates", "state_governor"];
@@ -163,7 +164,7 @@ export default function SubmitLetterForm({
       }} className="w-full border rounded-md p-2 mb-3">
           <option value="">Select Department (Role)</option>
           {ALLOWED_ROLES.map(role => <option key={role} value={role}>
-              {role.replace("_", " ").toUpperCase()}
+              {formatRole(role)}
             </option>)}
         </select>
 
@@ -173,7 +174,7 @@ export default function SubmitLetterForm({
       }} className="w-full border rounded-md p-2 mb-3">
             <option value="">Select Staff Stream</option>
             {staffStreams.map(stream => <option key={stream} value={stream}>
-                {stream}
+                {formatWorkstream(stream)}
               </option>)}
           </select>}
 
@@ -201,7 +202,7 @@ export default function SubmitLetterForm({
     <option value="">Select User</option>
     {filteredUsers.map(user => <option key={user._id} value={user._id}>
         {user.firstName} {user.lastName}
-        {user.jobTitle ? ` (${user.jobTitle})` : ""} - {user.staffStream || user.mdaName || user.role}
+        {user.jobTitle ? ` (${user.jobTitle})` : ""} - {formatRoleAndWorkstream(user.role || "", user.staffStream) || user.mdaName}
       </option>)}
   </select>}
 
@@ -213,7 +214,7 @@ export default function SubmitLetterForm({
               </p>
               <p className="text-xs text-gray-500 truncate">
                 {selectedUserDetails.jobTitle ? `${selectedUserDetails.jobTitle}, ` : ""}
-                {selectedUserDetails.staffStream || selectedUserDetails.mdaName || selectedUserDetails.role}
+                {formatRoleAndWorkstream(selectedUserDetails.role || "", selectedUserDetails.staffStream) || selectedUserDetails.mdaName}
               </p>
             </div>
           </div>}
