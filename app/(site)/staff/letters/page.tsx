@@ -165,7 +165,7 @@ export default function AdminViewLettersPage() {
           <TableBody>
             {paginatedLetters.length > 0 ? paginatedLetters.map(letter => <TableRow key={letter._id}>
                   <TableCell>{letter.userFullName}</TableCell>
-                  <TableCell>{letter.userRole}</TableCell>
+                  <TableCell>{letter.userRole === "reform_champion" ? "Reform Champion" : letter.userRole === "mda" ? "ReportGov Agent" : letter.userRole}</TableCell>
                   <TableCell>
                     {letter.mdaName || letter.staffStream || letter.state || "—"}
                   </TableCell>

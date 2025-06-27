@@ -52,7 +52,7 @@ export default function SaberMaterialsPage() {
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
               {roles.map(r => <SelectItem key={r} value={r}>
-                  {r}
+                  {r === "reform_champion" ? "Reform Champion" : r === "mda" ? "ReportGov Agent" : r}
                 </SelectItem>)}
             </SelectContent>
           </Select>

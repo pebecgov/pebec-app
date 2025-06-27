@@ -235,6 +235,7 @@ export default function Admin() {
           <SelectItem value="user">User</SelectItem>
           <SelectItem value="admin">Admin</SelectItem>
           <SelectItem value="mda">ReportGov Agent</SelectItem>
+          <SelectItem value="reform_champion">Reform Champion</SelectItem>
           <SelectItem value="staff">Staff</SelectItem>
           <SelectItem value="saber_agent">Saber Agent</SelectItem>
           <SelectItem value="deputies">Sherrif</SelectItem>
@@ -325,7 +326,11 @@ export default function Admin() {
 
           {}
           <TableCell className="capitalize text-sm text-gray-800 whitespace-nowrap">
-            {user.role}
+          {user.role === "reform_champion"
+  ? "Reform Champion"
+  : user.role === "mda"
+  ? "ReportGov Agent"
+  : user.role}
           </TableCell>
 
           {}

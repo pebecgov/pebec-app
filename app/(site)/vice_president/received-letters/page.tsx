@@ -119,7 +119,7 @@ export default function ReceivedLettersPage() {
       }} className="border rounded-md p-2">
           <option value="">Sender Role</option>
           {uniqueRoles.map(role => <option key={role} value={role}>
-              {role}
+              {role === "reform_champion" ? "Reform Champion" : role === "mda" ? "ReportGov Agent" : role}
             </option>)}
         </select>
         {filters.role && <select value={filters.sender} onChange={e => setFilters({

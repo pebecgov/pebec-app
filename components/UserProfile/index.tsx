@@ -220,7 +220,7 @@ export default function UserProfile() {
         Secondary: {email.emailAddress}
       </p>)}
           <p className="text-sm text-gray-600 mt-1">
-            <strong>Role:</strong> {role}
+            <strong>Role:</strong> {role === "reform_champion" ? "Reform Champion" : role === "mda" ? "ReportGov Agent" : role}
           </p>
           {role === "staff" && <p className="text-sm text-gray-600">
               <strong>Staff Stream:</strong> {userProfile.staffStream || "—"}

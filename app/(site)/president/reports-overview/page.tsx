@@ -230,14 +230,14 @@ export default function SubmittedReportsPage() {
     <img src={getUserImage(r.userName) || "/placeholder.png"} alt={r.userName} className="w-10 h-10 rounded-full object-cover" />
     <div className="text-center sm:text-left">
       <p className="text-sm font-semibold text-gray-800 leading-tight break-words">{r.userName}</p>
-      <p className="text-xs text-gray-500">{r.role}</p>
+      <p className="text-xs text-gray-500">{r.role === "reform_champion" ? "Reform Champion" : r.role === "mda" ? "ReportGov Agent" : r.role}</p>
     </div>
   </div>
               </TableCell>
 
 
 
-                  <TableCell>{r.role}</TableCell>
+                  <TableCell>{r.role === "reform_champion" ? "Reform Champion" : r.role === "mda" ? "ReportGov Agent" : r.role}</TableCell>
                   <TableCell>{r.mdaName || "-"}</TableCell>
                   <TableCell>{r.reportName || template?.title || "—"}</TableCell>
                   <TableCell>{new Date(r.submittedAt).toLocaleDateString()}</TableCell>
