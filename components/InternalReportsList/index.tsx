@@ -38,7 +38,7 @@ export default function ReportTemplatesList() {
         <SelectContent>
           <SelectItem value="all">All Roles</SelectItem>
           <SelectItem value="admin">Admin</SelectItem>
-          <SelectItem value="mda">MDA</SelectItem>
+          <SelectItem value="mda">ReportGov Agent</SelectItem>
           <SelectItem value="staff">Staff</SelectItem>
           <SelectItem value="sub_national">Sub-National</SelectItem>
         </SelectContent>

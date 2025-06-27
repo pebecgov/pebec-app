@@ -101,30 +101,35 @@ export default function ViewInternalRequest() {
     return <p className="p-6 text-red-600">❌ User not found.</p>;
   }
   return <div className="max-w-3xl mx-auto px-4 py-6">
-      <h1 className="text-2xl font-semibold mb-4">Internal Role Request</h1>
+    <h1 className="text-2xl font-semibold mb-4">Internal Role Request</h1>
 
-      <div className="bg-white shadow border rounded-md p-6 space-y-4">
-        <div><strong>Full Name:</strong> {user.firstName} {user.lastName}</div>
-        <div><strong>Email:</strong> {user.email}</div>
-        <div><strong>Phone Number:</strong> {user.phoneNumber || "—"}</div>
-        <div><strong>Requested Role:</strong> {user.roleRequest?.requestedRole}</div>
-        <div><strong>Job Title:</strong> {user.roleRequest?.jobTitle || "—"}</div>
-        <div><strong>MDA Name:</strong> {user.roleRequest?.mdaName || "—"}</div>
-        <div><strong>State:</strong> {user.roleRequest?.state || "—"}</div>
-        <div><strong>Address:</strong> {user.roleRequest?.address || "—"}</div>
-        <div><strong>Submitted:</strong> {new Date(user.roleRequest?.submittedAt || 0).toLocaleString()}</div>
+    <div className="bg-white shadow border rounded-md p-6 space-y-4">
+      <div><strong>Full Name:</strong> {user.firstName} {user.lastName}</div>
+      <div><strong>Email:</strong> {user.email}</div>
+      <div><strong>Phone Number:</strong> {user.phoneNumber || "—"}</div>
+      <div><strong>Requested Role:</strong> {user.roleRequest?.requestedRole === "reform_champion"
+        ? "Reform Champion"
+        : user.roleRequest?.requestedRole === "mda"
+          ? "ReportGov Agent"
+          : user.roleRequest?.requestedRole}
       </div>
+      <div><strong>Job Title:</strong> {user.roleRequest?.jobTitle || "—"}</div>
+      <div><strong>MDA Name:</strong> {user.roleRequest?.mdaName || "—"}</div>
+      <div><strong>State:</strong> {user.roleRequest?.state || "—"}</div>
+      <div><strong>Address:</strong> {user.roleRequest?.address || "—"}</div>
+      <div><strong>Submitted:</strong> {new Date(user.roleRequest?.submittedAt || 0).toLocaleString()}</div>
+    </div>
 
-      <div className="flex gap-4 mt-6">
-        <Button onClick={handleApprove} disabled={isLoading}>
-          ✅ Approve
-        </Button>
-        <Button variant="destructive" onClick={handleReject} disabled={isLoading}>
-          ❌ Reject
-        </Button>
-        <Link href="/admin/users">
-          <Button variant="secondary">Back</Button>
-        </Link>
-      </div>
-    </div>;
+    <div className="flex gap-4 mt-6">
+      <Button onClick={handleApprove} disabled={isLoading}>
+        ✅ Approve
+      </Button>
+      <Button variant="destructive" onClick={handleReject} disabled={isLoading}>
+        ❌ Reject
+      </Button>
+      <Link href="/admin/users">
+        <Button variant="secondary">Back</Button>
+      </Link>
+    </div>
+  </div>;
 }

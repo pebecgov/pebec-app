@@ -178,7 +178,7 @@ export default function SubmittedReportsPage() {
             const template = reportTemplates.find(t => t._id === report.templateId);
             return <TableRow key={index}>
             <TableCell>{report.userName}</TableCell>
-            <TableCell>{report.role.toUpperCase()}</TableCell>
+            <TableCell>{report.role === "reform_champion" ? "Reform Champion" : report.role === "mda" ? "ReportGov Agent" : report.role.toUpperCase()}</TableCell>
             <TableCell>{report.reportName || template?.title || "Unknown Report"}</TableCell>
             <TableCell>{new Date(report.submittedAt).toLocaleDateString()}</TableCell>
             <TableCell className="flex gap-2">
