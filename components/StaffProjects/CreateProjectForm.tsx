@@ -18,14 +18,9 @@ import { Separator } from "@/components/ui/separator";
 import { Users, Shield, Tag, Plus, X, Calendar, User } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/hooks/use-toast";
+import { formatWorkstream } from "@/lib/formatters";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-
-const workstreams = [
-  "regulatory", "innovation", "judiciary", "communications", 
-  "investments", "receptionist", "account", "auditor", "sub_national"
-];
-
 
 const workstreams = [
   "regulatory", "innovation", "judiciary", "communications", 
