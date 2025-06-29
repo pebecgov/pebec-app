@@ -393,7 +393,11 @@ export default defineSchema({
       title: v.string(),
       completed: v.boolean(),
       completedBy: v.optional(v.id("users")),
-      completedAt: v.optional(v.number())
+      completedAt: v.optional(v.number()),
+      assignedTo: v.optional(v.id("users")),
+      assignedToName: v.optional(v.string()),
+      dueDate: v.optional(v.number()),
+      order: v.optional(v.number())
     })),
     updates: v.array(v.object({
       text: v.string(),
