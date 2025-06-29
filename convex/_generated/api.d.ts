@@ -21,6 +21,7 @@ import type * as email from "../email.js";
 import type * as events from "../events.js";
 import type * as http from "../http.js";
 import type * as images from "../images.js";
+import type * as internal_notes from "../internal_notes.js";
 import type * as internal_reports from "../internal_reports.js";
 import type * as letters from "../letters.js";
 import type * as media from "../media.js";
@@ -60,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   events: typeof events;
   http: typeof http;
   images: typeof images;
+  internal_notes: typeof internal_notes;
   internal_reports: typeof internal_reports;
   letters: typeof letters;
   media: typeof media;

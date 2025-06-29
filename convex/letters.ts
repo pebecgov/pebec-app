@@ -12,6 +12,33 @@ export const submitLetter = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
+    
+    // Implement letter recipient restrictions
+    if (args.sentTo) {
+      const recipient = await ctx.db.get(args.sentTo);
+      if (!recipient) {
+        throw new Error("Recipient not found");
+      }
+
+      const senderRole = user.role;
+      const recipientStream = recipient.staffStream;
+
+      // Reform Champions → can only send to Regulatory and Innovation & Technology departments
+      if (senderRole === "reform_champion") {
+        const allowedStreams = ["regulatory", "innovation"];
+        if (!recipientStream || !allowedStreams.includes(recipientStream)) {
+          throw new Error("Reform Champions can only send letters to Regulatory and Innovation & Technology departments");
+        }
+      }
+
+      // Report Gov Agents → can only send to Innovation & Technology department
+      if (senderRole === "saber_agent") {
+        if (recipientStream !== "innovation") {
+          throw new Error("Report Gov Agents can only send letters to Innovation & Technology department");
+        }
+      }
+    }
+    
     const letterId = await ctx.db.insert("letters", {
       userId: user._id,
       userFullName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
@@ -181,6 +208,42 @@ export const getAllStates = query({
     const stateUsers = await ctx.db.query("users").filter(q => q.neq(q.field("state"), undefined)).collect();
     const uniqueStates = [...new Set(stateUsers.map(user => user.state))].filter(Boolean);
     return uniqueStates;
+  }
+});
+
+export const getAvailableRecipients = query({
+  handler: async ctx => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    // Get all staff users
+    const allStaff = await ctx.db.query("users")
+      .withIndex("byRole", (q) => q.eq("role", "staff"))
+      .collect();
+
+    // Filter based on sender role restrictions
+    let availableRecipients = allStaff;
+
+    if (user.role === "reform_champion") {
+      // Reform Champions → can only send to Regulatory and Innovation & Technology departments
+      availableRecipients = allStaff.filter(staff => 
+        staff.staffStream === "regulatory" || staff.staffStream === "innovation"
+      );
+    } else if (user.role === "saber_agent") {
+      // Report Gov Agents → can only send to Innovation & Technology department
+      availableRecipients = allStaff.filter(staff => 
+        staff.staffStream === "innovation"
+      );
+    }
+
+    return availableRecipients.map(staff => ({
+      _id: staff._id,
+      firstName: staff.firstName || "",
+      lastName: staff.lastName || "",
+      fullName: `${staff.firstName || ""} ${staff.lastName || ""}`.trim(),
+      jobTitle: staff.jobTitle || "",
+      staffStream: staff.staffStream || "",
+      email: staff.email
+    }));
   }
 });
 export const updateLetterStatus = mutation({
