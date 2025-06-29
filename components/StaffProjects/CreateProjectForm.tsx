@@ -15,9 +15,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Users, Shield, Tag, Plus, X } from "lucide-react";
+import { Users, Shield, Tag, Plus, X, Calendar, User } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/hooks/use-toast";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 const workstreams = [
   "regulatory", "innovation", "judiciary", "communications", 
@@ -45,7 +47,16 @@ export default function CreateProjectForm() {
   const [description, setDescription] = useState("");
   
   // Steps
-  const [steps, setSteps] = useState([{ title: "", completed: false }]);
+  const [steps, setSteps] = useState<Array<{
+    title: string;
+    completed: boolean;
+    assignedTo?: Id<"users">;
+    assignedToName?: string;
+    dueDate?: number;
+  }>>([{ 
+    title: "", 
+    completed: false
+  }]);
   
   // Collaboration settings
   const [visibility, setVisibility] = useState<"private" | "workstream" | "cross_workstream" | "public">("workstream");
@@ -68,12 +79,45 @@ export default function CreateProjectForm() {
 
   const handleStepChange = (index: number, value: string) => {
     const updated = [...steps];
-    updated[index].title = value;
+    updated[index] = { ...updated[index], title: value };
+    setSteps(updated);
+  };
+
+  const handleStepAssignmentChange = (index: number, userId: Id<"users"> | "unassigned") => {
+    const updated = [...steps];
+    if (userId === "unassigned") {
+      const { assignedTo, assignedToName, ...rest } = updated[index];
+      updated[index] = rest;
+    } else {
+      const user = allUsers.find(u => u._id === userId);
+      updated[index] = { 
+        ...updated[index], 
+        assignedTo: userId, 
+        assignedToName: user ? `${user.firstName} ${user.lastName}` : undefined 
+      };
+    }
+    setSteps(updated);
+  };
+
+  const handleStepDueDateChange = (index: number, date: Date | null) => {
+    const updated = [...steps];
+    if (date) {
+      updated[index] = { 
+        ...updated[index], 
+        dueDate: date.getTime() 
+      };
+    } else {
+      const { dueDate, ...rest } = updated[index];
+      updated[index] = rest;
+    }
     setSteps(updated);
   };
 
   const addStep = () => {
-    setSteps([...steps, { title: "", completed: false }]);
+    setSteps([...steps, { 
+      title: "", 
+      completed: false
+    }]);
   };
 
   const removeStep = (index: number) => {
@@ -225,27 +269,87 @@ export default function CreateProjectForm() {
       {/* Project Steps */}
       <Card>
         <CardHeader>
-          <CardTitle>Project Steps</CardTitle>
+          <CardTitle>Project Tasks</CardTitle>
+          <p className="text-sm text-gray-600">Define the tasks for your project, assign team members, and set deadlines</p>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {steps.map((step, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <Input
-                value={step.title}
-                onChange={(e) => handleStepChange(idx, e.target.value)}
-                placeholder={`Step ${idx + 1}`}
-                className="flex-1"
-              />
-              {steps.length > 1 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => removeStep(idx)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+            <div key={idx} className="border rounded-lg p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={step.title}
+                  onChange={(e) => handleStepChange(idx, e.target.value)}
+                  placeholder={`Task ${idx + 1} title`}
+                  className="flex-1"
+                />
+                {steps.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeStep(idx)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Assignment */}
+                <div>
+                  <Label className="text-sm flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    Assign to
+                  </Label>
+                  <Select 
+                    value={step.assignedTo || "unassigned"} 
+                    onValueChange={(value) => handleStepAssignmentChange(idx, value as Id<"users"> | "unassigned")}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select assignee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {/* Include yourself */}
+                      {convexUser && (
+                        <SelectItem value={convexUser._id}>
+                          {convexUser.firstName} {convexUser.lastName} (You)
+                        </SelectItem>
+                      )}
+                      {/* Include collaborators */}
+                      {collaborators.map((collab) => {
+                        const user = allUsers.find(u => u._id === collab.userId);
+                        if (user && user._id !== convexUser?._id) {
+                          return (
+                            <SelectItem key={user._id} value={user._id}>
+                              {user.firstName} {user.lastName}
+                            </SelectItem>
+                          );
+                        }
+                        return null;
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Due Date */}
+                <div>
+                  <Label className="text-sm flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Due Date
+                  </Label>
+                  <div className="mt-1">
+                    <DatePicker
+                      selected={step.dueDate ? new Date(step.dueDate) : null}
+                      onChange={(date) => handleStepDueDateChange(idx, date)}
+                      className="w-full p-2 border border-input rounded-md bg-background text-sm"
+                      placeholderText="Select due date (optional)"
+                      dateFormat="MMM d, yyyy"
+                      minDate={new Date()}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           ))}
           <Button
@@ -255,7 +359,7 @@ export default function CreateProjectForm() {
             className="w-full"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Step
+            Add Task
           </Button>
         </CardContent>
       </Card>

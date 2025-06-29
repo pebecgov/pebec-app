@@ -13,7 +13,10 @@ export const createProject = mutation({
     tags: v.optional(v.array(v.string())),
     steps: v.array(v.object({
       title: v.string(),
-      completed: v.boolean()
+      completed: v.boolean(),
+      assignedTo: v.optional(v.id("users")),
+      assignedToName: v.optional(v.string()),
+      dueDate: v.optional(v.number())
     })),
     initialCollaborators: v.optional(v.array(v.object({
       userId: v.id("users"),
@@ -57,10 +60,14 @@ export const createProject = mutation({
       createdBy: user._id,
       status: "open",
       progress: 0,
-      steps: steps.map(step => ({
+      steps: steps.map((step, index) => ({
         ...step,
         completedBy: undefined,
-        completedAt: undefined
+        completedAt: undefined,
+        assignedTo: undefined,
+        assignedToName: undefined,
+        dueDate: undefined,
+        order: index + 1
       })),
       updates: [],
       collaborators,
@@ -91,22 +98,32 @@ export const createProject = mutation({
 export const addStep = mutation({
   args: {
     projectId: v.id("projects"),
-    title: v.string()
+    title: v.string(),
+    assignedTo: v.optional(v.id("users")),
+    assignedToName: v.optional(v.string()),
+    dueDate: v.optional(v.number())
   },
-  handler: async (ctx, { projectId, title }) => {
+  handler: async (ctx, { projectId, title, assignedTo, assignedToName, dueDate }) => {
     const user = await getCurrentUserOrThrow(ctx);
     const project = await ctx.db.get(projectId);
     if (!project) throw new Error("Project not found");
 
-    // Check permissions
-    const canEdit = await hasEditPermission(ctx, user._id, project);
-    if (!canEdit) throw new Error("You don't have permission to edit this project");
+    // Check permissions - only owners can create tasks
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
+    if (!isOwner) throw new Error("Only project owners can add new tasks");
+
+    // Get next order number
+    const maxOrder = Math.max(...project.steps.map(s => s.order || 0), 0);
 
     const newSteps = [...project.steps, {
       title,
       completed: false,
       completedBy: undefined,
-      completedAt: undefined
+      completedAt: undefined,
+      assignedTo,
+      assignedToName,
+      dueDate,
+      order: maxOrder + 1
     }];
 
     const completedCount = newSteps.filter(s => s.completed).length;
@@ -121,6 +138,17 @@ export const addStep = mutation({
     const newStatus = completedCount === newSteps.length ? "completed" : completedCount > 0 ? "in_progress" : "open";
     if (newStatus !== project.status) {
       await ctx.db.patch(projectId, { status: newStatus });
+    }
+
+    // Notify assigned user if different from creator
+    if (assignedTo && assignedTo !== user._id) {
+      await ctx.db.insert("notifications", {
+        userId: assignedTo,
+        message: `You've been assigned a new task "${title}" in project: ${project.name}`,
+        isRead: false,
+        createdAt: Date.now(),
+        type: "task_assignment"
+      });
     }
   }
 });
@@ -503,6 +531,111 @@ export const getAllProjects = query({
     }
 
     return await ctx.db.query("projects").collect();
+  }
+});
+
+export const updateStepAssignment = mutation({
+  args: {
+    projectId: v.id("projects"),
+    stepIndex: v.number(),
+    assignedTo: v.optional(v.id("users")),
+    assignedToName: v.optional(v.string())
+  },
+  handler: async (ctx, { projectId, stepIndex, assignedTo, assignedToName }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const project = await ctx.db.get(projectId);
+    if (!project) throw new Error("Project not found");
+
+    // Check permissions - only owners can assign tasks
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
+    if (!isOwner) throw new Error("Only project owners can assign tasks");
+
+    const steps = [...project.steps];
+    if (!steps[stepIndex]) throw new Error("Step not found");
+
+    steps[stepIndex] = {
+      ...steps[stepIndex],
+      assignedTo,
+      assignedToName
+    };
+
+    await ctx.db.patch(projectId, {
+      steps,
+      updatedAt: Date.now()
+    });
+
+    // Notify assigned user if different from previous assignment
+    if (assignedTo && assignedTo !== steps[stepIndex].assignedTo) {
+      await ctx.db.insert("notifications", {
+        userId: assignedTo,
+        message: `You've been assigned task "${steps[stepIndex].title}" in project: ${project.name}`,
+        isRead: false,
+        createdAt: Date.now(),
+        type: "task_assignment"
+      });
+    }
+  }
+});
+
+export const updateStepDueDate = mutation({
+  args: {
+    projectId: v.id("projects"),
+    stepIndex: v.number(),
+    dueDate: v.optional(v.number())
+  },
+  handler: async (ctx, { projectId, stepIndex, dueDate }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const project = await ctx.db.get(projectId);
+    if (!project) throw new Error("Project not found");
+
+    // Check permissions - only owners can set deadlines
+    const isOwner = project.collaborators?.some(c => c.userId === user._id && c.role === "owner") || project.createdBy === user._id;
+    if (!isOwner) throw new Error("Only project owners can set task deadlines");
+
+    const steps = [...project.steps];
+    if (!steps[stepIndex]) throw new Error("Step not found");
+
+    steps[stepIndex] = {
+      ...steps[stepIndex],
+      dueDate
+    };
+
+    await ctx.db.patch(projectId, {
+      steps,
+      updatedAt: Date.now()
+    });
+  }
+});
+
+export const reorderSteps = mutation({
+  args: {
+    projectId: v.id("projects"),
+    newOrder: v.array(v.number()) // Array of step indices in new order
+  },
+  handler: async (ctx, { projectId, newOrder }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const project = await ctx.db.get(projectId);
+    if (!project) throw new Error("Project not found");
+
+    // Check permissions - editors and owners can reorder tasks
+    const canEdit = await hasEditPermission(ctx, user._id, project);
+    if (!canEdit) throw new Error("You don't have permission to reorder tasks");
+
+    // Validate newOrder array
+    if (newOrder.length !== project.steps.length) {
+      throw new Error("Invalid reorder: length mismatch");
+    }
+
+    // Reorder steps based on the new order array
+    const reorderedSteps = newOrder.map((originalIndex, newIndex) => ({
+      ...project.steps[originalIndex],
+      order: newIndex + 1
+    }));
+
+    await ctx.db.patch(projectId, {
+      steps: reorderedSteps,
+      updatedAt: Date.now()
+    });
   }
 });
 
