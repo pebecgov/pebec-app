@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { toast } from "sonner";
+import { formatRole, formatWorkstream } from "@/lib/formatters";
+
 export default function UserProfilePage() {
   const {
     userId
@@ -34,8 +36,8 @@ export default function UserProfilePage() {
   });
   if (!user) {
     return <div className="flex flex-col items-center justify-center min-h-screen">
-        <h1 className="text-2xl font-semibold mb-2">Loading user...</h1>
-      </div>;
+      <h1 className="text-2xl font-semibold mb-2">Loading user...</h1>
+    </div>;
   }
   const handleEditClick = () => {
     setFormData({
@@ -61,57 +63,57 @@ export default function UserProfilePage() {
     }
   };
   return <div className="max-w-5xl mx-auto px-6 py-10">
-      <div className="flex justify-between items-center mb-8">
-        <Link href="/admin/users">
-          <Button variant="outline">⬅️ Back to Users</Button>
-        </Link>
-        {}
+    <div className="flex justify-between items-center mb-8">
+      <Link href="/admin/users">
+        <Button variant="outline">⬅️ Back to Users</Button>
+      </Link>
+      { }
+    </div>
+
+    <div className="flex flex-col md:flex-row gap-8">
+      { }
+      <div className="bg-white p-6 rounded-xl shadow-sm border w-full md:w-1/3 flex flex-col items-center">
+        <Image src={user.imageUrl || "/default-avatar.png"} alt="Profile Picture" width={120} height={120} className="rounded-full border object-cover" />
+        <h1 className="mt-4 text-2xl font-semibold text-center">
+          {user.firstName} {user.lastName}
+        </h1>
+        <p className="text-gray-500 mt-1">{user.email}</p>
+        <p className="text-gray-600">{user.phoneNumber || "No Phone Number"}</p>
+
+        <div className="mt-6">
+          <span className="px-4 py-2 text-sm font-medium rounded-full bg-blue-100 text-blue-800 capitalize">
+            {formatRole(user.role) || "User"}
+          </span>
+        </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        {}
-        <div className="bg-white p-6 rounded-xl shadow-sm border w-full md:w-1/3 flex flex-col items-center">
-          <Image src={user.imageUrl || "/default-avatar.png"} alt="Profile Picture" width={120} height={120} className="rounded-full border object-cover" />
-          <h1 className="mt-4 text-2xl font-semibold text-center">
-            {user.firstName} {user.lastName}
-          </h1>
-          <p className="text-gray-500 mt-1">{user.email}</p>
-          <p className="text-gray-600">{user.phoneNumber || "No Phone Number"}</p>
-
-          <div className="mt-6">
-            <span className="px-4 py-2 text-sm font-medium rounded-full bg-blue-100 text-blue-800 capitalize">
-              {user.role || "user"}
-            </span>
+      { }
+      <div className="w-full md:w-2/3 space-y-8">
+        { }
+        <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <h2 className="text-lg font-semibold mb-4 border-b pb-2">Personal Information </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <InfoRow label="State" value={user.state} />
+            <InfoRow label="Address" value={user.address} />
+            <InfoRow label="Business Name" value={user.businessName} />
+            <InfoRow label="Industry" value={user.industry} />
+            <InfoRow label="Job Title" value={user.jobTitle} />
           </div>
         </div>
 
-        {}
-        <div className="w-full md:w-2/3 space-y-8">
-          {}
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h2 className="text-lg font-semibold mb-4 border-b pb-2">Personal Information </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <InfoRow label="State" value={user.state} />
-              <InfoRow label="Address" value={user.address} />
-              <InfoRow label="Business Name" value={user.businessName} />
-              <InfoRow label="Industry" value={user.industry} />
-              <InfoRow label="Job Title" value={user.jobTitle} />
-            </div>
-          </div>
-
-          {}
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h2 className="text-lg font-semibold mb-4 border-b pb-2">System Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <InfoRow label="Role" value={user.role} />
-              {user.role === "staff" && <InfoRow label="Staff Stream" value={user.staffStream} />}
-              {user.role && ["mda", "reform_champion"].includes(user.role) && <InfoRow label="MDA Name" value={user.mdaName} />}
-              {user.role === "saber_agent" && <InfoRow label="EC Confirmed" value={user.ecConfirmed ? "✅ Yes" : "❌ No"} />}
-            </div>
+        { }
+        <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <h2 className="text-lg font-semibold mb-4 border-b pb-2">System Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <InfoRow label="Role" value={formatRole(user.role)} />
+            {user.role === "staff" && <InfoRow label="Staff Stream" value={formatWorkstream(user.staffStream)} />}
+            {user.role && ["mda", "reform_champion"].includes(user.role) && <InfoRow label="MDA Name" value={user.mdaName} />}
+            {user.role === "saber_agent" && <InfoRow label="EC Confirmed" value={user.ecConfirmed ? "✅ Yes" : "❌ No"} />}
           </div>
         </div>
       </div>
-    </div>;
+    </div>
+  </div>;
 }
 function InfoRow({
   label,
@@ -121,7 +123,7 @@ function InfoRow({
   value?: string | null;
 }) {
   return <div className="flex flex-col">
-      <span className="text-gray-500 font-medium">{label}</span>
-      <span className="text-gray-800">{value || "—"}</span>
-    </div>;
+    <span className="text-gray-500 font-medium">{label}</span>
+    <span className="text-gray-800">{value || "—"}</span>
+  </div>;
 }

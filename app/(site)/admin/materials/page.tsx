@@ -112,7 +112,15 @@ export default function SaberMaterialsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Roles</SelectItem>
-              {roles.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              {roles.map(r => (
+                <SelectItem key={r} value={r}>
+                  {r === "reform_champion"
+                    ? "Reform Champion"
+                    : r === "mda"
+                    ? "ReportGov Agent"
+                    : r.charAt(0).toUpperCase() + r.slice(1)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

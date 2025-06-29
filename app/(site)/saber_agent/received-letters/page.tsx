@@ -10,6 +10,9 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Input } from "@/components/ui/input";
 import { Eye, RefreshCcw } from "lucide-react";
 import { format } from "date-fns";
+import { formatRoleAndWorkstream } from "@/lib/formatters";
+import { formatRole } from "@/lib/formatters";
+
 export default function ReceivedLettersPage() {
   const allLetters = useQuery(api.letters.getLettersReceivedByUser) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
@@ -127,8 +130,8 @@ export default function ReceivedLettersPage() {
       }} className="border rounded-md p-2">
           <option value="">Sender Role</option>
           {uniqueRoles.map(role => <option key={role} value={role}>
-              {role}
-            </option>)}
+            {formatRole(role)}
+          </option>)}
         </select>
         {filters.role && <select value={filters.sender} onChange={e => setFilters({
         ...filters,
@@ -183,7 +186,7 @@ export default function ReceivedLettersPage() {
                       whiteSpace: "nowrap",
                       overflowX: "auto"
                     }}>
-            {sender.role === "staff" ? `${sender.role} - ${sender.staffStream || "N/A"}` : sender.role}
+            {sender.role === "staff" ? formatRoleAndWorkstream(sender.role, sender.staffStream) : formatRole(sender.role)}
             {sender.jobTitle ? `, ${sender.jobTitle}` : ""}
           </span>
         </>;

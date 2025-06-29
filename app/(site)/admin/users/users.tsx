@@ -18,6 +18,8 @@ import Image from "next/image";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
+
 export default function Admin() {
   const users = useQuery(api.users.getUsers) || [];
   const mdas = useQuery(api.users.getMDAs) || [];
@@ -187,7 +189,7 @@ export default function Admin() {
       "Email": user.email ?? "—",
       "Phone": user.phoneNumber ?? "—",
       "Role": user.role,
-      "Stream / MDA": user.role === "staff" ? user.staffStream ?? "—" : user.mdaName ?? "—"
+      "Stream / MDA": user.role === "staff" ? formatWorkstream(user.staffStream) ?? "—" : user.mdaName ?? "—"
     }));
   
     // Create worksheet and workbook
@@ -235,6 +237,7 @@ export default function Admin() {
           <SelectItem value="user">User</SelectItem>
           <SelectItem value="admin">Admin</SelectItem>
           <SelectItem value="mda">ReportGov Agent</SelectItem>
+          <SelectItem value="reform_champion">Reform Champion</SelectItem>
           <SelectItem value="staff">Staff</SelectItem>
           <SelectItem value="saber_agent">Saber Agent</SelectItem>
           <SelectItem value="deputies">Sherrif</SelectItem>
@@ -325,12 +328,16 @@ export default function Admin() {
 
           {}
           <TableCell className="capitalize text-sm text-gray-800 whitespace-nowrap">
-            {user.role}
+          {user.role === "reform_champion"
+  ? "Reform Champion"
+  : user.role === "mda"
+  ? "ReportGov Agent"
+  : formatRole(user.role)}
           </TableCell>
 
           {}
           <TableCell className="text-sm text-gray-700 whitespace-nowrap max-w-xs overflow-hidden text-ellipsis">
-          {user.role === "staff" ? user.staffStream ?? "—" : user.mdaName ?? "—"}
+          {user.role === "staff" ? formatWorkstream(user.staffStream) ?? "—" : user.mdaName ?? "—"}
           </TableCell>
 
           {}

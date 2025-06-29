@@ -127,8 +127,8 @@ export default function ReceivedLettersPage() {
       }} className="border rounded-md p-2">
           <option value="">Sender Role</option>
           {uniqueRoles.map(role => <option key={role} value={role}>
-              {role}
-            </option>)}
+            {formatRole(role)}
+          </option>)}
         </select>
         {filters.role && <select value={filters.sender} onChange={e => setFilters({
         ...filters,

@@ -6,6 +6,8 @@ import { api } from "@/convex/_generated/api";
 import { format, parseISO, isSameDay, isSameWeek, addDays, isFriday, isSaturday, isSunday } from "date-fns";
 import { JSX, useMemo } from "react";
 import { CalendarDaysIcon, ClockIcon, UserCircleIcon } from "@heroicons/react/24/solid";
+import { formatWorkstream } from "@/lib/formatters";
+
 export default function MDAMeetingsAnalytics() {
   const currentUser = useQuery(api.users.getCurrentUsers);
   const allSlots = useQuery(api.meetings.getAllAvailableSlots) || [];
@@ -60,7 +62,7 @@ export default function MDAMeetingsAnalytics() {
 
         <div className="flex-1">
           <p className="text-sm font-bold text-gray-800">{user.fullName}</p>
-          <p className="text-xs text-gray-500">{user.jobTitle} — {user.staffStream}</p>
+          <p className="text-xs text-gray-500">{user.jobTitle} — {formatWorkstream(user.staffStream)}</p>
           <p className="text-xs text-gray-400">{user.mdaName}</p>
 
           <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mt-2">
@@ -85,12 +87,12 @@ export default function MDAMeetingsAnalytics() {
 
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 bg-gray-50 border rounded-2xl p-6 shadow-sm space-y-6">
-          <h3 className="text-lg font-semibold text-gray-800">🗓️ This Week’s Meetings</h3>
+          <h3 className="text-lg font-semibold text-gray-800">🗓️ This Week's Meetings</h3>
           {thisWeeksMeetings.length > 0 ? thisWeeksMeetings.map(slot => <MeetingItem key={slot._id} slot={slot} />) : <p className="text-sm text-gray-400">No meetings for this week.</p>}
         </div>
 
         {isEndOfWeek && nextWeeksMeetings.length > 0 && <div className="lg:w-1/3 bg-gray-50 border rounded-2xl p-4 shadow-sm space-y-4">
-            <h3 className="text-md font-semibold text-gray-800">🔜 Next Week’s Meetings</h3>
+            <h3 className="text-md font-semibold text-gray-800">🔜 Next Week's Meetings</h3>
             {nextWeeksMeetings.slice(0, 2).map(slot => <MeetingItem key={slot._id} slot={slot} />)}
             <a href="/mda/meetings" className="block text-center text-sm font-semibold text-blue-600 hover:text-blue-800 transition">
               ➕ View All Meetings

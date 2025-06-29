@@ -14,6 +14,8 @@ import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import FileUploader from "./file-uploader-comments";
+import { formatRole } from "@/lib/formatters";
+
 export default function TicketComments({
   ticketId
 }: {
@@ -141,7 +143,7 @@ export default function TicketComments({
                       <p className="font-semibold">{comment.author?.firstName || "Anonymous"}</p>
                       {comment.author?.role && (
                         <span className="inline-block px-2 py-0.5 bg-green-600 text-white text-xs rounded-full capitalize">
-                          {formatDisplay(comment.author.role === "mda" ? "report gov agent" : comment.author.role)}
+                          {formatRole(comment.author.role === "mda" ? "report gov agent" : comment.author.role)}
                         </span>
                       )}
                     </div>

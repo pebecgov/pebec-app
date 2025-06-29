@@ -80,7 +80,7 @@ export default function ViewLettersPage() {
                 <TableHead className="text-gray-600 font-semibold">Date Sent</TableHead>
                 <TableHead className="text-gray-600 font-semibold">Sent To</TableHead>
                 <TableHead className="text-gray-600 font-semibold">Status</TableHead>
-                <TableHead className="text-center text-gray-600 font-semibold">Action</TableHead>
+                <TableHead className="text-gray-600 font-semibold">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

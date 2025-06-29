@@ -26,6 +26,12 @@ const workstreams = [
   "investments", "receptionist", "account", "auditor", "sub_national"
 ];
 
+
+const workstreams = [
+  "regulatory", "innovation", "judiciary", "communications", 
+  "investments", "receptionist", "account", "auditor", "sub_national"
+];
+
 const commonTags = [
   "High Priority", "Quick Win", "Strategic", "Technical", "Research",
   "Compliance", "Innovation", "Process Improvement", "Training"
@@ -400,7 +406,7 @@ export default function CreateProjectForm() {
                       onCheckedChange={() => toggleWorkstream(workstream)}
                     />
                     <Label htmlFor={workstream} className="text-sm capitalize">
-                      {workstream}
+                      {formatWorkstream(workstream)}
                     </Label>
                   </div>
                 ))}
@@ -435,7 +441,7 @@ export default function CreateProjectForm() {
                   <SelectContent>
                     {availableUsers.map((user) => (
                       <SelectItem key={user._id} value={user._id}>
-                        {user.firstName} {user.lastName} - {user.staffStream}
+                        {user.firstName} {user.lastName} - {user.staffStream ? formatWorkstream(user.staffStream) : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -458,7 +464,7 @@ export default function CreateProjectForm() {
                       <div className="flex items-center gap-2">
                         <div>
                           <p className="font-medium">{user?.firstName} {user?.lastName}</p>
-                          <p className="text-sm text-gray-500">{user?.staffStream}</p>
+                          <p className="text-sm text-gray-500">{user?.staffStream ? formatWorkstream(user.staffStream) : ""}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

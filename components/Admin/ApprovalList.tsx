@@ -14,6 +14,8 @@ import { mdasList } from "../mdaList";
 import { setRole } from "@/app/(site)/admin/users/action";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import { FaFilterCircleXmark } from "react-icons/fa6";
+import { formatRole } from "@/lib/formatters";
 
 const rolesRequiringMda = ["mda", "reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
 const rolesRequiringState = ["reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
@@ -53,6 +55,8 @@ export default function InternalApprovals() {
   // New dropdown filter states
   const [reportGovAgentsFilter, setReportGovAgentsFilter] = useState("all");
   const [reformChampionsFilter, setReformChampionsFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Create a map of MDA names to their statistics for quick lookup
   const mdaStatsMap = useMemo(() => {
@@ -66,7 +70,7 @@ export default function InternalApprovals() {
     return map;
   }, [mdaStatistics]);
 
-  // Helper function to check if a count matches a filter range
+
   const matchesRange = (count: number, filterValue: string): boolean => {
     if (filterValue === "all") return true;
     
@@ -89,32 +93,53 @@ export default function InternalApprovals() {
   const filteredRequests = pendingRequests.filter(user => {
     const matchesSearch = `${user.firstName} ${user.lastName}`.toLowerCase().includes(search.toLowerCase());
     const matchesRole = roleFilter === "all" || user.roleRequest?.requestedRole === roleFilter;
-    const matchesMda = !rolesRequiringMda.includes(roleFilter) || selectedMda === "all" || user.roleRequest?.mdaName === selectedMda;
+    const matchesMda = selectedMda === "all" || getDisplayMdaName(user.roleRequest?.mdaName) === selectedMda;
     const matchesState = !rolesRequiringState.includes(roleFilter) || selectedState === "all" || user.roleRequest?.state === selectedState;
     
-    // MDA-based filtering using dropdown ranges
+    
     let matchesMdaFilters = true;
     if (user.roleRequest?.mdaName) {
       const mdaStats = mdaStatsMap[user.roleRequest.mdaName];
       
       if (mdaStats) {
-        // MDA has statistics
+      
         const matchesAgentFilter = matchesRange(mdaStats.reportGovAgents, reportGovAgentsFilter);
         const matchesChampionFilter = matchesRange(mdaStats.reformChampions, reformChampionsFilter);
         matchesMdaFilters = matchesAgentFilter && matchesChampionFilter;
       } else {
-        // MDA has no statistics (0 agents, 0 champions)
+        
         const matchesAgentFilter = matchesRange(0, reportGovAgentsFilter);
         const matchesChampionFilter = matchesRange(0, reformChampionsFilter);
         matchesMdaFilters = matchesAgentFilter && matchesChampionFilter;
       }
     } else if (reportGovAgentsFilter !== "all" || reformChampionsFilter !== "all") {
-      // No MDA specified but filters are set, exclude
+   
       matchesMdaFilters = false;
     }
     
     return matchesSearch && matchesRole && matchesMda && matchesState && matchesMdaFilters;
   });
+
+  // Reset page on filter changes
+  const handleRoleFilterChange = (val: string) => {
+    setRoleFilter(val);
+    setSelectedState("all");
+    setCurrentPage(1);
+  };
+  const handleMdaFilterChange = (val: string) => {
+    setSelectedMda(val);
+    setCurrentPage(1);
+  };
+  const handleStateFilterChange = (val: string) => {
+    setSelectedState(val);
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+  const paginatedRequests = filteredRequests.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const handleApprove = async (user: any) => {
     if (!user?.roleRequest?.requestedRole) return;
@@ -194,6 +219,12 @@ export default function InternalApprovals() {
     XLSX.writeFile(workbook, "internal-approvals.xlsx");
   };
 
+  function getDisplayMdaName(mdaName) {
+    if (!mdaName) return "—";
+    const foundMda = mdasList.find(mda => mda.name.toLowerCase() === mdaName.toLowerCase());
+    return foundMda ? `${foundMda.abbreviation} - ${foundMda.name}` : mdaName;
+  }
+
   return (
     <div className="p-6">
       <h2 className="text-xl font-semibold mb-4">Pending Internal Approvals</h2>
@@ -202,17 +233,13 @@ export default function InternalApprovals() {
         <Input 
           placeholder="Search by name..." 
           value={search} 
-          onChange={e => setSearch(e.target.value)} 
+          onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} 
           className="w-full md:w-1/2" 
         />
 
         <Select 
           value={roleFilter} 
-          onValueChange={val => {
-            setRoleFilter(val);
-            setSelectedMda("all");
-            setSelectedState("all");
-          }}
+          onValueChange={handleRoleFilterChange}
         >
           <SelectTrigger className="w-full md:w-1/4">
             <SelectValue placeholder="Filter by Role" />
@@ -227,6 +254,34 @@ export default function InternalApprovals() {
             <SelectItem value="state_governor">State Governor</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select
+          value={selectedMda}
+          onValueChange={handleMdaFilterChange}
+        >
+          <SelectTrigger className="w-full md:w-1/4">
+            <SelectValue placeholder="Filter by MDA" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All MDAs</SelectItem>
+            {mdasList.map(mda => (
+              <SelectItem key={mda.name} value={`${mda.abbreviation} - ${mda.name}`}>{mda.abbreviation} - {mda.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="outline"
+          className="h-10 mt-2 md:mt-0 flex items-center gap-2"
+          onClick={() => {
+            setRoleFilter("all");
+            setSelectedMda("all");
+            setCurrentPage(1);
+          }}
+        >
+          <FaFilterCircleXmark className="w-4 h-4" />
+          Clear Filters
+        </Button>
       </div>
 
 
@@ -247,21 +302,21 @@ export default function InternalApprovals() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRequests.map(user => (
+              {paginatedRequests.map(user => (
                 <TableRow key={user._id}>
                   <TableCell className="truncate">{user.firstName} {user.lastName}</TableCell>
                   <TableCell className="truncate">{user.email}</TableCell>
-                  <TableCell className="capitalize truncate">{user.roleRequest?.requestedRole}</TableCell>
+                  <TableCell className="capitalize truncate">{formatRole(user.roleRequest?.requestedRole)}</TableCell>
                   <TableCell className="truncate">{user.roleRequest?.jobTitle || "—"}</TableCell>
                   <TableCell className="truncate">
-                    {user.roleRequest?.mdaName || "—"}
+                    {getDisplayMdaName(user.roleRequest?.mdaName)}
                     {/* Show MDA stats if available */}
-                    {user.roleRequest?.mdaName && mdaStatsMap[user.roleRequest.mdaName] && (
+                    {/* {user.roleRequest?.mdaName && mdaStatsMap[user.roleRequest.mdaName] && (
                       <div className="text-xs text-gray-500 mt-1">
                         Agents: {mdaStatsMap[user.roleRequest.mdaName].reportGovAgents}, 
                         Champions: {mdaStatsMap[user.roleRequest.mdaName].reformChampions}
                       </div>
-                    )}
+                    )} */}
                   </TableCell>
                   <TableCell className="truncate">{user.roleRequest?.state || "—"}</TableCell>
                   <TableCell className="text-center">
@@ -278,6 +333,28 @@ export default function InternalApprovals() {
             </TableBody>
           </Table>
         </div>
+      )}
+      {/* Pagination Controls */}
+      {filteredRequests.length > 0 && (
+        <>
+        <div className="flex flex-col gap-2 mt-4">
+        <div className="flex justify-center items-center mt-2 gap-4">
+            <Button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>
+              Previous
+            </Button>
+            <span className="text-gray-600">Page {currentPage} of {totalPages}</span>
+            <Button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>
+              Next
+            </Button>
+          </div>
+
+        <div className="flex justify-center items-center text-sm text-gray-600">
+            Total: {`${paginatedRequests.length}`}
+          </div>
+        </div>
+         
+         
+        </>
       )}
     </div>
   );
