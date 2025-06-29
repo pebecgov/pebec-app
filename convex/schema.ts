@@ -90,6 +90,14 @@ export default defineSchema({
     createdAt: v.number(),
     fileIds: v.optional(v.array(v.id("_storage")))
   }).index("byTicket", ["ticketId"]),
+  ticket_internal_notes: defineTable({
+    content: v.string(),
+    ticketId: v.id("tickets"),
+    authorId: v.id("users"),
+    authorName: v.string(),
+    authorRole: v.string(),
+    createdAt: v.number()
+  }).index("byTicket", ["ticketId"]).index("byAuthor", ["authorId"]),
   images: defineTable({
     storageId: v.id("_storage"),
     ticketId: v.optional(v.id("tickets")),

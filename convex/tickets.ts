@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { getCurrentUserOrNull, getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import { calculateBusinessHours } from "../lib/businessHours";
 function generateTicketNumber() {
   return `TICKET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
@@ -556,26 +557,60 @@ export const assignTicketMDA = mutation({
     if (!mda) {
       throw new Error("MDA not found.");
     }
-    await ctx.db.patch(ticketId, {
+
+    // If ticket is closed, reopen it and reset timeline
+    const isTransferringClosedTicket = ticket.status === "closed";
+    
+    const patchData: any = {
       assignedMDA: mdaId,
-      updatedAt: Date.now()
-    });
+      updatedAt: Date.now(),
+      reassignedAt: Date.now() // Reset timeline for 72-hour calculation
+    };
+
+    // Reopen closed tickets when transferred
+    if (isTransferringClosedTicket) {
+      patchData.status = "open";
+      patchData.resolutionNote = undefined; // Clear previous resolution note
+    }
+
+    await ctx.db.patch(ticketId, patchData);
+    
     const updatedTicket = await ctx.db.get(ticketId);
     console.log(`✅ Updated Ticket:`, updatedTicket);
+    
     const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", mdaId)).collect();
     for (const mdaUser of mdaUsers) {
+      const message = isTransferringClosedTicket 
+        ? `Closed ticket #${ticket.ticketNumber} reopened and assigned to ${mda.name}`
+        : `New ticket assigned to ${mda.name}`;
+      
       await ctx.db.insert("notifications", {
         userId: mdaUser._id,
         ticketId,
-        message: `New ticket assigned to ${mda.name}`,
+        message,
         isRead: false,
         createdAt: Date.now(),
         type: "ticket_assignment"
       });
     }
+
+    // Notify ticket creator if closed ticket was reopened
+    if (isTransferringClosedTicket) {
+      await ctx.db.insert("notifications", {
+        userId: ticket.createdBy,
+        ticketId,
+        message: `Your ticket #${ticket.ticketNumber} has been reopened and reassigned to ${mda.name}`,
+        isRead: false,
+        createdAt: Date.now(),
+        type: "ticket_reopened"
+      });
+    }
+
     return {
       success: true,
-      message: `Ticket assigned to ${mda.name}`
+      message: isTransferringClosedTicket 
+        ? `Closed ticket reopened and assigned to ${mda.name}` 
+        : `Ticket assigned to ${mda.name}`
     };
   }
 });
@@ -1253,18 +1288,11 @@ export const getAllBusinessNames = query({
     const combined = Array.from(new Set([...businessNamesFromUsers, ...businessNamesFromTickets]));
     return combined.filter(name => !!name);
   }
-});
+  });
+
 function skipWeekendsHours(start: number, end: number): number {
-  let current = new Date(start);
-  let endDate = new Date(end);
-  let hours = 0;
-  while (current < endDate) {
-    if (current.getDay() !== 6 && current.getDay() !== 0) {
-      hours++;
-    }
-    current.setHours(current.getHours() + 1);
-  }
-  return hours;
+  // Use the new business hours calculation (9am-5pm Monday-Friday)
+  return calculateBusinessHours(start, end);
 }
 export const getTicketStats = query({
   args: {

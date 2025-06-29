@@ -15,6 +15,7 @@ import { CheckIcon, XCircleIcon, ArrowPathIcon } from "@heroicons/react/24/solid
 import TicketStepper from "@/components/ui/stepper";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import TicketInternalNotes from "@/components/TicketInternalNotes";
 export default function AdminTicketDetailsPage() {
   const {
     ticketId
@@ -212,6 +213,11 @@ export default function AdminTicketDetailsPage() {
 
       <div className="mt-6">
         <TicketComments ticketId={ticketId as string} />
+      </div>
+
+      {/* Internal Notes - Only visible to MDA and Admin */}
+      <div className="mt-6">
+        <TicketInternalNotes ticketId={ticketId as string} />
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
