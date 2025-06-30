@@ -57,6 +57,7 @@ export default function InternalApprovals() {
   const [reformChampionsFilter, setReformChampionsFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [mdaSearch, setMdaSearch] = useState("");
 
   // Create a map of MDA names to their statistics for quick lookup
   const mdaStatsMap = useMemo(() => {
@@ -263,10 +264,25 @@ export default function InternalApprovals() {
             <SelectValue placeholder="Filter by MDA" />
           </SelectTrigger>
           <SelectContent>
+            <div className="px-2 py-1">
+              <Input
+                placeholder="Search MDA..."
+                value={mdaSearch}
+                onChange={e => setMdaSearch(e.target.value)}
+                onKeyDown={e => e.stopPropagation()}
+                className="mb-2"
+              />
+            </div>
             <SelectItem value="all">All MDAs</SelectItem>
-            {mdasList.map(mda => (
-              <SelectItem key={mda.name} value={`${mda.abbreviation} - ${mda.name}`}>{mda.abbreviation} - {mda.name}</SelectItem>
-            ))}
+            {mdasList
+              .filter(mda =>
+                `${mda.abbreviation} - ${mda.name}`.toLowerCase().includes(mdaSearch.toLowerCase())
+              )
+              .map(mda => (
+                <SelectItem key={mda.name} value={`${mda.abbreviation} - ${mda.name}`}>
+                  {mda.abbreviation} - {mda.name}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
 
