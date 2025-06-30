@@ -16,6 +16,7 @@ import TicketStepper from "@/components/ui/stepper";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import TicketInternalNotes from "@/components/TicketInternalNotes";
+import TicketCountdown from "@/components/ui/ticket-countdown";
 export default function AdminTicketDetailsPage() {
   const {
     ticketId
@@ -131,6 +132,15 @@ export default function AdminTicketDetailsPage() {
         <p className="text-gray-500 mt-1">
           Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
         </p>
+      </div>
+
+      {/* 72-Hour SLA Countdown */}
+      <div className="mt-6">
+        <TicketCountdown 
+          ticketCreatedAt={ticket.createdAt}
+          ticketReassignedAt={ticket.reassignedAt}
+          ticketStatus={ticket.status}
+        />
       </div>
 
       {ticket.resolutionNote && <div className="mt-6 p-4 bg-gray-100 border rounded-lg">
