@@ -19,6 +19,8 @@ import { Search, Eye, Calendar } from "lucide-react";
 import GenerateTicketReport from "@/components/GenerateReports/GenerateTicketReport";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import GenerateMonthlyReport from "../GenerateReports/GenerateMonthlyTicketsReport";
+import MiniCountdown from "@/components/ui/mini-countdown";
+
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -170,6 +172,7 @@ export default function MdaTicketsDashboard() {
             <TableHead>Title</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Submitted Date</TableHead>
+            <TableHead>Time Remaining</TableHead>
             <TableHead>Action</TableHead>
           </TableRow>
         </TableHeader>
@@ -191,6 +194,13 @@ export default function MdaTicketsDashboard() {
   </Badge>
           </TableCell>
                 <TableCell>{new Date(ticket.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <MiniCountdown 
+                    ticketCreatedAt={ticket.createdAt}
+                    ticketReassignedAt={ticket.reassignedAt}
+                    ticketStatus={ticket.status}
+                  />
+                </TableCell>
                 <TableCell>
                   <Link href={`/mda/tickets/${ticket._id}`}>
                     <Button variant="outline" size="sm">
