@@ -468,6 +468,19 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
                             codeInputsRef.current[i - 1]?.focus();
                           }
                         }}
+                        onPaste={e => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                          if (pasted) {
+                            setCodeError("");
+                            setForm({ ...form, verificationCode: pasted });
+                            if (pasted.length === 6) {
+                              codeInputsRef.current[5]?.focus();
+                            } else {
+                              codeInputsRef.current[Math.min(i + pasted.length, 5)]?.focus();
+                            }
+                          }
+                        }}
                         ref={el => { codeInputsRef.current[i] = el; }}
                       />
                     ))}
