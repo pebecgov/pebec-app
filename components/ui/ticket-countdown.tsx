@@ -125,7 +125,17 @@ export default function TicketCountdown({
             {isOverdue ? `+${formatTimeRemaining(Math.abs(timeRemaining))}` : formatTimeRemaining(timeRemaining)}
           </span>
         </div>
-    
+        <div className="mt-1">
+          <p className={`text-xs ${getTextColor()} opacity-75`}>
+            {isOverdue 
+              ? `Deadline was: ${formatDeadlineDate(deadlineTime)}`
+              : `Deadline: ${formatDeadlineDate(deadlineTime)}`
+            }
+          </p>
+          <p className={`text-xs ${getTextColor()} opacity-60 mt-1`}>
+            * Business hours only (Mon-Fri, 9AM-5PM WAT)
+          </p>
+        </div>
       </div>
     </div>
   );

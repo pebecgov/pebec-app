@@ -18,7 +18,7 @@ import { FaFilterCircleXmark } from "react-icons/fa6";
 import { formatRole } from "@/lib/formatters";
 
 const rolesRequiringMda = ["mda", "reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
-const rolesRequiringState = ["reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
+const rolesRequiringState = ["saber_agent", "deputies", "magistrates", "state_governor"];
 const allStates = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
 
 // Filter options for agent/champion counts
