@@ -23,11 +23,11 @@ export const submitLetter = mutation({
       const senderRole = user.role;
       const recipientStream = recipient.staffStream;
 
-      // Reform Champions → can only send to Regulatory and Innovation & Technology departments
+      // Reform Champions → can only send to Innovation & Technology department
       if (senderRole === "reform_champion") {
-        const allowedStreams = ["regulatory", "innovation"];
+        const allowedStreams = ["innovation"];
         if (!recipientStream || !allowedStreams.includes(recipientStream)) {
-          throw new Error("Reform Champions can only send letters to Regulatory and Innovation & Technology departments");
+          throw new Error("Reform Champions can only send letters to Innovation & Technology department");
         }
       }
 
@@ -224,9 +224,9 @@ export const getAvailableRecipients = query({
     let availableRecipients = allStaff;
 
     if (user.role === "reform_champion") {
-      // Reform Champions → can only send to Regulatory and Innovation & Technology departments
+      // Reform Champions → can only send to Innovation & Technology department
       availableRecipients = allStaff.filter(staff => 
-        staff.staffStream === "regulatory" || staff.staffStream === "innovation"
+        staff.staffStream === "innovation"
       );
     } else if (user.role === "saber_agent") {
       // Report Gov Agents → can only send to Innovation & Technology department
