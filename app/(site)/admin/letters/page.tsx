@@ -36,7 +36,7 @@ export default function AdminViewLettersPage() {
     role: roleFilter,
     mdaName: selectedRole === "mda" ? selectedMda || undefined : undefined,
     staffStream: selectedRole === "staff" ? selectedStaffStream || undefined : undefined,
-    state: selectedRole === "reform_champion" || selectedRole === "state_governor" ? selectedState || undefined : undefined,
+    state: selectedRole === "state_governor" ? selectedState || undefined : undefined,
     startDate: startTimestamp,
     endDate: endTimestamp
   }) || [];
@@ -145,7 +145,7 @@ export default function AdminViewLettersPage() {
             </Select>
           </div>}
 
-        {(selectedRole === "reform_champion" || selectedRole === "state_governor") && <div className="w-full md:w-1/4">
+        {selectedRole === "state_governor" && <div className="w-full md:w-1/4">
             <Select onValueChange={setSelectedState} value={selectedState}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select State" />

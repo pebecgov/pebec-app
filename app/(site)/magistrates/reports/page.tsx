@@ -194,7 +194,7 @@ export default function ReportsPage() {
             });
             doc.save("monthly_report.pdf");
           }}>
-    📥 Download Monthly Report
+    📥 
   </Button>
         </div>
 

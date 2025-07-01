@@ -22,6 +22,7 @@ export default function SubmitLetterForm({
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
   const saveUploadedFile = useMutation(api.tickets.saveUploadedFile);
   const users = useQuery(api.users.getAllAdminsAndStaff) || [];
+  const availableRecipients = useQuery(api.letters.getAvailableRecipients) || [];
   const [letterName, setLetterName] = useState("");
   const [description, setDescription] = useState("");
   const [fileId, setFileId] = useState<Id<"_storage"> | null>(null);
@@ -34,8 +35,11 @@ export default function SubmitLetterForm({
   const [selectedUser, setSelectedUser] = useState<Id<"users"> | null>(null);
   const [showAttachmentUpload, setShowAttachmentUpload] = useState(false);
 
-  const staffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
-  const filteredUsers = department === "admin" ? users.filter(u => u.role === "admin") : users.filter(u => u.staffStream === selectedStream);
+  const allStaffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
+  // Filter staff streams based on available recipients (for role-based restrictions)
+  const availableStreams = [...new Set(availableRecipients.map(r => r.staffStream))];
+  const staffStreams = availableStreams.length > 0 ? allStaffStreams.filter(stream => availableStreams.includes(stream)) : allStaffStreams;
+  const filteredUsers = department === "admin" ? users.filter(u => u.role === "admin") : availableRecipients.filter(u => u.staffStream === selectedStream);
 
   const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -158,7 +162,7 @@ export default function SubmitLetterForm({
         {/* Selected User Preview */}
         {selectedUser && <div className="flex items-center gap-3 border p-3 rounded-lg bg-gray-50 mb-4">
             {(() => {
-          const user = users.find(u => u._id === selectedUser);
+          const user = department === "admin" ? users.find(u => u._id === selectedUser) : availableRecipients.find(u => u._id === selectedUser);
           return user ? <>
                   <Image src={user.imageUrl || "/default-avatar.png"} alt="User" width={36} height={36} className="rounded-full" />
                   <div>
@@ -167,7 +171,7 @@ export default function SubmitLetterForm({
                     </p>
                     <p className="text-xs text-gray-500">
   {user.jobTitle ? `${user.jobTitle}, ` : ""}
-  {formatRoleAndWorkstream(user.role || "", user.staffStream)}
+  {department === "admin" ? formatRoleAndWorkstream(user.role || "", user.staffStream) : formatWorkstream(user.staffStream || "")}
               </p>
                   </div>
                 </> : null;

@@ -14,7 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
-import { Save, FileText, Trash2 } from "lucide-react";
+import { Save, FileText, Trash2, Plus, Upload } from "lucide-react";
+import BulkCSVUploader from "@/components/BulkCSVUploader";
+
 export default function FillReportPage() {
   const {
     fillId
@@ -42,6 +44,7 @@ export default function FillReportPage() {
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+  const [showBulkUploader, setShowBulkUploader] = useState(false);
   const draftLoadedRef = useRef(false);
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? {
     clerkUserId: user.id

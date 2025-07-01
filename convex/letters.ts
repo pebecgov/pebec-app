@@ -21,20 +21,27 @@ export const submitLetter = mutation({
       }
 
       const senderRole = user.role;
+      const recipientRole = recipient.role;
       const recipientStream = recipient.staffStream;
 
-      // Reform Champions → can only send to Regulatory and Innovation & Technology departments
+      // Reform Champions → can only send to Admin, Regulatory and Innovation & Technology departments
       if (senderRole === "reform_champion") {
+        const isAdmin = recipientRole === "admin";
         const allowedStreams = ["regulatory", "innovation"];
-        if (!recipientStream || !allowedStreams.includes(recipientStream)) {
-          throw new Error("Reform Champions can only send letters to Regulatory and Innovation & Technology departments");
+        const isAllowedStaff = recipientStream && allowedStreams.includes(recipientStream);
+        
+        if (!isAdmin && !isAllowedStaff) {
+          throw new Error("Reform Champions can only send letters to Admin, Regulatory and Innovation & Technology departments");
         }
       }
 
-      // Report Gov Agents → can only send to Innovation & Technology department
+      // Report Gov Agents → can only send to Admin and Innovation & Technology department
       if (senderRole === "saber_agent") {
-        if (recipientStream !== "innovation") {
-          throw new Error("Report Gov Agents can only send letters to Innovation & Technology department");
+        const isAdmin = recipientRole === "admin";
+        const isAllowedStaff = recipientStream === "innovation";
+        
+        if (!isAdmin && !isAllowedStaff) {
+          throw new Error("Report Gov Agents can only send letters to Admin and Innovation & Technology department");
         }
       }
     }
@@ -215,34 +222,41 @@ export const getAvailableRecipients = query({
   handler: async ctx => {
     const user = await getCurrentUserOrThrow(ctx);
     
-    // Get all staff users
+    // Get all staff and admin users
     const allStaff = await ctx.db.query("users")
       .withIndex("byRole", (q) => q.eq("role", "staff"))
       .collect();
+    
+    const allAdmins = await ctx.db.query("users")
+      .withIndex("byRole", (q) => q.eq("role", "admin"))
+      .collect();
 
     // Filter based on sender role restrictions
-    let availableRecipients = allStaff;
+    let availableRecipients = [...allStaff, ...allAdmins];
 
     if (user.role === "reform_champion") {
-      // Reform Champions → can only send to Regulatory and Innovation & Technology departments
-      availableRecipients = allStaff.filter(staff => 
+      // Reform Champions → can only send to Admin, Regulatory and Innovation & Technology departments
+      const allowedStaff = allStaff.filter(staff => 
         staff.staffStream === "regulatory" || staff.staffStream === "innovation"
       );
+      availableRecipients = [...allAdmins, ...allowedStaff];
     } else if (user.role === "saber_agent") {
-      // Report Gov Agents → can only send to Innovation & Technology department
-      availableRecipients = allStaff.filter(staff => 
+      // Report Gov Agents → can only send to Admin and Innovation & Technology department
+      const allowedStaff = allStaff.filter(staff => 
         staff.staffStream === "innovation"
       );
+      availableRecipients = [...allAdmins, ...allowedStaff];
     }
 
-    return availableRecipients.map(staff => ({
-      _id: staff._id,
-      firstName: staff.firstName || "",
-      lastName: staff.lastName || "",
-      fullName: `${staff.firstName || ""} ${staff.lastName || ""}`.trim(),
-      jobTitle: staff.jobTitle || "",
-      staffStream: staff.staffStream || "",
-      email: staff.email
+    return availableRecipients.map(recipient => ({
+      _id: recipient._id,
+      firstName: recipient.firstName || "",
+      lastName: recipient.lastName || "",
+      fullName: `${recipient.firstName || ""} ${recipient.lastName || ""}`.trim(),
+      jobTitle: recipient.jobTitle || "",
+      staffStream: recipient.staffStream || "",
+      role: recipient.role || "",
+      email: recipient.email
     }));
   }
 });

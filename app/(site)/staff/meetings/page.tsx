@@ -17,6 +17,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { Id } from "@/convex/_generated/dataModel";
 import { ToggleSwitch } from "@/components/ToggleBtn";
+import { TimePicker } from "@/components/ui/time-picker";
 export default function StaffAvailabilityPage() {
   const {
     user
@@ -46,7 +47,7 @@ export default function StaffAvailabilityPage() {
   const [showAllMeetings, setShowAllMeetings] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [modalDate, setModalDate] = useState<Date | null>(null);
-  const [startDateTime, setStartDateTime] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<Date | null>(null);
   const [duration, setDuration] = useState(60);
   const [loadingIds, setLoadingIds] = useState<Id<"availability">[]>([]);
   const [releaseDialog, setReleaseDialog] = useState<{
@@ -73,39 +74,46 @@ export default function StaffAvailabilityPage() {
     return availability.filter(slot => isSameDay(parseISO(`${slot.date}T${slot.startTime}`), selectedDate));
   }, [selectedDate, availability]);
   const handleCreateSlot = async () => {
-    if (!startDateTime || !staffStream) return toast.error("Missing info");
+    if (!modalDate || !selectedTime || !staffStream) return toast.error("Missing info");
+    
+    // Combine date and time
+    const combinedDateTime = new Date(modalDate);
+    combinedDateTime.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+    
     const now = new Date();
-    if (isBefore(startDateTime, setHours(setMinutes(now, 0), 0))) {
+    if (isBefore(combinedDateTime, setHours(setMinutes(now, 0), 0))) {
       return toast.error("Cannot create slot in the past");
     }
-    const date = format(startDateTime, "yyyy-MM-dd");
-    const time = format(startDateTime, "HH:mm");
+    const date = format(combinedDateTime, "yyyy-MM-dd");
+    const time = format(combinedDateTime, "HH:mm");
     const exists = availability.some(s => s.date === date && s.startTime === time);
     if (exists) return toast.error("Slot already exists");
     await setAvailability({
       userId: convexUser!._id,
       workstream: staffStream,
       date,
-      day: format(startDateTime, "EEEE"),
+      day: format(combinedDateTime, "EEEE"),
       startTime: time,
       duration
     });
     toast.success("Slot created");
     setDialogOpen(false);
+    setModalDate(null);
+    setSelectedTime(null);
   };
   const handleCreate6Slots = async () => {
-    if (!startDateTime || !staffStream) {
+    if (!modalDate || !staffStream) {
       toast.error("Please select a date in the modal");
       return;
     }
     const now = new Date();
-    const selectedDay = new Date(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
+    const selectedDay = new Date(modalDate.getFullYear(), modalDate.getMonth(), modalDate.getDate());
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     if (selectedDay < today) {
       toast.error("Cannot create slots in the past");
       return;
     }
-    const base = setHours(setMinutes(new Date(startDateTime), 0), 10);
+    const base = setHours(setMinutes(new Date(modalDate), 0), 10);
     let created = 0;
     for (let i = 0; i < 6; i++) {
       const slotStart = addMinutes(base, i * 60);
@@ -131,6 +139,8 @@ export default function StaffAvailabilityPage() {
       toast.warning("All valid slots already exist or are in the past.");
     }
     setDialogOpen(false);
+    setModalDate(null);
+    setSelectedTime(null);
   };
   const visibleSlots = useMemo(() => {
     const now = new Date();
@@ -247,7 +257,13 @@ export default function StaffAvailabilityPage() {
       </div>
 
       {}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        setDialogOpen(open);
+        if (!open) {
+          setModalDate(null);
+          setSelectedTime(null);
+        }
+      }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Slot</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -255,21 +271,24 @@ export default function StaffAvailabilityPage() {
     <label className="block text-sm font-medium text-gray-700 mb-1">
       Select Date
     </label>
-    <DatePicker selected={startDateTime} onChange={date => setStartDateTime(date)} minDate={new Date()} dateFormat="MMMM d, yyyy" className="w-full border px-3 py-2 rounded" />
-
+    <DatePicker 
+      selected={modalDate} 
+      onChange={date => setModalDate(date)} 
+      minDate={new Date()} 
+      dateFormat="MMMM d, yyyy" 
+      className="w-full border px-3 py-2 rounded" 
+    />
   </div>
 
   <div>
     <label className="block text-sm font-medium text-gray-700 mb-1">
       Select Start Time
     </label>
-    <DatePicker selected={startDateTime} onChange={time => {
-              if (startDateTime && time) {
-                const updated = new Date(startDateTime);
-                updated.setHours(time.getHours(), time.getMinutes());
-                setStartDateTime(updated);
-              }
-            }} showTimeSelect showTimeSelectOnly timeIntervals={15} dateFormat="h:mm aa" className="w-full border px-3 py-2 rounded" />
+    <TimePicker 
+      value={selectedTime} 
+      onChange={setSelectedTime} 
+      placeholder="Choose time (10 AM - 4 PM)"
+    />
   </div>
 
   <div>
@@ -284,7 +303,11 @@ export default function StaffAvailabilityPage() {
 
 
           <DialogFooter className="mt-4 flex gap-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => {
+              setDialogOpen(false);
+              setModalDate(null);
+              setSelectedTime(null);
+            }}>Cancel</Button>
             <Button onClick={handleCreateSlot}>Add Slot</Button>
             <Button onClick={handleCreate6Slots}>Add 6 Slots</Button>
           </DialogFooter>
