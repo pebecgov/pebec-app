@@ -216,7 +216,7 @@ export default function ReportsPage() {
     📤 Upload Report
   </Button>
 
-  <Button className="bg-blue-600 text-white" onClick={() => {
+  {/* <Button className="bg-blue-600 text-white" onClick={() => {
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
             const endOfToday = new Date().setHours(23, 59, 59, 999);
@@ -255,7 +255,7 @@ export default function ReportsPage() {
             doc.save("monthly_report.pdf");
           }}>
     📥 Download Monthly Report
-  </Button>
+  </Button> */}
         </div>
 
 
