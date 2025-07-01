@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 
 interface TimePickerProps {
   value: Date | null;
@@ -15,35 +15,44 @@ export const TimePicker: React.FC<TimePickerProps> = ({
   placeholder = 'Select time'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedHour, setSelectedHour] = useState<number | null>(null);
-  const [selectedMinute, setSelectedMinute] = useState<number | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<'AM' | 'PM'>('AM');
+  const [hour, setHour] = useState(10);
+  const [minute, setMinute] = useState(0);
+  const [period, setPeriod] = useState<'AM' | 'PM'>('AM');
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [dragStartMinute, setDragStartMinute] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const minuteScrollRef = useRef<HTMLDivElement>(null);
 
-  // Available hours (10 AM to 4 PM = 10, 11, 12, 1, 2, 3, 4)
-  const availableHours = [10, 11, 12, 1, 2, 3, 4];
-  const availableMinutes = [0, 15, 30, 45]; // 15-minute intervals
+  // Available times (10 AM to 4 PM)
+  const availableHours: Array<{ value: number; period: 'AM' | 'PM' }> = [
+    { value: 10, period: 'AM' },
+    { value: 11, period: 'AM' },
+    { value: 12, period: 'PM' },
+    { value: 1, period: 'PM' },
+    { value: 2, period: 'PM' },
+    { value: 3, period: 'PM' },
+    { value: 4, period: 'PM' }
+  ];
 
   useEffect(() => {
     if (value) {
       const hours = value.getHours();
       const minutes = value.getMinutes();
       
-      if (hours === 0) {
-        setSelectedHour(12);
-        setSelectedPeriod('AM');
-      } else if (hours < 12) {
-        setSelectedHour(hours);
-        setSelectedPeriod('AM');
+      if (hours >= 10 && hours <= 11) {
+        setHour(hours);
+        setPeriod('AM');
       } else if (hours === 12) {
-        setSelectedHour(12);
-        setSelectedPeriod('PM');
-      } else {
-        setSelectedHour(hours - 12);
-        setSelectedPeriod('PM');
+        setHour(12);
+        setPeriod('PM');
+      } else if (hours >= 13 && hours <= 16) {
+        setHour(hours - 12);
+        setPeriod('PM');
       }
       
-      setSelectedMinute(minutes);
+      // Round to nearest 15-minute interval
+      setMinute(Math.round(minutes / 15) * 15);
     }
   }, [value]);
 
@@ -58,7 +67,34 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleTimeSelect = (hour: number, minute: number, period: 'AM' | 'PM') => {
+  // Global mouse events for dragging
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      const deltaY = dragStartY - e.clientY;
+      const minuteChange = Math.round(deltaY / 10) * 15;
+      const newMinute = Math.max(0, Math.min(45, dragStartMinute + minuteChange));
+      
+      setMinute(newMinute);
+    };
+
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleGlobalMouseMove);
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isDragging, dragStartY, dragStartMinute]);
+
+  const handleTimeChange = () => {
     let hour24 = hour;
     if (period === 'AM' && hour === 12) hour24 = 0;
     if (period === 'PM' && hour !== 12) hour24 = hour + 12;
@@ -78,108 +114,157 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     });
   };
 
-  const getValidPeriods = (hour: number) => {
-    if (hour === 10 || hour === 11) return ['AM'];
-    if (hour === 12) return ['PM'];
-    if (hour === 1 || hour === 2 || hour === 3 || hour === 4) return ['PM'];
-    return [];
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStartY(e.clientY);
+    setDragStartMinute(minute);
+    e.preventDefault();
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    
+    const deltaY = dragStartY - e.clientY; // Inverted: drag up = positive
+    const minuteChange = Math.round(deltaY / 10) * 15; // Every 10px = 15 minutes
+    const newMinute = Math.max(0, Math.min(45, dragStartMinute + minuteChange));
+    
+    setMinute(newMinute);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    setDragStartY(e.touches[0].clientY);
+    setDragStartMinute(minute);
+    e.preventDefault();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    
+    const deltaY = dragStartY - e.touches[0].clientY;
+    const minuteChange = Math.round(deltaY / 10) * 15;
+    const newMinute = Math.max(0, Math.min(45, dragStartMinute + minuteChange));
+    
+    setMinute(newMinute);
+    e.preventDefault();
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
   };
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
+      {/* Input Display */}
       <div
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white cursor-pointer flex items-center justify-between hover:border-gray-400 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white cursor-pointer flex items-center gap-2 hover:border-gray-400 transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-gray-400" />
-          <span className={value ? 'text-gray-900' : 'text-gray-500'}>
-            {value ? formatTime(value) : placeholder}
-          </span>
-        </div>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <Clock className="w-4 h-4 text-gray-400" />
+        <span className={value ? 'text-gray-900' : 'text-gray-500'}>
+          {value ? formatTime(value) : placeholder}
+        </span>
       </div>
 
+      {/* Time Picker Panel */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-hidden">
-          <div className="flex">
-            {/* Hours Column */}
-            <div className="flex-1 border-r border-gray-100">
-              <div className="p-2 text-xs font-medium text-gray-500 border-b border-gray-100 bg-gray-50">
-                Hour
-              </div>
-              <div className="max-h-48 overflow-y-auto">
-                {availableHours.map((hour) => (
-                  <div
-                    key={hour}
-                    className={`p-2 text-sm cursor-pointer hover:bg-blue-50 ${
-                      selectedHour === hour ? 'bg-blue-100 text-blue-600 font-medium' : 'text-gray-700'
-                    }`}
-                    onClick={() => setSelectedHour(hour)}
-                  >
-                    {hour}
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3 max-h-[80vh] overflow-y-auto">
+          <div className="text-center mb-3">
+            <h3 className="text-base font-medium text-gray-900">Select Time</h3>
+            <p className="text-xs text-gray-500">10:00 AM - 4:00 PM</p>
+          </div>
 
-            {/* Minutes Column */}
-            <div className="flex-1 border-r border-gray-100">
-              <div className="p-2 text-xs font-medium text-gray-500 border-b border-gray-100 bg-gray-50">
-                Minute
-              </div>
-              <div className="max-h-48 overflow-y-auto">
-                {availableMinutes.map((minute) => (
-                  <div
-                    key={minute}
-                    className={`p-2 text-sm cursor-pointer hover:bg-blue-50 ${
-                      selectedMinute === minute ? 'bg-blue-100 text-blue-600 font-medium' : 'text-gray-700'
-                    }`}
-                    onClick={() => setSelectedMinute(minute)}
-                  >
-                    {minute.toString().padStart(2, '0')}
-                  </div>
-                ))}
-              </div>
+          {/* Hour Selection - Compact */}
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Hour</label>
+            <div className="grid grid-cols-4 gap-1">
+              {availableHours.map((h) => (
+                <button
+                  key={`${h.value}-${h.period}`}
+                  className={`px-2 py-1.5 text-xs rounded border transition-colors ${
+                    hour === h.value && period === h.period
+                      ? 'bg-green-500 text-white border-green-500'
+                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                  }`}
+                  onClick={() => {
+                    setHour(h.value);
+                    setPeriod(h.period);
+                  }}
+                >
+                  {h.value} {h.period}
+                </button>
+              ))}
             </div>
+          </div>
 
-            {/* Period Column */}
-            <div className="flex-1">
-              <div className="p-2 text-xs font-medium text-gray-500 border-b border-gray-100 bg-gray-50">
-                Period
-              </div>
-              <div className="max-h-48 overflow-y-auto">
-                {selectedHour && getValidPeriods(selectedHour).map((period) => (
-                  <div
-                    key={period}
-                    className={`p-2 text-sm cursor-pointer hover:bg-blue-50 ${
-                      selectedPeriod === period ? 'bg-blue-100 text-blue-600 font-medium' : 'text-gray-700'
-                    }`}
-                    onClick={() => {
-                      setSelectedPeriod(period);
-                      if (selectedHour !== null && selectedMinute !== null) {
-                        handleTimeSelect(selectedHour, selectedMinute, period);
-                      }
-                    }}
-                  >
-                    {period}
-                  </div>
-                ))}
+          {/* Minute Selection - Compact */}
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Minutes (drag to adjust)
+            </label>
+            <div 
+              ref={minuteScrollRef}
+              className={`bg-gray-50 rounded-lg p-3 border-2 border-dashed border-gray-300 cursor-grab select-none transition-all duration-200 ${
+                isDragging ? 'cursor-grabbing bg-green-50 border-green-300' : 'hover:bg-gray-100'
+              }`}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              style={{ userSelect: 'none' }}
+            >
+              <div className="text-center">
+                <div className={`text-2xl font-bold transition-all duration-200 ${
+                  isDragging ? 'text-green-600' : 'text-green-500'
+                }`}>
+                  :{minute.toString().padStart(2, '0')}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {isDragging ? '↕ Dragging...' : '↕ Drag to change'}
+                </div>
+                <div className="flex justify-center mt-1 space-x-1">
+                  {[0, 15, 30, 45].map((m) => (
+                    <div
+                      key={m}
+                      className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                        m === minute ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Select Button */}
-          {selectedHour !== null && selectedMinute !== null && (
-            <div className="p-2 border-t border-gray-100 bg-gray-50">
-              <button
-                className="w-full px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
-                onClick={() => handleTimeSelect(selectedHour, selectedMinute, selectedPeriod)}
-              >
-                Select {selectedHour}:{selectedMinute.toString().padStart(2, '0')} {selectedPeriod}
-              </button>
+          {/* Time Preview - Compact */}
+          <div className="mb-3 p-2 bg-green-50 rounded text-center">
+            <div className="text-base font-semibold text-green-800">
+              {hour}:{minute.toString().padStart(2, '0')} {period}
             </div>
-          )}
+          </div>
+
+          {/* Action Buttons - Compact */}
+          <div className="flex gap-2">
+            <button
+              className="flex-1 px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="flex-1 px-3 py-1.5 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+              onClick={handleTimeChange}
+            >
+              Select Time
+            </button>
+          </div>
         </div>
       )}
     </div>
