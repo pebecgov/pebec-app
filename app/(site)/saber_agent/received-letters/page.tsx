@@ -10,8 +10,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Input } from "@/components/ui/input";
 import { Eye, RefreshCcw } from "lucide-react";
 import { format } from "date-fns";
-import { formatRoleAndWorkstream } from "@/lib/formatters";
-import { formatRole } from "@/lib/formatters";
+import { formatRoleAndWorkstream, formatRole } from "@/lib/formatters";
 
 export default function ReceivedLettersPage() {
   const allLetters = useQuery(api.letters.getLettersReceivedByUser) || [];
