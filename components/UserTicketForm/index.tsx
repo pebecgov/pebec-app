@@ -46,6 +46,7 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
   const existingMDAs = useQuery(api.users.getMDAs) || [];
   const sendVerificationCode = useAction(api.sendEmail.sendVerificationCode);
   const verifyEmailCode = useAction(api.sendEmail.verifyEmailCode);
+  const [incidentCountry, setIncidentCountry] = useState("nigeria");
 
   const handleSendVerificationCode = async () => {
     try {
@@ -529,16 +530,49 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
 
         <div className="flex flex-col space-y-2">
           <Label className="font-semibold text-gray-700">Place of Incident</Label>
-          <Select value={form.state} onValueChange={value => setForm({ ...form, state: value })}>
-            <SelectTrigger>
-              <SelectValue>{form.state || "Select State"}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {nigerianStates.map(state => (
-                <SelectItem key={state} value={state}>{state}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-4 mb-2 flex-col">
+            <label className="flex items-center gap-1">
+              Nigeria
+              <input
+                type="radio"
+                name="incidentCountry"
+                value="nigeria"
+                checked={incidentCountry === "nigeria"}
+                onChange={() => setIncidentCountry("nigeria")}
+              />
+            </label>
+            {incidentCountry === "nigeria" && (
+            <Select value={form.state} onValueChange={value => setForm({ ...form, state: value })}>
+              <SelectTrigger>
+                <SelectValue>{form.state || "Select State"}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {nigerianStates.map(state => (
+                  <SelectItem key={state} value={state}>{state}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) }
+            <label className="flex items-center gap-1">
+             
+              Outside Nigeria
+              <input
+                type="radio"
+                name="incidentCountry"
+                value="outside"
+                checked={incidentCountry === "outside"}
+                onChange={() => setIncidentCountry("outside")}
+              />
+            </label>
+            {incidentCountry !== "nigeria" && (
+            <Input
+              placeholder="Enter location"
+              value={form.state}
+              onChange={e => setForm({ ...form, state: e.target.value })}
+            />
+          )}
+          </div>
+          
         </div>
       </div>
     </Step>
