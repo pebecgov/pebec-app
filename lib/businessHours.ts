@@ -39,39 +39,28 @@ export function getNextBusinessHour(date: Date): Date {
   return next;
 }
 
-export function calculateBusinessHours(startTime: number, endTime: number): number {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
+// Get the effective start time for SLA countdown
+// If created during business hours, use creation time
+// If created outside business hours, use next business hour
+export function getEffectiveStartTime(creationTime: number): number {
+  const creationDate = new Date(creationTime);
   
-  if (start >= end) return 0;
-  
-  let totalHours = 0;
-  let current = getNextBusinessHour(start);
-  
-  while (current < end) {
-    if (isWithinBusinessHours(current)) {
-      // Calculate hours until end of business day or end time
-      const endOfDay = new Date(current);
-      endOfDay.setHours(17, 0, 0, 0);
-      
-      const periodEnd = end < endOfDay ? end : endOfDay;
-      const hoursInPeriod = (periodEnd.getTime() - current.getTime()) / (1000 * 60 * 60);
-      
-      totalHours += hoursInPeriod;
-      
-      // Move to start of next business day
-      current = new Date(current);
-      current.setDate(current.getDate() + 1);
-      current = getNextBusinessHour(current);
-    } else {
-      current = getNextBusinessHour(current);
-    }
+  if (isWithinBusinessHours(creationDate)) {
+    return creationTime;
+  } else {
+    return getNextBusinessHour(creationDate).getTime();
   }
-  
-  return totalHours;
 }
 
+// Add 72 actual hours from the effective start time
 export function addBusinessHours(startTime: number, hoursToAdd: number): number {
+  // For 72-hour SLA, we want 72 actual hours from effective start time
+  if (hoursToAdd === 72) {
+    const effectiveStart = getEffectiveStartTime(startTime);
+    return effectiveStart + (72 * 60 * 60 * 1000); // 72 hours in milliseconds
+  }
+  
+  // For other hour calculations, keep the original business hours logic
   const start = new Date(startTime);
   let current = getNextBusinessHour(start);
   let remainingHours = hoursToAdd;
@@ -104,12 +93,51 @@ export function addBusinessHours(startTime: number, hoursToAdd: number): number 
   return current.getTime();
 }
 
+export function calculateBusinessHours(startTime: number, endTime: number): number {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  
+  if (start >= end) return 0;
+  
+  let totalHours = 0;
+  let current = getNextBusinessHour(start);
+  
+  while (current < end) {
+    if (isWithinBusinessHours(current)) {
+      // Calculate hours until end of business day or end time
+      const endOfDay = new Date(current);
+      endOfDay.setHours(17, 0, 0, 0);
+      
+      const periodEnd = end < endOfDay ? end : endOfDay;
+      const hoursInPeriod = (periodEnd.getTime() - current.getTime()) / (1000 * 60 * 60);
+      
+      totalHours += hoursInPeriod;
+      
+      // Move to start of next business day
+      current = new Date(current);
+      current.setDate(current.getDate() + 1);
+      current = getNextBusinessHour(current);
+    } else {
+      current = getNextBusinessHour(current);
+    }
+  }
+  
+  return totalHours;
+}
+
 export function isOverdue72Hours(startTime: number, currentTime: number = Date.now()): boolean {
-  const businessHours = calculateBusinessHours(startTime, currentTime);
-  return businessHours > 72;
+  const effectiveStart = getEffectiveStartTime(startTime);
+  const deadline = effectiveStart + (72 * 60 * 60 * 1000); // 72 hours in milliseconds
+  return currentTime > deadline;
 }
 
 export function getTimeRemaining72Hours(startTime: number, currentTime: number = Date.now()): number {
-  const businessHours = calculateBusinessHours(startTime, currentTime);
-  return Math.max(0, 72 - businessHours);
+  const effectiveStart = getEffectiveStartTime(startTime);
+  const deadline = effectiveStart + (72 * 60 * 60 * 1000); // 72 hours in milliseconds
+  const remainingMs = deadline - currentTime;
+  
+  if (remainingMs <= 0) return 0;
+  
+  // Convert milliseconds to hours
+  return remainingMs / (1000 * 60 * 60);
 } 
