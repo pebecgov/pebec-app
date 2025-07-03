@@ -46,6 +46,8 @@ export default function Admin() {
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [selectedState, setSelectedState] = useState<string>("");
   const nigeriaStates = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
+  const [selectedMdaFilter, setSelectedMdaFilter] = useState("all");
+  const [mdaSearch, setMdaSearch] = useState("");
   useEffect(() => {
     if (!selectedUser) return;
     if (!hasManuallySelectedRole) {
@@ -188,8 +190,8 @@ export default function Admin() {
       "Last Name": user.lastName,
       "Email": user.email ?? "—",
       "Phone": user.phoneNumber ?? "—",
-      "Role": user.role,
-      "Stream / MDA": user.role === "staff" ? formatWorkstream(user.staffStream) ?? "—" : user.mdaName ?? "—"
+      "Role": user.role ? formatRole(user.role) : "—",
+      "Stream / MDA": user.role === "staff" ? (user.staffStream ? formatWorkstream(user.staffStream) : "—") : (user.mdaName ?? "—")
     }));
   
     // Create worksheet and workbook
@@ -204,7 +206,8 @@ export default function Admin() {
     const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field => field?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
     const matchesStream = selectedStreamFilter === "all" || user.role === "staff" && user.staffStream === selectedStreamFilter;
-    return matchesSearch && matchesRole && matchesStream;
+    const matchesMda = selectedMdaFilter === "all" || (user.mdaName && `${user.mdaName}` === selectedMdaFilter);
+    return matchesSearch && matchesRole && matchesStream && matchesMda;
   });
   const totalPages = Math.ceil(filteredUsers.length / recordsPerPage);
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
@@ -250,34 +253,48 @@ export default function Admin() {
       </Select>
     </div>
 
-    
+    <div className="w-full md:w-1/4">
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Filter by MDA
+      </label>
+      <Select value={selectedMdaFilter} onValueChange={val => { setSelectedMdaFilter(val); setCurrentPage(1); }}>
+        <SelectTrigger className="w-full border-gray-300">
+          <SelectValue placeholder="Select MDA" />
+        </SelectTrigger>
+        <SelectContent className="max-h-60 overflow-y-auto">
+          <div className="px-2 py-1">
+            <Input
+              placeholder="Search MDA..."
+              value={mdaSearch}
+              onChange={e => setMdaSearch(e.target.value)}
+              onKeyDown={e => e.stopPropagation()}
+              className="mb-2"
+            />
+          </div>
+          <SelectItem value="all">All MDAs</SelectItem>
+          {mdasList
+            .filter(mda => `${mda.abbreviation} - ${mda.name}`.toLowerCase().includes(mdaSearch.toLowerCase()))
+            .map(mda => (
+              <SelectItem key={mda.name} value={`${mda.abbreviation} - ${mda.name}`}>{mda.abbreviation} - {mda.name}</SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
+    </div>
 
-
-    {}
-    {selectedRoleFilter === "staff" && <div className="w-full md:w-1/4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Filter by Stream
-        </label>
-        <Select value={selectedStreamFilter} onValueChange={setSelectedStreamFilter}>
-          <SelectTrigger className="w-full border-gray-300">
-            <SelectValue placeholder="Select Stream" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Streams</SelectItem>
-            <SelectItem value="regulatory">Regulatory</SelectItem>
-            <SelectItem value="sub_national">Sub National</SelectItem>
-            <SelectItem value="innovation">Innovation & Technology</SelectItem>
-            <SelectItem value="judiciary">Judicial</SelectItem>
-            <SelectItem value="communications">Communications</SelectItem>
-            <SelectItem value="investments">Investments</SelectItem>
-            <SelectItem value="receptionist">Receptionist - Front Officer</SelectItem>
-            <SelectItem value="account">Finance & Account</SelectItem>
-            <SelectItem value="auditor">Auditor</SelectItem>
-
-
-          </SelectContent>
-        </Select>
-      </div>}
+    <Button
+      variant="outline"
+      className="h-10 mt-2 md:mt-0 flex items-center gap-2"
+      onClick={() => {
+        setSelectedRoleFilter("all");
+        setSelectedMdaFilter("all");
+        setSelectedStreamFilter("all");
+        setCurrentPage(1);
+        setMdaSearch("");
+      }}
+    >
+      {/* You can use an icon here if you want */}
+      Clear Filters
+    </Button>
   </div>
     </div>
 
@@ -332,12 +349,14 @@ export default function Admin() {
   ? "Reform Champion"
   : user.role === "mda"
   ? "ReportGov Agent"
-  : formatRole(user.role)}
+  : user.role ? formatRole(user.role) : "—"}
           </TableCell>
 
           {}
           <TableCell className="text-sm text-gray-700 whitespace-nowrap max-w-xs overflow-hidden text-ellipsis">
-          {user.role === "staff" ? formatWorkstream(user.staffStream) ?? "—" : user.mdaName ?? "—"}
+          {user.role === "staff"
+    ? (user.staffStream ? formatWorkstream(user.staffStream) : "—")
+    : (user.mdaName ?? "—")}
           </TableCell>
 
           {}
