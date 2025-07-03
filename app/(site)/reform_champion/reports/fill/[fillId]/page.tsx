@@ -256,23 +256,21 @@ export default function FillReportPage() {
       const newRowsFromExcel: string[][] = [];
 
       excelData.forEach(excelRow => {
-        const newFormRow: string[] = template.headers.map(() => ""); // Initialize an empty row matching template structure
+        const newFormRow: string[] = template.headers.map(() => ""); 
         
         template.headers.forEach((header, colIndex) => {
-          // Find the value in the Excel row corresponding to the current template header name
-          // Excel header names should ideally match template header names for direct mapping
-          const excelValue = excelRow[header.name]; 
+         const excelValue = excelRow[header.name]; 
           
-          let processedValue = String(excelValue || ''); // Default to empty string if null/undefined
+          let processedValue = String(excelValue || ''); 
 
-          // Type conversion and handling
+     
           if (excelValue !== undefined && excelValue !== null) {
             switch (header.type) {
               case "number":
-                processedValue = String(parseFloat(excelValue) || 0); // Convert to number, then string
+                processedValue = String(parseFloat(excelValue) || 0); 
                 break;
               case "checkbox":
-                // Assuming Excel 'Yes'/'No', 1/0, 'true'/'false'
+               
                 processedValue = (String(excelValue).toLowerCase() === 'true' || String(excelValue) === '1' || String(excelValue).toLowerCase() === 'yes') ? "true" : "false";
                 break;
               case "date":
@@ -299,8 +297,6 @@ export default function FillReportPage() {
         newRowsFromExcel.push(newFormRow);
       });
 
-      // If form is currently empty (only one default empty row), replace it.
-      // Otherwise, append the new rows.
       if (formData.length === 1 && formData[0].every(cell => cell === "")) {
         setFormData(newRowsFromExcel);
       } else {
@@ -433,7 +429,7 @@ export default function FillReportPage() {
         </Button> */}
         <div className="border rounded-md bg-gray-50 flex items-center gap-2">
           <label htmlFor="excel-file-upload" className="flex items-center justify-center px-2 py-1 border border-gray-300 bg-white text-gray-800 rounded-md cursor-pointer hover:bg-gray-100 transition-colors">
-            <Upload className="w-4 h-4 mr-1" /> Select Excel
+            <Upload className="w-4 h-4 mr-1" /> Bulk Upload
             <input
               id="excel-file-upload"
               type="file"
