@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Eye, Filter, RefreshCcw, FileText } from "lucide-react";
 import { format } from "date-fns";
 import SubmitLetterForm from "@/components/Letters/AdminLetters";
-import LetterDetailModal from "@/components/Letters/LetterDetailModal";
+import LetterViewModal from "@/components/Letters/LetterViewModal";
 
 export default function ViewLettersPage() {
   const allLetters = useQuery(api.letters.getUserLetters) || [];
@@ -203,15 +203,17 @@ export default function ViewLettersPage() {
       {}
       {isModalOpen && <SubmitLetterForm onClose={() => setIsModalOpen(false)} />}
       
-      {/* Letter Detail Modal */}
-      <LetterDetailModal
-        letter={selectedLetter}
-        isOpen={isDetailModalOpen}
-        onClose={() => {
-          setIsDetailModalOpen(false);
-          setSelectedLetter(null);
-        }}
-        recipientName={selectedLetter?.sentTo ? userMap[selectedLetter.sentTo] : undefined}
-      />
+      {/* Letter View Modal */}
+      {selectedLetter && (
+        <LetterViewModal
+          isOpen={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setSelectedLetter(null);
+          }}
+          letter={selectedLetter}
+          sender={allUsers.find(u => u._id === selectedLetter.userId) || null}
+        />
+      )}
     </div>;
 }
