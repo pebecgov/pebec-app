@@ -231,13 +231,47 @@ export default function InternalApprovals() {
       <h2 className="text-xl font-semibold mb-4">Pending Internal Approvals</h2>
 
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
-        <Input 
-          placeholder="Search by name..." 
-          value={search} 
-          onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} 
-          className="w-full md:w-1/2" 
-        />
+        <div className="flex gap-2 items-center w-full md:w-1/2">
+          <Input 
+            placeholder="Search by name..." 
+            value={search} 
+            onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} 
+            className="flex-1" 
+          />
+          <Button
+            variant="outline"
+            className="h-10 flex items-center gap-2 whitespace-nowrap"
+            onClick={handleDownloadExcel}
+          >
+            📥 Export Excel
+          </Button>
+        </div>
 
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="h-10 mt-2 md:mt-0 flex items-center gap-2"
+            onClick={handleDownloadExcel}
+          >
+            📥 Export to Excel
+          </Button>
+
+          <Button
+            variant="outline"
+            className="h-10 mt-2 md:mt-0 flex items-center gap-2"
+            onClick={() => {
+              setRoleFilter("all");
+              setSelectedMda("all");
+              setCurrentPage(1);
+            }}
+          >
+            <FaFilterCircleXmark className="w-4 h-4" />
+            Clear Filters
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
         <Select 
           value={roleFilter} 
           onValueChange={handleRoleFilterChange}
@@ -285,21 +319,7 @@ export default function InternalApprovals() {
               ))}
           </SelectContent>
         </Select>
-
-        <Button
-          variant="outline"
-          className="h-10 mt-2 md:mt-0 flex items-center gap-2"
-          onClick={() => {
-            setRoleFilter("all");
-            setSelectedMda("all");
-            setCurrentPage(1);
-          }}
-        >
-          <FaFilterCircleXmark className="w-4 h-4" />
-          Clear Filters
-        </Button>
       </div>
-
 
       {filteredRequests.length === 0 ? (
         <p>No pending requests.</p>

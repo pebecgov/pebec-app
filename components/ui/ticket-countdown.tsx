@@ -133,7 +133,7 @@ export default function TicketCountdown({
             }
           </p>
           <p className={`text-xs ${getTextColor()} opacity-60 mt-1`}>
-            * Business hours only (Mon-Fri, 9AM-5PM WAT)
+            * 72 hours from start of business hours (Mon-Fri, 9AM-5PM WAT)
           </p>
         </div>
       </div>
