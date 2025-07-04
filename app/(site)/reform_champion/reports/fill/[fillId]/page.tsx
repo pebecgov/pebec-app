@@ -43,6 +43,7 @@ export default function FillReportPage() {
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const draftLoadedRef = useRef(false); // To ensure draft loads only once
+  const [showExcelConfirm, setShowExcelConfirm] = useState(false);
 
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
   const convexUserId = convexUser?._id;
@@ -239,6 +240,35 @@ export default function FillReportPage() {
     });
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExcelUploadClick = () => {
+    const id = toast(
+      <ExcelHeaderConfirm
+        onContinue={() => {
+          toast.dismiss(id);
+          if (fileInputRef.current) fileInputRef.current.click();
+        }}
+        onCancel={() => toast.dismiss(id)}
+      />
+    );
+  };
+
+  function ExcelHeaderConfirm({ onContinue, onCancel }: { onContinue: () => void; onCancel: () => void }) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center p-4">
+        <div className="font-bold text-lg text-red-600 mb-2">Excel Header Requirement</div>
+        <div className="mb-4 text-red-600 text-base font-semibold">
+          Your Excel file's headers must <b>exactly match</b> the template headers. Do you want to continue?
+        </div>
+        <div className="flex gap-4 mt-2 justify-center">
+          <Button size="sm" onClick={onContinue}>Continue</Button>
+          <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
+        </div>
+      </div>
+    );
+  }
+
   const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !template) {
@@ -253,18 +283,24 @@ export default function FillReportPage() {
         return;
       }
 
+      // Check if all template headers are present in the Excel file
+      const excelHeaders = Object.keys(excelData[0] || {});
+      const templateHeaders = template.headers.map(h => h.name);
+      const missingHeaders = templateHeaders.filter(h => !excelHeaders.includes(h));
+      if (missingHeaders.length > 0) {
+        toast.error("Excel header mismatch. Please check your Excel header and try again.");
+        return;
+      }
+
       const newRowsFromExcel: string[][] = [];
 
       excelData.forEach(excelRow => {
         const newFormRow: string[] = template.headers.map(() => ""); // Initialize an empty row matching template structure
-        
         template.headers.forEach((header, colIndex) => {
           // Find the value in the Excel row corresponding to the current template header name
           // Excel header names should ideally match template header names for direct mapping
           const excelValue = excelRow[header.name]; 
-          
           let processedValue = String(excelValue || ''); // Default to empty string if null/undefined
-
           // Type conversion and handling
           if (excelValue !== undefined && excelValue !== null) {
             switch (header.type) {
@@ -276,17 +312,16 @@ export default function FillReportPage() {
                 processedValue = (String(excelValue).toLowerCase() === 'true' || String(excelValue) === '1' || String(excelValue).toLowerCase() === 'yes') ? "true" : "false";
                 break;
               case "date":
-               if (typeof excelValue === 'number') {
-                    const date = new Date(Math.round((excelValue - 25569) * 86400 * 1000)); 
-                    processedValue = date.toISOString().split('T')[0]; 
+                if (typeof excelValue === 'number') {
+                  const date = new Date(Math.round((excelValue - 25569) * 86400 * 1000)); 
+                  processedValue = date.toISOString().split('T')[0]; 
                 } else {
-                 
-                    const date = new Date(excelValue);
-                    if (!isNaN(date.getTime())) { 
-                        processedValue = date.toISOString().split('T')[0];
-                    } else {
-                        processedValue = '';
-                    }
+                  const date = new Date(excelValue);
+                  if (!isNaN(date.getTime())) { 
+                    processedValue = date.toISOString().split('T')[0];
+                  } else {
+                    processedValue = '';
+                  }
                 }
                 break;
               default:
@@ -432,17 +467,23 @@ export default function FillReportPage() {
           📋 Add Row with Previous Data
         </Button> */}
         <div className="border rounded-md bg-gray-50 flex items-center gap-2">
-          <label htmlFor="excel-file-upload" className="flex items-center justify-center px-2 py-1 border border-gray-300 bg-white text-gray-800 rounded-md cursor-pointer hover:bg-gray-100 transition-colors">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowExcelConfirm(true)}
+            className="flex items-center gap-2"
+          >
             <Upload className="w-4 h-4 mr-1" /> Select Excel
-            <input
-              id="excel-file-upload"
-              type="file"
-              accept=".xlsx, .xls"
-              onChange={handleExcelUpload}
-              className="hidden"
-            />
-          </label>
+          </Button>
         </div>
+        <input
+          ref={fileInputRef}
+          id="excel-file-upload"
+          type="file"
+          accept=".xlsx, .xls"
+          onChange={handleExcelUpload}
+          className="hidden"
+        />
         <Button
           onClick={handleSaveDraft}
           variant="outline"
@@ -457,6 +498,32 @@ export default function FillReportPage() {
           ✅ Submit Report
         </Button>
       </div>
+      <Dialog open={showExcelConfirm} onOpenChange={setShowExcelConfirm}>
+        <DialogContent className="max-w-md w-full p-6 rounded-lg flex flex-col items-center text-center">
+          <DialogTitle className="text-lg font-bold text-red-600 mb-2">Excel Header Requirement</DialogTitle>
+          <div className="mb-4 text-red-600 text-base font-semibold">
+            Your Excel file's headers must <b>exactly match</b> the template headers. Do you want to continue?
+          </div>
+          <div className="flex gap-4 mt-2 justify-center">
+            <Button
+              size="sm"
+              onClick={() => {
+                setShowExcelConfirm(false);
+                if (fileInputRef.current) fileInputRef.current.click();
+              }}
+            >
+              Continue
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowExcelConfirm(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
