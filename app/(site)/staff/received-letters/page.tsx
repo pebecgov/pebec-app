@@ -8,9 +8,10 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Eye, RefreshCcw } from "lucide-react";
+import { Eye, RefreshCcw, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { formatRoleAndWorkstream, formatRole } from "@/lib/formatters";
+import LetterViewModal from "@/components/Letters/LetterViewModal";
 
 export default function ReceivedLettersPage() {
   const allLetters = useQuery(api.letters.getLettersReceivedByUser) || [];
@@ -32,6 +33,8 @@ export default function ReceivedLettersPage() {
     dateFrom: "",
     dateTo: ""
   });
+  const [selectedLetter, setSelectedLetter] = useState<any>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const itemsPerPage = 20;
   const userMap = Object.fromEntries(allUsers.map(user => [user._id, `${user.firstName} ${user.lastName} (${user.role || "N/A"}${user.jobTitle ? `, ${user.jobTitle}` : ""})`]));
   const roleMap = Object.fromEntries(allUsers.map(user => [user._id, user.role || "unknown"]));
@@ -199,7 +202,19 @@ export default function ReceivedLettersPage() {
               </span>
             </TableCell>
             <TableCell className="flex flex-col gap-2 md:flex-row justify-center items-center">
-              {fileUrls[letter._id] && <Button size="sm" className="bg-blue-600 text-white" onClick={async () => {
+  <Button 
+    size="sm" 
+    className="bg-white-500 text-black" 
+    onClick={() => {
+      setSelectedLetter(letter);
+      setIsViewModalOpen(true);
+    }}
+  >
+    <FileText className="w-4 h-4 mr-1" />
+    View
+  </Button>
+
+  {fileUrls[letter._id] && <Button size="sm" className="bg-blue-600 text-white" onClick={async () => {
                 const fileData = fileUrls[letter._id];
                 if (!fileData) return;
                 try {
@@ -217,9 +232,9 @@ export default function ReceivedLettersPage() {
                   console.error("Download failed:", error);
                 }
               }}>
-                <Eye className="w-4 h-4 mr-1" />
-                Download
-              </Button>}
+    <Eye className="w-4 h-4 mr-1" />
+    Download
+  </Button>}
 
               {/* <select className="border rounded px-2 py-1 text-sm" value={letter.status ?? "sent"} onChange={e => handleStatusChange(letter._id, e.target.value as "acknowledged" | "in_progress" | "resolved")}>
     <option value="sent" disabled>
@@ -285,5 +300,18 @@ export default function ReceivedLettersPage() {
         Next
       </Button>
     </div>
+
+    {/* Letter View Modal */}
+    {selectedLetter && (
+      <LetterViewModal
+        isOpen={isViewModalOpen}
+        onClose={() => {
+          setIsViewModalOpen(false);
+          setSelectedLetter(null);
+        }}
+        letter={selectedLetter}
+        sender={allUsers.find(u => u._id === selectedLetter.userId) || null}
+      />
+    )}
   </div>;
 }
