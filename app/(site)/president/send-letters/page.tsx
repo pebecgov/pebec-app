@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Id } from "@/convex/_generated/dataModel";
 import Letters from "@/components/Letters";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, FileText } from "lucide-react";
+import LetterViewModal from "@/components/Letters/LetterViewModal";
 export default function ViewLettersPage() {
   const allLetters = useQuery(api.letters.getUserLetters) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
@@ -19,6 +20,8 @@ export default function ViewLettersPage() {
   }>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLetter, setSelectedLetter] = useState<any>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const itemsPerPage = 10;
   const sortedLetters = [...allLetters].sort((a, b) => b.letterDate - a.letterDate);
   const totalPages = Math.ceil(sortedLetters.length / itemsPerPage);
@@ -94,7 +97,20 @@ export default function ViewLettersPage() {
       </span>
     </TableCell>
     <TableCell className="text-center">
-  {fileUrls[letter._id] ? <Button variant="ghost" size="icon" className="bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm" title="Download Letter" onClick={async () => {
+      <div className="flex gap-2 justify-center">
+        <Button 
+          size="sm" 
+          className="bg-white-600 text-black" 
+          onClick={() => {
+            setSelectedLetter(letter);
+            setIsViewModalOpen(true);
+          }}
+        >
+          <FileText className="w-4 h-4 mr-1" />
+          View
+        </Button>
+        
+        {fileUrls[letter._id] ? <Button variant="ghost" size="icon" className="bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm" title="Download Letter" onClick={async () => {
                 const fileMeta = fileUrls[letter._id];
                 if (!fileMeta) return;
                 try {
@@ -116,6 +132,7 @@ export default function ViewLettersPage() {
     </Button> : <Button disabled variant="ghost" size="icon" className="bg-gray-400 text-white rounded-full">
       ...
     </Button>}
+      </div>
             </TableCell>
 
 
@@ -144,5 +161,18 @@ export default function ViewLettersPage() {
 
         {}
         {isModalOpen && <Letters onClose={() => setIsModalOpen(false)} />}
+
+        {/* Letter View Modal */}
+        {selectedLetter && (
+          <LetterViewModal
+            isOpen={isViewModalOpen}
+            onClose={() => {
+              setIsViewModalOpen(false);
+              setSelectedLetter(null);
+            }}
+            letter={selectedLetter}
+            sender={allUsers.find(u => u._id === selectedLetter.userId) || null}
+          />
+        )}
       </div>;
 }

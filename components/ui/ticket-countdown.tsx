@@ -3,19 +3,26 @@
 
 import { useState, useEffect } from "react";
 import { Clock, AlertTriangle, CheckCircle } from "lucide-react";
-import { addBusinessHours, getTimeRemaining72Hours, isOverdue72Hours } from "@/lib/businessHours";
+import { addBusinessHours, skipWeekendsHours } from "@/lib/businessHours";
 
 interface TicketCountdownProps {
   ticketCreatedAt: number;
   ticketReassignedAt?: number;
   ticketStatus: string;
+  extensionRequest?: {
+    requestedAt: number;
+    requestedDays: number;
+    status: "pending" | "approved" | "rejected";
+    includeWeekends: boolean;
+  };
   className?: string;
 }
 
-export default function TicketCountdown({ 
+export function TicketCountdown({ 
   ticketCreatedAt, 
   ticketReassignedAt, 
   ticketStatus,
+  extensionRequest,
   className = ""
 }: TicketCountdownProps) {
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
@@ -26,17 +33,31 @@ export default function TicketCountdown({
     // Use reassignedAt if available (when ticket was transferred), otherwise use createdAt
     const startTime = ticketReassignedAt || ticketCreatedAt;
     
-    // Calculate deadline (72 business hours from start time)
-    const deadline = addBusinessHours(startTime, 72);
+    // Calculate base deadline (72 business hours from start time)
+    let deadline = addBusinessHours(startTime, 72);
+
+    // If there's an approved extension, add the extra time
+    if (extensionRequest?.status === "approved") {
+      const extraHours = extensionRequest.requestedDays * 24;
+      if (extensionRequest.includeWeekends) {
+        deadline += extraHours * 60 * 60 * 1000; // Convert hours to milliseconds
+      } else {
+        deadline = addBusinessHours(deadline, extraHours);
+      }
+    }
+
     setDeadlineTime(deadline);
 
     const updateCountdown = () => {
       const now = Date.now();
-      const remaining = getTimeRemaining72Hours(startTime, now);
-      const overdue = isOverdue72Hours(startTime, now);
+      const hoursRemaining = skipWeekendsHours(
+        now, 
+        deadline, 
+        extensionRequest?.status === "approved" && extensionRequest.includeWeekends
+      );
       
-      setTimeRemaining(remaining);
-      setIsOverdue(overdue);
+      setTimeRemaining(hoursRemaining);
+      setIsOverdue(hoursRemaining <= 0);
     };
 
     // Update immediately
@@ -46,7 +67,7 @@ export default function TicketCountdown({
     const interval = setInterval(updateCountdown, 60000);
 
     return () => clearInterval(interval);
-  }, [ticketCreatedAt, ticketReassignedAt]);
+  }, [ticketCreatedAt, ticketReassignedAt, extensionRequest]);
 
   // Don't show countdown for resolved/closed tickets
   if (ticketStatus === "resolved" || ticketStatus === "closed") {
@@ -61,81 +82,39 @@ export default function TicketCountdown({
     );
   }
 
-  const formatTimeRemaining = (hours: number): string => {
-    if (hours <= 0) return "0h 0m";
-    
-    const wholeHours = Math.floor(hours);
-    const minutes = Math.round((hours - wholeHours) * 60);
-    
-    if (wholeHours === 0) {
-      return `${minutes}m`;
-    }
-    
-    if (minutes === 0) {
-      return `${wholeHours}h`;
-    }
-    
-    return `${wholeHours}h ${minutes}m`;
-  };
+  // Show extension request status if one exists
+  if (extensionRequest?.status === "pending") {
+    return (
+      <div className={`flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg ${className}`}>
+        <Clock className="h-5 w-5 text-yellow-600" />
+        <div>
+          <p className="text-sm font-medium text-yellow-800">Extension Requested</p>
+          <p className="text-xs text-yellow-600">
+            Waiting for admin approval ({extensionRequest.requestedDays} days)
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const formatDeadlineDate = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const getCountdownColor = () => {
-    if (isOverdue) return "border-red-200 bg-red-50";
-    if (timeRemaining <= 4) return "border-orange-200 bg-orange-50"; // Less than 4 hours
-    if (timeRemaining <= 12) return "border-yellow-200 bg-yellow-50"; // Less than 12 hours
-    return "border-blue-200 bg-blue-50";
-  };
-
-  const getTextColor = () => {
-    if (isOverdue) return "text-red-800";
-    if (timeRemaining <= 4) return "text-orange-800";
-    if (timeRemaining <= 12) return "text-yellow-800";
-    return "text-blue-800";
-  };
-
-  const getIconColor = () => {
-    if (isOverdue) return "text-red-600";
-    if (timeRemaining <= 4) return "text-orange-600";
-    if (timeRemaining <= 12) return "text-yellow-600";
-    return "text-blue-600";
-  };
-
-  const Icon = isOverdue ? AlertTriangle : Clock;
-
+  // Show countdown with extension info if approved
   return (
-    <div className={`flex items-center gap-3 p-4 border rounded-lg ${getCountdownColor()} ${className}`}>
-      <Icon className={`h-6 w-6 ${getIconColor()}`} />
-      <div className="flex-1">
-        <div className="flex items-center justify-between">
-          <h4 className={`text-sm font-semibold ${getTextColor()}`}>
-            {isOverdue ? "Ticket Overdue" : "Ticket Countdown"}
-          </h4>
-          <span className={`text-lg font-mono font-bold ${getTextColor()}`}>
-            {isOverdue ? `+${formatTimeRemaining(Math.abs(timeRemaining))}` : formatTimeRemaining(timeRemaining)}
-          </span>
-        </div>
-        <div className="mt-1">
-          <p className={`text-xs ${getTextColor()} opacity-75`}>
-            {isOverdue 
-              ? `Deadline was: ${formatDeadlineDate(deadlineTime)}`
-              : `Deadline: ${formatDeadlineDate(deadlineTime)}`
-            }
-          </p>
-          <p className={`text-xs ${getTextColor()} opacity-60 mt-1`}>
-            * Business hours only (Mon-Fri, 9AM-5PM WAT)
-          </p>
-        </div>
+    <div className={`flex items-center gap-2 p-3 ${isOverdue ? 'bg-red-50 border border-red-200' : 'bg-blue-50 border border-blue-200'} rounded-lg ${className}`}>
+      {isOverdue ? (
+        <AlertTriangle className="h-5 w-5 text-red-600" />
+      ) : (
+        <Clock className="h-5 w-5 text-blue-600" />
+      )}
+      <div>
+        <p className={`text-sm font-medium ${isOverdue ? 'text-red-800' : 'text-blue-800'}`}>
+          {isOverdue ? 'Overdue' : 'Time Remaining'}
+        </p>
+        <p className={`text-xs ${isOverdue ? 'text-red-600' : 'text-blue-600'}`}>
+          {extensionRequest?.status === "approved" && (
+            <span>Extended (+{extensionRequest.requestedDays} days{extensionRequest.includeWeekends ? ', incl. weekends' : ''}) • </span>
+          )}
+          {Math.abs(Math.ceil(timeRemaining))} hours {isOverdue ? 'overdue' : 'left'}
+        </p>
       </div>
     </div>
   );

@@ -8,15 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Id } from "@/convex/_generated/dataModel";
 import Letters from "@/components/Letters";
-import { Eye } from "lucide-react";
+import { Eye, FileText } from "lucide-react";
+import LetterViewModal from "@/components/Letters/LetterViewModal";
 export default function ViewLettersPage() {
   const allLetters = useQuery(api.letters.getUserLetters) || [];
+  const allUsers = useQuery(api.users.getUsers) || [];
   const getFileUrl = useMutation(api.letters.getLetterFileUrl);
   const [fileUrls, setFileUrls] = useState<{
-    [key: string]: string;
+    [key: string]: { url: string; fileName: string };
   }>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLetter, setSelectedLetter] = useState<any>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const itemsPerPage = 10;
   const sortedLetters = [...allLetters].sort((a, b) => b.letterDate - a.letterDate);
   const totalPages = Math.ceil(sortedLetters.length / itemsPerPage);
@@ -24,15 +28,15 @@ export default function ViewLettersPage() {
   useEffect(() => {
     const fetchFileUrls = async () => {
       const urls: {
-        [key: string]: string;
+        [key: string]: { url: string; fileName: string };
       } = {};
       for (const letter of paginatedLetters) {
         if (letter.letterUploadId && !fileUrls[letter._id]) {
           try {
-            const url = await getFileUrl({
+            const response = await getFileUrl({
               storageId: letter.letterUploadId as Id<"_storage">
             });
-            if (url) urls[letter._id] = url;
+            if (response) urls[letter._id] = response;
           } catch (error) {
             console.error(`Error fetching file for letter ${letter.letterName}:`, error);
           }
@@ -72,13 +76,27 @@ export default function ViewLettersPage() {
                   <TableCell className="text-gray-800 font-medium">{letter.letterName}</TableCell>
                   <TableCell>{new Date(letter.letterDate).toLocaleDateString()}</TableCell>
                   <TableCell className="text-center">
-                    {fileUrls[letter._id] ? <a href={fileUrls[letter._id]} target="_blank" rel="noopener noreferrer">
-                        <Button variant="ghost" size="icon" className="bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm" title="View Letter">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </a> : <Button disabled variant="ghost" size="icon" className="bg-gray-400 text-white rounded-full">
-                        ...
-                      </Button>}
+                    <div className="flex gap-2 justify-center">
+                      <Button 
+                        size="sm" 
+                        className="bg-white-600 text-black" 
+                        onClick={() => {
+                          setSelectedLetter(letter);
+                          setIsViewModalOpen(true);
+                        }}
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        View
+                      </Button>
+                      
+                      {fileUrls[letter._id] ? <a href={fileUrls[letter._id].url} target="_blank" rel="noopener noreferrer">
+                          <Button variant="ghost" size="icon" className="bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-sm" title="View Letter">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </a> : <Button disabled variant="ghost" size="icon" className="bg-gray-400 text-white rounded-full">
+                          ...
+                        </Button>}
+                    </div>
                   </TableCell>
                 </TableRow>) : <TableRow>
                 <TableCell colSpan={3} className="text-center text-gray-500 py-6">
@@ -104,5 +122,18 @@ export default function ViewLettersPage() {
 
       {}
       {isModalOpen && <Letters onClose={() => setIsModalOpen(false)} />}
+
+      {/* Letter View Modal */}
+      {selectedLetter && (
+        <LetterViewModal
+          isOpen={isViewModalOpen}
+          onClose={() => {
+            setIsViewModalOpen(false);
+            setSelectedLetter(null);
+          }}
+          letter={selectedLetter}
+          sender={allUsers.find(u => u._id === selectedLetter.userId) || null}
+        />
+      )}
     </div>;
 }

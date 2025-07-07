@@ -8,16 +8,20 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Eye, RefreshCcw } from "lucide-react";
+import { Eye, RefreshCcw, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { formatRole } from "@/lib/formatters";
+import LetterViewModal from "@/components/Letters/LetterViewModal";
 export default function ReceivedLettersPage() {
   const allLetters = useQuery(api.letters.getLettersReceivedByUser) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
   const getFileUrl = useMutation(api.letters.getLetterFileUrl);
   const updateStatus = useMutation(api.letters.updateLetterStatus);
   const [fileUrls, setFileUrls] = useState<{
-    [key: string]: string;
+    [key: string]: {
+      url: string;
+      fileName: string;
+    };
   }>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
@@ -28,6 +32,8 @@ export default function ReceivedLettersPage() {
     dateFrom: "",
     dateTo: ""
   });
+  const [selectedLetter, setSelectedLetter] = useState<any>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const itemsPerPage = 20;
   const userMap = Object.fromEntries(allUsers.map(user => [user._id, `${user.firstName} ${user.lastName} (${user.role || "N/A"}${user.jobTitle ? `, ${user.jobTitle}` : ""})`]));
   const roleMap = Object.fromEntries(allUsers.map(user => [user._id, user.role || "unknown"]));
@@ -46,14 +52,17 @@ export default function ReceivedLettersPage() {
   useEffect(() => {
     const loadFiles = async () => {
       const result: {
-        [key: string]: string;
+        [key: string]: {
+          url: string;
+          fileName: string;
+        };
       } = {};
       for (const letter of paginated) {
         if (letter.letterUploadId && !fileUrls[letter._id]) {
-          const url = await getFileUrl({
+          const fileData = await getFileUrl({
             storageId: letter.letterUploadId
           });
-          if (url) result[letter._id] = url;
+          if (fileData) result[letter._id] = fileData;
         }
       }
       if (Object.keys(result).length > 0) {
@@ -64,7 +73,7 @@ export default function ReceivedLettersPage() {
       }
     };
     loadFiles();
-  }, [paginated]);
+  }, [paginated, getFileUrl]);
   const handleStatusChange = async (id: Id<"letters">, newStatus: "acknowledged" | "in_progress" | "resolved") => {
     await updateStatus({
       letterId: id,
@@ -185,20 +194,48 @@ export default function ReceivedLettersPage() {
                   </span>
                 </TableCell>
                 <TableCell className="flex flex-col gap-2 md:flex-row justify-center items-center">
-                  {fileUrls[letter._id] && <a href={fileUrls[letter._id]} target="_blank" rel="noreferrer">
-                      <Button size="sm" className="bg-blue-600 text-white">
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                    </a>}
-                  <select className="border rounded px-2 py-1 text-sm" value={letter.status ?? "sent"} onChange={e => handleStatusChange(letter._id, e.target.value as "acknowledged" | "in_progress" | "resolved")}>
-                    <option value="sent" disabled>
-                      Awaiting Acknowledgment
-                    </option>
-                    <option value="acknowledged">Acknowledged</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="resolved">Resolved</option>
-                  </select>
+  <Button 
+    size="sm" 
+    className="bg-white-600 text-black" 
+    onClick={() => {
+      setSelectedLetter(letter);
+      setIsViewModalOpen(true);
+    }}
+  >
+    <FileText className="w-4 h-4 mr-1" />
+    View
+  </Button>
+
+  {fileUrls[letter._id] && <Button size="sm" className="bg-blue-600 text-white" onClick={async () => {
+                const fileData = fileUrls[letter._id];
+                if (!fileData) return;
+                try {
+                  const response = await fetch(fileData.url);
+                  const blob = await response.blob();
+                  const blobUrl = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = blobUrl;
+                  a.download = fileData.fileName || "Letter.pdf";
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(blobUrl);
+                } catch (error) {
+                  console.error("Download failed:", error);
+                }
+              }}>
+    <Eye className="w-4 h-4 mr-1" />
+    Download
+  </Button>}
+
+  <select className="border rounded px-2 py-1 text-sm" value={letter.status ?? "sent"} onChange={e => handleStatusChange(letter._id, e.target.value as "acknowledged" | "in_progress" | "resolved")}>
+    <option value="sent" disabled>
+      Awaiting Acknowledgment
+    </option>
+    <option value="acknowledged">Acknowledged</option>
+    <option value="in_progress">In Progress</option>
+    <option value="resolved">Resolved</option>
+  </select>
                 </TableCell>
               </TableRow>)}
             {paginated.length === 0 && <TableRow>
@@ -222,5 +259,18 @@ export default function ReceivedLettersPage() {
           Next
         </Button>
       </div>
+
+      {/* Letter View Modal */}
+      {selectedLetter && (
+        <LetterViewModal
+          isOpen={isViewModalOpen}
+          onClose={() => {
+            setIsViewModalOpen(false);
+            setSelectedLetter(null);
+          }}
+          letter={selectedLetter}
+          sender={allUsers.find(u => u._id === selectedLetter.userId) || null}
+        />
+      )}
     </div>;
 }

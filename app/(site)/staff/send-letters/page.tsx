@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Id } from "@/convex/_generated/dataModel";
 import Letters from "@/components/Letters";
 import { Download, Eye, FileText } from "lucide-react";
-import LetterDetailModal from "@/components/Letters/LetterDetailModal";
+import LetterViewModal from "@/components/Letters/LetterViewModal";
 
 export default function ViewLettersPage() {
   const allLetters = useQuery(api.letters.getUserLetters) || [];
@@ -137,14 +137,17 @@ export default function ViewLettersPage() {
 
         {isModalOpen && <Letters onClose={() => setIsModalOpen(false)} />}
         
-        <LetterDetailModal
-          letter={selectedLetter}
-          isOpen={isDetailModalOpen}
-          onClose={() => {
-            setIsDetailModalOpen(false);
-            setSelectedLetter(null);
-          }}
-          recipientName={selectedLetter?.sentTo ? userMap[selectedLetter.sentTo] : undefined}
-        />
+        {/* Letter View Modal */}
+        {selectedLetter && (
+          <LetterViewModal
+            isOpen={isDetailModalOpen}
+            onClose={() => {
+              setIsDetailModalOpen(false);
+              setSelectedLetter(null);
+            }}
+            letter={selectedLetter}
+            sender={allUsers.find(u => u._id === selectedLetter.userId) || null}
+          />
+        )}
       </div>;
 }

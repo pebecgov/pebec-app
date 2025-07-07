@@ -200,7 +200,7 @@ export default function InternalApprovals() {
     }
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = (format: 'excel' | 'xml' = 'excel') => {
     // Prepare data for export
     const data = filteredRequests.map(user => ({
       "Name": `${user.firstName} ${user.lastName}`,
@@ -211,13 +211,45 @@ export default function InternalApprovals() {
       "State": user.roleRequest?.state || "—"
     }));
 
-    // Create worksheet and workbook
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Internal Approvals");
+    if (format === 'excel') {
+      // Create worksheet and workbook
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Internal Approvals");
 
-    // Download
-    XLSX.writeFile(workbook, "internal-approvals.xlsx");
+      // Download Excel
+      XLSX.writeFile(workbook, "internal-approvals.xlsx");
+    } else {
+      // Create XML structure
+      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<message>
+  <method name="internalApprovals">
+    <returnset>
+      ${data.map(item => `
+        <approval>
+          <name value="${item.Name}" />
+          <email value="${item.Email}" />
+          <requestedRole value="${item["Requested Role"]}" />
+          <jobTitle value="${item["Job Title"]}" />
+          <mdaName value="${item["MDA Name"]}" />
+          <state value="${item.State}" />
+        </approval>
+      `).join('')}
+    </returnset>
+  </method>
+</message>`;
+
+      // Create and download XML file
+      const blob = new Blob([xmlContent], { type: 'application/xml' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'internal-approvals.xml';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
   };
 
   function getDisplayMdaName(mdaName) {
@@ -231,13 +263,47 @@ export default function InternalApprovals() {
       <h2 className="text-xl font-semibold mb-4">Pending Internal Approvals</h2>
 
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
-        <Input 
-          placeholder="Search by name..." 
-          value={search} 
-          onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} 
-          className="w-full md:w-1/2" 
-        />
+        <div className="flex gap-2 items-center w-full md:w-1/2">
+          <Input 
+            placeholder="Search by name..." 
+            value={search} 
+            onChange={e => { setSearch(e.target.value); setCurrentPage(1); }} 
+            className="flex-1" 
+          />
+          <Button
+            variant="outline"
+            className="h-10 flex items-center gap-2 whitespace-nowrap"
+            onClick={() => handleDownloadExcel()}
+          >
+            📥 Export Excel
+          </Button>
+        </div>
 
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="h-10 mt-2 md:mt-0 flex items-center gap-2"
+            onClick={() => handleDownloadExcel('xml')}
+          >
+            📥 Export to XML
+          </Button>
+
+          <Button
+            variant="outline"
+            className="h-10 mt-2 md:mt-0 flex items-center gap-2"
+            onClick={() => {
+              setRoleFilter("all");
+              setSelectedMda("all");
+              setCurrentPage(1);
+            }}
+          >
+            <FaFilterCircleXmark className="w-4 h-4" />
+            Clear Filters
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
         <Select 
           value={roleFilter} 
           onValueChange={handleRoleFilterChange}
@@ -285,21 +351,7 @@ export default function InternalApprovals() {
               ))}
           </SelectContent>
         </Select>
-
-        <Button
-          variant="outline"
-          className="h-10 mt-2 md:mt-0 flex items-center gap-2"
-          onClick={() => {
-            setRoleFilter("all");
-            setSelectedMda("all");
-            setCurrentPage(1);
-          }}
-        >
-          <FaFilterCircleXmark className="w-4 h-4" />
-          Clear Filters
-        </Button>
       </div>
-
 
       {filteredRequests.length === 0 ? (
         <p>No pending requests.</p>
@@ -322,7 +374,7 @@ export default function InternalApprovals() {
                 <TableRow key={user._id}>
                   <TableCell className="truncate">{user.firstName} {user.lastName}</TableCell>
                   <TableCell className="truncate">{user.email}</TableCell>
-                  <TableCell className="capitalize truncate">{formatRole(user.roleRequest?.requestedRole)}</TableCell>
+                  <TableCell className="capitalize truncate">{formatRole(user.roleRequest?.requestedRole!)}</TableCell>
                   <TableCell className="truncate">{user.roleRequest?.jobTitle || "—"}</TableCell>
                   <TableCell className="truncate">
                     {getDisplayMdaName(user.roleRequest?.mdaName)}

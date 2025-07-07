@@ -2,7 +2,11 @@
 import { action, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { Resend } from "resend";
+import { internal } from './_generated/api';
+import { Id } from './_generated/dataModel';
+
 const resend = new Resend(process.env.RESEND_API_KEY);
+
 export const sendTicketEmail = action({
   args: {
     to: v.string(),
