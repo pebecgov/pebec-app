@@ -105,14 +105,50 @@ export default function GenerateTicketReport({
     doc.text(`Generated on: ${format(new Date(), "PPPpp")}`, 14, 28);
     doc.text(filterHeader, 14, 35);
     const tableData = filteredData.map(t => {
-      const row = [t.ticketNumber || "—", t.fullName || "—", t.businessName || "—", t.title || "—"];
+      const row = [
+        t.ticketNumber || "—", 
+        t.fullName || "—", 
+        t.businessName || "—", 
+        t.title || "—"
+      ];
       if (showMdaColumn) {
         row.push(t.assignedMDAName || "Unassigned");
       }
-      row.push(t.status, format(new Date(t._creationTime), "PPP"), t.state || "—", t.address || "—", t.email || "—", t.phoneNumber || "—", t.description?.replace(/<[^>]+>/g, "") || "", t.resolutionNote || "");
+      row.push(
+        t.status,
+        format(new Date(t._creationTime), "PPP"),
+        t.state || "—",
+        t.address || "—",
+        t.email || "—",
+        t.phoneNumber || "—",
+        t.description?.replace(/<[^>]+>/g, "") || "",
+        t.resolutionNote || "",
+        t.extensionRequest ? 
+          `${t.extensionRequest.status.toUpperCase()} - ${t.extensionRequest.requestedDays} days` : 
+          "No extension",
+        t.extensionRequest?.reason || "—",
+        t.extensionRequest?.adminResponse || "—"
+      );
       return row;
     });
-    const pdfHead = ["Ticket #", "Name", "Business Name", "Title", ...(showMdaColumn ? ["MDA Name"] : []), "Status", "Submission Date", "State", "Address", "Email", "Phone", "Description", "Resolution Note"];
+    const pdfHead = [
+      "Ticket #", 
+      "Name", 
+      "Business Name", 
+      "Title", 
+      ...(showMdaColumn ? ["MDA Name"] : []), 
+      "Status", 
+      "Submission Date", 
+      "State", 
+      "Address", 
+      "Email", 
+      "Phone", 
+      "Description", 
+      "Resolution Note",
+      "Extension Status",
+      "Extension Reason",
+      "Admin Response"
+    ];
     autoTable(doc, {
       startY: 40,
       head: [pdfHead],
@@ -138,7 +174,12 @@ export default function GenerateTicketReport({
         Email: t.email || "—",
         Phone: t.phoneNumber || "—",
         Description: t.description?.replace(/<[^>]+>/g, "") || "",
-        ResolutionNote: t.resolutionNote || ""
+        ResolutionNote: t.resolutionNote || "",
+        ExtensionStatus: t.extensionRequest ? 
+          `${t.extensionRequest.status.toUpperCase()} - ${t.extensionRequest.requestedDays} days` : 
+          "No extension",
+        ExtensionReason: t.extensionRequest?.reason || "—",
+        AdminResponse: t.extensionRequest?.adminResponse || "—"
       };
       if (showMdaColumn) {
         return {
@@ -148,7 +189,24 @@ export default function GenerateTicketReport({
       }
       return base;
     });
-    const columnHeaders = ["TicketNumber", "Name", "BusinessName", "Title", ...(showMdaColumn ? ["MDA"] : []), "Status", "SubmissionDate", "State", "Address", "Email", "Phone", "Description", "ResolutionNote"];
+    const columnHeaders = [
+      "TicketNumber", 
+      "Name", 
+      "BusinessName", 
+      "Title", 
+      ...(showMdaColumn ? ["MDA"] : []), 
+      "Status", 
+      "SubmissionDate", 
+      "State", 
+      "Address", 
+      "Email", 
+      "Phone", 
+      "Description", 
+      "ResolutionNote",
+      "ExtensionStatus",
+      "ExtensionReason",
+      "AdminResponse"
+    ];
     const worksheet = XLSX.utils.json_to_sheet([{
       A: filterHeader
     }, {}, ...dataRows], {

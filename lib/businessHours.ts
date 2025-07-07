@@ -52,45 +52,60 @@ export function getEffectiveStartTime(creationTime: number): number {
   }
 }
 
-// Add 72 actual hours from the effective start time
-export function addBusinessHours(startTime: number, hoursToAdd: number): number {
-  // For 72-hour SLA, we want 72 actual hours from effective start time
-  if (hoursToAdd === 72) {
-    const effectiveStart = getEffectiveStartTime(startTime);
-    return effectiveStart + (72 * 60 * 60 * 1000); // 72 hours in milliseconds
-  }
-  
-  // For other hour calculations, keep the original business hours logic
-  const start = new Date(startTime);
-  let current = getNextBusinessHour(start);
-  let remainingHours = hoursToAdd;
-  
+export function addBusinessHours(startTime: number, hours: number): number {
+  let currentTime = startTime;
+  let remainingHours = hours;
+
   while (remainingHours > 0) {
-    if (isWithinBusinessHours(current)) {
-      // Calculate hours until end of business day
-      const endOfDay = new Date(current);
-      endOfDay.setHours(17, 0, 0, 0);
-      
-      const availableHours = (endOfDay.getTime() - current.getTime()) / (1000 * 60 * 60);
-      
-      if (remainingHours <= availableHours) {
-        // We can complete within this business day
-        current.setTime(current.getTime() + (remainingHours * 60 * 60 * 1000));
-        return current.getTime();
-      } else {
-        // Use up the rest of this business day
-        remainingHours -= availableHours;
-        
-        // Move to start of next business day
-        current.setDate(current.getDate() + 1);
-        current = getNextBusinessHour(current);
-      }
-    } else {
-      current = getNextBusinessHour(current);
+    const date = new Date(currentTime);
+    const dayOfWeek = date.getDay();
+    const hour = date.getHours();
+
+    // Skip weekends
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      currentTime += 24 * 60 * 60 * 1000; // Add one day
+      continue;
     }
+
+    // Only count business hours (9 AM - 5 PM WAT)
+    if (hour >= 9 && hour < 17) {
+      remainingHours--;
+    }
+
+    currentTime += 60 * 60 * 1000; // Add one hour
   }
-  
-  return current.getTime();
+
+  return currentTime;
+}
+
+export function skipWeekendsHours(startTime: number, endTime: number, includeWeekends: boolean = false): number {
+  if (includeWeekends) {
+    return (endTime - startTime) / (60 * 60 * 1000); // Convert to hours
+  }
+
+  let currentTime = startTime;
+  let businessHours = 0;
+
+  while (currentTime < endTime) {
+    const date = new Date(currentTime);
+    const dayOfWeek = date.getDay();
+    const hour = date.getHours();
+
+    // Skip weekends
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      currentTime += 24 * 60 * 60 * 1000; // Add one day
+      continue;
+    }
+
+    // Only count business hours (9 AM - 5 PM WAT)
+    if (hour >= 9 && hour < 17) {
+      businessHours++;
+    }
+
+    currentTime += 60 * 60 * 1000; // Add one hour
+  }
+
+  return businessHours;
 }
 
 export function calculateBusinessHours(startTime: number, endTime: number): number {
@@ -125,19 +140,32 @@ export function calculateBusinessHours(startTime: number, endTime: number): numb
   return totalHours;
 }
 
-export function isOverdue72Hours(startTime: number, currentTime: number = Date.now()): boolean {
-  const effectiveStart = getEffectiveStartTime(startTime);
-  const deadline = effectiveStart + (72 * 60 * 60 * 1000); // 72 hours in milliseconds
-  return currentTime > deadline;
+interface ExtensionRequest {
+  requestedAt: number;
+  requestedDays: number;
+  status: "pending" | "approved" | "rejected";
+  includeWeekends: boolean;
 }
 
-export function getTimeRemaining72Hours(startTime: number, currentTime: number = Date.now()): number {
-  const effectiveStart = getEffectiveStartTime(startTime);
-  const deadline = effectiveStart + (72 * 60 * 60 * 1000); // 72 hours in milliseconds
-  const remainingMs = deadline - currentTime;
+export function getTimeRemaining72Hours(startTime: number, currentTime: number, extensionRequest?: ExtensionRequest): number {
+  const baseDeadline = addBusinessHours(startTime, 72);
   
-  if (remainingMs <= 0) return 0;
-  
-  // Convert milliseconds to hours
-  return remainingMs / (1000 * 60 * 60);
+  // If there's an approved extension, add the extra time
+  let deadline = baseDeadline;
+  if (extensionRequest?.status === "approved") {
+    const extraHours = extensionRequest.requestedDays * 24;
+    if (extensionRequest.includeWeekends) {
+      deadline += extraHours * 60 * 60 * 1000; // Convert hours to milliseconds
+    } else {
+      deadline = addBusinessHours(baseDeadline, extraHours);
+    }
+  }
+
+  // Calculate remaining time
+  const remaining = (deadline - currentTime) / (60 * 60 * 1000); // Convert to hours
+  return remaining;
+}
+
+export function isOverdue72Hours(startTime: number, currentTime: number, extensionRequest?: ExtensionRequest): boolean {
+  return getTimeRemaining72Hours(startTime, currentTime, extensionRequest) <= 0;
 } 

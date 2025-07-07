@@ -6,10 +6,12 @@ import { v } from "convex/values";
 import { getCurrentUserOrNull, getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { calculateBusinessHours } from "../lib/businessHours";
+import { calculateBusinessHours, addBusinessHours, skipWeekendsHours } from "../lib/businessHours";
+
 function generateTicketNumber() {
   return `TICKET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
+
 export const createTicket = mutation({
   args: {
     title: v.string(),
@@ -108,6 +110,7 @@ export const createTicket = mutation({
     };
   }
 });
+
 export const checkAndSendReminder = mutation({
   args: {
     ticketId: v.id("tickets")
@@ -167,6 +170,7 @@ export const checkAndSendReminder = mutation({
     });
   }
 });
+
 export const getUserTickets = query({
   args: {},
   handler: async ctx => {
@@ -190,6 +194,7 @@ export const getUserTickets = query({
     }));
   }
 });
+
 export const getAllTickets = query({
   args: {},
   handler: async ctx => {
@@ -233,6 +238,7 @@ export const getAllTickets = query({
     }));
   }
 });
+
 export const assignTicketAgent = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -252,6 +258,7 @@ export const assignTicketAgent = mutation({
     });
   }
 });
+
 export const updateTicketStatus = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -347,6 +354,7 @@ export const updateTicketStatus = mutation({
     return true;
   }
 });
+
 export const getTicketById = query({
   args: {
     ticketId: v.id("tickets")
@@ -370,6 +378,7 @@ export const getTicketById = query({
     };
   }
 });
+
 export const addTicketComment = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -395,12 +404,14 @@ export const addTicketComment = mutation({
     }
   }
 });
+
 export const generateUploadUrl = mutation({
   args: {},
   handler: async ctx => {
     return await ctx.storage.generateUploadUrl();
   }
 });
+
 export const getStorageUrl = mutation({
   args: {
     storageId: v.id("_storage")
@@ -411,6 +422,7 @@ export const getStorageUrl = mutation({
     return await ctx.storage.getUrl(storageId);
   }
 });
+
 export const getIncidentsStats = query({
   args: {},
   handler: async ctx => {
@@ -425,6 +437,7 @@ export const getIncidentsStats = query({
     };
   }
 });
+
 export const getMDAIncidentsStats = query({
   args: {},
   handler: async ctx => {
@@ -458,6 +471,7 @@ export const getMDAIncidentsStats = query({
     return groupedByMDA;
   }
 });
+
 export const getTicketsByMda = query({
   args: {
     mdaId: v.id("mdas")
@@ -496,6 +510,7 @@ export const getTicketsByMda = query({
     }));
   }
 });
+
 export const getIncidentsStatsByMonth = query({
   args: {},
   handler: async ctx => {
@@ -523,6 +538,7 @@ export const getIncidentsStatsByMonth = query({
     return statsByMonth;
   }
 });
+
 export const getTicketsByState = query({
   args: {},
   handler: async ctx => {
@@ -536,6 +552,7 @@ export const getTicketsByState = query({
     return ticketsByState;
   }
 });
+
 export const assignTicketMDA = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -614,6 +631,7 @@ export const assignTicketMDA = mutation({
     };
   }
 });
+
 export const cancelTicket = mutation({
   args: {
     ticketId: v.id("tickets")
@@ -663,6 +681,7 @@ export const cancelTicket = mutation({
     }
   }
 });
+
 export const reopenTicket = mutation({
   args: {
     ticketId: v.id("tickets")
@@ -712,6 +731,7 @@ export const reopenTicket = mutation({
     }
   }
 });
+
 export const deleteTicket = mutation({
   args: {
     ticketId: v.id("tickets")
@@ -726,6 +746,7 @@ export const deleteTicket = mutation({
     }
   }
 });
+
 export const deleteTicketMutation = mutation({
   args: {
     ticketId: v.id("tickets")
@@ -806,6 +827,7 @@ export const deleteTicketMutation = mutation({
     console.log(`✅ Ticket ${ticket.ticketNumber} has been deleted.`);
   }
 });
+
 export const getMDAIncidentsStat = query({
   args: {},
   handler: async ctx => {
@@ -847,6 +869,7 @@ export const getMDAIncidentsStat = query({
     };
   }
 });
+
 export const getMDAIncidentsStatsByMonth = query({
   args: {},
   handler: async ctx => {
@@ -878,6 +901,7 @@ export const getMDAIncidentsStatsByMonth = query({
     return statsByMonth;
   }
 });
+
 export const getMDAReports = query({
   args: {
     fromDate: v.number(),
@@ -907,6 +931,7 @@ export const getMDAReports = query({
     }));
   }
 });
+
 export const getAllTicketUsers = query({
   args: {},
   handler: async ctx => {
@@ -928,6 +953,7 @@ export const getAllTicketUsers = query({
     }));
   }
 });
+
 export const getTicketsByUserId = query({
   args: {
     userId: v.id("users")
@@ -939,6 +965,7 @@ export const getTicketsByUserId = query({
     return tickets;
   }
 });
+
 export const getFilteredTickets = query({
   args: {
     userId: v.optional(v.id("users")),
@@ -1012,6 +1039,7 @@ export const getFilteredTickets = query({
     return enhanced;
   }
 });
+
 export const getMdaMonthlySummaryStats = query({
   args: {},
   handler: async ctx => {
@@ -1019,22 +1047,56 @@ export const getMdaMonthlySummaryStats = query({
     if (user.role !== "mda" || !user.mdaId) {
       throw new Error("Unauthorized: Only MDA users can view this data.");
     }
+
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const threeDays = 72 * 60 * 60 * 1000;
-    const tickets = await ctx.db.query("tickets").withIndex("byMDA", q => q.eq("assignedMDA", user.mdaId)).collect();
+
+    const tickets = await ctx.db.query("tickets")
+      .withIndex("byMDA", q => q.eq("assignedMDA", user.mdaId))
+      .collect();
+
     const thisMonthTickets = tickets.filter(ticket => ticket.createdAt >= currentMonthStart);
+
     const resolvedIn72hrs = tickets.filter(ticket => {
       const resolvedOrClosed = ticket.status === "resolved" || ticket.status === "closed";
       const updated = ticket.updatedAt ?? ticket._creationTime;
-      return resolvedOrClosed && updated - ticket.createdAt <= threeDays;
+      
+      // If there's an approved extension, adjust the deadline
+      let deadline = addBusinessHours(ticket.createdAt, 72);
+      
+      if (ticket.extensionRequest?.status === "approved") {
+        const extraHours = ticket.extensionRequest.requestedDays * 24;
+        if (ticket.extensionRequest.includeWeekends) {
+          deadline += extraHours * 60 * 60 * 1000;
+        } else {
+          deadline = addBusinessHours(deadline, extraHours);
+        }
+      }
+      
+      // Use skipWeekendsHours to calculate time taken
+      const hoursUsed = skipWeekendsHours(
+        ticket.createdAt,
+        updated,
+        ticket.extensionRequest?.status === "approved" && ticket.extensionRequest.includeWeekends
+      );
+      
+      return resolvedOrClosed && hoursUsed <= (ticket.extensionRequest?.status === "approved" ? 
+        72 + (ticket.extensionRequest.requestedDays * 24) : 72);
     }).length;
+
+    // Get the MDA name for the message
+    const mda = await ctx.db.get(user.mdaId);
+    const mdaName = mda?.name || "Unknown MDA";
+
     return {
       ticketsThisMonth: thisMonthTickets.length,
-      resolvedIn72hrs
+      resolvedIn72hrs,
+      noTicketsMessage: thisMonthTickets.length === 0 ? `${mdaName} has not received any tickets for the month` : undefined
     };
   }
 });
+
 export const getAdminMonthlyStats = query({
   args: {},
   handler: async ctx => {
@@ -1091,6 +1153,7 @@ export const getAdminMonthlyStats = query({
     };
   }
 });
+
 export const saveUploadedFile = mutation({
   args: {
     storageId: v.id("_storage"),
@@ -1104,6 +1167,7 @@ export const saveUploadedFile = mutation({
     });
   }
 });
+
 export const getAdminMonthlyTopResolved = query({
   args: {},
   handler: async ctx => {
@@ -1125,6 +1189,7 @@ export const getAdminMonthlyTopResolved = query({
     };
   }
 });
+
 export const getTopMdasByResolution = query({
   args: {},
   handler: async ctx => {
@@ -1157,12 +1222,14 @@ export const getTopMdasByResolution = query({
     return filteredResults.sort((a, b) => b.count - a.count);
   }
 });
+
 export const getAllMdas = query({
   args: {},
   handler: async ctx => {
     return await ctx.db.query("mdas").collect();
   }
 });
+
 export const getAllMdasAdmin = query({
   args: {},
   handler: async ctx => {
@@ -1171,6 +1238,7 @@ export const getAllMdasAdmin = query({
     return await ctx.db.query("mdas").collect();
   }
 });
+
 export const getTopAndBottomMdaPerformanceByMonth = query({
   args: {
     from: v.number(),
@@ -1223,6 +1291,7 @@ export const getTopAndBottomMdaPerformanceByMonth = query({
     };
   }
 });
+
 export const getOverallResponseTimes = query({
   args: {},
   handler: async ctx => {
@@ -1233,6 +1302,7 @@ export const getOverallResponseTimes = query({
     });
   }
 });
+
 export const getPublicTicketByReference = query({
   args: {
     ticketNumber: v.string(),
@@ -1261,6 +1331,7 @@ export const getPublicTicketByReference = query({
     return null;
   }
 });
+
 export const getAllBusinessNames = query({
   handler: async ctx => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -1288,12 +1359,13 @@ export const getAllBusinessNames = query({
     const combined = Array.from(new Set([...businessNamesFromUsers, ...businessNamesFromTickets]));
     return combined.filter(name => !!name);
   }
-  });
+});
 
 function skipWeekendsHours(start: number, end: number): number {
   // Use the new business hours calculation (9am-5pm Monday-Friday)
   return calculateBusinessHours(start, end);
 }
+
 export const getTicketStats = query({
   args: {
     fromDate: v.optional(v.number()),
@@ -1358,5 +1430,201 @@ export const getTicketStats = query({
       avgResponseTime: Math.round(avgResponse * 100) / 100,
       overdue
     };
+  }
+});
+
+export const requestTicketExtension = mutation({
+  args: {
+    ticketId: v.id("tickets"),
+    requestedDays: v.number(),
+    reason: v.string(),
+    includeWeekends: v.boolean()
+  },
+  handler: async (ctx, { ticketId, requestedDays, reason, includeWeekends }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "mda") {
+      throw new Error("Unauthorized: Only MDAs can request extensions");
+    }
+
+    // Get the MDA name
+    const mda = await ctx.db.get(user.mdaId!);
+    if (!mda) {
+      throw new Error("MDA not found");
+    }
+
+    // Check if the MDA is allowed to request extensions
+    const allowedMDAs = ["Standards Organisation of Nigeria", "National Agency for Food and Drug Administration and Control"];
+    if (!allowedMDAs.includes(mda.name)) {
+      throw new Error("Unauthorized: Only SON and NAFDAC can request extensions");
+    }
+
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found");
+    }
+
+    if (ticket.assignedMDA !== user.mdaId) {
+      throw new Error("Unauthorized: You can only request extensions for your assigned tickets");
+    }
+
+    if (requestedDays > 7) {
+      throw new Error("Extension request cannot exceed 7 days");
+    }
+
+    if (ticket.status === "resolved" || ticket.status === "closed") {
+      throw new Error("Cannot request extension for resolved or closed tickets");
+    }
+
+    if (ticket.extensionRequest?.status === "pending") {
+      throw new Error("You already have a pending extension request");
+    }
+
+    // Create new extension request
+    const newExtensionRequest = {
+      requestedAt: Date.now(),
+      requestedDays,
+      reason,
+      status: "pending" as const,
+      includeWeekends,
+    };
+
+    // Initialize or update history
+    const currentHistory = ticket.extensionHistory || [];
+
+    // Update the ticket
+    await ctx.db.patch(ticketId, {
+      extensionRequest: newExtensionRequest,
+      extensionHistory: currentHistory
+    });
+
+    // Notify admins
+    const admins = await ctx.db.query("users")
+      .withIndex("byRole", q => q.eq("role", "admin"))
+      .collect();
+
+    for (const admin of admins) {
+      await ctx.db.insert("notifications", {
+        userId: admin._id,
+        type: "extension_request",
+        ticketId,
+        message: `New extension request for ticket ${ticket.ticketNumber}: ${requestedDays} days requested`,
+        isRead: false,
+        createdAt: Date.now()
+      });
+    }
+
+    return newExtensionRequest;
+  }
+});
+
+export const handleExtensionRequest = mutation({
+  args: {
+    ticketId: v.id("tickets"),
+    approved: v.boolean(),
+    adminResponse: v.optional(v.string())
+  },
+  handler: async (ctx, { ticketId, approved, adminResponse }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "auditor") {
+      throw new Error("Unauthorized: Only admins and auditors can handle extension requests");
+    }
+
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found");
+    }
+
+    if (!ticket.extensionRequest) {
+      throw new Error("No extension request found for this ticket");
+    }
+
+    // Update the current extension request status
+    const updatedExtensionRequest = {
+      ...ticket.extensionRequest,
+      status: approved ? "approved" : "rejected",
+      adminResponse: adminResponse
+    };
+
+    // Add to history
+    const currentHistory = ticket.extensionHistory || [];
+    const updatedHistory = [...currentHistory, updatedExtensionRequest];
+
+    // Update the ticket
+    await ctx.db.patch(ticketId, {
+      extensionRequest: updatedExtensionRequest,
+      extensionHistory: updatedHistory
+    });
+
+    // Send notification to MDA
+    if (ticket.assignedMDA) {
+      // Get the MDA user first
+      const mdaUsers = await ctx.db
+        .query("users")
+        .withIndex("byMdaId", (q) => q.eq("mdaId", ticket.assignedMDA))
+        .collect();
+
+      // Send notification to all users associated with this MDA
+      for (const mdaUser of mdaUsers) {
+        await ctx.db.insert("notifications", {
+          userId: mdaUser._id,
+          type: "extension_request",
+          ticketId,
+          message: `Your extension request for ticket ${ticket.ticketNumber} has been ${approved ? "approved" : "rejected"}${adminResponse ? ": " + adminResponse : ""}`,
+          isRead: false,
+          createdAt: Date.now()
+        });
+      }
+    }
+
+    return updatedExtensionRequest;
+  }
+});
+
+export const migrateIncidentDates = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const tickets = await ctx.db.query("tickets").collect();
+    
+    for (const ticket of tickets) {
+      // Check if incidentDate is a string or a floating point number
+      if (typeof ticket.incidentDate === 'string' || ticket.incidentDate % 1 !== 0) {
+        try {
+          // If it's a string, convert to number
+          const incidentDateNum = typeof ticket.incidentDate === 'string' 
+            ? new Date(ticket.incidentDate).getTime()
+            : Math.floor(ticket.incidentDate); // Convert float to integer
+
+          await ctx.db.patch(ticket._id, {
+            incidentDate: incidentDateNum
+          });
+          
+          console.log(`✅ Migrated ticket ${ticket.ticketNumber}: ${ticket.incidentDate} -> ${incidentDateNum}`);
+        } catch (error) {
+          console.error(`❌ Failed to migrate ticket ${ticket.ticketNumber}:`, error);
+        }
+      }
+    }
+  }
+});
+
+export const migrateTicketExtensionHistory = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const tickets = await ctx.db.query("tickets").collect();
+    
+    for (const ticket of tickets) {
+      // If ticket has an extension request but no history
+      if (ticket.extensionRequest && !ticket.extensionHistory) {
+        try {
+          await ctx.db.patch(ticket._id, {
+            extensionHistory: [ticket.extensionRequest]
+          });
+          
+          console.log(`✅ Migrated extension history for ticket ${ticket.ticketNumber}`);
+        } catch (error) {
+          console.error(`❌ Failed to migrate extension history for ticket ${ticket.ticketNumber}:`, error);
+        }
+      }
+    }
   }
 });

@@ -16,7 +16,9 @@ import TicketStepper from "@/components/ui/stepper";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import TicketInternalNotes from "@/components/TicketInternalNotes";
-import TicketCountdown from "@/components/ui/ticket-countdown";
+import { TicketCountdown } from "@/components/ui/ticket-countdown";
+import { ExtensionRequest } from '@/components/ui/extension-request';
+
 export default function AdminTicketDetailsPage() {
   const {
     ticketId
@@ -38,6 +40,7 @@ export default function AdminTicketDetailsPage() {
   const deleteTicket = useMutation(api.tickets.deleteTicketMutation);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
   useEffect(() => {
     if (ticket?.supportingDocuments?.length) {
       const fetchUrls = async () => {
@@ -56,6 +59,7 @@ export default function AdminTicketDetailsPage() {
       fetchUrls();
     }
   }, [ticket, getFileUrl]);
+
   async function confirmStatusUpdate() {
     if (pendingStatus) {
       handleStatusChange(pendingStatus as any);
@@ -63,10 +67,12 @@ export default function AdminTicketDetailsPage() {
       setPendingStatus(null);
     }
   }
+
   function handleStatusDialog(status: string) {
     setPendingStatus(status);
     setConfirmStatusDialog(true);
   }
+
   function handleStatusChange(newStatus: "open" | "in_progress" | "resolved" | "closed") {
     setLoadingStatus(true);
     if (newStatus === "resolved" || newStatus === "closed") {
@@ -80,6 +86,7 @@ export default function AdminTicketDetailsPage() {
       }).then(() => toast.success(`✅ Ticket updated to ${newStatus.replace("_", " ")}`)).catch(() => toast.error("❌ Failed to update ticket status.")).finally(() => setLoadingStatus(false));
     }
   }
+
   async function submitResolutionNote() {
     if (!resolutionNote.trim()) {
       toast.error("Resolution note is required.");
@@ -94,6 +101,7 @@ export default function AdminTicketDetailsPage() {
     setIsLocked(true);
     toast.success(`Ticket marked as ${statusToUpdate}.`);
   }
+
   async function handleDeleteTicket() {
     try {
       await deleteTicket({
@@ -107,6 +115,7 @@ export default function AdminTicketDetailsPage() {
       toast.error("Failed to delete ticket.");
     }
   }
+
   if (!ticket || isDeleted) {
     return <div className="text-center text-gray-500 mt-10">
         <p>⚠ This ticket no longer exists. It may have been deleted.</p>
@@ -115,6 +124,7 @@ export default function AdminTicketDetailsPage() {
         </Link>
       </div>;
   }
+
   return <div className="relative max-w-5xl mx-auto md:mt-10 p-6 mt-5 bg-white shadow-lg rounded-md">
       <div className="flex justify-between">
         <Link href="/mda/tickets">
@@ -122,7 +132,6 @@ export default function AdminTicketDetailsPage() {
             <FaArrowLeft className="w-4 h-4" /> Back to Tickets
           </Button>
         </Link>
-        {}
       </div>
 
       <TicketStepper currentStep={ticket.status === "open" ? 0 : ticket.status === "in_progress" ? 1 : 2} status={ticket.status} />
@@ -134,11 +143,17 @@ export default function AdminTicketDetailsPage() {
         </p>
       </div>
 
-      {/* 72-Hour SLA Countdown */}
       <div className="mt-6">
         <TicketCountdown 
           ticketCreatedAt={ticket.createdAt}
           ticketReassignedAt={ticket.reassignedAt}
+          ticketStatus={ticket.status}
+          extensionRequest={ticket.extensionRequest}
+        />
+        <ExtensionRequest
+          ticketId={ticketId as Id<"tickets">}
+          extensionRequest={ticket.extensionRequest}
+          extensionHistory={ticket.extensionHistory}
           ticketStatus={ticket.status}
         />
       </div>
@@ -225,7 +240,6 @@ export default function AdminTicketDetailsPage() {
         <TicketComments ticketId={ticketId as string} />
       </div>
 
-      {/* Internal Notes - Only visible to MDA and Admin */}
       <div className="mt-6">
         <TicketInternalNotes ticketId={ticketId as string} />
       </div>

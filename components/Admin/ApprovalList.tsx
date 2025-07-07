@@ -200,7 +200,7 @@ export default function InternalApprovals() {
     }
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = (format: 'excel' | 'xml' = 'excel') => {
     // Prepare data for export
     const data = filteredRequests.map(user => ({
       "Name": `${user.firstName} ${user.lastName}`,
@@ -211,13 +211,45 @@ export default function InternalApprovals() {
       "State": user.roleRequest?.state || "—"
     }));
 
-    // Create worksheet and workbook
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Internal Approvals");
+    if (format === 'excel') {
+      // Create worksheet and workbook
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Internal Approvals");
 
-    // Download
-    XLSX.writeFile(workbook, "internal-approvals.xlsx");
+      // Download Excel
+      XLSX.writeFile(workbook, "internal-approvals.xlsx");
+    } else {
+      // Create XML structure
+      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<message>
+  <method name="internalApprovals">
+    <returnset>
+      ${data.map(item => `
+        <approval>
+          <name value="${item.Name}" />
+          <email value="${item.Email}" />
+          <requestedRole value="${item["Requested Role"]}" />
+          <jobTitle value="${item["Job Title"]}" />
+          <mdaName value="${item["MDA Name"]}" />
+          <state value="${item.State}" />
+        </approval>
+      `).join('')}
+    </returnset>
+  </method>
+</message>`;
+
+      // Create and download XML file
+      const blob = new Blob([xmlContent], { type: 'application/xml' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'internal-approvals.xml';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
   };
 
   function getDisplayMdaName(mdaName) {
@@ -241,7 +273,7 @@ export default function InternalApprovals() {
           <Button
             variant="outline"
             className="h-10 flex items-center gap-2 whitespace-nowrap"
-            onClick={handleDownloadExcel}
+            onClick={() => handleDownloadExcel()}
           >
             📥 Export Excel
           </Button>
@@ -251,9 +283,9 @@ export default function InternalApprovals() {
           <Button
             variant="outline"
             className="h-10 mt-2 md:mt-0 flex items-center gap-2"
-            onClick={handleDownloadExcel}
+            onClick={() => handleDownloadExcel('xml')}
           >
-            📥 Export to Excel
+            📥 Export to XML
           </Button>
 
           <Button
@@ -342,7 +374,7 @@ export default function InternalApprovals() {
                 <TableRow key={user._id}>
                   <TableCell className="truncate">{user.firstName} {user.lastName}</TableCell>
                   <TableCell className="truncate">{user.email}</TableCell>
-                  <TableCell className="capitalize truncate">{formatRole(user.roleRequest?.requestedRole)}</TableCell>
+                  <TableCell className="capitalize truncate">{formatRole(user.roleRequest?.requestedRole!)}</TableCell>
                   <TableCell className="truncate">{user.roleRequest?.jobTitle || "—"}</TableCell>
                   <TableCell className="truncate">
                     {getDisplayMdaName(user.roleRequest?.mdaName)}
