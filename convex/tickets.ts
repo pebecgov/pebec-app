@@ -1446,6 +1446,18 @@ export const requestTicketExtension = mutation({
       throw new Error("Unauthorized: Only MDAs can request extensions");
     }
 
+    // Get the MDA name
+    const mda = await ctx.db.get(user.mdaId!);
+    if (!mda) {
+      throw new Error("MDA not found");
+    }
+
+    // Check if the MDA is allowed to request extensions
+    const allowedMDAs = ["Standards Organisation of Nigeria", "National Agency for Food and Drug Administration and Control"];
+    if (!allowedMDAs.includes(mda.name)) {
+      throw new Error("Unauthorized: Only SON and NAFDAC can request extensions");
+    }
+
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) {
       throw new Error("Ticket not found");

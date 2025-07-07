@@ -5,10 +5,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { format } from 'date-fns';
+import { useUser } from '@clerk/nextjs';
 
 interface ExtensionRequest {
   requestedAt: number;
@@ -42,6 +43,17 @@ export function ExtensionRequest({
 
   const requestExtension = useMutation(api.tickets.requestTicketExtension);
   const handleExtension = useMutation(api.tickets.handleExtensionRequest);
+  const { user } = useUser();
+  
+  // Get current user's MDA info
+  const currentUser = useQuery(api.users.getUserByClerkId, { clerkUserId: user?.id ?? "" });
+  const userMda = useQuery(api.users.getMDAById, 
+    currentUser?.mdaId ? { mdaId: currentUser.mdaId } : "skip"
+  );
+
+  // Check if MDA is allowed to request extensions
+  const allowedMDAs = ["Standards Organisation of Nigeria", "National Agency for Food and Drug Administration and Control"];
+  const canRequestExtension = userMda?.name && allowedMDAs.includes(userMda.name);
 
   const handleRequest = async () => {
     try {
@@ -171,8 +183,12 @@ export function ExtensionRequest({
     );
   }
 
-  // Don't show request button for resolved/closed tickets
+  // Don't show request button for resolved/closed tickets or non-eligible MDAs
   if (!isAdmin && !extensionRequest && ticketStatus !== "resolved" && ticketStatus !== "closed") {
+    if (!canRequestExtension) {
+      return null; // Hide the entire component for non-eligible MDAs
+    }
+
     return (
       <>
         <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="mt-4">

@@ -990,3 +990,12 @@ export const getMDAStatistics = query({
     return Object.values(mdaStats);
   }
 });
+
+export const getMDAById = query({
+  args: { mdaId: v.id("mdas") },
+  handler: async (ctx, { mdaId }) => {
+    const mda = await ctx.db.get(mdaId);
+    if (!mda) return null;
+    return mda;
+  }
+});
