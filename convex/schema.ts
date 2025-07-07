@@ -71,14 +71,30 @@ export default defineSchema({
     phoneNumber: v.string(),
     incidentDate: v.number(),
     location: v.optional(v.string()),
+    state: v.string(),
+    address: v.string(),
     supportingDocuments: v.optional(v.array(v.id("_storage"))),
-    state: v.optional(v.string()),
-    address: v.optional(v.string()),
-    reassignedAt: v.optional(v.number()),
-    firstResponseAt: v.optional(v.number()),
     createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
-    resolutionNote: v.optional(v.string())
+    updatedAt: v.number(),
+    resolutionNote: v.optional(v.string()),
+    firstResponseAt: v.optional(v.number()),
+    reassignedAt: v.optional(v.number()),
+    extensionRequest: v.optional(v.object({
+      requestedAt: v.number(),
+      requestedDays: v.number(),
+      reason: v.string(),
+      status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+      includeWeekends: v.boolean(),
+      adminResponse: v.optional(v.string())
+    })),
+    extensionHistory: v.optional(v.array(v.object({
+      requestedAt: v.number(),
+      requestedDays: v.number(),
+      reason: v.string(),
+      status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+      includeWeekends: v.boolean(),
+      adminResponse: v.optional(v.string())
+    }))),
   }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]),
   ticket_comments: defineTable({
     content: v.string(),
