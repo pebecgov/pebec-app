@@ -16,7 +16,6 @@ import TicketStepper from "@/components/ui/stepper";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useUserRole } from "@/lib/useUserRole";
-import { ExtensionRequest } from '@/components/ui/extension-request';
 import { TicketCountdown } from '@/components/ui/ticket-countdown';
 
 export default function AdminTicketDetailsPage() {
@@ -233,14 +232,6 @@ export default function AdminTicketDetailsPage() {
         <TicketCountdown 
           ticketCreatedAt={ticket.createdAt}
           ticketReassignedAt={ticket.reassignedAt}
-          ticketStatus={ticket.status}
-          extensionRequest={ticket.extensionRequest}
-        />
-        <ExtensionRequest
-          ticketId={ticketId as Id<"tickets">}
-          extensionRequest={ticket.extensionRequest}
-          extensionHistory={ticket.extensionHistory}
-          isAdmin={true}
           ticketStatus={ticket.status}
         />
       </div>

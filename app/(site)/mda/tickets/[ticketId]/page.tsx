@@ -17,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import TicketInternalNotes from "@/components/TicketInternalNotes";
 import { TicketCountdown } from "@/components/ui/ticket-countdown";
-import { ExtensionRequest } from '@/components/ui/extension-request';
 
 export default function AdminTicketDetailsPage() {
   const {
@@ -147,13 +146,6 @@ export default function AdminTicketDetailsPage() {
         <TicketCountdown 
           ticketCreatedAt={ticket.createdAt}
           ticketReassignedAt={ticket.reassignedAt}
-          ticketStatus={ticket.status}
-          extensionRequest={ticket.extensionRequest}
-        />
-        <ExtensionRequest
-          ticketId={ticketId as Id<"tickets">}
-          extensionRequest={ticket.extensionRequest}
-          extensionHistory={ticket.extensionHistory}
           ticketStatus={ticket.status}
         />
       </div>

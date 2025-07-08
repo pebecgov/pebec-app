@@ -78,23 +78,7 @@ export default defineSchema({
     updatedAt: v.number(),
     resolutionNote: v.optional(v.string()),
     firstResponseAt: v.optional(v.number()),
-    reassignedAt: v.optional(v.number()),
-    extensionRequest: v.optional(v.object({
-      requestedAt: v.number(),
-      requestedDays: v.number(),
-      reason: v.string(),
-      status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
-      includeWeekends: v.boolean(),
-      adminResponse: v.optional(v.string())
-    })),
-    extensionHistory: v.optional(v.array(v.object({
-      requestedAt: v.number(),
-      requestedDays: v.number(),
-      reason: v.string(),
-      status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
-      includeWeekends: v.boolean(),
-      adminResponse: v.optional(v.string())
-    }))),
+    reassignedAt: v.optional(v.number())
   }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]),
   ticket_comments: defineTable({
     content: v.string(),
