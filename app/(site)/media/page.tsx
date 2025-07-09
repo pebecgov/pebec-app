@@ -23,7 +23,7 @@ export default function MediaPage() {
     if (inView) setLimit(prev => prev + 6);
   }, [inView]);
   const filtered = useMemo(() => {
-    return allMedia.filter(post => categoryFilter ? post.categoryId === categoryFilter : true).filter(post => dateFilter ? format(post.createdAt, "yyyy-MM-dd") === dateFilter : true);
+    return allMedia.filter(post => categoryFilter ? post.categoryId === categoryFilter : true).filter(post => dateFilter ? (post.eventDate ? format(post.eventDate, "yyyy-MM-dd") === dateFilter : format(post.createdAt, "yyyy-MM-dd") === dateFilter) : true);
   }, [allMedia, categoryFilter, dateFilter]);
   return <div className="max-w-7xl mx-auto mt-20">
       {}
@@ -64,7 +64,7 @@ export default function MediaPage() {
                   {item.title}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {format(item.createdAt, "PPP")}
+                  {item.eventDate ? format(item.eventDate, "PPP") : format(item.createdAt, "PPP")}
                 </p>
                 <p className="mt-2 text-sm text-gray-700 line-clamp-2">
                   {item.description}

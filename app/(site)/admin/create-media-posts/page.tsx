@@ -73,6 +73,7 @@ export default function MediaDashboardPage() {
             <tr>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Title</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Category</th>
+              <th className="px-6 py-3 text-left font-semibold text-gray-600">Event Date</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Created</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Actions</th>
             </tr>
@@ -83,6 +84,7 @@ export default function MediaDashboardPage() {
             return <tr key={item._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-gray-900">{item.title}</td>
                   <td className="px-6 py-4">{category?.name || "-"}</td>
+                  <td className="px-6 py-4">{item.eventDate ? format(item.eventDate, "PP") : "-"}</td>
                   <td className="px-6 py-4">{format(item.createdAt, "PPpp")}</td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">

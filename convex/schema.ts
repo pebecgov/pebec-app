@@ -463,6 +463,7 @@ export default defineSchema({
     pictureIds: v.array(v.id("_storage")),
     videoUrls: v.optional(v.array(v.string())),
     categoryId: v.id("mediaCategories"),
+    eventDate: v.optional(v.number()),
     createdAt: v.number()
   }),
   mediaCategories: defineTable({

@@ -74,11 +74,18 @@ export default function MediaDetailPage() {
         <div>
           <h1 className="text-3xl font-semibold mb-1">{media.title}</h1>
           <p className="text-sm text-gray-500">
-            {new Date(media.createdAt).toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "long",
-            day: "numeric"
-          })}
+            {media.eventDate 
+              ? new Date(media.eventDate).toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric"
+                })
+              : new Date(media.createdAt).toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric"
+                })
+            }
           </p>
         </div>
 

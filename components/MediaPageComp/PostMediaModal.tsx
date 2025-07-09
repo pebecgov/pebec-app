@@ -22,6 +22,7 @@ export function PostMediaModal({
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [categoryId, setCategoryId] = useState<Id<"mediaCategories"> | "">("");
+  const [eventDate, setEventDate] = useState("");
   const [videoLinks, setVideoLinks] = useState<string[]>([""]);
   const [pictures, setPictures] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -33,6 +34,7 @@ export function PostMediaModal({
     setTitle("");
     setDesc("");
     setCategoryId("");
+    setEventDate("");
     setPictures([]);
     setPreviewUrls([]);
     setVideoLinks([""]);
@@ -83,12 +85,14 @@ export function PostMediaModal({
         title,
         description: desc,
         categoryId: categoryId as Id<"mediaCategories">,
+        eventDate: eventDate ? new Date(eventDate).getTime() : undefined,
         pictureIds: uploadedIds,
         videoUrls: videoLinks.filter(Boolean)
       });
       toast.success("Media post created!");
       setTitle("");
       setDesc("");
+      setEventDate("");
       setPictures([]);
       setPreviewUrls([]);
       setVideoLinks([""]);
@@ -125,6 +129,17 @@ export function PostMediaModal({
               {cat.name}
             </option>)}
         </select>
+        <div>
+        <p className="text-sm text-gray-500">Date of Event (Optional)</p>
+        <Input 
+          type="date" 
+          value={eventDate} 
+          onChange={e => setEventDate(e.target.value)} 
+          placeholder="Date of Event"
+          className="w-full"
+        />
+        </div>
+         
 
         <input type="file" multiple accept="image/*" onChange={handleImageSelect} />
         <div className="flex flex-wrap gap-2 mt-2">

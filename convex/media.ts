@@ -28,7 +28,8 @@ export const createMediaPost = mutation({
     description: v.string(),
     pictureIds: v.array(v.id("_storage")),
     videoUrls: v.optional(v.array(v.string())),
-    categoryId: v.id("mediaCategories")
+    categoryId: v.id("mediaCategories"),
+    eventDate: v.optional(v.number())
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("media", {
