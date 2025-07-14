@@ -150,7 +150,7 @@ export default function TicketComments({
                     {comment.author?.jobTitle && <p className="text-xs text-gray-500 mt-0.5">{formatDisplay(comment.author.jobTitle)}</p>}
                   </div>
                   <span className="text-xs text-gray-500">
-                    {format(new Date(comment.createdAt), "MMM d, yyyy")}
+                    {format(new Date(comment.createdAt), "MMM d, yyyy 'at' h:mm a")}
                   </span>
                 </div>
 
