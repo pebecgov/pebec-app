@@ -308,10 +308,8 @@ export default function FillReportPage() {
             switch (header.type) {
               case "number":
                 processedValue = String(parseFloat(excelValue) || 0); 
-                processedValue = String(parseFloat(excelValue) || 0); 
                 break;
               case "checkbox":
-               
                
                 processedValue = (String(excelValue).toLowerCase() === 'true' || String(excelValue) === '1' || String(excelValue).toLowerCase() === 'yes') ? "true" : "false";
                 break;
