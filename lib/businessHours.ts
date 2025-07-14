@@ -140,32 +140,14 @@ export function calculateBusinessHours(startTime: number, endTime: number): numb
   return totalHours;
 }
 
-interface ExtensionRequest {
-  requestedAt: number;
-  requestedDays: number;
-  status: "pending" | "approved" | "rejected";
-  includeWeekends: boolean;
-}
-
-export function getTimeRemaining72Hours(startTime: number, currentTime: number, extensionRequest?: ExtensionRequest): number {
+export function getTimeRemaining72Hours(startTime: number, currentTime: number): number {
   const baseDeadline = addBusinessHours(startTime, 72);
   
-  // If there's an approved extension, add the extra time
-  let deadline = baseDeadline;
-  if (extensionRequest?.status === "approved") {
-    const extraHours = extensionRequest.requestedDays * 24;
-    if (extensionRequest.includeWeekends) {
-      deadline += extraHours * 60 * 60 * 1000; // Convert hours to milliseconds
-    } else {
-      deadline = addBusinessHours(baseDeadline, extraHours);
-    }
-  }
-
   // Calculate remaining time
-  const remaining = (deadline - currentTime) / (60 * 60 * 1000); // Convert to hours
+  const remaining = (baseDeadline - currentTime) / (60 * 60 * 1000); // Convert to hours
   return remaining;
 }
 
-export function isOverdue72Hours(startTime: number, currentTime: number, extensionRequest?: ExtensionRequest): boolean {
-  return getTimeRemaining72Hours(startTime, currentTime, extensionRequest) <= 0;
+export function isOverdue72Hours(startTime: number, currentTime: number): boolean {
+  return getTimeRemaining72Hours(startTime, currentTime) <= 0;
 } 

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
+import { getTimeRemaining72Hours } from "@/lib/businessHours";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -123,11 +124,10 @@ export default function GenerateTicketReport({
         t.phoneNumber || "—",
         t.description?.replace(/<[^>]+>/g, "") || "",
         t.resolutionNote || "",
-        t.extensionRequest ? 
-          `${t.extensionRequest.status.toUpperCase()} - ${t.extensionRequest.requestedDays} days` : 
-          "No extension",
-        t.extensionRequest?.reason || "—",
-        t.extensionRequest?.adminResponse || "—"
+        // Add new columns
+        t.firstResponseAt ? format(new Date(t.firstResponseAt), "PPP 'at' h:mm a") : "—",
+        getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "resolved" ? "Yes" : "No",
+        getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "closed" ? "Yes" : "No"
       );
       return row;
     });
@@ -145,9 +145,9 @@ export default function GenerateTicketReport({
       "Phone", 
       "Description", 
       "Resolution Note",
-      "Extension Status",
-      "Extension Reason",
-      "Admin Response"
+      "First Response",
+      "Resolved Within 72hrs",
+      "Closed Within 72hrs"
     ];
     autoTable(doc, {
       startY: 40,
@@ -167,7 +167,8 @@ export default function GenerateTicketReport({
         Name: t.fullName || "—",
         BusinessName: t.businessName || "—",
         Title: t.title || "—",
-        Status: t.status,
+        ...(showMdaColumn ? { MDA: mdaName } : {}),
+        Status: t.status || "—",
         SubmissionDate: format(new Date(t._creationTime), "PPP"),
         State: t.state || "—",
         Address: t.address || "—",
@@ -175,11 +176,9 @@ export default function GenerateTicketReport({
         Phone: t.phoneNumber || "—",
         Description: t.description?.replace(/<[^>]+>/g, "") || "",
         ResolutionNote: t.resolutionNote || "",
-        ExtensionStatus: t.extensionRequest ? 
-          `${t.extensionRequest.status.toUpperCase()} - ${t.extensionRequest.requestedDays} days` : 
-          "No extension",
-        ExtensionReason: t.extensionRequest?.reason || "—",
-        AdminResponse: t.extensionRequest?.adminResponse || "—"
+        FirstResponse: t.firstResponseAt ? format(new Date(t.firstResponseAt), "PPP 'at' h:mm a") : "—",
+        ResolvedWithin72hrs: getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "resolved" ? "Yes" : "No",
+        ClosedWithin72hrs: getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "closed" ? "Yes" : "No"
       };
       if (showMdaColumn) {
         return {
@@ -202,10 +201,7 @@ export default function GenerateTicketReport({
       "Email", 
       "Phone", 
       "Description", 
-      "ResolutionNote",
-      "ExtensionStatus",
-      "ExtensionReason",
-      "AdminResponse"
+      "ResolutionNote"
     ];
     const worksheet = XLSX.utils.json_to_sheet([{
       A: filterHeader

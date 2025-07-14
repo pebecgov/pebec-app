@@ -1,9 +1,8 @@
-// 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, AlertTriangle, CheckCircle } from "lucide-react";
-import { addBusinessHours, skipWeekendsHours } from "@/lib/businessHours";
+import { Clock } from "lucide-react";
+import { addBusinessHours } from "@/lib/businessHours";
 
 function getDeadline(startTime: number): number {
   return addBusinessHours(startTime, 72); // 72 business hours (3 days)
@@ -18,24 +17,13 @@ interface TicketCountdownProps {
   ticketCreatedAt: number;
   ticketReassignedAt?: number;
   ticketStatus: string;
-  extensionRequest?: {
-    requestedAt: number;
-    requestedDays: number;
-    status: "pending" | "approved" | "rejected";
-    includeWeekends: boolean;
-  };
-  className?: string;
 }
 
 export function TicketCountdown({
   ticketCreatedAt,
   ticketReassignedAt,
   ticketStatus
-}: {
-  ticketCreatedAt: number;
-  ticketReassignedAt?: number;
-  ticketStatus: string;
-}) {
+}: TicketCountdownProps) {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [isOverdue, setIsOverdue] = useState(false);
 

@@ -1062,27 +1062,14 @@ export const getMdaMonthlySummaryStats = query({
       const resolvedOrClosed = ticket.status === "resolved" || ticket.status === "closed";
       const updated = ticket.updatedAt ?? ticket._creationTime;
       
-      // If there's an approved extension, adjust the deadline
-      let deadline = addBusinessHours(ticket.createdAt, 72);
-      
-      if (ticket.extensionRequest?.status === "approved") {
-        const extraHours = ticket.extensionRequest.requestedDays * 24;
-        if (ticket.extensionRequest.includeWeekends) {
-          deadline += extraHours * 60 * 60 * 1000;
-        } else {
-          deadline = addBusinessHours(deadline, extraHours);
-        }
-      }
-      
       // Use skipWeekendsHours to calculate time taken
       const hoursUsed = skipWeekendsHours(
         ticket.createdAt,
         updated,
-        ticket.extensionRequest?.status === "approved" && ticket.extensionRequest.includeWeekends
+        false
       );
       
-      return resolvedOrClosed && hoursUsed <= (ticket.extensionRequest?.status === "approved" ? 
-        72 + (ticket.extensionRequest.requestedDays * 24) : 72);
+      return resolvedOrClosed && hoursUsed <= 72;
     }).length;
 
     // Get the MDA name for the message
@@ -1460,23 +1447,18 @@ export const migrateIncidentDates = mutation({
   }
 });
 
-export const migrateTicketExtensionHistory = mutation({
+export const removeExtensionFields = mutation({
   args: {},
   handler: async (ctx) => {
     const tickets = await ctx.db.query("tickets").collect();
     
     for (const ticket of tickets) {
-      // If ticket has an extension request but no history
-      if (ticket.extensionRequest && !ticket.extensionHistory) {
-        try {
-          await ctx.db.patch(ticket._id, {
-            extensionHistory: [ticket.extensionRequest]
-          });
-          
-          console.log(`✅ Migrated extension history for ticket ${ticket.ticketNumber}`);
-        } catch (error) {
-          console.error(`❌ Failed to migrate extension history for ticket ${ticket.ticketNumber}:`, error);
-        }
+      try {
+        const { extensionHistory, extensionRequest, ...cleanTicket } = ticket;
+        await ctx.db.replace(ticket._id, cleanTicket);
+        console.log(`✅ Removed extension fields from ticket ${ticket.ticketNumber}`);
+      } catch (error) {
+        console.error(`❌ Failed to remove extension fields from ticket ${ticket.ticketNumber}:`, error);
       }
     }
   }
