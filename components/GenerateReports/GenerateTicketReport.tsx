@@ -122,12 +122,7 @@ export default function GenerateTicketReport({
         t.email || "—",
         t.phoneNumber || "—",
         t.description?.replace(/<[^>]+>/g, "") || "",
-        t.resolutionNote || "",
-        t.extensionRequest ? 
-          `${t.extensionRequest.status.toUpperCase()} - ${t.extensionRequest.requestedDays} days` : 
-          "No extension",
-        t.extensionRequest?.reason || "—",
-        t.extensionRequest?.adminResponse || "—"
+        t.resolutionNote || ""
       );
       return row;
     });
@@ -144,10 +139,7 @@ export default function GenerateTicketReport({
       "Email", 
       "Phone", 
       "Description", 
-      "Resolution Note",
-      "Extension Status",
-      "Extension Reason",
-      "Admin Response"
+      "Resolution Note"
     ];
     autoTable(doc, {
       startY: 40,
@@ -174,12 +166,7 @@ export default function GenerateTicketReport({
         Email: t.email || "—",
         Phone: t.phoneNumber || "—",
         Description: t.description?.replace(/<[^>]+>/g, "") || "",
-        ResolutionNote: t.resolutionNote || "",
-        ExtensionStatus: t.extensionRequest ? 
-          `${t.extensionRequest.status.toUpperCase()} - ${t.extensionRequest.requestedDays} days` : 
-          "No extension",
-        ExtensionReason: t.extensionRequest?.reason || "—",
-        AdminResponse: t.extensionRequest?.adminResponse || "—"
+        ResolutionNote: t.resolutionNote || ""
       };
       if (showMdaColumn) {
         return {
@@ -202,10 +189,7 @@ export default function GenerateTicketReport({
       "Email", 
       "Phone", 
       "Description", 
-      "ResolutionNote",
-      "ExtensionStatus",
-      "ExtensionReason",
-      "AdminResponse"
+      "ResolutionNote"
     ];
     const worksheet = XLSX.utils.json_to_sheet([{
       A: filterHeader
