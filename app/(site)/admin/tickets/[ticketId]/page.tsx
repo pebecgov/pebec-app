@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { useUserRole } from "@/lib/useUserRole";
 import { TicketCountdown } from '@/components/ui/ticket-countdown';
+import TicketInternalNotes from "@/components/TicketInternalNotes";
 
 export default function AdminTicketDetailsPage() {
   const {
@@ -143,6 +144,13 @@ export default function AdminTicketDetailsPage() {
         <p className="text-gray-500 mt-1">
           Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
         </p>
+        <div className="mt-4">
+          <TicketCountdown 
+            ticketCreatedAt={ticket.createdAt}
+            ticketReassignedAt={ticket.reassignedAt}
+            ticketStatus={ticket.status}
+          />
+        </div>
       </div>
 
       {ticket.resolutionNote && <div className="mt-6 p-4 bg-gray-100 border rounded-lg">
@@ -227,6 +235,13 @@ export default function AdminTicketDetailsPage() {
       <div className="mt-6">
         <TicketComments ticketId={ticketId as string} />
       </div>
+
+      {/* Internal Notes - Only visible to MDA and Admin */}
+      {ticket.assignedMDA && (
+        <div className="mt-6">
+          <TicketInternalNotes ticketId={ticketId as string} />
+        </div>
+      )}
 
       <div className="mt-6">
         <TicketCountdown 

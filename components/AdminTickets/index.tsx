@@ -27,6 +27,7 @@ import GenerateTicketReport from "../GenerateReports/GenerateTicketReport";
 import GenerateMonthlyReport from "../GenerateReports/GenerateMonthlyTicketsReport";
 import { Input } from "../ui/input";
 import { Textarea } from "@headlessui/react";
+import MiniCountdown from "@/components/ui/mini-countdown";
 const TABS = [{
   label: "All",
   value: "all"
@@ -297,6 +298,7 @@ export default function AdminTicketsPage() {
         <TableHead className="min-w-[150px]">Assign</TableHead>
         <TableHead className="min-w-[150px]">Status</TableHead>
         <TableHead className="min-w-[150px]">Submission Date</TableHead>
+        <TableHead className="min-w-[150px]">Time Left</TableHead>
         <TableHead className="min-w-[150px]">Actions</TableHead>
       </TableRow>
     </TableHeader>
@@ -347,6 +349,14 @@ export default function AdminTicketsPage() {
                 month: "short",
                 year: "numeric"
               })}
+          </TableCell>
+
+          <TableCell>
+            <MiniCountdown
+              ticketCreatedAt={ticket.createdAt}
+              ticketReassignedAt={ticket.reassignedAt}
+              ticketStatus={ticket.status}
+            />
           </TableCell>
 
           <TableCell>

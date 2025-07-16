@@ -5,12 +5,19 @@ import { Clock } from "lucide-react";
 import { addBusinessHours } from "@/lib/businessHours";
 
 function getDeadline(startTime: number): number {
-  return addBusinessHours(startTime, 72); // 72 business hours (3 days)
+  return addBusinessHours(startTime, 72); // 72 hours
 }
 
 function formatTimeLeft(ms: number): string {
   const hours = Math.floor(ms / (1000 * 60 * 60));
-  return `${hours} hours left`;
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours < 0 || minutes < 0) return "0h 0m left";
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return `${days}d ${remHours}h ${minutes}m left`;
+  }
+  return `${hours}h ${minutes}m left`;
 }
 
 interface TicketCountdownProps {

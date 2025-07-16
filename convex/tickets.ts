@@ -1063,11 +1063,7 @@ export const getMdaMonthlySummaryStats = query({
       const updated = ticket.updatedAt ?? ticket._creationTime;
       
       // Use skipWeekendsHours to calculate time taken
-      const hoursUsed = skipWeekendsHours(
-        ticket.createdAt,
-        updated,
-        false
-      );
+      const hoursUsed = (updated - ticket.createdAt) / (1000 * 60 * 60);
       
       return resolvedOrClosed && hoursUsed <= 72;
     }).length;
@@ -1385,7 +1381,7 @@ export const getTicketStats = query({
     for (const t of tickets) {
       const startTime = t.reassignedAt ?? t.createdAt;
       const updated = t.updatedAt ?? now;
-      const hours = skipWeekendsHours(startTime, updated);
+      const hours = (updated - startTime) / (1000 * 60 * 60);
       if (t.status === "resolved") {
         resolved++;
         resolutionTimes.push(hours);
@@ -1397,10 +1393,10 @@ export const getTicketStats = query({
       }
       if (t.status === "open") {
         open++;
-        if (skipWeekendsHours(t.createdAt, now) > 72) overdue++;
+        if ((now - t.createdAt) > 72 * 60 * 60 * 1000) overdue++;
       }
       if (t.firstResponseAt) {
-        const responseHrs = skipWeekendsHours(startTime, t.firstResponseAt);
+        const responseHrs = (t.firstResponseAt - startTime) / (1000 * 60 * 60);
         responseTimes.push(responseHrs);
       }
     }
@@ -1442,23 +1438,6 @@ export const migrateIncidentDates = mutation({
         } catch (error) {
           console.error(`❌ Failed to migrate ticket ${ticket.ticketNumber}:`, error);
         }
-      }
-    }
-  }
-});
-
-export const removeExtensionFields = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const tickets = await ctx.db.query("tickets").collect();
-    
-    for (const ticket of tickets) {
-      try {
-        const { extensionHistory, extensionRequest, ...cleanTicket } = ticket;
-        await ctx.db.replace(ticket._id, cleanTicket);
-        console.log(`✅ Removed extension fields from ticket ${ticket.ticketNumber}`);
-      } catch (error) {
-        console.error(`❌ Failed to remove extension fields from ticket ${ticket.ticketNumber}:`, error);
       }
     }
   }
