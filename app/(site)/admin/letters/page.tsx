@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { FileText } from "lucide-react";
 import LetterDetailModal from "@/components/Letters/LetterDetailModal";
 import { formatRole } from "@/lib/formatters";
+import Loader from "@/components/Loader";
 
 export default function AdminViewLettersPage() {
   const [selectedRole, setSelectedRole] = useState<string | undefined>();
@@ -39,7 +40,7 @@ export default function AdminViewLettersPage() {
     state: selectedRole === "state_governor" ? selectedState || undefined : undefined,
     startDate: startTimestamp,
     endDate: endTimestamp
-  }) || [];
+  });
   const getFileUrl = useMutation(api.letters.getLetterFileUrl);
   const [fileUrls, setFileUrls] = useState<Record<string, {
     url: string;
@@ -60,7 +61,7 @@ export default function AdminViewLettersPage() {
         url: string;
         fileName: string;
       }> = {};
-      for (const letter of letters) {
+      for (const letter of letters || []) {
         if (letter.letterUploadId && !fileUrls[letter._id]) {
           try {
             const response = await getFileUrl({
@@ -84,12 +85,12 @@ export default function AdminViewLettersPage() {
         }));
       }
     };
-    if (letters.length > 0) {
+    if (letters && letters.length > 0) {
       fetchFileUrls();
     }
   }, [letters, getFileUrl]);
-  const totalPages = Math.ceil(letters.length / recordsPerPage);
-  const sortedLetters = [...letters].sort((a, b) => {
+  const totalPages = Math.ceil((letters?.length || 0) / recordsPerPage);
+  const sortedLetters = [...(letters || [])].sort((a, b) => {
     return sortOrder === "newest" ? b.letterDate - a.letterDate : a.letterDate - b.letterDate;
   });
   const paginatedLetters = sortedLetters.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
@@ -196,50 +197,56 @@ export default function AdminViewLettersPage() {
     </div>
 
       {/* Letters Table */}
-      <div className="bg-white p-4 rounded-md shadow overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User Name</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>MDA / Stream / State</TableHead>
-              <TableHead>Letter Name</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedLetters.length > 0 ? paginatedLetters.map(letter => <TableRow key={letter._id}>
-                  <TableCell>{letter.userFullName}</TableCell>
-                  <TableCell>{letter.userRole ? formatRole(letter.userRole) : "—"}</TableCell>
-                  <TableCell>
-                    {letter.mdaName || letter.staffStream || letter.state || "—"}
+      {letters === undefined ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader />
+        </div>
+      ) : (
+        <div className="bg-white p-4 rounded-md shadow overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User Name</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>MDA / Stream / State</TableHead>
+                <TableHead>Letter Name</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedLetters.length > 0 ? paginatedLetters.map(letter => <TableRow key={letter._id}>
+                    <TableCell>{letter.userFullName}</TableCell>
+                    <TableCell>{letter.userRole ? formatRole(letter.userRole) : "—"}</TableCell>
+                    <TableCell>
+                      {letter.mdaName || letter.staffStream || letter.state || "—"}
+                    </TableCell>
+                    <TableCell>{letter.letterName}</TableCell>
+                    <TableCell>{format(new Date(letter.letterDate), "dd/MM/yyyy")}</TableCell>
+                    <TableCell>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedLetter(letter);
+                          setIsDetailModalOpen(true);
+                        }}
+                        className="flex items-center gap-1"
+                        title="View Details"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Details
+                      </Button>
+                    </TableCell>
+                  </TableRow>) : <TableRow>
+                  <TableCell colSpan={6} className="text-center text-gray-500">
+                    No letters found.
                   </TableCell>
-                  <TableCell>{letter.letterName}</TableCell>
-                  <TableCell>{format(new Date(letter.letterDate), "dd/MM/yyyy")}</TableCell>
-                  <TableCell>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedLetter(letter);
-                        setIsDetailModalOpen(true);
-                      }}
-                      className="flex items-center gap-1"
-                      title="View Details"
-                    >
-                      <FileText className="w-4 h-4" />
-                      Details
-                    </Button>
-                  </TableCell>
-                </TableRow>) : <TableRow>
-                <TableCell colSpan={6} className="text-center text-gray-500">
-                  No letters found.
-                </TableCell>
-              </TableRow>}
-          </TableBody>
-        </Table>
-      </div>
+                </TableRow>}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && <div className="flex justify-between items-center mt-6">

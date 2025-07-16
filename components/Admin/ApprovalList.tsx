@@ -16,6 +16,7 @@ import Link from "next/link";
 import * as XLSX from "xlsx";
 import { FaFilterCircleXmark } from "react-icons/fa6";
 import { formatRole } from "@/lib/formatters";
+import Loader from "@/components/Loader";
 
 const rolesRequiringMda = ["mda", "reform_champion", "saber_agent", "deputies", "magistrates", "state_governor"];
 const rolesRequiringState = ["saber_agent", "deputies", "magistrates", "state_governor"];
@@ -41,7 +42,7 @@ const championFilterOptions = [
 ];
 
 export default function InternalApprovals() {
-  const pendingRequests = useQuery(api.users.getPendingRoleRequests) || [];
+  const pendingRequests = useQuery(api.users.getPendingRoleRequests);
   const mdaStatistics = useQuery(api.users.getMDAStatistics) || [];
   const { toast } = useToast();
   const approveRequest = useMutation(api.users.approveRoleRequest);
@@ -91,7 +92,7 @@ export default function InternalApprovals() {
     }
   };
 
-  const filteredRequests = pendingRequests.filter(user => {
+  const filteredRequests = pendingRequests?.filter(user => {
     const matchesSearch = `${user.firstName} ${user.lastName}`.toLowerCase().includes(search.toLowerCase());
     const matchesRole = roleFilter === "all" || user.roleRequest?.requestedRole === roleFilter;
     const matchesMda = selectedMda === "all" || getDisplayMdaName(user.roleRequest?.mdaName) === selectedMda;
@@ -119,7 +120,7 @@ export default function InternalApprovals() {
     }
     
     return matchesSearch && matchesRole && matchesMda && matchesState && matchesMdaFilters;
-  });
+  }) || [];
 
   // Reset page on filter changes
   const handleRoleFilterChange = (val: string) => {
@@ -353,7 +354,11 @@ export default function InternalApprovals() {
         </Select>
       </div>
 
-      {filteredRequests.length === 0 ? (
+      {pendingRequests === undefined ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader />
+        </div>
+      ) : filteredRequests.length === 0 ? (
         <p>No pending requests.</p>
       ) : (
         <div className="overflow-x-auto w-full">

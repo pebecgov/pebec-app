@@ -28,6 +28,8 @@ import GenerateMonthlyReport from "../GenerateReports/GenerateMonthlyTicketsRepo
 import { Input } from "../ui/input";
 import { Textarea } from "@headlessui/react";
 import MiniCountdown from "@/components/ui/mini-countdown";
+
+import Loader from "../Loader";
 const TABS = [{
   label: "All",
   value: "all"
@@ -185,7 +187,7 @@ export default function AdminTicketsPage() {
       <div className="bg-zinc-800 text-white p-4 rounded-xl shadow-md mb-6">
   <div className="flex flex-col sm:flex-row sm:items-end sm:flex-wrap gap-4">
 
-    {}
+    {/* Search Input */}
     <div className="flex-1 min-w-[250px] sm:max-w-xs">
       <div className="relative h-12">
         <MagnifyingGlassIcon className="absolute left-3 top-3 w-5 h-5 text-zinc-400" />
@@ -193,7 +195,7 @@ export default function AdminTicketsPage() {
       </div>
     </div>
 
-    {}
+    {/* Status Filter */}
     <div className="w-full sm:w-44 h-12">
       <Select onValueChange={value => setStatusFilter(value as any)}>
         <SelectTrigger className="w-full h-full bg-zinc-700 text-white border-zinc-600">
@@ -207,7 +209,7 @@ export default function AdminTicketsPage() {
       </Select>
     </div>
 
-    {}
+    {/* MDA Filter */}
     <div className="w-full sm:w-44 h-12">
       <Select onValueChange={value => setMdaFilter(value === "all" ? "" : value)}>
         <SelectTrigger className="w-full h-full bg-zinc-700 text-white border-zinc-600">
@@ -223,9 +225,9 @@ export default function AdminTicketsPage() {
       </Select>
     </div>
 
-    {}
+    {/* Date Range Filter */}
     <div className="flex flex-col sm:flex-row gap-4">
-  {}
+  {/* Start Date */}
   <div className="flex flex-col w-full sm:w-40">
     <label className="text-xs text-zinc-300 mb-1">From</label>
     <Input type="date" value={dateRange.start} onChange={e => {
@@ -238,7 +240,7 @@ export default function AdminTicketsPage() {
             }} className="bg-zinc-700 text-white border border-zinc-600 h-12" />
   </div>
 
-  {}
+  {/* End Date */}
   <div className="flex flex-col w-full sm:w-40">
     <label className="text-xs text-zinc-300 mb-1">To</label>
     <Input type="date" value={dateRange.end} min={dateRange.start || undefined} onChange={e => setDateRange(prev => ({
@@ -249,7 +251,7 @@ export default function AdminTicketsPage() {
         </div>
 
 
-    {}
+    {/* Action Buttons */}
     <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
       <Button onClick={resetFilters} variant="outline" className="bg-white text-black hover:bg-zinc-100 h-12">
         ♻️ Reset
@@ -266,148 +268,142 @@ export default function AdminTicketsPage() {
   </div>
     </div>
 
-
-
-
-      {}
+      {/* Export Button */}
       <div className={`w-full sm:w-64 flex items-center justify-between ${selectedTickets.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}>
-        {}
         <Button onClick={exportToExcel} className="w-full sm:w-64 flex items-center justify-between" disabled={selectedTickets.length === 0}>
   <ArrowDownIcon className="w-5 h-5 mr-2" />
   Export Selected Reports
       </Button>
-
-
-        {}
-        
       </div>
 
-      {}
-      <div className="overflow-auto max-w-full mt-6 rounded-lg border border-gray-200">
-      <Table className="min-w-[1100px]">
-    <TableHeader>
-      <TableRow>
-        <TableHead className="w-10">
-          <input type="checkbox" onChange={e => {
-                setSelectedTickets(e.target.checked ? filteredTickets.map(ticket => ticket._id) : []);
-              }} />
-        </TableHead>
-        <TableHead className="min-w-[150px]">Report Number</TableHead>
-        <TableHead className="min-w-[150px]">Title</TableHead>
-        <TableHead className="min-w-[150px]">MDA</TableHead>
-        <TableHead className="min-w-[150px]">Assign</TableHead>
-        <TableHead className="min-w-[150px]">Status</TableHead>
-        <TableHead className="min-w-[150px]">Submission Date</TableHead>
-        <TableHead className="min-w-[150px]">Time Left</TableHead>
-        <TableHead className="min-w-[150px]">Actions</TableHead>
-      </TableRow>
-    </TableHeader>
+      {/* Table */}
+      {tickets === undefined ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader />
+        </div>
+      ) : (
+        <div className="overflow-auto max-w-full mt-6 rounded-lg border border-gray-200">
+        <Table className="min-w-[1100px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-10">
+            <input type="checkbox" onChange={e => {
+                  setSelectedTickets(e.target.checked ? filteredTickets.map(ticket => ticket._id) : []);
+                }} />
+          </TableHead>
+          <TableHead className="min-w-[150px]">Report Number</TableHead>
+          <TableHead className="min-w-[150px]">Title</TableHead>
+          <TableHead className="min-w-[150px]">MDA</TableHead>
+          <TableHead className="min-w-[150px]">Assign</TableHead>
+          <TableHead className="min-w-[150px]">Status</TableHead>
+          <TableHead className="min-w-[150px]">Submission Date</TableHead>
+          <TableHead className="min-w-[150px]">Time Left</TableHead>
+          <TableHead className="min-w-[150px]">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
 
-    <TableBody>
-      {paginatedTickets.map(ticket => <TableRow key={ticket._id}>
-          <TableCell>
-            <input type="checkbox" checked={selectedTickets.includes(ticket._id)} onChange={e => {
-                const updated = e.target.checked ? [...selectedTickets, ticket._id] : selectedTickets.filter(id => id !== ticket._id);
-                setSelectedTickets(updated);
-              }} />
-          </TableCell>
+      <TableBody>
+        {paginatedTickets.map(ticket => <TableRow key={ticket._id}>
+            <TableCell>
+              <input type="checkbox" checked={selectedTickets.includes(ticket._id)} onChange={e => {
+                  const updated = e.target.checked ? [...selectedTickets, ticket._id] : selectedTickets.filter(id => id !== ticket._id);
+                  setSelectedTickets(updated);
+                }} />
+            </TableCell>
 
-          <TableCell className="whitespace-nowrap text-sm font-medium">
-            {ticket.ticketNumber}
-          </TableCell>
+            <TableCell className="whitespace-nowrap text-sm font-medium">
+              {ticket.ticketNumber}
+            </TableCell>
 
-          <TableCell className="whitespace-normal break-words max-w-[200px] text-sm">
-            {ticket.title}
-          </TableCell>
+            <TableCell className="whitespace-normal break-words max-w-[200px] text-sm">
+              {ticket.title}
+            </TableCell>
 
-          <TableCell className="whitespace-normal break-words max-w-[250px] text-sm">
-            {ticket.assignedMDAName}
-          </TableCell>
+            <TableCell className="whitespace-normal break-words max-w-[250px] text-sm">
+              {ticket.assignedMDAName}
+            </TableCell>
 
-          <TableCell>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" onClick={() => {
-                    setSelectedTicket(ticket._id);
-                    setIsDialogOpen(true);
-                  }}>
-                  Assign MDA
-                </Button>
-              </DialogTrigger>
-            </Dialog>
-          </TableCell>
+            <TableCell>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" onClick={() => {
+                      setSelectedTicket(ticket._id);
+                      setIsDialogOpen(true);
+                    }}>
+                    Assign MDA
+                  </Button>
+                </DialogTrigger>
+              </Dialog>
+            </TableCell>
 
-          <TableCell>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
-              {ticket.status.replace("_", " ")}
-            </span>
-          </TableCell>
+            <TableCell>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
+                {ticket.status.replace("_", " ")}
+              </span>
+            </TableCell>
 
-          <TableCell className="whitespace-nowrap text-sm">
-            {new Date(ticket.createdAt ?? ticket._creationTime).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric"
-              })}
-          </TableCell>
+            <TableCell className="whitespace-nowrap text-sm">
+              {new Date(ticket.createdAt ?? ticket._creationTime).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric"
+                })}
+            </TableCell>
 
-          <TableCell>
-            <MiniCountdown
-              ticketCreatedAt={ticket.createdAt}
-              ticketReassignedAt={ticket.reassignedAt}
-              ticketStatus={ticket.status}
-            />
-          </TableCell>
+            <TableCell>
+              <MiniCountdown
+                ticketCreatedAt={ticket.createdAt}
+                ticketReassignedAt={ticket.reassignedAt}
+                ticketStatus={ticket.status}
+              />
+            </TableCell>
 
-          <TableCell>
-            <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-32">Change Status</Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-40">
-                  <div className="flex flex-col gap-2">
-                    {["open", "in_progress", "resolved", "closed"].map(status => <Button key={status} variant={ticket.status === status ? "default" : "outline"} onClick={() => {
-                        if (ticket.status === "resolved" && status !== "resolved") {
-                          setPendingStatusChange({
-                            ticketId: ticket._id,
-                            newStatus: status
-                          });
-                          setShowConfirmDialog(true);
-                        } else {
-                          if (["resolved", "closed"].includes(status)) {
-                            setPendingResolution({
+            <TableCell>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-32">Change Status</Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-40">
+                    <div className="flex flex-col gap-2">
+                      {["open", "in_progress", "resolved", "closed"].map(status => <Button key={status} variant={ticket.status === status ? "default" : "outline"} onClick={() => {
+                          if (ticket.status === "resolved" && status !== "resolved") {
+                            setPendingStatusChange({
                               ticketId: ticket._id,
-                              status: status as "resolved" | "closed"
+                              newStatus: status
                             });
-                            setShowResolutionDialog(true);
+                            setShowConfirmDialog(true);
                           } else {
-                            handleStatusChange(ticket._id, status);
+                            if (["resolved", "closed"].includes(status)) {
+                              setPendingResolution({
+                                ticketId: ticket._id,
+                                status: status as "resolved" | "closed"
+                              });
+                              setShowResolutionDialog(true);
+                            } else {
+                              handleStatusChange(ticket._id, status);
+                            }
                           }
-                        }
-                      }}>
-                        {status}
-                      </Button>)}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                        }}>
+                          {status}
+                        </Button>)}
+                    </div>
+                  </PopoverContent>
+                </Popover>
 
-              <Link href={`/${rolePathPrefix}/tickets/${ticket._id}`}>
-  <Button variant="outline" size="sm">View</Button>
-                </Link>
+                <Link href={`/${rolePathPrefix}/tickets/${ticket._id}`}>
+    <Button variant="outline" size="sm">View</Button>
+                  </Link>
 
-            </div>
-          </TableCell>
-        </TableRow>)}
-    </TableBody>
-  </Table>
-    </div>
+              </div>
+            </TableCell>
+          </TableRow>)}
+      </TableBody>
+    </Table>
+      </div>
+      )}
 
-
-
-      
-
-      {}
+      {/* Pagination */}
       <div className="mt-6 flex justify-center">
         <Pagination>
           <PaginationPrevious onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} className="cursor-pointer" />
@@ -420,11 +416,7 @@ export default function AdminTicketsPage() {
             </PaginationItem>)}
           <PaginationNext onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} className="cursor-pointer" />
         </Pagination>
-
-
-   
       </div>
-
 
       <Dialog open={showResolutionDialog} onOpenChange={setShowResolutionDialog}>
   <DialogContent>
@@ -464,7 +456,7 @@ export default function AdminTicketsPage() {
   </DialogContent>
     </Dialog>
 
-        {}
+        {/* MDA Assignment Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogTitle>Assign MDA</DialogTitle>
@@ -488,8 +480,6 @@ export default function AdminTicketsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-
 
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
   <DialogContent>
@@ -520,7 +510,6 @@ export default function AdminTicketsPage() {
     </DialogFooter>
   </DialogContent>
     </Dialog>
-
 
       {showTicketReportModal && <GenerateTicketReport open={showTicketReportModal} onClose={() => setShowTicketReportModal(false)} />}
 

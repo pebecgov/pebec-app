@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUserRole } from "@/lib/useUserRole";
 import { TicketCountdown } from '@/components/ui/ticket-countdown';
 import TicketInternalNotes from "@/components/TicketInternalNotes";
+import Loader from "@/components/Loader";
+
 
 export default function AdminTicketDetailsPage() {
   const {
@@ -116,6 +118,14 @@ export default function AdminTicketDetailsPage() {
       toast.error("Failed to delete ticket.");
     }
   }
+  if (ticket === undefined) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader />
+      </div>
+    );
+  }
+
   if (!ticket || isDeleted) {
     return <div className="text-center text-gray-500 mt-10">
         <p>⚠ This ticket no longer exists. It may have been deleted.</p>

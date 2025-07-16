@@ -189,7 +189,7 @@ export default function Sidebar({
   </div>}
 
                 </div> : <Link href={section.path} onClick={handleCloseSidebar}>
-                  <div className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-300 ${pathname === section.path ? "bg-green-500 text-white" : ""}`} title={!isOpen ? section.name : undefined}>
+                  <div className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100  transition-all duration-300 ${pathname === section.path ? "bg-green-500 text-white hover:bg-green-600" : ""}`} title={!isOpen ? section.name : undefined}>
                     {section.icon}
                     <span className={`ml-4 ${isOpen ? "block" : "hidden"}`}>{section.name}</span>
                   </div>
