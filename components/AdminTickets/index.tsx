@@ -27,6 +27,7 @@ import GenerateTicketReport from "../GenerateReports/GenerateTicketReport";
 import GenerateMonthlyReport from "../GenerateReports/GenerateMonthlyTicketsReport";
 import { Input } from "../ui/input";
 import { Textarea } from "@headlessui/react";
+import Loader from "../Loader";
 const TABS = [{
   label: "All",
   value: "all"
@@ -282,116 +283,122 @@ export default function AdminTicketsPage() {
       </div>
 
       {}
-      <div className="overflow-auto max-w-full mt-6 rounded-lg border border-gray-200">
-      <Table className="min-w-[1100px]">
-    <TableHeader>
-      <TableRow>
-        <TableHead className="w-10">
-          <input type="checkbox" onChange={e => {
-                setSelectedTickets(e.target.checked ? filteredTickets.map(ticket => ticket._id) : []);
-              }} />
-        </TableHead>
-        <TableHead className="min-w-[150px]">Report Number</TableHead>
-        <TableHead className="min-w-[150px]">Title</TableHead>
-        <TableHead className="min-w-[150px]">MDA</TableHead>
-        <TableHead className="min-w-[150px]">Assign</TableHead>
-        <TableHead className="min-w-[150px]">Status</TableHead>
-        <TableHead className="min-w-[150px]">Submission Date</TableHead>
-        <TableHead className="min-w-[150px]">Actions</TableHead>
-      </TableRow>
-    </TableHeader>
+      {tickets === undefined ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader />
+        </div>
+      ) : (
+        <div className="overflow-auto max-w-full mt-6 rounded-lg border border-gray-200">
+        <Table className="min-w-[1100px]">
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-10">
+            <input type="checkbox" onChange={e => {
+                  setSelectedTickets(e.target.checked ? filteredTickets.map(ticket => ticket._id) : []);
+                }} />
+          </TableHead>
+          <TableHead className="min-w-[150px]">Report Number</TableHead>
+          <TableHead className="min-w-[150px]">Title</TableHead>
+          <TableHead className="min-w-[150px]">MDA</TableHead>
+          <TableHead className="min-w-[150px]">Assign</TableHead>
+          <TableHead className="min-w-[150px]">Status</TableHead>
+          <TableHead className="min-w-[150px]">Submission Date</TableHead>
+          <TableHead className="min-w-[150px]">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
 
-    <TableBody>
-      {paginatedTickets.map(ticket => <TableRow key={ticket._id}>
-          <TableCell>
-            <input type="checkbox" checked={selectedTickets.includes(ticket._id)} onChange={e => {
-                const updated = e.target.checked ? [...selectedTickets, ticket._id] : selectedTickets.filter(id => id !== ticket._id);
-                setSelectedTickets(updated);
-              }} />
-          </TableCell>
+      <TableBody>
+        {paginatedTickets.map(ticket => <TableRow key={ticket._id}>
+            <TableCell>
+              <input type="checkbox" checked={selectedTickets.includes(ticket._id)} onChange={e => {
+                  const updated = e.target.checked ? [...selectedTickets, ticket._id] : selectedTickets.filter(id => id !== ticket._id);
+                  setSelectedTickets(updated);
+                }} />
+            </TableCell>
 
-          <TableCell className="whitespace-nowrap text-sm font-medium">
-            {ticket.ticketNumber}
-          </TableCell>
+            <TableCell className="whitespace-nowrap text-sm font-medium">
+              {ticket.ticketNumber}
+            </TableCell>
 
-          <TableCell className="whitespace-normal break-words max-w-[200px] text-sm">
-            {ticket.title}
-          </TableCell>
+            <TableCell className="whitespace-normal break-words max-w-[200px] text-sm">
+              {ticket.title}
+            </TableCell>
 
-          <TableCell className="whitespace-normal break-words max-w-[250px] text-sm">
-            {ticket.assignedMDAName}
-          </TableCell>
+            <TableCell className="whitespace-normal break-words max-w-[250px] text-sm">
+              {ticket.assignedMDAName}
+            </TableCell>
 
-          <TableCell>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" onClick={() => {
-                    setSelectedTicket(ticket._id);
-                    setIsDialogOpen(true);
-                  }}>
-                  Assign MDA
-                </Button>
-              </DialogTrigger>
-            </Dialog>
-          </TableCell>
+            <TableCell>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" onClick={() => {
+                      setSelectedTicket(ticket._id);
+                      setIsDialogOpen(true);
+                    }}>
+                    Assign MDA
+                  </Button>
+                </DialogTrigger>
+              </Dialog>
+            </TableCell>
 
-          <TableCell>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
-              {ticket.status.replace("_", " ")}
-            </span>
-          </TableCell>
+            <TableCell>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(ticket.status)}`}>
+                {ticket.status.replace("_", " ")}
+              </span>
+            </TableCell>
 
-          <TableCell className="whitespace-nowrap text-sm">
-            {new Date(ticket.createdAt ?? ticket._creationTime).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric"
-              })}
-          </TableCell>
+            <TableCell className="whitespace-nowrap text-sm">
+              {new Date(ticket.createdAt ?? ticket._creationTime).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric"
+                })}
+            </TableCell>
 
-          <TableCell>
-            <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-32">Change Status</Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-40">
-                  <div className="flex flex-col gap-2">
-                    {["open", "in_progress", "resolved", "closed"].map(status => <Button key={status} variant={ticket.status === status ? "default" : "outline"} onClick={() => {
-                        if (ticket.status === "resolved" && status !== "resolved") {
-                          setPendingStatusChange({
-                            ticketId: ticket._id,
-                            newStatus: status
-                          });
-                          setShowConfirmDialog(true);
-                        } else {
-                          if (["resolved", "closed"].includes(status)) {
-                            setPendingResolution({
+            <TableCell>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-32">Change Status</Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-40">
+                    <div className="flex flex-col gap-2">
+                      {["open", "in_progress", "resolved", "closed"].map(status => <Button key={status} variant={ticket.status === status ? "default" : "outline"} onClick={() => {
+                          if (ticket.status === "resolved" && status !== "resolved") {
+                            setPendingStatusChange({
                               ticketId: ticket._id,
-                              status: status as "resolved" | "closed"
+                              newStatus: status
                             });
-                            setShowResolutionDialog(true);
+                            setShowConfirmDialog(true);
                           } else {
-                            handleStatusChange(ticket._id, status);
+                            if (["resolved", "closed"].includes(status)) {
+                              setPendingResolution({
+                                ticketId: ticket._id,
+                                status: status as "resolved" | "closed"
+                              });
+                              setShowResolutionDialog(true);
+                            } else {
+                              handleStatusChange(ticket._id, status);
+                            }
                           }
-                        }
-                      }}>
-                        {status}
-                      </Button>)}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                        }}>
+                          {status}
+                        </Button>)}
+                    </div>
+                  </PopoverContent>
+                </Popover>
 
-              <Link href={`/${rolePathPrefix}/tickets/${ticket._id}`}>
-  <Button variant="outline" size="sm">View</Button>
-                </Link>
+                <Link href={`/${rolePathPrefix}/tickets/${ticket._id}`}>
+    <Button variant="outline" size="sm">View</Button>
+                  </Link>
 
-            </div>
-          </TableCell>
-        </TableRow>)}
-    </TableBody>
-  </Table>
-    </div>
+              </div>
+            </TableCell>
+          </TableRow>)}
+      </TableBody>
+    </Table>
+      </div>
+      )}
 
 
 

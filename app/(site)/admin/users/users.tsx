@@ -19,9 +19,10 @@ import Link from "next/link";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
+import Loader from "@/components/Loader";
 
 export default function Admin() {
-  const users = useQuery(api.users.getUsers) || [];
+  const users = useQuery(api.users.getUsers);
   const mdas = useQuery(api.users.getMDAs) || [];
   const assignUserToMDA = useMutation(api.users.assignUserToMDA);
   const updateUserRoleInConvex = useMutation(api.users.updateUserRoleInConvex);
@@ -57,7 +58,7 @@ export default function Admin() {
   }, [selectedUser, mdas, hasManuallySelectedRole]);
   useEffect(() => {
     if (selectedUser) {
-      const user = users.find(u => u.clerkUserId === selectedUser);
+      const user = users?.find(u => u.clerkUserId === selectedUser);
       if (user) {
         setFirstName(user.firstName ?? "N/A");
         setLastName(user.lastName ?? "N/A");
@@ -126,7 +127,7 @@ export default function Admin() {
         formData.append("staffStream", selectedStream);
       }
       await setRole(formData);
-      const existingUser = users.find(u => u.clerkUserId === selectedUser);
+      const existingUser = users?.find(u => u.clerkUserId === selectedUser);
       const wasInMDA = !!existingUser?.mdaId;
       if (["state_governor", "saber_agent", "magistrates", "deputies"].includes(selectedRole)) {
         if (!selectedState || selectedState.trim() === "") {
@@ -202,13 +203,13 @@ export default function Admin() {
     // Download
     XLSX.writeFile(workbook, "users.xlsx");
   };
-  const filteredUsers = users.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_")).filter(user => {
+  const filteredUsers = users?.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_")).filter(user => {
     const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field => field?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
     const matchesStream = selectedStreamFilter === "all" || user.role === "staff" && user.staffStream === selectedStreamFilter;
     const matchesMda = selectedMdaFilter === "all" || (user.mdaName && `${user.mdaName}` === selectedMdaFilter);
     return matchesSearch && matchesRole && matchesStream && matchesMda;
-  });
+  }) || [];
   const totalPages = Math.ceil(filteredUsers.length / recordsPerPage);
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
   return <div className="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-6">
@@ -304,21 +305,26 @@ export default function Admin() {
       </Button>
     )}
 
-    <div className="relative w-full overflow-x-auto rounded-md border border-gray-300 shadow-sm scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100">
-      <Table className="min-w-[1200px]">
-    <TableHeader className="bg-gray-100 text-xs text-gray-600 uppercase">
-      <TableRow>
-        <TableHead className="p-4">User</TableHead>
-        <TableHead>Email</TableHead>
-        <TableHead>Phone</TableHead>
-        <TableHead>Role</TableHead>
-        <TableHead>Stream / MDA</TableHead>
-        <TableHead className="text-center">Action</TableHead>
-      </TableRow>
-    </TableHeader>
+    {users === undefined ? (
+      <div className="flex justify-center items-center py-12">
+        <Loader />
+      </div>
+    ) : (
+      <div className="relative w-full overflow-x-auto rounded-md border border-gray-300 shadow-sm scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100">
+        <Table className="min-w-[1200px]">
+          <TableHeader className="bg-gray-100 text-xs text-gray-600 uppercase">
+            <TableRow>
+              <TableHead className="p-4">User</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Stream / MDA</TableHead>
+              <TableHead className="text-center">Action</TableHead>
+            </TableRow>
+          </TableHeader>
 
-    <TableBody>
-      {paginatedUsers.map(user => <TableRow key={user._id} className="hover:bg-gray-50 transition-all">
+          <TableBody>
+            {paginatedUsers.map(user => <TableRow key={user._id} className="hover:bg-gray-50 transition-all">
           {}
           <TableCell className="py-3 px-4 whitespace-nowrap max-w-xs">
   <div className="flex items-center gap-3">
@@ -673,6 +679,7 @@ export default function Admin() {
     </TableBody>
   </Table>
     </div>
+    )}
 
 
       {}

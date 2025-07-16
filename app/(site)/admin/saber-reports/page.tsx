@@ -21,6 +21,7 @@ import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
+import Loader from "@/components/Loader";
 
 interface SaberReport {
   _id: Id<"saber_reports">;
@@ -51,13 +52,13 @@ export default function AdminSaberReportsPage() {
   const [comments, setComments] = useState("");
 
   // Fetch all reports
-  const allReports = useQuery(api.saber_reports.getAllReports) ?? [];
+  const allReports = useQuery(api.saber_reports.getAllReports);
   
   // Update report status mutation
   const updateStatus = useMutation(api.saber_reports.updateReportStatus);
 
   // Apply filters
-  const filteredReports = allReports.filter(report => {
+  const filteredReports = allReports?.filter(report => {
     const matchesSearch = 
       report.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       report.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -70,7 +71,7 @@ export default function AdminSaberReportsPage() {
     const matchesEnd = endDate ? reportDate <= endDate : true;
     
     return matchesSearch && matchesState && matchesStatus && matchesStart && matchesEnd;
-  }).sort((a, b) => b.submittedAt - a.submittedAt);
+  }).sort((a, b) => b.submittedAt - a.submittedAt) || [];
 
   const totalPages = Math.ceil(filteredReports.length / PAGE_SIZE);
   const paginatedReports = filteredReports.slice(
@@ -204,7 +205,12 @@ export default function AdminSaberReportsPage() {
       </Card>
 
       {/* Reports Table */}
-      <Card>
+      {allReports === undefined ? (
+    <div className="flex justify-center items-center py-12">
+      <Loader />
+    </div>
+  ) : (
+    <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
@@ -290,6 +296,7 @@ export default function AdminSaberReportsPage() {
           </div>
         </CardContent>
       </Card>
+  )}
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
