@@ -18,13 +18,14 @@ import { Download, FileBarChart2, FileText, Trash2 } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import classNames from "classnames";
 import { formatRole } from "@/lib/formatters";
+import Loader from "@/components/Loader";
 
 export default function SubmittedReportsPage() {
   const {
     user
   } = useUser();
   const userRole = user?.publicMetadata?.role as string;
-  const submittedReports = useQuery(api.internal_reports.getAllSubmittedReports) ?? [];
+  const submittedReports = useQuery(api.internal_reports.getAllSubmittedReports);
   const reportTemplates = useQuery(api.internal_reports.getAvailableReportsforAdmin, {
     role: "all"
   }) ?? [];
@@ -52,7 +53,7 @@ export default function SubmittedReportsPage() {
   };
   useEffect(() => {
     const fetchFileUrls = async () => {
-      if (submittedReports.length > 0) {
+      if (submittedReports && submittedReports.length > 0) {
         try {
           const urls = await Promise.all(submittedReports.map(async report => {
             if (report.fileId) {
@@ -91,8 +92,8 @@ export default function SubmittedReportsPage() {
     };
     fetchFileUrls();
   }, [submittedReports, getFileUrl]);
-  const uniqueMdaNames = Array.from(new Set(submittedReports.map(r => r.mdaName).filter(Boolean)));
-  const filteredReports = submittedReports.filter(report => {
+  const uniqueMdaNames = Array.from(new Set(submittedReports?.map(r => r.mdaName).filter(Boolean) || []));
+  const filteredReports = submittedReports?.filter(report => {
     const matchesRole = selectedRole === "all" || report.role === selectedRole;
     const matchesName = report.userName?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesMda = selectedMda === "all" || report.mdaName === selectedMda;
@@ -100,7 +101,7 @@ export default function SubmittedReportsPage() {
     const matchesStart = startDate ? reportDate >= startDate : true;
     const matchesEnd = endDate ? reportDate <= endDate : true;
     return matchesRole && matchesName && matchesMda && matchesStart && matchesEnd;
-  }).sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  }).sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()) || [];
   const totalPages = Math.ceil(filteredReports.length / itemsPerPage);
   const paginatedReports = filteredReports.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const handleQuickFilter = (label: string, from: Date, to: Date = new Date()) => {
@@ -267,87 +268,89 @@ export default function SubmittedReportsPage() {
 
 
       {}
-      <div className="overflow-x-auto w-full">
-      <Table className="min-w-full table-auto">
-      <TableHeader>
-          <TableRow className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wide">
-          <TableHead>Name</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>MDA</TableHead>
-              <TableHead>Report</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedReports.length > 0 ? paginatedReports.map((r, i) => {
-            const template = reportTemplates.find(t => t._id === r.templateId);
-            return <TableRow key={i} className=" hover:bg-gray-50 border-b">
-              <TableCell className="min-w-[180px] sm:min-w-[200px]">
-  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 w-full">
-    <img src={getUserImage(r.userName) || "/placeholder.png"} alt={r.userName} className="w-10 h-10 rounded-full object-cover" />
-    <div className="text-center sm:text-left">
-      <p className="text-sm font-semibold text-gray-800 leading-tight break-words">{r.userName}</p>
-      <p className="text-xs text-gray-500">{formatRole(r.role)}</p>
-    </div>
-  </div>
-              </TableCell>
-
-
-
-                  <TableCell>{formatRole(r.role)}</TableCell>
-                  <TableCell>{r.mdaName || "-"}</TableCell>
-                  <TableCell>{r.reportName || template?.title || "—"}</TableCell>
-                  <TableCell>{new Date(r.submittedAt).toLocaleDateString()}</TableCell>
-                  <TableCell>
-  <div className="flex gap-2 justify-center">
-    {r.fileId && fileUrls[r.fileId] ? <Button size="icon" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={async () => {
-                    const fileMeta = r.fileId ? fileUrls[r.fileId] : null;
-                    if (!fileMeta) return;
-                    try {
-                      const response = await fetch(fileMeta.url);
-                      const blob = await response.blob();
-                      const blobUrl = window.URL.createObjectURL(blob);
-                      const link = document.createElement("a");
-                      link.href = blobUrl;
-                      link.download = fileMeta.fileName || "downloaded_file";
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      window.URL.revokeObjectURL(blobUrl);
-                    } catch (error) {
-                      console.error("Download failed", error);
-                      toast.error("Failed to download file");
-                    }
-                  }}>
-        <Download className="w-4 h-4" />
-      </Button> : <>
-        <Button onClick={() => exportToPDF(r)} size="icon" className="bg-red-600 hover:bg-red-700 text-white" title="Export to PDF">
-          <FileText className="w-4 h-4" />
-        </Button>
-        <Button onClick={() => exportToExcel(r)} size="icon" className="bg-green-600 text-white" title="Export to Excel">
-          <FileBarChart2 className="w-4 h-4" />
-        </Button>
-      </>}
-
-    {userRole !== "vice_president" && userRole !== "president" && <Button onClick={() => {
-                    setSelectedReportId(r._id);
-                    setShowDeleteDialog(true);
-                  }} size="icon" className="bg-red-600 text-white" title="Delete">
-        <Trash2 className="w-4 h-4" />
-      </Button>}
-  </div>
-              </TableCell>
-
-                </TableRow>;
-          }) : <TableRow>
-                <TableCell colSpan={6} className="text-center text-gray-500 py-6">
-                  No submitted reports found.
-                </TableCell>
-              </TableRow>}
-          </TableBody>
-        </Table>
+      {submittedReports === undefined ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader />
+        </div>
+      ) : (
+        <div className="overflow-x-auto w-full">
+        <Table className="min-w-full table-auto">
+        <TableHeader>
+            <TableRow className="bg-gray-100 text-gray-600 text-sm uppercase tracking-wide">
+            <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>MDA</TableHead>
+                <TableHead>Report</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedReports.map((r, i) => {
+              const template = reportTemplates.find(t => t._id === r.templateId);
+              return <TableRow key={i} className=" hover:bg-gray-50 border-b">
+                <TableCell className="min-w-[180px] sm:min-w-[200px]">
+    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 w-full">
+      <img src={getUserImage(r.userName) || "/placeholder.png"} alt={r.userName} className="w-10 h-10 rounded-full object-cover" />
+      <div className="text-center sm:text-left">
+        <p className="text-sm font-semibold text-gray-800 leading-tight break-words">{r.userName}</p>
+        <p className="text-xs text-gray-500">{formatRole(r.role)}</p>
       </div>
+    </div>
+                </TableCell>
+
+
+
+                    <TableCell>{formatRole(r.role)}</TableCell>
+                    <TableCell>{r.mdaName || "-"}</TableCell>
+                    <TableCell>{r.reportName || template?.title || "—"}</TableCell>
+                    <TableCell>{new Date(r.submittedAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+    <div className="flex gap-2 justify-center">
+      {r.fileId && fileUrls[r.fileId] ? <Button size="icon" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={async () => {
+                      const fileMeta = r.fileId ? fileUrls[r.fileId] : null;
+                      if (!fileMeta) return;
+                      try {
+                        const response = await fetch(fileMeta.url);
+                        const blob = await response.blob();
+                        const blobUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.href = blobUrl;
+                        link.download = fileMeta.fileName || "downloaded_file";
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(blobUrl);
+                      } catch (error) {
+                        console.error("Download failed", error);
+                        toast.error("Failed to download file");
+                      }
+                    }}>
+          <Download className="w-4 h-4" />
+        </Button> : <>
+          <Button onClick={() => exportToPDF(r)} size="icon" className="bg-red-600 hover:bg-red-700 text-white" title="Export to PDF">
+            <FileText className="w-4 h-4" />
+          </Button>
+          <Button onClick={() => exportToExcel(r)} size="icon" className="bg-green-600 text-white" title="Export to Excel">
+            <FileBarChart2 className="w-4 h-4" />
+          </Button>
+        </>}
+
+      {userRole !== "vice_president" && userRole !== "president" && <Button onClick={() => {
+                      setSelectedReportId(r._id);
+                      setShowDeleteDialog(true);
+                    }} size="icon" className="bg-red-600 text-white" title="Delete">
+          <Trash2 className="w-4 h-4" />
+        </Button>}
+    </div>
+                    </TableCell>
+
+                  </TableRow>;
+            })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {}
       <div className="flex items-center justify-center mt-4 gap-4">
