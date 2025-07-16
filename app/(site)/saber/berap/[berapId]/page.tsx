@@ -55,7 +55,7 @@ export default function BERAPDetailPage() {
       {}
       <div className="max-w-7xl mx-auto px-6 py-10">
         {}
-        <div className="bg-white border border-blue-100 rounded-lg shadow-sm px-6 py-5 mb-10 max-w-sm">
+        <div className="bg-white border border-blue-100 rounded-lg shadow-sm px-6 py-5 mb-10 max-w-fit">
           <div className="flex items-center gap-2 mb-4 text-gray-800 font-semibold text-lg">
             <Paperclip className="w-5 h-5 text-blue-600" />
             Resource Materials
