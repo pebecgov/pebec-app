@@ -52,102 +52,31 @@ export function getEffectiveStartTime(creationTime: number): number {
   }
 }
 
+// 72-hour utility functions (real hours, not business hours)
+
+// Returns the deadline timestamp 72 hours after startTime
 export function addBusinessHours(startTime: number, hours: number): number {
-  let currentTime = startTime;
-  let remainingHours = hours;
-
-  while (remainingHours > 0) {
-    const date = new Date(currentTime);
-    const dayOfWeek = date.getDay();
-    const hour = date.getHours();
-
-    // Skip weekends
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      currentTime += 24 * 60 * 60 * 1000; // Add one day
-      continue;
-    }
-
-    // Only count business hours (9 AM - 5 PM WAT)
-    if (hour >= 9 && hour < 17) {
-      remainingHours--;
-    }
-
-    currentTime += 60 * 60 * 1000; // Add one hour
-  }
-
-  return currentTime;
+  return startTime + hours * 60 * 60 * 1000;
 }
 
-export function skipWeekendsHours(startTime: number, endTime: number, includeWeekends: boolean = false): number {
-  if (includeWeekends) {
-    return (endTime - startTime) / (60 * 60 * 1000); // Convert to hours
-  }
-
-  let currentTime = startTime;
-  let businessHours = 0;
-
-  while (currentTime < endTime) {
-    const date = new Date(currentTime);
-    const dayOfWeek = date.getDay();
-    const hour = date.getHours();
-
-    // Skip weekends
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      currentTime += 24 * 60 * 60 * 1000; // Add one day
-      continue;
-    }
-
-    // Only count business hours (9 AM - 5 PM WAT)
-    if (hour >= 9 && hour < 17) {
-      businessHours++;
-    }
-
-    currentTime += 60 * 60 * 1000; // Add one hour
-  }
-
-  return businessHours;
+// Returns the number of hours between startTime and endTime
+export function skipWeekendsHours(startTime: number, endTime: number, _includeWeekends: boolean = false): number {
+  return (endTime - startTime) / (60 * 60 * 1000);
 }
 
+// Returns the number of hours between startTime and endTime
 export function calculateBusinessHours(startTime: number, endTime: number): number {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  
-  if (start >= end) return 0;
-  
-  let totalHours = 0;
-  let current = getNextBusinessHour(start);
-  
-  while (current < end) {
-    if (isWithinBusinessHours(current)) {
-      // Calculate hours until end of business day or end time
-      const endOfDay = new Date(current);
-      endOfDay.setHours(17, 0, 0, 0);
-      
-      const periodEnd = end < endOfDay ? end : endOfDay;
-      const hoursInPeriod = (periodEnd.getTime() - current.getTime()) / (1000 * 60 * 60);
-      
-      totalHours += hoursInPeriod;
-      
-      // Move to start of next business day
-      current = new Date(current);
-      current.setDate(current.getDate() + 1);
-      current = getNextBusinessHour(current);
-    } else {
-      current = getNextBusinessHour(current);
-    }
-  }
-  
-  return totalHours;
+  return (endTime - startTime) / (60 * 60 * 1000);
 }
 
+// Returns the number of hours remaining until 72 hours after startTime
 export function getTimeRemaining72Hours(startTime: number, currentTime: number): number {
-  const baseDeadline = addBusinessHours(startTime, 72);
-  
-  // Calculate remaining time
-  const remaining = (baseDeadline - currentTime) / (60 * 60 * 1000); // Convert to hours
+  const baseDeadline = startTime + 72 * 60 * 60 * 1000;
+  const remaining = (baseDeadline - currentTime) / (60 * 60 * 1000);
   return remaining;
 }
 
+// Returns true if more than 72 hours have passed since startTime
 export function isOverdue72Hours(startTime: number, currentTime: number): boolean {
   return getTimeRemaining72Hours(startTime, currentTime) <= 0;
 } 

@@ -48,16 +48,14 @@ export default function MiniCountdown({
 
   const formatTimeRemaining = (hours: number): string => {
     if (hours <= 0) return "0h";
-    
     const wholeHours = Math.floor(hours);
-    
+    const minutes = Math.floor((hours - wholeHours) * 60);
     if (wholeHours >= 24) {
       const days = Math.floor(wholeHours / 24);
       const remainingHours = wholeHours % 24;
-      return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+      return remainingHours > 0 ? `${days}d ${remainingHours}h ${minutes}m` : `${days}d`;
     }
-    
-    return `${wholeHours}h`;
+    return `${wholeHours}h ${minutes}m`;
   };
 
   const getTextColor = () => {
