@@ -81,7 +81,7 @@ export default function SubmitLetterForm({
     try {
       const uploadUrl = await generateUploadUrl();
       const result = await fetch(uploadUrl, {
-        method: "PUT",
+        method: "POST",
         headers: {
           "Content-Type": selectedFile.type,
         },
