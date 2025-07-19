@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@headlessui/react";
+import Loader from "@/components/Loader";
 export default function BERAPDetailPage() {
   const {
     berapId
@@ -61,17 +62,27 @@ export default function BERAPDetailPage() {
             Resource Materials
           </div>
 
-          {materials?.length === 0 ? <p className="text-sm text-muted-foreground">No materials uploaded.</p> : <ul className="space-y-3">
-              {materials!.map(mat => <li key={mat._id} className="bg-blue-50 border border-blue-100 rounded-md px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-blue-600" />
-                    <span className="text-sm font-medium text-gray-800 truncate">
-                      {mat.name}
-                    </span>
-                  </div>
-                  <DownloadButton fileId={mat.fileId} link={mat.link} />
-                </li>)}
-            </ul>}
+          {materials === undefined ? (
+  <div className="flex justify-center items-center py-6">
+    <Loader />
+  </div>
+) : materials.length === 0 ? (
+  <p className="text-sm text-muted-foreground">No materials uploaded.</p>
+) : (
+  <ul className="space-y-3">
+    {materials.map(mat => (
+      <li key={mat._id} className="bg-blue-50 border border-blue-100 rounded-md px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FileText className="w-5 h-5 text-blue-600" />
+          <span className="text-sm font-medium text-gray-800 truncate">
+            {mat.name}
+          </span>
+        </div>
+        <DownloadButton fileId={mat.fileId} link={mat.link} />
+      </li>
+    ))}
+  </ul>
+)}
         </div>
 
         {}
