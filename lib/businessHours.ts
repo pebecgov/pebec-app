@@ -80,3 +80,50 @@ export function getTimeRemaining72Hours(startTime: number, currentTime: number):
 export function isOverdue72Hours(startTime: number, currentTime: number): boolean {
   return getTimeRemaining72Hours(startTime, currentTime) <= 0;
 } 
+
+// Adds the given number of hours to startTime, skipping all hours that fall on Saturday or Sunday
+export function addHoursSkippingWeekends(startTime: number, hours: number): number {
+  let remainingHours = hours;
+  let current = new Date(startTime);
+
+  while (remainingHours > 0) {
+    // If weekend, skip to next Monday 00:00
+    if (current.getDay() === 6) { // Saturday
+      current.setDate(current.getDate() + 2);
+      current.setHours(0, 0, 0, 0);
+      continue;
+    } else if (current.getDay() === 0) { // Sunday
+      current.setDate(current.getDate() + 1);
+      current.setHours(0, 0, 0, 0);
+      continue;
+    }
+    // Calculate how many hours left in this day
+    const hoursLeftToday = 24 - current.getHours();
+    const hoursToAdd = Math.min(remainingHours, hoursLeftToday);
+    current.setHours(current.getHours() + hoursToAdd);
+    remainingHours -= hoursToAdd;
+    // If we hit the end of the day, move to next day
+    if (remainingHours > 0 && current.getHours() === 0) {
+      // (getHours() === 0 means we rolled over to next day)
+      continue;
+    }
+  }
+  return current.getTime();
+}
+
+// Returns the number of hours remaining until 72 hours have elapsed, skipping weekends
+export function getTimeRemaining72HoursSkippingWeekends(startTime: number, currentTime: number): number {
+  // Find the deadline timestamp
+  const deadline = addHoursSkippingWeekends(startTime, 72);
+  if (currentTime >= deadline) return 0;
+  // Now, count how many valid (non-weekend) hours are left from currentTime to deadline
+  let remaining = 0;
+  let current = new Date(currentTime);
+  while (current.getTime() < deadline) {
+    if (current.getDay() !== 6 && current.getDay() !== 0) {
+      remaining++;
+    }
+    current.setHours(current.getHours() + 1);
+  }
+  return remaining;
+} 

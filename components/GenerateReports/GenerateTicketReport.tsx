@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
-import { getTimeRemaining72Hours } from "@/lib/businessHours";
+import { getTimeRemaining72HoursSkippingWeekends } from "@/lib/businessHours";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -126,8 +126,8 @@ export default function GenerateTicketReport({
         t.resolutionNote || "",
         // Add new columns
         t.firstResponseAt ? format(new Date(t.firstResponseAt), "PPP 'at' h:mm a") : "—",
-        getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "resolved" ? "Yes" : "No",
-        getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "closed" ? "Yes" : "No"
+        getTimeRemaining72HoursSkippingWeekends(t.createdAt, t.updatedAt) > 0 && t.status === "resolved" ? "Yes" : "No",
+        getTimeRemaining72HoursSkippingWeekends(t.createdAt, t.updatedAt) > 0 && t.status === "closed" ? "Yes" : "No"
       );
       return row;
     });
@@ -177,8 +177,8 @@ export default function GenerateTicketReport({
         Description: t.description?.replace(/<[^>]+>/g, "") || "",
         ResolutionNote: t.resolutionNote || "",
         FirstResponse: t.firstResponseAt ? format(new Date(t.firstResponseAt), "PPP 'at' h:mm a") : "—",
-        ResolvedWithin72hrs: getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "resolved" ? "Yes" : "No",
-        ClosedWithin72hrs: getTimeRemaining72Hours(t.createdAt, t.updatedAt) > 0 && t.status === "closed" ? "Yes" : "No"
+        ResolvedWithin72hrs: getTimeRemaining72HoursSkippingWeekends(t.createdAt, t.updatedAt) > 0 && t.status === "resolved" ? "Yes" : "No",
+        ClosedWithin72hrs: getTimeRemaining72HoursSkippingWeekends(t.createdAt, t.updatedAt) > 0 && t.status === "closed" ? "Yes" : "No"
       };
       if (showMdaColumn) {
         return {

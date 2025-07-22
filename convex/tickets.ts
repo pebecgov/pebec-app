@@ -1063,7 +1063,7 @@ export const getMdaMonthlySummaryStats = query({
       const updated = ticket.updatedAt ?? ticket._creationTime;
       
       // Use skipWeekendsHours to calculate time taken
-      const hoursUsed = (updated - ticket.createdAt) / (1000 * 60 * 60);
+      const hoursUsed = skipWeekendHoursCount(ticket.createdAt, updated);
       
       return resolvedOrClosed && hoursUsed <= 72;
     }).length;
@@ -1114,8 +1114,8 @@ export const getAdminMonthlyStats = query({
     const monthlyTickets = tickets.filter(t => t.createdAt >= startOfMonth);
     const withStats = monthlyTickets.map(t => {
       const updated = t.updatedAt ?? t.createdAt;
-      const resolvedWithin72h = t.status === "resolved" && updated - t.createdAt <= threeDaysMs;
-      const closedWithin72h = t.status === "closed" && updated - t.createdAt <= threeDaysMs;
+      const resolvedWithin72h = t.status === "resolved" && skipWeekendHoursCount(t.createdAt, updated) <= 72;
+      const closedWithin72h = t.status === "closed" && skipWeekendHoursCount(t.createdAt, updated) <= 72;
       return {
         ticketNumber: t.ticketNumber,
         title: t.title,
@@ -1344,9 +1344,17 @@ export const getAllBusinessNames = query({
   }
 });
 
-function skipWeekendsHours(start: number, end: number): number {
-  // Use the new business hours calculation (9am-5pm Monday-Friday)
-  return calculateBusinessHours(start, end);
+// Helper to count non-weekend hours between two timestamps
+function skipWeekendHoursCount(start: number, end: number): number {
+  let count = 0;
+  let current = new Date(start);
+  while (current.getTime() < end) {
+    if (current.getDay() !== 6 && current.getDay() !== 0) {
+      count++;
+    }
+    current.setHours(current.getHours() + 1);
+  }
+  return count;
 }
 
 export const getTicketStats = query({
@@ -1381,7 +1389,7 @@ export const getTicketStats = query({
     for (const t of tickets) {
       const startTime = t.reassignedAt ?? t.createdAt;
       const updated = t.updatedAt ?? now;
-      const hours = (updated - startTime) / (1000 * 60 * 60);
+      const hours = skipWeekendHoursCount(startTime, updated);
       if (t.status === "resolved") {
         resolved++;
         resolutionTimes.push(hours);
@@ -1393,10 +1401,10 @@ export const getTicketStats = query({
       }
       if (t.status === "open") {
         open++;
-        if ((now - t.createdAt) > 72 * 60 * 60 * 1000) overdue++;
+        if (skipWeekendHoursCount(t.createdAt, now) > 72) overdue++;
       }
       if (t.firstResponseAt) {
-        const responseHrs = (t.firstResponseAt - startTime) / (1000 * 60 * 60);
+        const responseHrs = skipWeekendHoursCount(startTime, t.firstResponseAt);
         responseTimes.push(responseHrs);
       }
     }
