@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { Clock, AlertTriangle } from "lucide-react";
-import { getTimeRemaining72Hours, isOverdue72Hours } from "@/lib/businessHours";
+import { getTimeRemaining72HoursSkippingWeekends } from "@/lib/businessHours";
 
 interface MiniCountdownProps {
   ticketCreatedAt: number;
@@ -25,8 +25,8 @@ export default function MiniCountdown({
     
     const updateCountdown = () => {
       const now = Date.now();
-      const remaining = getTimeRemaining72Hours(startTime, now);
-      const overdue = isOverdue72Hours(startTime, now);
+      const remaining = getTimeRemaining72HoursSkippingWeekends(startTime, now);
+      const overdue = remaining <= 0;
       
       setTimeRemaining(remaining);
       setIsOverdue(overdue);

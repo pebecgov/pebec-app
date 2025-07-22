@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Clock } from "lucide-react";
-import { addBusinessHours } from "@/lib/businessHours";
+import { addHoursSkippingWeekends } from "@/lib/businessHours";
 
 function getDeadline(startTime: number): number {
-  return addBusinessHours(startTime, 72); // 72 hours
+  return addHoursSkippingWeekends(startTime, 72); // 72 hours, skipping weekends
 }
 
 function formatTimeLeft(ms: number): string {
