@@ -206,7 +206,8 @@ export const submitInternalReport = mutation({
       v.literal("vice_president"),
       v.literal("world_bank")
     ),
-    data: v.array(v.array(v.string()))
+    data: v.array(v.array(v.string())),
+    reportName: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.submittedBy);
@@ -218,7 +219,8 @@ export const submitInternalReport = mutation({
       data: args.data,
       mdaName,
       submittedAt: Date.now(),
-      isDraft: false
+      isDraft: false,
+      reportName: args.reportName
     });
   }
 });
