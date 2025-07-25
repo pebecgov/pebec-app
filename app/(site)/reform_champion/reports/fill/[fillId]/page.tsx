@@ -17,6 +17,11 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Save, FileText, Trash2, Upload } from "lucide-react"; 
 import * as XLSX from 'xlsx'; 
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 export default function FillReportPage() {
   const { fillId } = useParams();
   const router = useRouter();
@@ -189,12 +194,13 @@ export default function FillReportPage() {
           draftId: currentDraft
         });
       } else {
-        // Submit directly
+       
         await submitReport({
           templateId: template._id,
           submittedBy: convexUserId as Id<"users">,
           role: template.role,
-          data: formData
+          data: formData,
+          reportName: `${template.title}${reportTitle && reportTitle !== template.title ? ` (${reportTitle})` : ""}`
         });
       }
       toast.success("Report submitted successfully!");
@@ -212,7 +218,6 @@ export default function FillReportPage() {
       await deleteDraft({ draftId: currentDraft });
       setCurrentDraft(null);
       setLastSavedAt(null);
-      // Reset form to an empty row
       if (template) {
         setFormData([template.headers.map(() => "")]);
       }
@@ -346,11 +351,26 @@ export default function FillReportPage() {
       console.error("Error processing Excel file:", error);
       toast.error("Failed to process Excel file. Please ensure it's in the correct format.");
     } finally {
-        // Reset file input to allow re-uploading the same file
+     
         event.target.value = '';
     }
   };
 
+  const currentMonth = MONTHS[new Date().getMonth()];
+  const [reportTitle, setReportTitle] = useState(currentMonth);
+
+  useEffect(() => {
+    setReportTitle(currentMonth);
+  }, [template]); // Reset when template changes
+
+  // Function to download Excel with headers
+  const handleDownloadTemplateExcel = () => {
+    if (!template) return;
+    const ws = XLSX.utils.aoa_to_sheet([template.headers.map(h => h.name)]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, `${reportTitle || "Report"}_template.xlsx`);
+  };
 
   if (!template) return <p className="text-center p-6 text-gray-500">Loading Report...</p>;
 
@@ -358,7 +378,22 @@ export default function FillReportPage() {
     <div className="p-6 bg-white rounded-lg shadow-md overflow-x-auto">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h2 className="text-xl font-semibold">{template.title}</h2>
+          {/* Editable report title input */}
+          <div className="mb-2">
+            <label className="block text-gray-700 font-medium mb-1">Report Month</label>
+            <Select value={reportTitle} onValueChange={setReportTitle}>
+              <SelectTrigger className="w-[320px]  text-1xl">
+                <SelectValue placeholder="Select Month" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map(month => (
+                  <SelectItem key={month} value={month}>
+                    {month}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <p className="text-gray-600">{template.description}</p>
           {currentDraft && lastSavedAt && (
             <p className="text-sm text-green-600 mt-1">
@@ -367,6 +402,11 @@ export default function FillReportPage() {
           )}
         </div>
         <div className="flex gap-2">
+          {/* Download Excel template button */}
+          <Button variant="outline" onClick={handleDownloadTemplateExcel}>
+            <FileText className="w-4 h-4 mr-1" />
+            Download Excel Template
+          </Button>
           <Button variant="outline" onClick={() => router.back()}>← Go Back</Button>
           {currentDraft && (
             <Dialog open={showDraftDialog} onOpenChange={setShowDraftDialog}>
@@ -406,15 +446,17 @@ export default function FillReportPage() {
         <Table className="mb-4 min-w-max">
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">#</TableHead> {/* Serial number column */}
               {template.headers.map((header, index) => (
                 <TableHead key={index}>{header.name}</TableHead>
               ))}
-              <TableHead className="w-[50px]">Actions</TableHead> {/* New column for remove button */}
+              <TableHead className="w-[50px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {formData.map((row, rowIndex) => (
               <TableRow key={rowIndex}>
+                <TableCell className="font-bold">{rowIndex + 1}</TableCell> {/* Serial number */}
                 {row.map((cell, colIndex) => (
                   <TableCell key={colIndex}>
                     {template.headers[colIndex].type === "dropdown" ? (
