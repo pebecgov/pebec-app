@@ -10,7 +10,9 @@ import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import TicketComments from "@/components/TicketsComments";
 import { toast } from "sonner";
-import { FaArrowLeft, FaFileAlt, FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTrashAlt, FaBriefcase } from "react-icons/fa";
+import { FaArrowLeft, FaTrashAlt, FaFileAlt, FaDownload } from "react-icons/fa";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { CheckIcon, XCircleIcon, ArrowPathIcon } from "@heroicons/react/24/solid";
 import TicketStepper from "@/components/ui/stepper";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
@@ -118,6 +120,34 @@ export default function AdminTicketDetailsPage() {
       toast.error("Failed to delete ticket.");
     }
   }
+  async function handleDownloadPDF() {
+    try {
+      // Get the ticket details container
+      const element = document.getElementById('ticket-details');
+      if (!element) return;
+
+      // Create canvas from the element
+      const canvas = await html2canvas(element);
+      const imgData = canvas.toDataURL('image/png');
+
+      // Initialize PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      // Add the image to PDF
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+
+      // Download the PDF
+      pdf.save(`ticket-${ticket?.ticketNumber || 'details'}.pdf`);
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("❌ Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  }
   if (ticket === undefined) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -134,131 +164,96 @@ export default function AdminTicketDetailsPage() {
         </Link>
       </div>;
   }
-  return <div className="relative max-w-5xl mx-auto md:mt-10 p-6 mt-5 bg-white shadow-lg rounded-md">
+  return (
+    <div className="relative max-w-5xl mx-auto md:mt-10 p-6 mt-5 bg-white shadow-lg rounded-md">
       <div className="flex justify-between">
         <Link href="/admin/tickets">
           <Button variant="outline" className="mb-6 flex items-center gap-2">
             <FaArrowLeft className="w-4 h-4" /> Back to Tickets
           </Button>
         </Link>
-        {role !== "staff" && role !== "president" && role !== "vice_president" && <Button onClick={() => setIsDeleteDialogOpen(true)} variant="destructive" className="flex items-center gap-2">
-    <FaTrashAlt className="w-4 h-4" /> Delete Ticket
-  </Button>}
-
-      </div>
-
-      <TicketStepper currentStep={ticket.status === "open" ? 0 : ticket.status === "in_progress" ? 1 : 2} status={ticket.status} />
-
-      <div className="mt-6">
-        <h1 className="text-2xl font-bold">{ticket.title}</h1>
-        <p className="text-gray-500 mt-1">
-          Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
-        </p>
-        <div className="mt-4">
-          <TicketCountdown 
-            ticketCreatedAt={ticket.createdAt}
-            ticketReassignedAt={ticket.reassignedAt}
-            ticketStatus={ticket.status}
-          />
-        </div>
-      </div>
-
-      {ticket.resolutionNote && <div className="mt-6 p-4 bg-gray-100 border rounded-lg">
-          <h3 className="font-semibold text-lg">Resolution Note</h3>
-          <p className="mt-2">{ticket.resolutionNote}</p>
-          <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="mt-3">
-            Add new resolution note
+        <div className="flex gap-2">
+          <Button onClick={handleDownloadPDF} variant="outline" className="flex items-center gap-2">
+            <FaDownload className="w-4 h-4" /> Download PDF
           </Button>
-        </div>}
-
-      <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-        <h3 className="font-semibold text-lg">Description</h3>
-        <div dangerouslySetInnerHTML={{
-        __html: ticket.description
-      }} />
-      </div>
-
-      <div className="mt-6 p-5 bg-white shadow-md rounded-lg border">
-        <h3 className="font-semibold text-lg mb-3">User Details</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-700 text-sm">
-          <div className="flex items-center gap-2">
-            <FaUser className="text-gray-600" />
-            <span><strong>Name:</strong> {ticket.fullName}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaEnvelope className="text-gray-600" />
-            <span><strong>Email:</strong> {ticket.email}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaPhone className="text-gray-600" />
-            <span><strong>Phone:</strong> {ticket.phoneNumber}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaCalendarAlt className="text-gray-600" />
-            <span><strong>Date:</strong> {new Date(ticket.incidentDate).toLocaleDateString()}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaMapMarkerAlt className="text-gray-600" />
-            <span><strong>Location:</strong> {ticket.state}, {ticket.address}</span>
-          </div>
-          {(ticketUser?.businessName || ticket.businessName) && <div className="flex items-center gap-2">
-    <FaBriefcase className="text-gray-600" />
-    <span>
-      <strong>Business:</strong> {ticketUser?.businessName || ticket.businessName}
-    </span>
-  </div>}
-
-
-          <div className="flex items-center gap-2">
-            <FaBuilding className="text-gray-600" />
-            <span><strong>MDA:</strong> {ticket.assignedMDAName || ticket.assignedMDA}</span>
-          </div>
+          {role !== "staff" && role !== "president" && role !== "vice_president" && 
+            <Button onClick={() => setIsDeleteDialogOpen(true)} variant="destructive" className="flex items-center gap-2">
+              <FaTrashAlt className="w-4 h-4" /> Delete Ticket
+            </Button>
+          }
         </div>
       </div>
 
-      {fileUrls.length > 0 && <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-          <h3 className="font-semibold text-lg mb-2">Uploaded Files</h3>
-          <ul className="list-disc pl-5">
-            {fileUrls.map((url, index) => <li key={index}>
-                <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
-                  <FaFileAlt className="text-gray-500" /> View Document {index + 1}
-                </a>
-              </li>)}
-          </ul>
-        </div>}
+      <div id="ticket-details">
+        <TicketStepper currentStep={ticket.status === "open" ? 0 : ticket.status === "in_progress" ? 1 : 2} status={ticket.status} />
 
-      {!isLocked && <div className="mt-6">
-          <h3 className="font-semibold text-lg">Update Status</h3>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Button onClick={() => handleStatusDialog("in_progress")} variant="outline" className="text-yellow-600">
-              <ArrowPathIcon className="w-4 h-4" /> In Progress
-            </Button>
-            <Button onClick={() => handleStatusDialog("resolved")} variant="outline" className="text-green-600">
-              <CheckIcon className="w-4 h-4" /> Resolve Ticket
-            </Button>
-            <Button onClick={() => handleStatusDialog("closed")} variant="outline" className="text-red-600">
-              <XCircleIcon className="w-4 h-4" /> Close Ticket
-            </Button>
-          </div>
-        </div>}
-
-      <div className="mt-6">
-        <TicketComments ticketId={ticketId as string} />
-      </div>
-
-      {/* Internal Notes - Only visible to MDA and Admin */}
-      {ticket.assignedMDA && (
         <div className="mt-6">
-          <TicketInternalNotes ticketId={ticketId as string} />
+          <h1 className="text-2xl font-bold">{ticket.title}</h1>
+          <p className="text-gray-500 mt-1">
+            Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
+          </p>
+          <div className="mt-4">
+            <TicketCountdown 
+              ticketCreatedAt={ticket.createdAt}
+              ticketReassignedAt={ticket.reassignedAt}
+              ticketStatus={ticket.status}
+            />
+          </div>
         </div>
-      )}
 
-      <div className="mt-6">
-        <TicketCountdown 
-          ticketCreatedAt={ticket.createdAt}
-          ticketReassignedAt={ticket.reassignedAt}
-          ticketStatus={ticket.status}
-        />
+        {ticket.resolutionNote && (
+          <div className="mt-6 p-4 bg-gray-100 border rounded-lg">
+            <h3 className="font-semibold text-lg">Resolution Note</h3>
+            <p className="mt-2">{ticket.resolutionNote}</p>
+            <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="mt-3">
+              Add new resolution note
+            </Button>
+          </div>
+        )}
+
+        {fileUrls.length > 0 && (
+          <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+            <h3 className="font-semibold text-lg mb-2">Uploaded Files</h3>
+            <ul className="list-disc pl-5">
+              {fileUrls.map((url, index) => (
+                <li key={index}>
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
+                    <FaFileAlt className="text-gray-500" /> View Document {index + 1}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {!isLocked && (
+          <div className="mt-6">
+            <h3 className="font-semibold text-lg">Update Status</h3>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <Button onClick={() => handleStatusDialog("in_progress")} variant="outline" className="text-yellow-600">
+                <ArrowPathIcon className="w-4 h-4" /> In Progress
+              </Button>
+              <Button onClick={() => handleStatusDialog("resolved")} variant="outline" className="text-green-600">
+                <CheckIcon className="w-4 h-4" /> Resolve Ticket
+              </Button>
+              <Button onClick={() => handleStatusDialog("closed")} variant="outline" className="text-red-600">
+                <XCircleIcon className="w-4 h-4" /> Close Ticket
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6">
+          <TicketComments ticketId={ticketId as string} />
+        </div>
+
+        {ticket.assignedMDA && (
+          <div className="mt-6">
+            <TicketInternalNotes ticketId={ticketId as string} />
+          </div>
+        )}
+
+
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -299,5 +294,6 @@ export default function AdminTicketDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>;
+    </div>
+  );
 }

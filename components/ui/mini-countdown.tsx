@@ -47,7 +47,7 @@ export default function MiniCountdown({
   }
 
   const formatTimeRemaining = (hours: number): string => {
-    if (hours <= 0) return "0h";
+    if (hours <= 0) return "Overdue";
     const wholeHours = Math.floor(hours);
     const minutes = Math.floor((hours - wholeHours) * 60);
     if (wholeHours >= 24) {
@@ -71,7 +71,7 @@ export default function MiniCountdown({
     <div className={`flex items-center gap-1 ${getTextColor()}`}>
       <Icon className="h-3 w-3" />
       <span className="text-xs font-mono">
-        {isOverdue ? `+${formatTimeRemaining(Math.abs(timeRemaining))}` : formatTimeRemaining(timeRemaining)}
+        {formatTimeRemaining(Math.abs(timeRemaining))}
       </span>
     </div>
   );
