@@ -14,8 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
-import { Save, FileText, Trash2, Upload } from "lucide-react"; 
-import * as XLSX from 'xlsx'; 
+import { Save, FileText, Trash2, Upload } from "lucide-react";
+import * as XLSX from 'xlsx';
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -49,24 +49,48 @@ export default function FillReportPage() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const draftLoadedRef = useRef(false); // To ensure draft loads only once
   const [showExcelConfirm, setShowExcelConfirm] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
   const convexUserId = convexUser?._id;
 
-  const availableReports = useQuery(api.internal_reports.getAvailableReports, convexUser?.role && validRoles.includes(convexUser.role as Role) ? { role: convexUser.role as Role } : "skip") ?? [];
-
+  // const availableReports = useQuery(api.internal_reports.getAvailableReports, convexUser?.role && validRoles.includes(convexUser.role as Role) ? { role: convexUser.role as Role } : "skip") ?? [];
+  const availableReports = useQuery(
+    api.internal_reports.getAvailableReports,
+    convexUser?.role && convexUser?._id
+      ? {
+        role: convexUser.role,
+        userId: convexUser._id,
+      }
+      : "skip"
+  ) ?? [];
   // Draft-related mutations and queries
   const saveDraft = useMutation(api.internal_reports.saveDraftReport);
-  const submitDraftReport = useMutation(api.internal_reports.submitDraftReport);
   const deleteDraft = useMutation(api.internal_reports.deleteDraftReport);
   const drafts = useQuery(api.internal_reports.getDraftReports, convexUserId && fillId ? { submittedBy: convexUserId, templateId: fillId as Id<"report_templates"> } : "skip") ?? [];
+
+  const getTimelineForService = (service: string) => {
+    const trimmedService = service.trim();
+    switch (trimmedService) {
+      case "CAC":
+        return "10";
+      case "Business-plan":
+        return "14";
+      case "Business-Name":
+        return "7";
+      default:
+        return "";
+    }
+  };
+
+
 
   useEffect(() => {
     if (fillId && availableReports.length > 0) {
       const foundTemplate = availableReports.find(t => t._id === fillId);
       if (foundTemplate) {
         setTemplate(foundTemplate as typeof template);
-     
+
         setFormData([foundTemplate.headers.map(() => "")]);
         draftLoadedRef.current = false;
         setCurrentDraft(null);
@@ -95,14 +119,14 @@ export default function FillReportPage() {
       } else {
         // If no draft or empty draft, ensure one empty row is present
         if (template && formData.length === 0) {
-           setFormData([template.headers.map(() => "")]);
+          setFormData([template.headers.map(() => "")]);
         }
         draftLoadedRef.current = true; // Mark as loaded to prevent further checking
       }
     } else if (template && formData.length === 0 && !draftLoadedRef.current) {
-        // If no drafts at all and form is empty, ensure it has one initial row
-        setFormData([template.headers.map(() => "")]);
-        draftLoadedRef.current = true;
+      // If no drafts at all and form is empty, ensure it has one initial row
+      setFormData([template.headers.map(() => "")]);
+      draftLoadedRef.current = true;
     }
   }, [template, drafts, convexUserId, formData]); // Added formData to dependencies to react to its initial state
 
@@ -113,7 +137,7 @@ export default function FillReportPage() {
       const updated = [...prev];
       // Ensure the row and cell exist before updating
       if (!updated[rowIndex]) {
-          updated[rowIndex] = template?.headers.map(() => "") || [];
+        updated[rowIndex] = template?.headers.map(() => "") || [];
       }
       updated[rowIndex][colIndex] = value;
       return updated;
@@ -174,13 +198,13 @@ export default function FillReportPage() {
     // Basic validation: Ensure at least one row exists and is not entirely empty
     const hasMeaningfulData = formData.some(row => row.some(cell => cell.trim() !== ''));
     if (formData.length === 0 || !hasMeaningfulData) {
-        toast.error("Please fill in at least one row of data before submitting.");
-        return;
+      toast.error("Please fill in at least one row of data before submitting.");
+      return;
     }
 
     try {
       if (currentDraft) {
-        // Update the draft data first, then submit it
+
         await saveDraft({
           templateId: template._id,
           submittedBy: convexUserId as Id<"users">,
@@ -189,12 +213,18 @@ export default function FillReportPage() {
           draftId: currentDraft
         });
 
-        // Submit the draft as final report
-        await submitDraftReport({
-          draftId: currentDraft
+
+        await submitReport({
+          templateId: template._id,
+          submittedBy: convexUserId as Id<"users">,
+          role: template.role,
+          data: formData,
+          reportName: `${template.title}${reportTitle && reportTitle !== template.title ? ` (${reportTitle})` : ""}`
         });
+
+
+        await deleteDraft({ draftId: currentDraft });
       } else {
-       
         await submitReport({
           templateId: template._id,
           submittedBy: convexUserId as Id<"users">,
@@ -203,11 +233,12 @@ export default function FillReportPage() {
           reportName: `${template.title}${reportTitle && reportTitle !== template.title ? ` (${reportTitle})` : ""}`
         });
       }
+
       toast.success("Report submitted successfully!");
       router.push("/reform_champion/reports");
     } catch (error) {
-        console.error("Failed to submit report:", error);
-        toast.error("Failed to submit report. Please check your data.");
+      console.error("Failed to submit report:", error);
+      toast.error("Failed to submit report. Please check your data.");
     }
   };
 
@@ -247,22 +278,10 @@ export default function FillReportPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExcelUploadClick = () => {
-    const id = toast(
-      <ExcelHeaderConfirm
-        onContinue={() => {
-          toast.dismiss(id);
-          if (fileInputRef.current) fileInputRef.current.click();
-        }}
-        onCancel={() => toast.dismiss(id)}
-      />
-    );
-  };
 
   function ExcelHeaderConfirm({ onContinue, onCancel }: { onContinue: () => void; onCancel: () => void }) {
     return (
       <div className="flex flex-col items-center justify-center text-center p-4">
-        <div className="font-bold text-lg text-red-600 mb-2">Excel Header Requirement</div>
         <div className="mb-4 text-red-600 text-base font-semibold">
           Your Excel file's headers must <b>exactly match</b> the template headers. Do you want to continue?
         </div>
@@ -288,11 +307,13 @@ export default function FillReportPage() {
         return;
       }
 
-      // Check if all template headers are present in the Excel file
       const excelHeaders = Object.keys(excelData[0] || {});
       const templateHeaders = template.headers.map(h => h.name);
-      const missingHeaders = templateHeaders.filter(h => !excelHeaders.includes(h));
-      if (missingHeaders.length > 0) {
+      const allowedMissingHeaders = ["EXPECTED TIMELINE"];
+      const requiredHeaders = templateHeaders.filter(h => !allowedMissingHeaders.includes(h));
+      const missingRequiredHeaders = requiredHeaders.filter(h => !excelHeaders.includes(h));
+
+      if (missingRequiredHeaders.length > 0) {
         toast.error("Excel header mismatch. Please check your Excel header and try again.");
         return;
       }
@@ -301,30 +322,30 @@ export default function FillReportPage() {
 
       excelData.forEach(excelRow => {
 
-        const newFormRow: string[] = template.headers.map(() => ""); 
-        
+        const newFormRow: string[] = template.headers.map(() => "");
+
         template.headers.forEach((header, colIndex) => {
-         const excelValue = excelRow[header.name]; 
-          
-          let processedValue = String(excelValue || ''); 
+          const excelValue = excelRow[header.name];
+
+          let processedValue = String(excelValue || '');
 
 
           if (excelValue !== undefined && excelValue !== null) {
             switch (header.type) {
               case "number":
-                processedValue = String(parseFloat(excelValue) || 0); 
+                processedValue = String(parseFloat(excelValue) || 0);
                 break;
               case "checkbox":
-               
+
                 processedValue = (String(excelValue).toLowerCase() === 'true' || String(excelValue) === '1' || String(excelValue).toLowerCase() === 'yes') ? "true" : "false";
                 break;
               case "date":
                 if (typeof excelValue === 'number') {
-                  const date = new Date(Math.round((excelValue - 25569) * 86400 * 1000)); 
-                  processedValue = date.toISOString().split('T')[0]; 
+                  const date = new Date(Math.round((excelValue - 25569) * 86400 * 1000));
+                  processedValue = date.toISOString().split('T')[0];
                 } else {
                   const date = new Date(excelValue);
-                  if (!isNaN(date.getTime())) { 
+                  if (!isNaN(date.getTime())) {
                     processedValue = date.toISOString().split('T')[0];
                   } else {
                     processedValue = '';
@@ -351,8 +372,8 @@ export default function FillReportPage() {
       console.error("Error processing Excel file:", error);
       toast.error("Failed to process Excel file. Please ensure it's in the correct format.");
     } finally {
-     
-        event.target.value = '';
+
+      event.target.value = '';
     }
   };
 
@@ -453,47 +474,112 @@ export default function FillReportPage() {
               <TableHead className="w-[50px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
-            {formData.map((row, rowIndex) => (
-              <TableRow key={rowIndex}>
-                <TableCell className="font-bold">{rowIndex + 1}</TableCell> {/* Serial number */}
-                {row.map((cell, colIndex) => (
-                  <TableCell key={colIndex}>
-                    {template.headers[colIndex].type === "dropdown" ? (
-                      <Select value={cell || ""} onValueChange={val => handleChange(rowIndex, colIndex, val)}>
-                        <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                        <SelectContent>
-                          {template.headers[colIndex].options?.map((option, i) => (
-                            <SelectItem key={i} value={option}>{option}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : template.headers[colIndex].type === "textarea" ? (
-                      <Textarea value={cell || ""} onChange={e => handleChange(rowIndex, colIndex, e.target.value)} />
-                    ) : template.headers[colIndex].type === "checkbox" ? (
-                      <input type="checkbox" checked={cell === "true"} onChange={e => handleChange(rowIndex, colIndex, e.target.checked ? "true" : "false")} className="w-5 h-5 cursor-pointer" />
-                    ) : template.headers[colIndex].type === "date" ? (
-                      <Input type="date" value={cell || ""} onChange={e => handleChange(rowIndex, colIndex, e.target.value)} />
-                    ) : (
-                      <Input type={template.headers[colIndex].type === "number" ? "number" : "text"} value={cell || ""} onChange={e => handleChange(rowIndex, colIndex, e.target.value)} />
-                    )}
-                  </TableCell>
-                ))}
-                <TableCell>
-               
+            {formData.map((row, rowIndex) => {
+              const serviceProvidedIndex = template.headers.findIndex(h => h.name === "SERVICE PROVIDED");
+              const expectedTimelineIndex = template.headers.findIndex(h => h.name === "EXPECTED TIMELINE");
+              const dateSubmissionIndex = template.headers.findIndex(h => h.name === "DATE OF SUBMISSION");
+
+              const serviceProvidedValue = row[serviceProvidedIndex]?.trim();
+              const dateSubmissionValue = row[dateSubmissionIndex]?.trim();
+
+              // Only assign timeline if service and date submission are both filled
+              if (serviceProvidedValue && dateSubmissionValue && expectedTimelineIndex !== -1) {
+                const timelineValue = getTimelineForService(serviceProvidedValue);
+                if (timelineValue && !row[expectedTimelineIndex]) {
+                  row[expectedTimelineIndex] = timelineValue;
+                }
+              }
+              return (
+                <TableRow key={rowIndex}>
+                  <TableCell className="font-bold">{rowIndex + 1}</TableCell>
+                  {row.map((cell, colIndex) => {
+                    const header = template.headers[colIndex];
+                    const isTimelineColumn = header.name === "EXPECTED TIMELINE";
+                    const isServiceColumn = header.name === "SERVICE PROVIDED";
+                    const isDateSubmissionColumn = header.name === "DATE OF SUBMISSION";
+
+                    if (isTimelineColumn) {
+                      return (
+                        <TableCell key={colIndex}>
+                          <Input
+                            value={row[colIndex] || ""}
+                            readOnly
+                            className="bg-gray-100 cursor-not-allowed"
+                          />
+                        </TableCell>
+                      );
+                    }
+
+                    return (
+                      <TableCell key={colIndex}>
+                        {header.type === "dropdown" ? (
+                          <Select
+                            value={cell || ""}
+                            onValueChange={val => {
+                    handleChange(rowIndex, colIndex, val);
+                    if (isServiceColumn && expectedTimelineIndex !== -1) {
+                      const dateSubmission = row[dateSubmissionIndex]?.trim();
+                      if (dateSubmission) {
+                        const timelineValue = getTimelineForService(val);
+                        handleChange(rowIndex, expectedTimelineIndex, timelineValue);
+                      }
+                    }
+                  }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {header.options?.map((option, i) => (
+                                <SelectItem key={i} value={option.trim()}>{option.trim()}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : header.type === "textarea" ? (
+                          <Textarea value={cell || ""} onChange={e => handleChange(rowIndex, colIndex, e.target.value)} />
+                        ) : header.type === "checkbox" ? (
+                          <input
+                            type="checkbox"
+                            checked={cell === "true"}
+                            onChange={e => handleChange(rowIndex, colIndex, e.target.checked ? "true" : "false")}
+                            className="w-5 h-5 cursor-pointer"
+                          />
+                        ) : header.type === "date" ? (
+                          <Input
+                            type="date"
+                            value={cell || ""}
+                            onChange={e => handleChange(rowIndex, colIndex, e.target.value)}
+                          />
+                        ) : (
+                          <Input
+                            type={header.type === "number" ? "number" : "text"}
+                            value={cell || ""}
+                            onChange={e => handleChange(rowIndex, colIndex, e.target.value)}
+                          />
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell>
                     <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeRow(rowIndex)}
-                        className="text-red-500 hover:text-red-600"
-                        disabled={formData.length <= 1}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeRow(rowIndex)}
+                      className="text-red-500 hover:text-red-600"
+                      disabled={formData.length <= 1}
                     >
-                        <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4" />
                     </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
+
+
+
         </Table>
       </div>
 
@@ -508,10 +594,10 @@ export default function FillReportPage() {
         >
           📋 Add Row with Previous Data
         </Button> */}
-        <div className="border rounded-md bg-gray-50 flex items-center gap-2">
+        {/* <div className="border rounded-md bg-gray-50 flex items-center gap-2">
 
           <label htmlFor="excel-file-upload" className="flex items-center justify-center px-2 py-1 border border-gray-300 bg-white text-gray-800 rounded-md cursor-pointer hover:bg-gray-100 transition-colors">
-            <Upload className="w-4 h-4 mr-1" /> Bulk Upload
+            <Upload  className="w-4 h-4 mr-1" /> Bulk Upload
             <input
               id="excel-file-upload"
               type="file"
@@ -521,15 +607,41 @@ export default function FillReportPage() {
             />
           </label>
 
+        </div> */}
+        <div className="border rounded-md bg-gray-50 flex items-center gap-2">
+          <button
+            onClick={() => setShowConfirmModal(true)}
+            className="flex items-center justify-center px-2 py-1 border border-gray-300 bg-white text-gray-800 rounded-md cursor-pointer hover:bg-gray-100 transition-colors"
+          >
+            <Upload className="w-4 h-4 mr-1" /> Bulk Upload
+          </button>
+
+          <input
+            ref={fileInputRef}
+            id="excel-file-upload"
+            type="file"
+            accept=".xlsx, .xls"
+            onChange={handleExcelUpload}
+            className="hidden"
+          />
         </div>
-        <input
-          ref={fileInputRef}
-          id="excel-file-upload"
-          type="file"
-          accept=".xlsx, .xls"
-          onChange={handleExcelUpload}
-          className="hidden"
-        />
+
+        {showConfirmModal && (
+          <Dialog open onOpenChange={setShowConfirmModal}>
+            <DialogContent>
+              <DialogTitle className="text-lg text-center font-bold text-red-600">
+                Excel Header Requirement
+              </DialogTitle>
+              <ExcelHeaderConfirm
+                onContinue={() => {
+                  setShowConfirmModal(false);
+                  fileInputRef.current?.click(); // open file picker after confirm
+                }}
+                onCancel={() => setShowConfirmModal(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
         <Button
           onClick={handleSaveDraft}
           variant="outline"

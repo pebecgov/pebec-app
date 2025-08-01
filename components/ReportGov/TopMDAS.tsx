@@ -49,7 +49,7 @@ const TopMDAs = () => {
       { name: 'Resolution', value: hours }
     ];
     
-    // Dynamic chart heights based on podium position
+
     const chartHeight = [140, 120, 100][index] || 80;
     
     return (

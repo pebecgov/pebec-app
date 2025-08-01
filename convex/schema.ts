@@ -196,6 +196,7 @@ export default defineSchema({
   report_templates: defineTable({
     title: v.string(),
     description: v.optional(v.string()),
+    mdaName: v.optional(v.string()),
     role: v.union(
       v.literal("user"),
       v.literal("admin"),

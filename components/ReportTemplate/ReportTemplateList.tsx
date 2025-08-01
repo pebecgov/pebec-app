@@ -58,7 +58,8 @@ export default function ReportTemplatesList() {
     role: template.role,
     createdBy: template.createdBy as Id<"users">,
     description: template.description,
-    headers: template.headers
+    headers: template.headers,
+    mdaName: template.mdaName || "N/A"
   }));
   const filteredReports = formattedTemplates.filter(template => (selectedRole === "all" || template.role === selectedRole) && template.title.toLowerCase().includes(search.toLowerCase())).sort((a, b) => {
     if (sortOrder === "newest") {
@@ -180,6 +181,8 @@ export default function ReportTemplatesList() {
               <th className="px-4 py-3">Report Name</th>
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Created By</th>
+              <th className="px-4 py-3">MDA</th>
+
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
@@ -188,6 +191,7 @@ export default function ReportTemplatesList() {
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{template.title}</td>
                   <td className="px-4 py-3 text-sm font-medium">{formatRole(template.role)}</td>
                   <td className="px-4 py-3">{getCreatorName(template.createdBy)}</td>
+                  <td className="px-4 py-3">{template.mdaName}</td>
 
                   <td className="px-4 py-3 flex items-center space-x-3">
                     <Button className="bg-yellow-500 text-white px-3 py-1 text-xs rounded-lg" onClick={() => {
