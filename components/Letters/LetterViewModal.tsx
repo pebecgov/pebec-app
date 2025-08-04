@@ -116,11 +116,7 @@ export default function LetterViewModal({ isOpen, onClose, letter, sender }: Let
             <Button variant="outline" onClick={onClose}>
               Close
             </Button>
-            {letter.letterUploadId && (
-              <Button className="bg-blue-600 text-white">
-                📎 Download Attachment
-              </Button>
-            )}
+           
           </div>
         </div>
       </DialogContent>
