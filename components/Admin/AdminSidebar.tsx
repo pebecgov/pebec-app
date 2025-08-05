@@ -92,6 +92,9 @@ export default function Sidebar({
     }, {
       name: "DLIs Status",
       path: "/admin/saber"
+    }, {
+      name: "Deadline Reminders",
+      path: "/admin/saber-deadline-manager"
     }]
   }, {
     name: "Web Content",
