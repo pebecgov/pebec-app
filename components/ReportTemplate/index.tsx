@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
 import { Trash } from "lucide-react";
+import {mdasList} from "@/components/mdaList"; 
 type HeaderField = {
   name: string;
   type: "text" | "number" | "textarea" | "dropdown" | "checkbox" | "date";
@@ -49,6 +50,8 @@ export default function CreateReportTemplate({
   const [dropdownOptions, setDropdownOptions] = useState("");
   const createTemplate = useMutation(api.internal_reports.createReportTemplate);
   const updateTemplate = useMutation(api.internal_reports.updateReportTemplate);
+  const [mdaName, setMdaName] = useState("");
+
   const handleAddHeader = () => {
     if (!newHeader.trim()) {
       toast.error("Column name cannot be empty!");
@@ -72,132 +75,187 @@ export default function CreateReportTemplate({
     setHeaders(prevHeaders => prevHeaders.filter((_, i) => i !== index));
   };
   const handleSubmit = async () => {
-    if (!convexUserId) {
-      toast.error("User data not loaded.");
-      return;
+  if (!convexUserId) {
+    toast.error("User data not loaded.");
+    return;
+  }
+  if (!title || headers.length === 0) {
+    toast.error("Please fill all fields.");
+    return;
+  }
+  if (["mda", "reform_champion"].includes(role) && !mdaName) {
+    toast.error("Please select an MDA.");
+    return;
+  }
+
+  try {
+    if (existingTemplate) {
+      await updateTemplate({
+        id: existingTemplate.id,
+        title,
+        description,
+        role,
+        headers,
+        ...(mdaName ? { mdaName } : {})
+      });
+      toast.success("Template updated successfully!");
+    } else {
+      await createTemplate({
+        title,
+        description,
+        role,
+        headers,
+        createdBy: convexUserId,
+        ...(mdaName ? { mdaName } : {})
+      });
+      toast.success("Report template created successfully!");
     }
-    if (!title || headers.length === 0) {
-      toast.error("Please fill all fields.");
-      return;
-    }
-    try {
-      if (existingTemplate) {
-        await updateTemplate({
-          id: existingTemplate.id,
-          title,
-          description,
-          role,
-          headers
-        });
-        toast.success("Template updated successfully!");
-      } else {
-        await createTemplate({
-          title,
-          description,
-          role,
-          headers,
-          createdBy: convexUserId
-        });
-        toast.success("Report template created successfully!");
-      }
-      onClose();
-    } catch {
-      toast.error("Failed to save template.");
-    }
-  };
+    onClose();
+  } catch {
+    toast.error("Failed to save template.");
+  }
+};
+  // const handleSubmit = async () => {
+  //   if (!convexUserId) {
+  //     toast.error("User data not loaded.");
+  //     return;
+  //   }
+  //   if (!title || headers.length === 0) {
+  //     toast.error("Please fill all fields.");
+  //     return;
+  //   }
+  //   try {
+  //     if (existingTemplate) {
+  //       await updateTemplate({
+  //         id: existingTemplate.id,
+  //         title,
+  //         description,
+  //         role,
+  //         headers
+  //       });
+  //       toast.success("Template updated successfully!");
+  //     } else {
+  //       await createTemplate({
+  //         title,
+  //         description,
+  //         role,
+  //         headers,
+  //         createdBy: convexUserId
+  //       });
+  //       toast.success("Report template created successfully!");
+  //     }
+  //     onClose();
+  //   } catch {
+  //     toast.error("Failed to save template.");
+  //   }
+  // };
   return <div className="p-4 max-h-[500px] overflow-y-auto">
-      <h2 className="text-lg font-semibold">{existingTemplate ? "Edit Report Template" : "Create Report Template"}</h2>
+    <h2 className="text-lg font-semibold">{existingTemplate ? "Edit Report Template" : "Create Report Template"}</h2>
 
-      <Input placeholder="Report Title" value={title} onChange={e => setTitle(e.target.value)} className="mb-2" />
-      <Textarea placeholder="Description (Optional)" value={description} onChange={e => setDescription(e.target.value)} className="mb-2" />
+    <Input placeholder="Report Title" value={title} onChange={e => setTitle(e.target.value)} className="mb-2" />
+    <Textarea placeholder="Description (Optional)" value={description} onChange={e => setDescription(e.target.value)} className="mb-2" />
 
-      <Select onValueChange={val => setRole(val as any)} value={role}>
-        <SelectTrigger>
-          <SelectValue placeholder="Select Role" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="mda">MDA</SelectItem>
-          <SelectItem value="reform_champion">MDA - Reform Champion </SelectItem>
-           <SelectItem value="deputies">Sherrif</SelectItem>
-          <SelectItem value="magistrates">Magistrates</SelectItem>
-        </SelectContent>
-      </Select>
+    <Select onValueChange={val => setRole(val as any)} value={role}>
+      <SelectTrigger>
+        <SelectValue placeholder="Select Role" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="mda">MDA</SelectItem>
+        <SelectItem value="reform_champion">MDA - Reform Champion </SelectItem>
+        <SelectItem value="deputies">Sherrif</SelectItem>
+        <SelectItem value="magistrates">Magistrates</SelectItem>
+      </SelectContent>
+    </Select>
+    {role === "reform_champion" && (
+  <Select value={mdaName} onValueChange={setMdaName}>
+    <SelectTrigger className="mt-2">
+      <SelectValue placeholder="Select MDA" />
+    </SelectTrigger>
+    <SelectContent>
+      {mdasList.map((mda) => (
+        <SelectItem key={mda.name}   value={`${mda.abbreviation} - ${mda.name}`}>
+           {mda.abbreviation} - {mda.name}
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+)}
 
-      <div className="mt-4">
-        <h3 className="text-sm font-semibold">Headers</h3>
+    <div className="mt-4">
+      <h3 className="text-sm font-semibold">Headers</h3>
 
-        {}
-        {headers.map((header, index) => <div key={index} className="flex gap-2 items-center mt-2">
-            <Input placeholder="Column Header" value={header.name} onChange={e => handleUpdateHeader(index, {
+      { }
+      {headers.map((header, index) => <div key={index} className="flex gap-2 items-center mt-2">
+        <Input placeholder="Column Header" value={header.name} onChange={e => handleUpdateHeader(index, {
           name: e.target.value
         })} className="w-1/3" />
-            <Select onValueChange={val => handleUpdateHeader(index, {
+        <Select onValueChange={val => handleUpdateHeader(index, {
           type: val as HeaderField["type"]
         })} value={header.type}>
-              <SelectTrigger className="w-1/3">
-                <SelectValue placeholder="Field Type" />
-              </SelectTrigger>
-              <SelectContent>
-  <SelectItem value="text">Text</SelectItem>
-  <SelectItem value="number">Number</SelectItem>
-  <SelectItem value="textarea">Text Area</SelectItem>
-  <SelectItem value="dropdown">Dropdown</SelectItem>
-  <SelectItem value="checkbox">Checkbox</SelectItem>
-  <SelectItem value="date">Date</SelectItem> 
+          <SelectTrigger className="w-1/3">
+            <SelectValue placeholder="Field Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="text">Text</SelectItem>
+            <SelectItem value="number">Number</SelectItem>
+            <SelectItem value="textarea">Text Area</SelectItem>
+            <SelectItem value="dropdown">Dropdown</SelectItem>
+            <SelectItem value="checkbox">Checkbox</SelectItem>
+            <SelectItem value="date">Date</SelectItem>
           </SelectContent>
 
-            </Select>
+        </Select>
 
-            {}
-            {header.type === "dropdown" && <Input placeholder="Comma separated options" value={header.options?.join(", ") || ""} onChange={e => handleUpdateHeader(index, {
+        { }
+        {header.type === "dropdown" && <Input placeholder="Comma separated options" value={header.options?.join(", ") || ""} onChange={e => handleUpdateHeader(index, {
           options: e.target.value.split(",")
         })} className="w-1/3" />}
 
         {header.type === "checkbox" && <div className="flex items-center space-x-2">
-        <input type="checkbox" id={`checkbox-${index}`} className="w-5 h-5" />
-        <label htmlFor={`checkbox-${index}`} className="text-sm">
-          {header.name}
-        </label>
-      </div>}
+          <input type="checkbox" id={`checkbox-${index}`} className="w-5 h-5" />
+          <label htmlFor={`checkbox-${index}`} className="text-sm">
+            {header.name}
+          </label>
+        </div>}
 
 
         {header.type === "date" && <div className="flex items-center space-x-2">
-    <input type="date" id={`date-${index}`} className="border rounded px-2 py-1" />
-    <label htmlFor={`date-${index}`} className="text-sm">
-      {header.name}
-    </label>
-  </div>}
+          <input type="date" id={`date-${index}`} className="border rounded px-2 py-1" />
+          <label htmlFor={`date-${index}`} className="text-sm">
+            {header.name}
+          </label>
+        </div>}
 
-            {}
-            <Button variant="destructive" size="icon" onClick={() => handleDeleteHeader(index)}>
-              <Trash className="w-4 h-4" />
-            </Button>
-          </div>)}
+        { }
+        <Button variant="destructive" size="icon" onClick={() => handleDeleteHeader(index)}>
+          <Trash className="w-4 h-4" />
+        </Button>
+      </div>)}
 
-        {}
-        <div className="flex flex-col gap-2 mt-4">
-          <Input placeholder="New Column Header" value={newHeader} onChange={e => setNewHeader(e.target.value)} />
-          <Select onValueChange={val => setHeaderType(val as HeaderField["type"])} value={headerType}>
-            <SelectTrigger>
-              <SelectValue placeholder="Field Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="text">Text</SelectItem>
-              <SelectItem value="number">Number</SelectItem>
-              <SelectItem value="textarea">Text Area</SelectItem>
-              <SelectItem value="dropdown">Dropdown</SelectItem>
-              <SelectItem value="checkbox">Checkbox</SelectItem>
-              <SelectItem value="date">Date</SelectItem>
+      { }
+      <div className="flex flex-col gap-2 mt-4">
+        <Input placeholder="New Column Header" value={newHeader} onChange={e => setNewHeader(e.target.value)} />
+        <Select onValueChange={val => setHeaderType(val as HeaderField["type"])} value={headerType}>
+          <SelectTrigger>
+            <SelectValue placeholder="Field Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="text">Text</SelectItem>
+            <SelectItem value="number">Number</SelectItem>
+            <SelectItem value="textarea">Text Area</SelectItem>
+            <SelectItem value="dropdown">Dropdown</SelectItem>
+            <SelectItem value="checkbox">Checkbox</SelectItem>
+            <SelectItem value="date">Date</SelectItem>
 
-            </SelectContent>
-          </Select>
-          {headerType === "dropdown" && <Input placeholder="Comma separated options" value={dropdownOptions} onChange={e => setDropdownOptions(e.target.value)} />}
-          <Button onClick={handleAddHeader}>➕ Add Column</Button>
-        </div>
+          </SelectContent>
+        </Select>
+        {headerType === "dropdown" && <Input placeholder="Comma separated options" value={dropdownOptions} onChange={e => setDropdownOptions(e.target.value)} />}
+        <Button onClick={handleAddHeader}>➕ Add Column</Button>
       </div>
+    </div>
 
-      <Button className="mt-4 w-full" onClick={handleSubmit}>
-        {existingTemplate ? "Update" : "Create"} Template
-      </Button>
-    </div>;
+    <Button className="mt-4 w-full" onClick={handleSubmit}>
+      {existingTemplate ? "Update" : "Create"} Template
+    </Button>
+  </div>;
 }

@@ -6,6 +6,7 @@ export const createReportTemplate = mutation({
   args: {
     title: v.string(),
     description: v.optional(v.string()),
+    mdaName: v.optional(v.string()),
     role: v.union(
       v.literal("user"),
       v.literal("admin"),
@@ -98,13 +99,15 @@ export const getReportTemplates = query({
     return await ctx.db.query("report_templates").collect();
   }
 });
+
 export const getSubmittedReports = query({
-  args: {
-    submittedBy: v.id("users")
+  args: v.object({}), // No submittedBy needed
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("submitted_reports")
+      .filter(q => q.eq(q.field("isDraft"), false)) // ❌ Skip drafts
+      .collect();
   },
-  handler: async (ctx, args) => {
-    return await ctx.db.query("submitted_reports").filter(q => q.eq(q.field("submittedBy"), args.submittedBy)).collect();
-  }
 });
 export const deleteReportTemplate = mutation({
   args: {
@@ -137,6 +140,7 @@ export const updateReportTemplate = mutation({
     id: v.id("report_templates"),
     title: v.string(),
     description: v.optional(v.string()),
+    mdaName: v.optional(v.string()),
     role: v.union(
       v.literal("user"),
       v.literal("admin"),
@@ -343,6 +347,64 @@ export const generateUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   }
 });
+// export const getAvailableReports = query({
+//   args: {
+//     role: v.union(
+//       v.literal("user"),
+//       v.literal("admin"),
+//       v.literal("mda"),
+//       v.literal("staff"),
+//       v.literal("reform_champion"),
+//       v.literal("federal"),
+//       v.literal("saber_agent"),
+//       v.literal("deputies"),
+//       v.literal("magistrates"),
+//       v.literal("state_governor"),
+//       v.literal("president"),
+//       v.literal("vice_president"),
+//       v.literal("world_bank")
+//     )
+//   },
+//   handler: async (ctx, {
+//     role
+//   }) => {
+//     return await ctx.db.query("report_templates").filter(q => q.eq(q.field("role"), role)).collect();
+//   }
+// });
+// export const getAvailableReports = query({
+//   args: {
+//     role: v.union(
+//       v.literal("user"),
+//       v.literal("admin"),
+//       v.literal("mda"),
+//       v.literal("staff"),
+//       v.literal("reform_champion"),
+//       v.literal("federal"),
+//       v.literal("saber_agent"),
+//       v.literal("deputies"),
+//       v.literal("magistrates"),
+//       v.literal("state_governor"),
+//       v.literal("president"),
+//       v.literal("vice_president"),
+//       v.literal("world_bank")
+//     ),
+//     userId: v.id("users")
+//   },
+//   handler: async (ctx, { role, userId }) => {
+//     const user = await ctx.db.get(userId);
+//     if (!user) throw new Error("User not found");
+
+//     const baseQuery = ctx.db.query("report_templates").filter(q => q.eq(q.field("role"), role));
+
+//     if (["mda", "reform_champion"].includes(role)) {
+//       return await baseQuery
+//         .filter(q => q.eq(q.field("mdaName"), user.mdaName))
+//         .collect();
+//     }
+
+//     return await baseQuery.collect();
+//   }
+// });
 export const getAvailableReports = query({
   args: {
     role: v.union(
@@ -359,14 +421,26 @@ export const getAvailableReports = query({
       v.literal("president"),
       v.literal("vice_president"),
       v.literal("world_bank")
-    )
+    ),
+    userId: v.optional(v.id("users"))
   },
-  handler: async (ctx, {
-    role
-  }) => {
-    return await ctx.db.query("report_templates").filter(q => q.eq(q.field("role"), role)).collect();
+  handler: async (ctx, { role, userId }) => {
+    const baseQuery = ctx.db.query("report_templates").filter(q =>
+      q.eq(q.field("role"), role)
+    );
+
+    if (["mda", "reform_champion"].includes(role)) {
+      if (!userId) throw new Error("User ID is required for MDA roles");
+      const user = await ctx.db.get(userId);
+      if (!user || !user.mdaName) throw new Error("User MDA not found");
+      return await baseQuery.filter(q => q.eq(q.field("mdaName"), user.mdaName)).collect();
+    }
+
+    return await baseQuery.collect();
   }
 });
+
+
 export const getAvailableReportsforAdmin = query({
   args: {
     role: v.optional(v.union(

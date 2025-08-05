@@ -35,12 +35,19 @@ export default function ReportsPage() {
     clerkUserId: user.id
   } : "skip");
   const convexUserId = convexUser?._id;
-  const availableReports = useQuery(api.internal_reports.getAvailableReports, convexUser?.role ? {
-    role: convexUser.role
-  } : "skip") ?? [];
-  const submittedReports = useQuery(api.internal_reports.getSubmittedReports, convexUserId ? {
-    submittedBy: convexUserId
-  } : "skip") ?? [];
+  // const availableReports = useQuery(api.internal_reports.getAvailableReports, convexUser?.role ? {
+  //   role: convexUser.role
+  // } : "skip") ?? [];
+  const availableReports = useQuery(
+  api.internal_reports.getAvailableReports,
+  convexUser?.role && convexUser?._id
+    ? {
+        role: convexUser.role,
+        userId: convexUser._id,
+      }
+    : "skip"
+) ?? [];
+const submittedReports = useQuery(api.internal_reports.getSubmittedReports) ?? [];
   const drafts = useQuery(api.internal_reports.getDraftReports, convexUserId ? {
     submittedBy: convexUserId
   } : "skip") ?? [];
