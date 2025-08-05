@@ -21,9 +21,11 @@ export default function BERAPDetailPage() {
     id: berapId as Id<"berap">
   });
   const router = useRouter();
-  const materials = useQuery(api.saber.getMaterialsByParent, {
+  const allMaterials = useQuery(api.saber.getMaterialsByParent, {
     parentId: berapId as Id<"berap">
   });
+  const materials = allMaterials?.filter((_, index) => index !== 1) || [];
+
   const getStorageUrl = useMutation(api.saber.getStorageUrl);
   if (!berap) return <p className="text-center mt-10">Loading BERAP...</p>;
   return <>

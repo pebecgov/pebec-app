@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileDown, FileSpreadsheet, Save, Plus, Minus } from "lucide-react";
+import { FileDown, FileSpreadsheet, Save, Plus, Minus, Download } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -28,7 +28,9 @@ import DLI4Form from "./DLI4Form";
 import DLI6Form from "./DLI6Form";
 import DLI8Form from "./DLI8Form";
 import DLI5Form from "./DLI5Form";
-
+import Berap from "./Berap"
+import { button } from "@material-tailwind/react";
+import { Id } from "@/convex/_generated/dataModel";
 const currentYear = new Date().getFullYear();
 const yearsToShow = [currentYear - 3, currentYear - 2, currentYear - 1];
 
@@ -96,11 +98,11 @@ export interface Type4Data {
 export interface Type5Data {
   // Section 2: Functions of SCEP
   scepMandateLink: string;
-  
+
   // Section 3: Export Strategy
   hasExportStrategy: boolean;
   exportStrategyLink: string;
-  
+
   // Section 4: Stakeholder Consultation
   stakeholderConsultation: {
     attendanceSheets: string;
@@ -108,13 +110,13 @@ export interface Type5Data {
     privateContributors: string[];
     feedbackSummary: string;
   };
-  
+
   // Section 5: Operational Budget
   budgetDocuments: string;
-  
+
   // Section 6: Implementation Activities
   implementationReports: string[];
-  
+
   // Checklist items
   checklist: {
     exportStrategyDoc: boolean;
@@ -131,7 +133,7 @@ export interface Type5Data {
 export interface Type6Data {
   // Section 2: GRM Structure
   responsibleAgency: string;
-  
+
   // Section 3: Complaint Channels
   complaintChannels: {
     telephone: string;
@@ -139,20 +141,20 @@ export interface Type6Data {
     walkInAddress: string;
     onlinePortal: string;
   };
-  
+
   // Section 4: Registration System
   registrationSystem: {
     systemLink: string;
     systemScreenshot: string;
   };
-  
+
   // Section 5: SLA Details
   slaDetails: {
     acknowledgementTime: string;
     resolutionTime: string;
     slaDocument: string;
   };
-  
+
   // Section 6: Performance Tracking
   performanceData: {
     totalComplaints: string;
@@ -161,19 +163,19 @@ export interface Type6Data {
     slaComplianceMet: boolean;
     quarterlyReport: string;
   };
-  
+
   // Section 7: Escalation Framework
   escalationFramework: {
     escalationChart: string;
     sopDocument: string;
   };
-  
+
   // Section 8: Stakeholder Communication
   communicationEvidence: {
     campaignEvidence: string;
     onlineMaterials: string;
   };
-  
+
   // Checklist items
   checklist: {
     complaintLogbook: boolean;
@@ -183,11 +185,11 @@ export interface Type6Data {
     communicationMaterials: boolean;
   };
 }
-export interface Type7Data{
-evidenceOfCommittedTurnaroundLink: string;
-year2024Link?: string;
-year2025Link?: string;
-monthlyComplianceLink?: string;
+export interface Type7Data {
+  evidenceOfCommittedTurnaroundLink: string;
+  year2024Link?: string;
+  year2025Link?: string;
+  monthlyComplianceLink?: string;
 }
 export interface Type8Data {
   courtAddress: string;
@@ -243,18 +245,18 @@ export interface Type11Data {
   date: string;
   signature: string;
 }
-export interface Type12Data{
-fiveMDA?: string[];
-executiveOrderLink?: string;
- backEndVerf?: string
-mdaRecords: {
+export interface Type12Data {
+  fiveMDA?: string[];
+  executiveOrderLink?: string;
+  backEndVerf?: string
+  mdaRecords: {
     NameOfMDA: string;
     titleOfRP: string;
     WebLinkPI: string;
     link2Sr?: string;
     link2Sup?: string;
     slaRef?: string;
-   
+
   }[];
 }
 
@@ -282,17 +284,17 @@ const dliCategories: DLICategory[] = [
     name: "DLI-5",
     reportTypes: [
       { value: "type7", label: "Operational GRMs in Two Key BEE MDAs – Compliance Report Template" },
-      {value: "type12", label: "Compliance Report: Publication of Business Regulatory Processes by BEE State MDAs" },
+      { value: "type12", label: "Compliance Report: Publication of Business Regulatory Processes by BEE State MDAs" },
     ]
   },
   {
     id: "dli6",
     name: "DLI-6",
-          reportTypes: [
-        { value: "type4", label: "State Schedule of Trade-Related Fees Compliance Report" },
-        { value: "type5", label: "State Committee on Export Promotion (SCEP) Report" },
-        { value: "type6", label: "Grievance Redress Mechanism (GRM) Report" }
-      ]
+    reportTypes: [
+      { value: "type4", label: "State Schedule of Trade-Related Fees Compliance Report" },
+      { value: "type5", label: "State Committee on Export Promotion (SCEP) Report" },
+      { value: "type6", label: "Grievance Redress Mechanism (GRM) Report" }
+    ]
   },
 
   {
@@ -302,9 +304,18 @@ const dliCategories: DLICategory[] = [
       { value: "type8", label: "Certificate of Authentication of Small Claims Court Reports" },
       { value: "type9", label: "Certificate of Authentication of Small Claims Court Execution Reports" },
       { value: "type10", label: "Small Claims Court Execution Report For The Month" },
-      { value: "type11", label: "Small Claims Court Time To Disposition Indicator For The Month"}
+      { value: "type11", label: "Small Claims Court Time To Disposition Indicator For The Month" }
     ]
-  }
+  },
+  {
+    id: "eligibility",
+    name: "ELIGIBILITY CRITERIA (BERAP)",
+    reportTypes: [
+      { value: "type13", label: "ELIGIBILITY CRITERIA - BUSINESS ENABLING REFORM ACTION PLAN (BERAP) GUIDE FOR STATES (2026 CYCLE)" },
+
+    ]
+  },
+
 ];
 
 type ReportTypeDataMap = {
@@ -317,6 +328,37 @@ type ReportTypeDataMap = {
   type7Data: Type7Data;
   type12Data: Type12Data;
 };
+function DownloadButton({
+  fileId,
+  link
+}: {
+  fileId?: Id<"_storage">;
+  link?: string;
+}) {
+  const getStorageUrl = useMutation(api.saber.getStorageUrl);
+  const handleDownload = async () => {
+    if (fileId) {
+      const url = await getStorageUrl({
+        storageId: fileId
+      });
+      if (url) {
+        window.open(url, "_blank");
+      } else {
+        toast.error("Failed to fetch download URL");
+      }
+    } else if (link) {
+      window.open(link, "_blank");
+    } else {
+      toast.warning("No file or link available");
+    }
+  };
+  return <div className="w-full p-2 flex justify-end items-center">
+    <button type="button" onClick={handleDownload} title="Download" className="flex gap-2 items-center bg-green-500 rounded-md text-white px-4 py-2 hover:bg-green-800 duration-300 ease-in-out">
+    <Download className="w-5 h-5 text-white" />
+    Download
+  </button>
+  </div>;
+}
 
 export interface FormData {
   reportType: "type1" | "type2" | "type3" | "type4" | "type5" | "type6" | "type7" | "type8" | "type9" | "type10" | "type11" | "type12";
@@ -460,7 +502,7 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
   else if (reportType === "type12") {
     base.type12Data = {
       fiveMDA: [""],
-       backEndVerf: "",
+      backEndVerf: "",
       mdaRecords: [
         {
           NameOfMDA: "",
@@ -469,7 +511,7 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
           link2Sr: "",
           link2Sup: "",
           slaRef: "",
-         
+
         },
       ],
     };
@@ -507,15 +549,15 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
     case "type12":
       return `${statePrefix}Compliance Report: Publication of Business Regulatory Processes by BEE State MDAs`;
 
-      default:
+    default:
       return `${statePrefix}Saber Agent Report`;
   }
 };
 
 export default function SaberAgentReportPage() {
-const { user } = useUser();
+  const { user } = useUser();
   const [selectedDLI, setSelectedDLI] = useState<string>("dli4");
-  const [loading,setLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
   // Template form state
   const [templateFormData, setTemplateFormData] = useState<FormData>(() => {
     const initialDLI = dliCategories.find(dli => dli.id === "dli4")!;
@@ -558,40 +600,40 @@ const { user } = useUser();
     });
   };
 
- const handleTemplateDataArrayElementChange = <
-  T extends keyof ReportTypeDataMap,
-  K extends keyof ReportTypeDataMap[T]
->(
-  type: T,
-  fieldName: K,
-  index: number,
-  valueOrField: string,
-  maybeValue?: string
-) => {
-  setTemplateFormData((prev) => {
-    const currentTypeData = (prev[type] || {}) as ReportTypeDataMap[T];
-    const currentArray = [...(currentTypeData[fieldName] as any[])];
+  const handleTemplateDataArrayElementChange = <
+    T extends keyof ReportTypeDataMap,
+    K extends keyof ReportTypeDataMap[T]
+  >(
+    type: T,
+    fieldName: K,
+    index: number,
+    valueOrField: string,
+    maybeValue?: string
+  ) => {
+    setTemplateFormData((prev) => {
+      const currentTypeData = (prev[type] || {}) as ReportTypeDataMap[T];
+      const currentArray = [...(currentTypeData[fieldName] as any[])];
 
-    // If only valueOrField is passed → treat as string[] update
-    if (maybeValue === undefined) {
-      currentArray[index] = valueOrField;
-    } else {
-      // valueOrField is the field name, maybeValue is the new value
-      currentArray[index] = {
-        ...currentArray[index],
-        [valueOrField]: maybeValue,
+      // If only valueOrField is passed → treat as string[] update
+      if (maybeValue === undefined) {
+        currentArray[index] = valueOrField;
+      } else {
+        // valueOrField is the field name, maybeValue is the new value
+        currentArray[index] = {
+          ...currentArray[index],
+          [valueOrField]: maybeValue,
+        };
+      }
+
+      return {
+        ...prev,
+        [type]: {
+          ...currentTypeData,
+          [fieldName]: currentArray,
+        },
       };
-    }
-
-    return {
-      ...prev,
-      [type]: {
-        ...currentTypeData,
-        [fieldName]: currentArray,
-      },
-    };
-  });
-};
+    });
+  };
 
   const renderDateArrayInputs = <
     T extends keyof ReportTypeDataMap,
@@ -754,14 +796,14 @@ const { user } = useUser();
   };
 
 
-const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       // Generate PDF from template
       setLoading(true)
-      
- const doc = generateTemplatePDF(templateFormData, currentUser?.state);
+
+      const doc = generateTemplatePDF(templateFormData, currentUser?.state);
       const pdfBlob = doc.output('blob');
 
       // Upload PDF to storage
@@ -776,7 +818,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       const { storageId } = await result.json();
 
       // Submit report with simple form data + PDF
-      
+
       await submitReport({
         title: getReportTitle(templateFormData.reportType, currentUser?.state),
         fileId: storageId,
@@ -813,12 +855,19 @@ const handleSubmit = async (e: React.FormEvent) => {
       "Title": report.title,
       "State": report.state,
       "Status": report.status,
-        "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
+      "Submitted On": new Date(report.submittedAt).toLocaleDateString(),
     }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Report");
     XLSX.writeFile(wb, `saber-report-${report.title}.xlsx`);
   };
+  const beraps = useQuery(api.saber.getAllBERAPs);
+  const firstBerapId = beraps?.[0]?._id;
+  const materials = useQuery(
+    api.saber.getMaterialsByParent,
+    firstBerapId ? { parentId: firstBerapId } : "skip"
+  );
+  const materialToDownload = materials?.[1];
 
   return (
     <div className="container mx-auto py-10 space-y-8">
@@ -863,9 +912,9 @@ const handleSubmit = async (e: React.FormEvent) => {
                   </SelectContent>
                 </Select>
               </div> */}
-              <h3 className="text-lg font-semibold mb-4">Select Report Template</h3>
+              {selectedDLI === "eligibility" ? <></> : <h3 className="text-lg font-semibold mb-4">Select Report Template</h3>}
 
-              <div className="space-y-2 mb-6">
+              {selectedDLI === "eligibility" ? <></> : <div className="space-y-2 mb-6">
                 <Label>Report Type</Label>
                 <Select
                   value={templateFormData.reportType}
@@ -884,7 +933,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                       ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </div>}
+
 
               {/* Type 1 Form Fields */}
               {selectedDLI === "dli4" && (
@@ -898,21 +948,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                   handleAddArrayElement={handleAddArrayElement}
                   handleRemoveArrayElement={handleRemoveArrayElement}
                 />
-              )}       
+              )}
               <DLI5Form
-                templateFormData={templateFormData}
-                setTemplateFormData={setTemplateFormData}
-                renderArrayInputs={renderArrayInputs}
-               renderDateArrayInputs={renderDateArrayInputs}
-                handleTemplateDataStringChange={handleTemplateDataStringChange}
-                handleTemplateDataArrayElementChange={handleTemplateDataArrayElementChange}
-                handleAddArrayElement={handleAddArrayElement}
-                handleRemoveArrayElement={handleRemoveArrayElement}
-              />
-
-            {/* Dli6 form */}
-            {selectedDLI === "dli6" && (
-              <DLI6Form
                 templateFormData={templateFormData}
                 setTemplateFormData={setTemplateFormData}
                 renderArrayInputs={renderArrayInputs}
@@ -922,28 +959,54 @@ const handleSubmit = async (e: React.FormEvent) => {
                 handleAddArrayElement={handleAddArrayElement}
                 handleRemoveArrayElement={handleRemoveArrayElement}
               />
-            )}
-            {/* Dli6 form */}
-            {selectedDLI === "dli8" && (
-              <DLI8Form
-                templateFormData={templateFormData}
-                setTemplateFormData={setTemplateFormData}
-                renderArrayInputs={renderArrayInputs}
-               renderDateArrayInputs={renderDateArrayInputs}
-                handleTemplateDataStringChange={handleTemplateDataStringChange}
+
+              {/* Dli6 form */}
+              {selectedDLI === "dli6" && (
+                <DLI6Form
+                  templateFormData={templateFormData}
+                  setTemplateFormData={setTemplateFormData}
+                  renderArrayInputs={renderArrayInputs}
+                  renderDateArrayInputs={renderDateArrayInputs}
+                  handleTemplateDataStringChange={handleTemplateDataStringChange}
+                  handleTemplateDataArrayElementChange={handleTemplateDataArrayElementChange}
+                  handleAddArrayElement={handleAddArrayElement}
+                  handleRemoveArrayElement={handleRemoveArrayElement}
+                />
+              )}
+              {/* Dli6 form */}
+              {selectedDLI === "dli8" && (
+                <DLI8Form
+                  templateFormData={templateFormData}
+                  setTemplateFormData={setTemplateFormData}
+                  renderArrayInputs={renderArrayInputs}
+                  renderDateArrayInputs={renderDateArrayInputs}
+                  handleTemplateDataStringChange={handleTemplateDataStringChange}
                 // handleTemplateDataArrayElementChange={handleTemplateDataArrayElementChange}
                 // handleAddArrayElement={handleAddArrayElement}
                 // handleRemoveArrayElement={handleRemoveArrayElement}
-              />
-            )}
-            
+                />
+              )}
+              {/* Berap eligibilit */}
+              {selectedDLI === "eligibility" && (
+                <Berap />
+              )}
+
             </div>
-              {loading ?<div className="flex justify-center text-2xl items-center w-full"><FaSpinner className="animation-spin"/></div>  :<Button type="submit" className="w-full">
-              <Save className="w-4 h-4 mr-2" />
-              Submit Report
-            </Button>}
-           
-            
+            {selectedDLI === "eligibility" ?
+              <div className="w-full py-2 flex  justify-end">
+                {materialToDownload ? (
+                  <DownloadButton fileId={materialToDownload.fileId} link={materialToDownload.link} />
+                ) : (
+                  <p className="text-gray-500">Loading BERAP material...</p>
+                )}
+              </div> : <>
+                {loading ? <div className="flex justify-center text-2xl items-center w-full"><FaSpinner className="animation-spin" /></div> : <Button type="submit" className="w-full">
+                  <Save className="w-4 h-4 mr-2" />
+                  Submit Report
+                </Button>}
+              </>}
+
+
           </form>
         </CardContent>
       </Card>
@@ -974,11 +1037,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                       <TableCell>
                         <span
                           className={`px-2 py-1 rounded-full text-xs ${report.status === "approved"
-                              ? "bg-green-100 text-green-800"
-                              : report.status === "rejected"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-yellow-100 text-yellow-800"
-                          }`}
+                            ? "bg-green-100 text-green-800"
+                            : report.status === "rejected"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                            }`}
                         >
                           {report.status.charAt(0).toUpperCase() +
                             report.status.slice(1)}
