@@ -989,7 +989,7 @@ export const getFilteredTickets = query({
     } else {
       tickets = await ctx.db.query("tickets").collect();
     }
-    if (args.mdaName && user.role === "admin") {
+    if (args.mdaName) {
       const mda = await ctx.db.query("mdas").withIndex("byName", q => q.eq("name", args.mdaName!)).first();
       if (!mda) return [];
       tickets = tickets.filter(ticket => ticket.assignedMDA === mda._id);

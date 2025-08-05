@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,32 @@ export default function GenerateTicketReport({
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [filterMode, setFilterMode] = useState<"user" | "business" | "mda" | null>(null);
   const [selectedMDA, setSelectedMDA] = useState<string | "all">("all");
+  const [selectedBusiness, setSelectedBusiness] = useState<string | "all">("all");
+  
+  // Reset form when dialog opens
+  const resetForm = () => {
+    setStep(1);
+    setSelectedUser("all");
+    setStatus("all");
+    setStartDate("");
+    setEndDate("");
+    setIsGenerated(false);
+    setIsGenerating(false);
+    setFilteredData([]);
+    setFilterMode(null);
+    setSelectedMDA("all");
+    setSelectedBusiness("all");
+    setSearch("");
+    setOpenUserDropdown(false);
+  };
+  
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      resetForm();
+    }
+  }, [open]);
+  
   const {
     user
   } = useUser();
@@ -62,7 +88,6 @@ export default function GenerateTicketReport({
       return map;
     }, {} as Record<string, string>);
   }, [mdas]);
-  const [selectedBusiness, setSelectedBusiness] = useState<string | "all">("all");
   const filteredUsers = useMemo(() => {
     if (!users) return [];
     return users.filter(u => (u.firstName + " " + u.lastName).toLowerCase().includes(search.toLowerCase()));
@@ -94,8 +119,11 @@ export default function GenerateTicketReport({
     if (filterMode === "business" && selectedBusiness !== "all") {
       return `Filtered by Business: ${selectedBusiness}`;
     }
+    if (filterMode === "mda" && selectedMDA !== "all") {
+      return `Filtered by MDA: ${selectedMDA}`;
+    }
     return "All Submissions";
-  }, [filterMode, selectedUser, selectedBusiness, users]);
+  }, [filterMode, selectedUser, selectedBusiness, selectedMDA, users]);
   const downloadPDF = () => {
     const doc = new jsPDF({
       orientation: "landscape"
@@ -167,7 +195,6 @@ export default function GenerateTicketReport({
         Name: t.fullName || "—",
         BusinessName: t.businessName || "—",
         Title: t.title || "—",
-        ...(showMdaColumn ? { MDA: mdaName } : {}),
         Status: t.status || "—",
         SubmissionDate: format(new Date(t._creationTime), "PPP"),
         State: t.state || "—",
@@ -201,7 +228,10 @@ export default function GenerateTicketReport({
       "Email", 
       "Phone", 
       "Description", 
-      "ResolutionNote"
+      "ResolutionNote",
+      "FirstResponse",
+      "ResolvedWithin72hrs",
+      "ClosedWithin72hrs"
     ];
     const worksheet = XLSX.utils.json_to_sheet([{
       A: filterHeader
@@ -266,12 +296,18 @@ export default function GenerateTicketReport({
           <CommandItem onSelect={() => {
                   setSelectedMDA("all");
                   setOpenUserDropdown(false);
+                  // Clear generated data when MDA selection changes
+                  setIsGenerated(false);
+                  setFilteredData([]);
                 }}>
   All MDAs
                 </CommandItem>
             {mdas?.filter(m => m.name.toLowerCase().includes(search.toLowerCase())).map(mda => <CommandItem key={mda._id} onSelect={() => {
                   setSelectedMDA(mda.name);
                   setOpenUserDropdown(false);
+                  // Clear generated data when MDA selection changes
+                  setIsGenerated(false);
+                  setFilteredData([]);
                 }}>
                   {mda.name}
                 </CommandItem>)}
@@ -298,12 +334,18 @@ export default function GenerateTicketReport({
           <CommandItem onSelect={() => {
                   setSelectedBusiness("all");
                   setOpenUserDropdown(false);
+                  // Clear generated data when business selection changes
+                  setIsGenerated(false);
+                  setFilteredData([]);
                 }}>
   All Businesses
                 </CommandItem>
             {businessNames.filter((name): name is string => typeof name === "string").filter(name => name.toLowerCase().includes(search.toLowerCase())).map(name => <CommandItem key={name} onSelect={() => {
                   setSelectedBusiness(name);
                   setOpenUserDropdown(false);
+                  // Clear generated data when business selection changes
+                  setIsGenerated(false);
+                  setFilteredData([]);
                 }}>
       {name}
     </CommandItem>)}
@@ -329,13 +371,21 @@ export default function GenerateTicketReport({
         <Command>
           <CommandInput value={search} onValueChange={setSearch} placeholder="Search user..." className="mb-2" />
           <CommandList>
-          <CommandItem key="all-users" onSelect={() => setSelectedUser("all")}>
+          <CommandItem key="all-users" onSelect={() => {
+                  setSelectedUser("all");
+                  // Clear generated data when user selection changes
+                  setIsGenerated(false);
+                  setFilteredData([]);
+                }}>
   All Users
                 </CommandItem>
             {search && filteredUsers.length === 0 && <CommandEmpty>No users found.</CommandEmpty>}
            {filteredUsers.map(user => <CommandItem key={user._id} onSelect={() => {
                   setSelectedUser(user._id);
                   setOpenUserDropdown(false);
+                  // Clear generated data when user selection changes
+                  setIsGenerated(false);
+                  setFilteredData([]);
                 }}>
     {user.firstName} {user.lastName} - {user.email}
   </CommandItem>)}
@@ -351,16 +401,23 @@ export default function GenerateTicketReport({
             <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
             <label className="text-sm font-medium">End Date</label>
             <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+           
           </div>}
 
         <DialogFooter className="mt-6 justify-between">
-          {step > 1 && <Button variant="outline" onClick={() => setStep(step - 1)}>Back</Button>}
+          {step > 1 && <Button variant="outline" onClick={() => {
+            setStep(step - 1);
+            // Clear generated data when going back to change selection
+            setIsGenerated(false);
+            setFilteredData([]);
+          }}>Back</Button>}
           {step < 3 && <Button disabled={isNextDisabled} className={isNextDisabled ? "opacity-50 cursor-not-allowed" : ""} onClick={() => setStep(step + 1)}>
     Next
   </Button>}
           {step === 3 && !isGenerated && <Button disabled={isGenerating || !startDate || !endDate} onClick={handleFilter}>
            {isGenerating ? "Generating..." : "Generate Report"}
          </Button>}
+         
           {step === 3 && isGenerated && <div className="flex gap-2">
               <Button onClick={downloadPDF}>Download PDF</Button>
               <Button onClick={downloadExcel}>Download Excel</Button>
