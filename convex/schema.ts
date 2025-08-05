@@ -123,7 +123,21 @@ export default defineSchema({
     isRead: v.boolean(),
     eventId: v.optional(v.id("events")),
     createdAt: v.number(),
-    type: v.string()
+    type: v.string(),
+    // DLI reminder specific fields
+    actionUrl: v.optional(v.string()),
+    dliCategory: v.optional(v.string()),
+    dliDeadline: v.optional(v.number()),
+    dliItemName: v.optional(v.string()),
+    reminderDate: v.optional(v.number()),
+    style: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      daysRemaining: v.optional(v.number()),
+      deadline: v.optional(v.string()),
+      state: v.optional(v.string()),
+      status: v.optional(v.string()),
+      reminderType: v.optional(v.string())
+    }))
   }).index("byUser", ["userId"]).index("byType", ["type"]).index("byMeeting", ["meetingId"]).index("byTicket", ["ticketId"]).index("byTask", ["taskId"]).index("byUserAndTicket", ["userId", "ticketId"]),
   comments: defineTable({
     content: v.string(),
@@ -517,5 +531,43 @@ export default defineSchema({
     submittedAt: v.number(),
     updatedAt: v.optional(v.number()),
     comments: v.optional(v.string())
-  }).index("bySubmittedBy", ["submittedBy"]).index("byState", ["state"]).index("byStatus", ["status"]).index("byDate", ["submittedAt"])
+  }).index("bySubmittedBy", ["submittedBy"]).index("byState", ["state"]).index("byStatus", ["status"]).index("byDate", ["submittedAt"]),
+  
+  // SABER Deadline Management Tables
+  saber_deadlines: defineTable({
+    dliCategory: v.string(), // "BERAP", "DLI4", "DLI5", "DLI6", "DLI8"
+    indicator: v.string(), // The specific indicator name
+    deadline: v.number(), // Timestamp of the deadline
+    description: v.string(), // Detailed description of what needs to be done
+    comments: v.optional(v.string()), // Additional comments about the deadline
+    isRecurring: v.boolean(), // Whether this is a recurring deadline (like monthly reports)
+    recurringType: v.optional(v.union(
+      v.literal("monthly"), 
+      v.literal("quarterly"), 
+      v.literal("yearly")
+    )),
+    states: v.array(v.string()), // Which states this deadline applies to (empty array = all states)
+    priority: v.union(v.literal("high"), v.literal("medium"), v.literal("low")),
+    actionUrl: v.optional(v.string()), // URL where SABER agents can take action
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    isActive: v.boolean() // Whether this deadline is currently active
+  }).index("byCategory", ["dliCategory"]).index("byDeadline", ["deadline"]).index("byActive", ["isActive"]),
+  
+  deadline_reminders: defineTable({
+    deadlineId: v.id("saber_deadlines"),
+    userId: v.id("users"), // SABER agent who should receive the reminder
+    state: v.string(), // State the SABER agent is responsible for
+    reminderType: v.union(
+      v.literal("30_days"), 
+      v.literal("14_days"), 
+      v.literal("7_days"), 
+      v.literal("3_days")
+    ),
+    scheduledFor: v.number(), // When the reminder should be sent
+    sentAt: v.optional(v.number()), // When the reminder was actually sent
+    emailSent: v.boolean(), // Whether email was sent successfully
+    notificationSent: v.boolean(), // Whether in-app notification was sent
+    createdAt: v.number()
+  }).index("byDeadline", ["deadlineId"]).index("byUser", ["userId"]).index("byScheduled", ["scheduledFor"]).index("byState", ["state"])
 });
