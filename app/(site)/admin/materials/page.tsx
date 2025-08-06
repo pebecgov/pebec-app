@@ -13,7 +13,7 @@ import AddSaberMaterialModal from "@/components/SaberMaterials";
 import EditMaterialRolesModal from "@/components/EditMaterialsRolesModal";
 import { Id } from "@/convex/_generated/dataModel";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-const roles = ["admin", "user", "mda", "staff", "reform_champion", "deputies", "magistrates", "state_governor", "president", "vice_president"] as const;
+const roles = ["admin", "user", "mda", "staff", "reform_champion", "deputies", "magistrates", "state_governor", "president", "vice_president", "world_bank"] as const;
 const references = ["saber", "website", "general", "framework"] as const;
 type Role = typeof roles[number];
 type Reference = typeof references[number];
@@ -118,7 +118,9 @@ export default function SaberMaterialsPage() {
                     ? "Reform Champion"
                     : r === "mda"
                     ? "ReportGov Agent"
-                    : r.charAt(0).toUpperCase() + r.slice(1)}
+                    : r === "world_bank"
+                    ? "World Bank"
+                    : r.charAt(0).toUpperCase() + r.slice(1).replace("_", " ")}
                 </SelectItem>
               ))}
             </SelectContent>

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
 import FileUploader from "../file-uploader-comments";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-const ROLES = ["admin", "mda", "staff", "reform_champion", "deputies", "saber_agent", "magistrates", "state_governor", "president", "vice_president"] as const;
+const ROLES = ["admin", "mda", "staff", "reform_champion", "deputies", "saber_agent", "magistrates", "state_governor", "president", "vice_president", "world_bank"] as const;
 type Role = typeof ROLES[number];
 type Props = {
   open: boolean;
@@ -78,11 +78,11 @@ export default function AddSaberMaterialModal({
       toast.error("Upload failed");
     }
   };
-  const handleFileSet = (id: string) => {
+  const handleFileSet = (id: string, fileName: string, fileSizeInMB?: number) => {
     setFileId(id);
-    const fileInput = document.getElementById("file-upload") as HTMLInputElement;
-    const file = fileInput?.files?.[0];
-    if (file) setFileSize(Math.round(file.size / 1024 / 1024));
+    if (fileSizeInMB !== undefined) {
+      setFileSize(fileSizeInMB);
+    }
   };
   const toggleRole = (role: Role) => {
     setSelectedRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
@@ -130,7 +130,9 @@ export default function AddSaberMaterialModal({
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {ROLES.map(role => <label key={role} className="flex items-center gap-2 text-sm text-gray-700">
                       <input type="checkbox" className="accent-blue-600" checked={selectedRoles.includes(role)} onChange={() => toggleRole(role)} />
-                      <span className="capitalize">{role.replace("_", " ")}</span>
+                      <span className="capitalize">
+                        {role === "world_bank" ? "World Bank" : role.replace("_", " ")}
+                      </span>
                     </label>)}
                 </div>
                 {errors.includes("Access Roles") && <p className="text-sm text-red-600 mt-1">At least one role must be selected.</p>}

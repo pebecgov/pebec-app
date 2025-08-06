@@ -7,7 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import { Paperclip } from "lucide-react";
 interface FileUploaderProps {
-  setFileId: (storageId: string, fileName: string) => void;
+  setFileId: (storageId: string, fileName: string, fileSize?: number) => void;
 }
 export default function FileUploader({
   setFileId
@@ -39,7 +39,8 @@ export default function FileUploader({
         storageId,
         fileName: selectedFile.name
       });
-      setFileId(storageId, selectedFile.name);
+      const fileSizeInMB = Math.round(selectedFile.size / 1024 / 1024 * 100) / 100; // Round to 2 decimal places
+      setFileId(storageId, selectedFile.name, fileSizeInMB);
       toast.success("File attached successfully!");
     } catch (error) {
       console.error(error);
