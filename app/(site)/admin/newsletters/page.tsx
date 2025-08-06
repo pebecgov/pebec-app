@@ -95,7 +95,7 @@ export default function AdminNewsletterDashboard() {
           <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-full sm:w-40" />
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Link href="/staff/subscribers">
+          <Link href="/admin/subscribers">
             <Button variant="secondary">View Subscribers</Button>
           </Link>
           <Dialog open={open} onOpenChange={setOpen}>
