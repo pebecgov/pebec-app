@@ -7,6 +7,12 @@ import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format } from "date-fns";
+
+const formatWorkstream = (workstream: string) => {
+  return workstream.charAt(0).toUpperCase() + workstream.slice(1).replace("_", " ");
+};
+
 export default function ProjectsDashboard() {
   const {
     user
@@ -14,7 +20,9 @@ export default function ProjectsDashboard() {
   const router = useRouter();
   const isAdmin = user?.publicMetadata?.role === "admin";
   const projects = useQuery(isAdmin ? api.staff_projects.getAllProjects : api.staff_projects.getMyProjects) ?? [];
+  
   if (!user) return <p className="text-center mt-10">Loading...</p>;
+  
   return <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-semibold mb-6">
         {isAdmin ? "All Staff Projects" : "My Projects"}
@@ -57,6 +65,8 @@ export default function ProjectsDashboard() {
                   {project.description}
                 </p>
 
+          
+
                 <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2.5 mb-1">
                   <div style={{
               width: `${project.progress}%`
@@ -71,6 +81,20 @@ export default function ProjectsDashboard() {
                     View Details
                   </Button>
                 </div>
+                <div className="mt-3 p-2  rounded text-xs">
+                   <div className="flex justify-between items-center gap-1">
+                     <div className="flex items-center gap-1">
+                       <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                         {project.creator?.name || project.creatorName || "Unknown User"}
+                       </span>
+                     </div>
+                     <div className="flex items-center gap-1">
+                       <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                         {format(new Date(project.createdAt), "MMM dd, yyyy")}
+                       </span>
+                     </div>
+                   </div>
+                 </div>
               </div>
             </div>) : <p className="text-sm text-zinc-500 col-span-3">
             {isAdmin ? "No projects found." : "You have no projects yet."}

@@ -22,6 +22,18 @@ import { formatWorkstream } from "@/lib/formatters";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
+// Reusable component to display creator information
+const CreatorInfo = ({ creator, showLabel = true }: { 
+  creator: { name: string; workstream: string; email?: string }; 
+  showLabel?: boolean;
+}) => (
+  <div className="flex items-center gap-2 text-sm text-gray-600">
+    {showLabel && <span>Created by:</span>}
+    <span className="font-medium">{creator.name}</span>
+    <span className="text-gray-500">({formatWorkstream(creator.workstream)})</span>
+  </div>
+);
+
 const workstreams = [
   "regulatory", "innovation", "judiciary", "communications", 
   "investments", "receptionist", "account", "auditor", "sub_national"
@@ -234,6 +246,18 @@ export default function CreateProjectForm() {
       <div className="text-center">
         <h2 className="text-3xl font-bold">Create New Project</h2>
         <p className="text-gray-600 mt-2">Set up your project with team collaboration and visibility settings</p>
+        {convexUser && (
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg inline-block">
+            <p className="text-sm text-gray-600">
+              Created by: <span className="font-medium">{convexUser.firstName} {convexUser.lastName}</span>
+              {convexUser.staffStream && (
+                <span className="ml-2 text-gray-500">
+                  ({formatWorkstream(convexUser.staffStream)})
+                </span>
+              )}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Basic Information */}
