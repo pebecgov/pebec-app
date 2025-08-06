@@ -410,6 +410,8 @@ export default defineSchema({
     name: v.string(),
     description: v.string(),
     createdBy: v.id("users"),
+    creatorName: v.optional(v.string()),
+    creatorWorkstream: v.optional(v.string()),
     progress: v.number(),
     status: v.union(v.literal("open"), v.literal("in_progress"), v.literal("completed")),
     steps: v.array(v.object({

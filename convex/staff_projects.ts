@@ -58,6 +58,8 @@ export const createProject = mutation({
       name,
       description,
       createdBy: user._id,
+      creatorName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown User",
+      creatorWorkstream: user.staffStream || "general",
       status: "open",
       progress: 0,
       steps: steps.map((step, index) => ({
@@ -372,7 +374,28 @@ export const getMyProjects = query({
       project.createdBy === user._id
     );
 
-    return myProjects;
+    // Add creator information to each project
+    const projectsWithCreator = await Promise.all(
+      myProjects.map(async (project) => {
+        const creator = await ctx.db.get(project.createdBy);
+        return {
+          ...project,
+          creator: creator ? {
+            id: creator._id,
+            name: project.creatorName || `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User",
+            workstream: project.creatorWorkstream || creator.staffStream || "general",
+            email: creator.email
+          } : {
+            id: project.createdBy,
+            name: project.creatorName || "Unknown User",
+            workstream: project.creatorWorkstream || "general",
+            email: "Unknown"
+          }
+        };
+      })
+    );
+
+    return projectsWithCreator;
   }
 });
 
@@ -386,7 +409,7 @@ export const getWorkstreamProjects = query({
 
     const allProjects = await ctx.db.query("projects").collect();
     
-    return allProjects.filter(project => {
+    const filteredProjects = allProjects.filter(project => {
       // Check if user has access to this project
       const hasAccess = 
         // User is a collaborator
@@ -406,6 +429,29 @@ export const getWorkstreamProjects = query({
         !project.primaryWorkstream // backward compatibility
       );
     });
+
+    // Add creator information to each project
+    const projectsWithCreator = await Promise.all(
+      filteredProjects.map(async (project) => {
+        const creator = await ctx.db.get(project.createdBy);
+        return {
+          ...project,
+          creator: creator ? {
+            id: creator._id,
+            name: project.creatorName || `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User",
+            workstream: project.creatorWorkstream || creator.staffStream || "general",
+            email: creator.email
+          } : {
+            id: project.createdBy,
+            name: project.creatorName || "Unknown User",
+            workstream: project.creatorWorkstream || "general",
+            email: "Unknown"
+          }
+        };
+      })
+    );
+
+    return projectsWithCreator;
   }
 });
 
@@ -418,7 +464,28 @@ export const getPublicProjects = query({
       .withIndex("byVisibility", q => q.eq("visibility", "public"))
       .collect();
 
-    return publicProjects;
+    // Add creator information to each project
+    const projectsWithCreator = await Promise.all(
+      publicProjects.map(async (project) => {
+        const creator = await ctx.db.get(project.createdBy);
+        return {
+          ...project,
+          creator: creator ? {
+            id: creator._id,
+            name: project.creatorName || `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User",
+            workstream: project.creatorWorkstream || creator.staffStream || "general",
+            email: creator.email
+          } : {
+            id: project.createdBy,
+            name: project.creatorName || "Unknown User",
+            workstream: project.creatorWorkstream || "general",
+            email: "Unknown"
+          }
+        };
+      })
+    );
+
+    return projectsWithCreator;
   }
 });
 
@@ -433,7 +500,7 @@ export const searchProjects = query({
     const user = await getCurrentUserOrThrow(ctx);
     const allProjects = await ctx.db.query("projects").collect();
 
-    return allProjects.filter(project => {
+    const filteredProjects = allProjects.filter(project => {
       // Check access permissions
       const hasAccess = 
         project.collaborators?.some(collab => collab.userId === user._id) ||
@@ -460,6 +527,29 @@ export const searchProjects = query({
 
       return matchesSearch && matchesWorkstream && matchesStatus && matchesTag;
     });
+
+    // Add creator information to each project
+    const projectsWithCreator = await Promise.all(
+      filteredProjects.map(async (project) => {
+        const creator = await ctx.db.get(project.createdBy);
+        return {
+          ...project,
+          creator: creator ? {
+            id: creator._id,
+            name: project.creatorName || `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User",
+            workstream: project.creatorWorkstream || creator.staffStream || "general",
+            email: creator.email
+          } : {
+            id: project.createdBy,
+            name: project.creatorName || "Unknown User",
+            workstream: project.creatorWorkstream || "general",
+            email: "Unknown"
+          }
+        };
+      })
+    );
+
+    return projectsWithCreator;
   }
 });
 
@@ -477,7 +567,57 @@ export const getProjectById = query({
     const hasAccess = await hasViewPermission(ctx, user._id, project);
     if (!hasAccess) return null;
 
-    return project;
+    // Get creator details
+    const creator = await ctx.db.get(project.createdBy);
+    
+    return {
+      ...project,
+      creator: creator ? {
+        id: creator._id,
+        name: project.creatorName || `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User",
+        workstream: project.creatorWorkstream || creator.staffStream || "general",
+        email: creator.email
+      } : {
+        id: project.createdBy,
+        name: project.creatorName || "Unknown User",
+        workstream: project.creatorWorkstream || "general",
+        email: "Unknown"
+      }
+    };
+  }
+});
+
+export const getProjectWithCreator = query({
+  args: {
+    projectId: v.id("projects")
+  },
+  handler: async (ctx, { projectId }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const project = await ctx.db.get(projectId);
+    
+    if (!project) return null;
+
+    // Check if user has access
+    const hasAccess = await hasViewPermission(ctx, user._id, project);
+    if (!hasAccess) return null;
+
+    // Get creator details
+    const creator = await ctx.db.get(project.createdBy);
+    
+    return {
+      ...project,
+      creator: creator ? {
+        id: creator._id,
+        name: project.creatorName || `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User",
+        workstream: project.creatorWorkstream || creator.staffStream || "general",
+        email: creator.email
+      } : {
+        id: project.createdBy,
+        name: project.creatorName || "Unknown User",
+        workstream: project.creatorWorkstream || "general",
+        email: "Unknown"
+      }
+    };
   }
 });
 
@@ -530,7 +670,30 @@ export const getAllProjects = query({
       throw new Error("Only admins can view all projects");
     }
 
-    return await ctx.db.query("projects").collect();
+    const allProjects = await ctx.db.query("projects").collect();
+
+    // Add creator information to each project
+    const projectsWithCreator = await Promise.all(
+      allProjects.map(async (project) => {
+        const creator = await ctx.db.get(project.createdBy);
+        return {
+          ...project,
+          creator: creator ? {
+            id: creator._id,
+            name: project.creatorName || `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User",
+            workstream: project.creatorWorkstream || creator.staffStream || "general",
+            email: creator.email
+          } : {
+            id: project.createdBy,
+            name: project.creatorName || "Unknown User",
+            workstream: project.creatorWorkstream || "general",
+            email: "Unknown"
+          }
+        };
+      })
+    );
+
+    return projectsWithCreator;
   }
 });
 
@@ -785,6 +948,15 @@ export const migrateProjectsToCollaboration = mutation({
         if (!project.primaryWorkstream) {
           const creator = await ctx.db.get(project.createdBy);
           updates.primaryWorkstream = creator?.staffStream || "general";
+        }
+        
+        // Add creatorName and creatorWorkstream fields
+        if (!project.creatorName || !project.creatorWorkstream) {
+          const creator = await ctx.db.get(project.createdBy);
+          if (creator) {
+            updates.creatorName = `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || "Unknown User";
+            updates.creatorWorkstream = creator.staffStream || "general";
+          }
         }
         
         // Update authorId and authorName in updates array if missing

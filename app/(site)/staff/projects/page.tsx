@@ -17,9 +17,13 @@ import { Plus, Search, Users, Eye, Shield, Calendar, Tag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const workstreams = [
-  "regulatory", "innovation", "judiciary", "communications", 
+  "regulatory", "innovation", "judiciary", "communications",
   "investments", "receptionist", "account", "auditor", "sub_national"
 ];
+
+const formatWorkstream = (workstream: string) => {
+  return workstream.charAt(0).toUpperCase() + workstream.slice(1).replace("_", " ");
+};
 
 export default function ProjectsPage() {
   const { user } = useUser();
@@ -110,46 +114,46 @@ export default function ProjectsPage() {
           </div>
 
           {/* Steps */}
-          <div className="text-sm">
+          <div className="text-sm flex justify-between items-center">
             <span className="text-gray-600">
               {project.steps?.filter((s: any) => s.completed).length || 0} of {project.steps?.length || 0} steps completed
             </span>
+            {project.collaborators && project.collaborators.length > 1 && (
+              <span className="text-gray-500 flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                {project.collaborators.length} members
+              </span>
+            )}
           </div>
 
-          {/* Workstream & Collaborators */}
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
+
+
+          {/* Workstream & Tags */}
+          <div className="flex items-center w-full flex-col gap-3 justify-between">
+            <div className="flex gap-1 items-center justify-between w-full">
               <Badge variant="outline" className="text-xs">
-                {project.primaryWorkstream}
+                {formatWorkstream(project.primaryWorkstream)}
               </Badge>
-              {project.collaborators && project.collaborators.length > 1 && (
-                <span className="text-gray-500 flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  {project.collaborators.length} members
-                </span>
+            </div>
+            <div className="flex gap-1 flex-col items-start  w-full">
+              {project.tags && project.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {project.tags.slice(0, 3).map((tag: string) => (
+                    <Badge key={tag} variant="secondary" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {project.tags.length > 3 && (
+                    <Badge variant="secondary" className="text-xs">
+                      +{project.tags.length - 3} more
+                    </Badge>
+                  )}
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-1 text-gray-500">
-              <Calendar className="h-3 w-3" />
-              {formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })}
-            </div>
-          </div>
 
-          {/* Tags */}
-          {project.tags && project.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {project.tags.slice(0, 3).map((tag: string) => (
-                <Badge key={tag} variant="secondary" className="text-xs">
-                  {tag}
-                </Badge>
-              ))}
-              {project.tags.length > 3 && (
-                <Badge variant="secondary" className="text-xs">
-                  +{project.tags.length - 3} more
-                </Badge>
-              )}
-            </div>
-          )}
+
+          </div>
 
           {/* Role indicator */}
           <div className="flex justify-between items-center">
@@ -163,6 +167,16 @@ export default function ProjectsPage() {
                 </Button>
               </Link>
             )}
+          </div>
+          {/* Creator Information */}
+          <div className="flex items-center w-full justify-between text-sm">
+            <div className="flex gap-1 w-full px-4 justify-between items-center">
+              <span className="font-medium text-xs">{project.creator?.name || "Unknown User"}</span>
+              <div className="flex gap-1 items-center text-xs">
+                <Calendar className="h-3 w-3" />
+                {formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
