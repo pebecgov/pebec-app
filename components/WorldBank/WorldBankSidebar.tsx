@@ -31,6 +31,11 @@ export default function WorldBankSidebar({
       name: "DLI Status",
       icon: "/images/saber_icon.png",
       path: "/world_bank"
+    },
+    {
+      name: "SABER Materials",
+      icon: "/images/saber_icon.png",
+      path: "/world_bank/saber-materials"
     }
   ];
 
