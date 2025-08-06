@@ -154,7 +154,7 @@ export default function SendLetterModal({
             {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
           </div>
 
-          <div className="border rounded-md p-4">
+          <div className="border rounded-md p-4 flex justify-between items-center">
             <h4 className="text-sm font-medium mb-2">Upload Letter (PDF)</h4>
             <FileUploader setFileId={id => setLetterFileId(id)} />
             {errors.letter && <p className="text-red-500 text-xs mt-2">{errors.letter}</p>}
