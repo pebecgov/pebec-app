@@ -56,7 +56,7 @@ export default function Sidebar({
     path: "/saber_agent/reports"
   },
   {
-    name: "Send a Letter",
+    name: "Send a Letter/Files",
     icon: <EnvelopeIcon className="w-5 h-5" />,
     path: "/saber_agent/send-letters"
   }, {
