@@ -47,7 +47,9 @@ export default function ReportsPage() {
       }
     : "skip"
 ) ?? [];
-const submittedReports = useQuery(api.internal_reports.getSubmittedReports) ?? [];
+const submittedReports = useQuery(api.internal_reports.getSubmittedInternalReports, convexUserId ? {
+  submittedBy: convexUserId
+} : "skip") ?? [];
   const drafts = useQuery(api.internal_reports.getDraftReports, convexUserId ? {
     submittedBy: convexUserId
   } : "skip") ?? [];
@@ -218,11 +220,12 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedReports) ?? [
     
       
         <div className="flex-1 relative">
+           
         {/* <div className="flex gap-4 mt-5 mb-5">
-  <Button className="bg-green-600 text-white" onClick={() => setIsUploadModalOpen(true)}>
+
+ <Button className="bg-green-600 text-white" onClick={() => setIsUploadModalOpen(true)}>
     📤 Upload Report
   </Button>
-
   <Button className="bg-blue-600 text-white" onClick={() => {
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();

@@ -103,10 +103,9 @@ export const getReportTemplates = query({
 export const getSubmittedReports = query({
   args: v.object({}), // No submittedBy needed
   handler: async (ctx) => {
-    return await ctx.db
-      .query("submitted_reports")
-      .filter(q => q.eq(q.field("isDraft"), false)) // ❌ Skip drafts
-      .collect();
+    const allReports = await ctx.db.query("submitted_reports").collect();
+    // Filter out only drafts, keep everything else (including uploaded reports without isDraft field)
+    return allReports.filter(report => report.isDraft !== true);
   },
 });
 export const deleteReportTemplate = mutation({
@@ -331,8 +330,10 @@ export const getSubmittedInternalReports = query({
   handler: async (ctx, {
     submittedBy
   }) => {
-    const reports = await ctx.db.query("submitted_reports").filter(q => q.eq(q.field("submittedBy"), submittedBy)).collect();
-    const enrichedReports = await Promise.all(reports.map(async report => {
+    const allReports = await ctx.db.query("submitted_reports").filter(q => q.eq(q.field("submittedBy"), submittedBy)).collect();
+    // Filter out only drafts, keep everything else (including uploaded reports without isDraft field)
+    const nonDraftReports = allReports.filter(report => report.isDraft !== true);
+    const enrichedReports = await Promise.all(nonDraftReports.map(async report => {
       const fileUrl = report.fileId ? await ctx.storage.getUrl(report.fileId) : report.fileUrl || undefined;
       return {
         ...report,
