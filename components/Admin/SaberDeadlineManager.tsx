@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, Send, Users, AlertCircle, CheckCircle, Info } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Calendar, Clock, Send, Users, AlertCircle, CheckCircle, Info, Mail } from "lucide-react";
+import { toast } from "sonner";
 import { format } from "date-fns";
 
 interface Deadline {
@@ -46,14 +46,11 @@ const SaberDeadlineManager = () => {
   const triggerCustomReminder = useMutation(api.saber_deadlines.triggerCustomReminder);
   const initializeDeadlines = useMutation(api.saber_deadlines.initializeSaberDeadlines);
   const triggerReminderProcessing = useMutation(api.saber_deadlines.triggerReminderProcessing);
+  const testAdminCCLogic = useMutation(api.saber_deadlines.testAdminCCLogic);
 
   const handleTriggerReminder = async () => {
     if (!selectedDeadline) {
-      toast({
-        title: "Error",
-        description: "Please select a deadline",
-        variant: "destructive",
-      });
+      toast.error("Please select a deadline");
       return;
     }
 
@@ -67,52 +64,40 @@ const SaberDeadlineManager = () => {
         triggerDate: triggerTimestamp,
       });
 
-      toast({
-        title: "Success!",
-        description: result.message,
-      });
+      toast.success(result.message);
 
       // Reset form
       setCustomMessage("");
       setTriggerDate("");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send reminder. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to send reminder. Please try again.");
     }
   };
 
   const handleInitializeSystem = async () => {
     try {
       const result = await initializeDeadlines({});
-      toast({
-        title: "System Initialized!",
-        description: result.message,
-      });
+      toast.success(result.message);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to initialize system. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to initialize system. Please try again.");
     }
   };
 
   const handleProcessReminders = async () => {
     try {
       await triggerReminderProcessing({});
-      toast({
-        title: "Processing Triggered!",
-        description: "Reminder processing has been initiated",
-      });
+      toast.success("Reminder processing has been initiated");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to trigger processing. Please try again.",
-        variant: "destructive",
-      });
+      toast.error("Failed to trigger processing. Please try again.");
+    }
+  };
+
+  const handleTestAdminCC = async () => {
+    try {
+      const result = await testAdminCCLogic({});
+      toast.success(`Test sent to ${result.saberReminderAdmins} admins. Check your email.`);
+    } catch (error) {
+      toast.error("Failed to test admin CC logic. Please try again.");
     }
   };
 
@@ -285,6 +270,15 @@ const SaberDeadlineManager = () => {
             >
               <Send className="w-4 h-4 mr-2" />
               Send Reminder
+            </Button>
+            
+            <Button 
+              onClick={handleTestAdminCC} 
+              variant="outline"
+              className="w-full"
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Test Admin CC Logic
             </Button>
           </CardContent>
         </Card>

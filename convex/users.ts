@@ -649,11 +649,12 @@ export function filterAdminsForNotifications(admins: any[]) {
 
 // Helper function to get admins for saber reminder emails (includes the special case)
 export function getAdminsForSaberReminders(admins: any[]) {
-  return admins.filter(admin => 
+  const regularAdmins = admins.filter(admin => 
     admin.email && admin.email !== SABER_ONLY_ADMIN
-  ).concat(
-    admins.filter(admin => admin.email === SABER_ONLY_ADMIN)
   );
+  const saberOnlyAdmin = admins.filter(admin => admin.email === SABER_ONLY_ADMIN);
+  
+  return regularAdmins.concat(saberOnlyAdmin);
 }
 
 export const getAdminEmails = mutation(async ctx => {

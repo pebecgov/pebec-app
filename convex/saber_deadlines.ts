@@ -777,6 +777,9 @@ export const sendDeadlineReminderEmail = mutation({
       return { success: false, reason: "User or deadline not found" };
     }
 
+    // Version check for debugging
+    console.log("SABER REMINDER VERSION: 2.0 - Admin CC enabled");
+
     const urgencyStyle = args.daysUntilDeadline <= 7 ? "background-color: #dc2626;" : 
                         args.daysUntilDeadline <= 14 ? "background-color: #ea580c;" : 
                         "background-color: #0369a1;";
@@ -842,50 +845,61 @@ export const sendDeadlineReminderEmail = mutation({
     });
 
     // CC admins (including the special case admin who should only receive saber reminders)
-    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
-    const adminsForSaberReminders = getAdminsForSaberReminders(allAdmins);
-    
-    for (const admin of adminsForSaberReminders) {
-      if (admin.email) {
-        const adminEmailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-            <div style="background-color: #6b7280; color: white; padding: 20px; text-align: center;">
-              <h2>📧 SABER Reminder CC</h2>
-              <p style="margin: 0; font-size: 16px;">Admin Notification</p>
-            </div>
-            
-            <div style="padding: 20px;">
-              <p>Dear <strong>${admin.firstName || 'Admin'}</strong>,</p>
-              
-              <p>This is a copy of a SABER deadline reminder sent to <strong>${user.firstName || user.email}</strong> for <strong>${user.state}</strong> state:</p>
-              
-              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                <h3 style="margin: 0 0 10px 0; color: #1976d2;">${deadline.indicator}</h3>
-                <p style="margin: 5px 0;"><strong>Category:</strong> ${deadline.dliCategory}</p>
-                <p style="margin: 5px 0;"><strong>Deadline:</strong> ${deadlineDate}</p>
-                <p style="margin: 5px 0;"><strong>Priority:</strong> ${deadline.priority.toUpperCase()}</p>
-                <p style="margin: 10px 0 0 0;"><strong>Description:</strong></p>
-                <p style="margin: 5px 0;">${deadline.description}</p>
-                ${deadline.comments ? `<p style="margin: 10px 0 0 0;"><strong>Additional Notes:</strong></p><p style="margin: 5px 0; font-style: italic;">${deadline.comments}</p>` : ""}
+    try {
+      const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+      const adminsForSaberReminders = getAdminsForSaberReminders(allAdmins);
+      
+      console.log(`SABER REMINDER: Found ${allAdmins.length} total admins, ${adminsForSaberReminders.length} admins for saber reminders`);
+      
+      for (const admin of adminsForSaberReminders) {
+        if (admin.email) {
+          console.log(`SABER REMINDER: Sending CC email to admin: ${admin.email}`);
+          
+          const adminEmailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+              <div style="background-color: #6b7280; color: white; padding: 20px; text-align: center;">
+                <h2>📧 SABER Reminder CC</h2>
+                <p style="margin: 0; font-size: 16px;">Admin Notification</p>
               </div>
+              
+              <div style="padding: 20px;">
+                <p>Dear <strong>${admin.firstName || 'Admin'}</strong>,</p>
+                
+                <p>This is a copy of a SABER deadline reminder sent to <strong>${user.firstName || user.email}</strong> for <strong>${user.state}</strong> state:</p>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 10px 0; color: #1976d2;">${deadline.indicator}</h3>
+                  <p style="margin: 5px 0;"><strong>Category:</strong> ${deadline.dliCategory}</p>
+                  <p style="margin: 5px 0;"><strong>Deadline:</strong> ${deadlineDate}</p>
+                  <p style="margin: 5px 0;"><strong>Priority:</strong> ${deadline.priority.toUpperCase()}</p>
+                  <p style="margin: 10px 0 0 0;"><strong>Description:</strong></p>
+                  <p style="margin: 5px 0;">${deadline.description}</p>
+                  ${deadline.comments ? `<p style="margin: 10px 0 0 0;"><strong>Additional Notes:</strong></p><p style="margin: 5px 0; font-style: italic;">${deadline.comments}</p>` : ""}
+                </div>
 
-              <p><strong>Recipient:</strong> ${user.firstName || user.email} (${user.state})</p>
-              <p><strong>Days Remaining:</strong> ${args.daysUntilDeadline}</p>
+                <p><strong>Recipient:</strong> ${user.firstName || user.email} (${user.state})</p>
+                <p><strong>Days Remaining:</strong> ${args.daysUntilDeadline}</p>
+              </div>
+              
+              <div style="background-color: #f1f1f1; padding: 15px; text-align: center; font-size: 12px;">
+                <p style="margin: 0;">© 2025 PEBEC | <a href="https://www.pebec.gov.ng" style="color: #1976d2;">www.pebec.gov.ng</a></p>
+                <p style="margin: 5px 0 0 0;">This is an automated CC notification. Please do not reply to this email.</p>
+              </div>
             </div>
-            
-            <div style="background-color: #f1f1f1; padding: 15px; text-align: center; font-size: 12px;">
-              <p style="margin: 0;">© 2025 PEBEC | <a href="https://www.pebec.gov.ng" style="color: #1976d2;">www.pebec.gov.ng</a></p>
-              <p style="margin: 5px 0 0 0;">This is an automated CC notification. Please do not reply to this email.</p>
-            </div>
-          </div>
-        `;
+          `;
 
-        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-          to: admin.email,
-          subject: `[CC] ${urgencyText}: SABER Deadline - ${deadline.indicator} (${args.daysUntilDeadline} days remaining)`,
-          html: adminEmailHtml
-        });
+          await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+            to: admin.email,
+            subject: `[CC] ${urgencyText}: SABER Deadline - ${deadline.indicator} (${args.daysUntilDeadline} days remaining)`,
+            html: adminEmailHtml
+          });
+          
+          console.log(`SABER REMINDER: CC email scheduled for admin: ${admin.email}`);
+        }
       }
+    } catch (error) {
+      // Log error but don't fail the entire function
+      console.error("Failed to send admin CC emails:", error);
     }
 
     return { success: true };
@@ -1038,11 +1052,16 @@ export const triggerCustomReminder = mutation({
       
       // Send custom email notification
       if (agent.email) {
-        await ctx.scheduler.runAfter(0, api.saber_deadlines.sendDeadlineReminderEmail, {
-          userId: agent._id,
-          deadlineId: deadline._id,
-          daysUntilDeadline
-        });
+        try {
+          await ctx.scheduler.runAfter(0, api.saber_deadlines.sendDeadlineReminderEmail, {
+            userId: agent._id,
+            deadlineId: deadline._id,
+            daysUntilDeadline
+          });
+        } catch (error) {
+          console.error(`Failed to send custom reminder email to ${agent.email}:`, error);
+          // Continue processing other agents even if one fails
+        }
       }
 
       // Send custom in-app notification
@@ -1127,5 +1146,44 @@ export const getAllDeadlinesForAdmin = query({
     }));
 
     return deadlinesWithStats.sort((a, b) => a.deadline - b.deadline);
+  }
+});
+
+// Test function to verify admin CC logic is working
+export const testAdminCCLogic = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin") {
+      throw new Error("Only admins can test this function");
+    }
+
+    // Get all admins
+    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const adminsForSaberReminders = getAdminsForSaberReminders(allAdmins);
+    
+    console.log(`Test: Found ${allAdmins.length} total admins, ${adminsForSaberReminders.length} admins for saber reminders`);
+    console.log(`Test: Admin emails:`, adminsForSaberReminders.map(a => a.email));
+    
+    // Send a test email to each admin
+    for (const admin of adminsForSaberReminders) {
+      if (admin.email) {
+        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+          to: admin.email,
+          subject: `[TEST] Admin CC Logic Test`,
+          html: `<p>This is a test email to verify that the admin CC logic is working correctly.</p>
+                 <p>Admin: ${admin.firstName || 'Admin'}</p>
+                 <p>Email: ${admin.email}</p>
+                 <p>Time: ${new Date().toISOString()}</p>`
+        });
+      }
+    }
+
+    return {
+      success: true,
+      totalAdmins: allAdmins.length,
+      saberReminderAdmins: adminsForSaberReminders.length,
+      adminEmails: adminsForSaberReminders.map(a => a.email)
+    };
   }
 });
