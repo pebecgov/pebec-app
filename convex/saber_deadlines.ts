@@ -2,7 +2,7 @@
 
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUserOrThrow } from "./users";
+import { getCurrentUserOrThrow, getAdminsForSaberReminders } from "./users";
 import { api } from "./_generated/api";
 
 // Nigerian states for validation
@@ -834,11 +834,59 @@ export const sendDeadlineReminderEmail = mutation({
       </div>
     `;
 
+    // Send email to the saber agent
     await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
       to: user.email,
       subject: `${urgencyText}: SABER Deadline - ${deadline.indicator} (${args.daysUntilDeadline} days remaining)`,
       html: emailHtml
     });
+
+    // CC admins (including the special case admin who should only receive saber reminders)
+    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const adminsForSaberReminders = getAdminsForSaberReminders(allAdmins);
+    
+    for (const admin of adminsForSaberReminders) {
+      if (admin.email) {
+        const adminEmailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <div style="background-color: #6b7280; color: white; padding: 20px; text-align: center;">
+              <h2>📧 SABER Reminder CC</h2>
+              <p style="margin: 0; font-size: 16px;">Admin Notification</p>
+            </div>
+            
+            <div style="padding: 20px;">
+              <p>Dear <strong>${admin.firstName || 'Admin'}</strong>,</p>
+              
+              <p>This is a copy of a SABER deadline reminder sent to <strong>${user.firstName || user.email}</strong> for <strong>${user.state}</strong> state:</p>
+              
+              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #1976d2;">${deadline.indicator}</h3>
+                <p style="margin: 5px 0;"><strong>Category:</strong> ${deadline.dliCategory}</p>
+                <p style="margin: 5px 0;"><strong>Deadline:</strong> ${deadlineDate}</p>
+                <p style="margin: 5px 0;"><strong>Priority:</strong> ${deadline.priority.toUpperCase()}</p>
+                <p style="margin: 10px 0 0 0;"><strong>Description:</strong></p>
+                <p style="margin: 5px 0;">${deadline.description}</p>
+                ${deadline.comments ? `<p style="margin: 10px 0 0 0;"><strong>Additional Notes:</strong></p><p style="margin: 5px 0; font-style: italic;">${deadline.comments}</p>` : ""}
+              </div>
+
+              <p><strong>Recipient:</strong> ${user.firstName || user.email} (${user.state})</p>
+              <p><strong>Days Remaining:</strong> ${args.daysUntilDeadline}</p>
+            </div>
+            
+            <div style="background-color: #f1f1f1; padding: 15px; text-align: center; font-size: 12px;">
+              <p style="margin: 0;">© 2025 PEBEC | <a href="https://www.pebec.gov.ng" style="color: #1976d2;">www.pebec.gov.ng</a></p>
+              <p style="margin: 5px 0 0 0;">This is an automated CC notification. Please do not reply to this email.</p>
+            </div>
+          </div>
+        `;
+
+        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+          to: admin.email,
+          subject: `[CC] ${urgencyText}: SABER Deadline - ${deadline.indicator} (${args.daysUntilDeadline} days remaining)`,
+          html: adminEmailHtml
+        });
+      }
+    }
 
     return { success: true };
   }

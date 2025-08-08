@@ -637,10 +637,22 @@ const EMAIL_NOTIFICATION_BLACKLIST = [
  "zahrah.mustaphaaudu@pebec.gov.ng"
 ];
 
+// Special case: admin who should only receive saber reminder emails
+const SABER_ONLY_ADMIN = "zahrah.mustaphaaudu@pebec.gov.ng";
+
 // Helper function to filter admins based on notification blacklist
 export function filterAdminsForNotifications(admins: any[]) {
   return admins.filter(admin => 
     admin.email && !EMAIL_NOTIFICATION_BLACKLIST.includes(admin.email)
+  );
+}
+
+// Helper function to get admins for saber reminder emails (includes the special case)
+export function getAdminsForSaberReminders(admins: any[]) {
+  return admins.filter(admin => 
+    admin.email && admin.email !== SABER_ONLY_ADMIN
+  ).concat(
+    admins.filter(admin => admin.email === SABER_ONLY_ADMIN)
   );
 }
 
