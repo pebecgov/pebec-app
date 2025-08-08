@@ -11,14 +11,23 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Id } from "@/convex/_generated/dataModel";
+
 const MAX_FILE_SIZE_MB = 20;
 const ALLOWED_TYPES = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 const ALLOWED_EXCEL_TYPES = ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv"];
 const ALLOWED_DOC_TYPES = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+
 interface UploadReportsProps {
   onClose: () => void;
   onUploadComplete?: () => void;
 }
+
 export default function UploadReports({
   onClose,
   onUploadComplete
@@ -32,20 +41,26 @@ export default function UploadReports({
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? {
     clerkUserId: user.id
   } : "skip");
+  
   const [reportType, setReportType] = useState("BFA Report");
   const [customTitle, setCustomTitle] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  
   const hasBFAReport = convexUser?.role === "reform_champion";
   const allowedRoles = ["user", "admin", "mda", "staff", "reform_champion", "federal", "saber_agent", "deputies", "magistrates", "state_governor", "president", "vice_president"] as const;
   type AllowedRole = typeof allowedRoles[number];
   const safeRole: AllowedRole = convexUser && allowedRoles.includes(convexUser.role as AllowedRole) ? convexUser.role as AllowedRole : "user";
+  
   useEffect(() => {
     if (!hasBFAReport && reportType === "BFA Report") {
       setReportType("Other");
     }
   }, [hasBFAReport, reportType]);
+
   if (!user || !convexUser) return null;
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
@@ -61,12 +76,21 @@ export default function UploadReports({
     }
     setFile(selectedFile);
   };
+
   const handleUpload = async () => {
-    const finalTitle = reportType === "Other" ? customTitle.trim() : reportType;
+    // Generate final title with month
+    let finalTitle = "";
+    if (reportType === "BFA Report") {
+      finalTitle = `BFA Report (${selectedMonth})`;
+    } else {
+      finalTitle = customTitle.trim() ? `${customTitle.trim()} (${selectedMonth})` : `Report (${selectedMonth})`;
+    }
+
     if (!finalTitle || !file) {
       toast.error("Please provide a report name and select a file.");
       return;
     }
+    
     setUploading(true);
     try {
       const uploadUrl = await generateUploadUrl();
@@ -106,13 +130,13 @@ export default function UploadReports({
       setUploading(false);
     }
   };
+
   return <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-lg w-full">
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl">Upload Report</DialogTitle>
         </DialogHeader>
 
-        {}
         <div className="mt-4">
           <label className="text-sm font-medium text-gray-700 mb-1 block">
             Select Report Type
@@ -130,9 +154,53 @@ export default function UploadReports({
           </Select>
         </div>
 
-        {reportType === "Other" && <Input type="text" placeholder="Enter custom report name" value={customTitle} onChange={e => setCustomTitle(e.target.value)} className="w-full p-2 bg-gray-100 rounded-md placeholder-gray-400 mt-4" />}
+        <div className="mt-4">
+          <label className="text-sm font-medium text-gray-700 mb-1 block">
+            Report Month
+          </label>
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-full bg-gray-100">
+              <SelectValue placeholder="Select Month" />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTHS.map(month => (
+                <SelectItem key={month} value={month}>
+                  {month}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        {}
+        {reportType === "Other" && (
+          <div className="mt-4">
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              Custom Report Name
+            </label>
+            <Input 
+              type="text" 
+              placeholder="Enter custom report name" 
+              value={customTitle} 
+              onChange={e => setCustomTitle(e.target.value)} 
+              className="w-full p-2 bg-gray-100 rounded-md placeholder-gray-400" 
+            />
+          </div>
+        )}
+
+        <div className="mt-4">
+          <label className="text-sm font-medium text-gray-700 mb-1 block">
+            Preview Report Name
+          </label>
+          <div className="p-3 bg-gray-50 rounded-md text-sm text-gray-600">
+            {reportType === "BFA Report" 
+              ? `BFA Report (${selectedMonth})`
+              : customTitle.trim() 
+                ? `${customTitle.trim()} (${selectedMonth})`
+                : `Report (${selectedMonth})`
+            }
+          </div>
+        </div>
+
         <div className="group/dropzone mt-6">
           <div className="relative rounded-xl border-2 border-dashed border-gray-400 bg-gray-50 p-6 text-center">
           <input type="file" accept={reportType === "BFA Report" ? ".csv,.xls,.xlsx" : ".pdf,.doc,.docx"} onChange={handleFileChange} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
