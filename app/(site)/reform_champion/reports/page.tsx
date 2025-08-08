@@ -220,6 +220,7 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedInternalRepor
     
       
         <div className="flex-1 relative">
+
            
         {/* <div className="flex gap-4 mt-5 mb-5">
 
@@ -227,6 +228,7 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedInternalRepor
     📤 Upload Report
   </Button>
   <Button className="bg-blue-600 text-white" onClick={() => {
+
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
             const endOfToday = new Date().setHours(23, 59, 59, 999);
@@ -265,8 +267,8 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedInternalRepor
             doc.save("monthly_report.pdf");
           }}>
     📥 Download Monthly Report
-  </Button>
-        </div> */}
+  </Button> */}
+        </div> 
 
 
           <Input type="text" placeholder="Search" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-80 p-2.5 text-sm border rounded-lg focus:ring-blue-500 focus:border-blue-500" />
