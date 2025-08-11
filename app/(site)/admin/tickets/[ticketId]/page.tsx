@@ -158,11 +158,11 @@ export default function AdminTicketDetailsPage() {
 
   if (!ticket || isDeleted) {
     return <div className="text-center text-gray-500 mt-10">
-        <p>⚠ This ticket no longer exists. It may have been deleted.</p>
-        <Link href="/admin/tickets">
-          <Button variant="outline" className="mt-4">Back to Tickets</Button>
-        </Link>
-      </div>;
+      <p>⚠ This ticket no longer exists. It may have been deleted.</p>
+      <Link href="/admin/tickets">
+        <Button variant="outline" className="mt-4">Back to Tickets</Button>
+      </Link>
+    </div>;
   }
   return (
     <div className="relative max-w-5xl mx-auto md:mt-10 p-6 mt-5 bg-white shadow-lg rounded-md">
@@ -176,7 +176,7 @@ export default function AdminTicketDetailsPage() {
           <Button onClick={handleDownloadPDF} variant="outline" className="flex items-center gap-2">
             <FaDownload className="w-4 h-4" /> Download PDF
           </Button>
-          {role !== "staff" && role !== "president" && role !== "vice_president" && 
+          {role !== "staff" && role !== "president" && role !== "vice_president" &&
             <Button onClick={() => setIsDeleteDialogOpen(true)} variant="destructive" className="flex items-center gap-2">
               <FaTrashAlt className="w-4 h-4" /> Delete Ticket
             </Button>
@@ -193,7 +193,7 @@ export default function AdminTicketDetailsPage() {
             Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
           </p>
           <div className="mt-4">
-            <TicketCountdown 
+            <TicketCountdown
               ticketCreatedAt={ticket.createdAt}
               ticketReassignedAt={ticket.reassignedAt}
               ticketStatus={ticket.status}
@@ -222,7 +222,12 @@ export default function AdminTicketDetailsPage() {
             </Button>
           </div>
         )}
-
+        <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+          <h3 className="font-semibold text-lg">Description</h3>
+          <div dangerouslySetInnerHTML={{
+            __html: ticket.description
+          }} />
+        </div>
         {fileUrls.length > 0 && (
           <div className="mt-6 p-4 border rounded-lg bg-gray-50">
             <h3 className="font-semibold text-lg mb-2">Uploaded Files</h3>
