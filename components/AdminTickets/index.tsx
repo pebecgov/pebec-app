@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -48,6 +48,7 @@ const TABS = [{
 }];
 export default function AdminTicketsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     user,
     isLoaded
@@ -56,9 +57,31 @@ export default function AdminTicketsPage() {
     role,
     isLoading
   } = useUserRole();
-  const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "in_progress" | "resolved" | "closed">("all");
-  const [mdaFilter, setMdaFilter] = useState<string>("");
+  
+  // Initialize state from URL parameters
+  const [currentPage, setCurrentPage] = useState(() => {
+    const page = searchParams.get('page');
+    return page ? parseInt(page) : 1;
+  });
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "in_progress" | "resolved" | "closed">(() => {
+    return (searchParams.get('status') as any) || "all";
+  });
+  const [mdaFilter, setMdaFilter] = useState<string>(() => {
+    return searchParams.get('mda') || "";
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return searchParams.get('search') || "";
+  });
+  const [dateRange, setDateRange] = useState<{
+    start: string;
+    end: string;
+  }>(() => {
+    return {
+      start: searchParams.get('startDate') || "",
+      end: searchParams.get('endDate') || ""
+    };
+  });
+  
   const mdaList = useQuery(api.users.getMDAs) || [];
   const assignMDA = useMutation(api.tickets.assignTicketMDA);
   const [showTicketReportModal, setShowTicketReportModal] = useState(false);
@@ -69,15 +92,7 @@ export default function AdminTicketsPage() {
     ticketId: Id<"tickets">;
     status: "resolved" | "closed";
   } | null>(null);
-  const [dateRange, setDateRange] = useState<{
-    start: string;
-    end: string;
-  }>({
-    start: "",
-    end: ""
-  });
   const [selectedTickets, setSelectedTickets] = useState<Id<"tickets">[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     ticketId: Id<"tickets">;
@@ -172,6 +187,69 @@ export default function AdminTicketsPage() {
       console.error(error);
     }
   }
+  // Function to update URL with current filters
+  const updateURL = (newFilters: {
+    page?: number;
+    status?: string;
+    mda?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    
+    if (newFilters.page !== undefined) {
+      if (newFilters.page === 1) {
+        params.delete('page');
+      } else {
+        params.set('page', newFilters.page.toString());
+      }
+    }
+    
+    if (newFilters.status !== undefined) {
+      if (newFilters.status === "all") {
+        params.delete('status');
+      } else {
+        params.set('status', newFilters.status);
+      }
+    }
+    
+    if (newFilters.mda !== undefined) {
+      if (newFilters.mda === "") {
+        params.delete('mda');
+      } else {
+        params.set('mda', newFilters.mda);
+      }
+    }
+    
+    if (newFilters.search !== undefined) {
+      if (newFilters.search === "") {
+        params.delete('search');
+      } else {
+        params.set('search', newFilters.search);
+      }
+    }
+    
+    if (newFilters.startDate !== undefined) {
+      if (newFilters.startDate === "") {
+        params.delete('startDate');
+      } else {
+        params.set('startDate', newFilters.startDate);
+      }
+    }
+    
+    if (newFilters.endDate !== undefined) {
+      if (newFilters.endDate === "") {
+        params.delete('endDate');
+      } else {
+        params.set('endDate', newFilters.endDate);
+      }
+    }
+    
+    const newURL = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+    router.replace(newURL, { scroll: false });
+  };
+
   const resetFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
@@ -179,6 +257,15 @@ export default function AdminTicketsPage() {
     setDateRange({
       start: "",
       end: ""
+    });
+    setCurrentPage(1);
+    updateURL({
+      search: "",
+      status: "all",
+      mda: "",
+      startDate: "",
+      endDate: "",
+      page: 1
     });
   };
   return <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
@@ -191,13 +278,25 @@ export default function AdminTicketsPage() {
     <div className="flex-1 min-w-[250px] sm:max-w-xs">
       <div className="relative h-12">
         <MagnifyingGlassIcon className="absolute left-3 top-3 w-5 h-5 text-zinc-400" />
-        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10 pr-3 py-2 w-full h-full bg-zinc-700 border border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search..." />
+        <input 
+          type="text" 
+          value={searchQuery} 
+          onChange={e => {
+            setSearchQuery(e.target.value);
+            updateURL({ search: e.target.value, page: 1 });
+          }} 
+          className="pl-10 pr-3 py-2 w-full h-full bg-zinc-700 border border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          placeholder="Search..." 
+        />
       </div>
     </div>
 
     {/* Status Filter */}
     <div className="w-full sm:w-44 h-12">
-      <Select onValueChange={value => setStatusFilter(value as any)}>
+      <Select onValueChange={value => {
+        setStatusFilter(value as any);
+        updateURL({ status: value, page: 1 });
+      }}>
         <SelectTrigger className="w-full h-full bg-zinc-700 text-white border-zinc-600">
           <SelectValue placeholder="Filter by Status" />
         </SelectTrigger>
@@ -211,7 +310,11 @@ export default function AdminTicketsPage() {
 
     {/* MDA Filter */}
     <div className="w-full sm:w-44 h-12">
-      <Select onValueChange={value => setMdaFilter(value === "all" ? "" : value)}>
+      <Select onValueChange={value => {
+        const mdaValue = value === "all" ? "" : value;
+        setMdaFilter(mdaValue);
+        updateURL({ mda: mdaValue, page: 1 });
+      }}>
         <SelectTrigger className="w-full h-full bg-zinc-700 text-white border-zinc-600">
           <SelectValue placeholder="Filter by MDA" />
         </SelectTrigger>
@@ -230,23 +333,39 @@ export default function AdminTicketsPage() {
   {/* Start Date */}
   <div className="flex flex-col w-full sm:w-40">
     <label className="text-xs text-zinc-300 mb-1">From</label>
-    <Input type="date" value={dateRange.start} onChange={e => {
-              const newStart = e.target.value;
-              setDateRange(prev => ({
-                ...prev,
-                start: newStart,
-                end: prev.end && prev.end < newStart ? "" : prev.end
-              }));
-            }} className="bg-zinc-700 text-white border border-zinc-600 h-12" />
+    <Input 
+      type="date" 
+      value={dateRange.start} 
+      onChange={e => {
+        const newStart = e.target.value;
+        setDateRange(prev => ({
+          ...prev,
+          start: newStart,
+          end: prev.end && prev.end < newStart ? "" : prev.end
+        }));
+        updateURL({ startDate: newStart, page: 1 });
+      }} 
+      className="bg-zinc-700 text-white border border-zinc-600 h-12" 
+    />
   </div>
 
   {/* End Date */}
   <div className="flex flex-col w-full sm:w-40">
     <label className="text-xs text-zinc-300 mb-1">To</label>
-    <Input type="date" value={dateRange.end} min={dateRange.start || undefined} onChange={e => setDateRange(prev => ({
-              ...prev,
-              end: e.target.value
-            }))} className="bg-zinc-700 text-white border border-zinc-600 h-12" />
+    <Input 
+      type="date" 
+      value={dateRange.end} 
+      min={dateRange.start || undefined} 
+      onChange={e => {
+        const newEnd = e.target.value;
+        setDateRange(prev => ({
+          ...prev,
+          end: newEnd
+        }));
+        updateURL({ endDate: newEnd, page: 1 });
+      }} 
+      className="bg-zinc-700 text-white border border-zinc-600 h-12" 
+    />
   </div>
         </div>
 
@@ -406,15 +525,37 @@ export default function AdminTicketsPage() {
       {/* Pagination */}
       <div className="mt-6 flex justify-center">
         <Pagination>
-          <PaginationPrevious onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} className="cursor-pointer" />
+          <PaginationPrevious 
+            onClick={() => {
+              const newPage = Math.max(currentPage - 1, 1);
+              setCurrentPage(newPage);
+              updateURL({ page: newPage });
+            }} 
+            className="cursor-pointer" 
+          />
           {Array.from({
           length: totalPages
         }, (_, index) => <PaginationItem key={index}>
-              <PaginationLink isActive={currentPage === index + 1} onClick={() => setCurrentPage(index + 1)} className="cursor-pointer">
+              <PaginationLink 
+                isActive={currentPage === index + 1} 
+                onClick={() => {
+                  const newPage = index + 1;
+                  setCurrentPage(newPage);
+                  updateURL({ page: newPage });
+                }} 
+                className="cursor-pointer"
+              >
                 {index + 1}
               </PaginationLink>
             </PaginationItem>)}
-          <PaginationNext onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} className="cursor-pointer" />
+          <PaginationNext 
+            onClick={() => {
+              const newPage = Math.min(currentPage + 1, totalPages);
+              setCurrentPage(newPage);
+              updateURL({ page: newPage });
+            }} 
+            className="cursor-pointer" 
+          />
         </Pagination>
       </div>
 
