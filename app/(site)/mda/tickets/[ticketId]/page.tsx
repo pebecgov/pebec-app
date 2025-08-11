@@ -151,7 +151,19 @@ export default function AdminTicketDetailsPage() {
       </div>
 
       {ticket.resolutionNote && <div className="mt-6 p-4 bg-gray-100 border rounded-lg">
-          <h3 className="font-semibold text-lg">Resolution Note</h3>
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="font-semibold text-lg">Resolution Note</h3>
+            <span className="text-sm text-gray-500">
+              {new Date(ticket.updatedAt).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              })}
+            </span>
+          </div>
           <p className="mt-2">{ticket.resolutionNote}</p>
           <Button onClick={() => setIsDialogOpen(true)} variant="outline" className="mt-3">
             Add new resolution note
