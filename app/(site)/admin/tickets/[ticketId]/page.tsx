@@ -28,6 +28,16 @@ export default function AdminTicketDetailsPage() {
     ticketId
   } = useParams();
   const router = useRouter();
+  
+  // Function to handle back navigation with fallback
+  const handleBackNavigation = () => {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      // Fallback to tickets page if no history
+      router.push("/admin/tickets");
+    }
+  };
   const [isDeleted, setIsDeleted] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [statusToUpdate, setStatusToUpdate] = useState<"resolved" | "closed">("resolved");
@@ -159,19 +169,25 @@ export default function AdminTicketDetailsPage() {
   if (!ticket || isDeleted) {
     return <div className="text-center text-gray-500 mt-10">
         <p>⚠ This ticket no longer exists. It may have been deleted.</p>
-        <Link href="/admin/tickets">
-          <Button variant="outline" className="mt-4">Back to Tickets</Button>
-        </Link>
+        <Button 
+          onClick={handleBackNavigation} 
+          variant="outline" 
+          className="mt-4"
+        >
+          Back to Tickets
+        </Button>
       </div>;
   }
   return (
     <div className="relative max-w-5xl mx-auto md:mt-10 p-6 mt-5 bg-white shadow-lg rounded-md">
       <div className="flex justify-between">
-        <Link href="/admin/tickets">
-          <Button variant="outline" className="mb-6 flex items-center gap-2">
-            <FaArrowLeft className="w-4 h-4" /> Back to Tickets
-          </Button>
-        </Link>
+               <Button 
+           onClick={handleBackNavigation} 
+           variant="outline" 
+           className="mb-6 flex items-center gap-2"
+         >
+           <FaArrowLeft className="w-4 h-4" /> Back to Tickets
+         </Button>
         <div className="flex gap-2">
           <Button onClick={handleDownloadPDF} variant="outline" className="flex items-center gap-2">
             <FaDownload className="w-4 h-4" /> Download PDF
