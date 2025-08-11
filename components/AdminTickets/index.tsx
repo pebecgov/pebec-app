@@ -143,7 +143,7 @@ export default function AdminTicketsPage() {
     const endDate = dateRange.end ? new Date(dateRange.end) : null;
     return (statusFilter === "all" || ticket.status === statusFilter) && (!mdaFilter || ticket.assignedMDAName === mdaFilter) && (!startDate || ticketDate >= startDate) && (!endDate || ticketDate <= endDate) && (ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) || ticket.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) || ticket.status.toLowerCase().includes(searchQuery.toLowerCase()));
   }) || [];
-  const itemsPerPage = 2;
+  const itemsPerPage = 20;
   const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
   const paginatedTickets = filteredTickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const exportToExcel = () => {
