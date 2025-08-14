@@ -897,7 +897,7 @@ export const sendDeadlineReminderEmail = mutation({
             </div>
           `;
 
-              await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+          await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
                 to: ccEmail,
             subject: `[CC] ${urgencyText}: SABER Deadline - ${deadline.indicator} (${args.daysUntilDeadline} days remaining)`,
             html: adminEmailHtml
@@ -1050,27 +1050,150 @@ export const triggerCustomReminder = mutation({
     let processedCount = 0;
     const triggerTime = args.triggerDate || Date.now();
 
+    console.log(`Custom reminder: Found ${saberAgents.length} SABER agents total`);
+    
     for (const agent of saberAgents) {
-      if (!agent.state) continue;
-
-      // Check if deadline applies to this agent's state
-      const appliesToState = deadline.states.length === 0 || deadline.states.includes(agent.state);
-      if (!appliesToState) continue;
+      // Send to ALL SABER agents regardless of state for custom reminders
+      // (Remove state filtering to ensure all agents get custom reminders)
+      console.log(`Processing agent: ${agent.email} (${agent.firstName || 'No name'}) - State: ${agent.state || 'No state'}`);
 
       const daysUntilDeadline = Math.ceil((deadline.deadline - triggerTime) / (24 * 60 * 60 * 1000));
       
-      // Send custom email notification
+      // Send custom email notification immediately (no scheduler) and CC admins
       if (agent.email) {
+        console.log(`Sending email to SABER agent: ${agent.email}`);
         try {
-          await ctx.scheduler.runAfter(0, api.saber_deadlines.sendDeadlineReminderEmail, {
-            userId: agent._id,
-            deadlineId: deadline._id,
-            daysUntilDeadline
+          const urgencyStyle = daysUntilDeadline <= 7 ? "background-color: #dc2626;" : 
+                              daysUntilDeadline <= 14 ? "background-color: #ea580c;" : 
+                              "background-color: #0369a1;";
+
+          const urgencyText = args.reminderType === "custom" ? "📢 REMINDER" : (
+            daysUntilDeadline <= 3 ? "🚨 URGENT" :
+            daysUntilDeadline <= 7 ? "⚠️ CRITICAL" :
+            daysUntilDeadline <= 14 ? "🔔 IMPORTANT" :
+            "🔵 REMINDER"
+          );
+
+          const deadlineDate = new Date(deadline.deadline).toLocaleDateString("en-NG", {
+            timeZone: "Africa/Lagos",
+            year: "numeric",
+            month: "long",
+            day: "numeric"
           });
+
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+              <div style="${urgencyStyle} color: white; padding: 20px; text-align: center;">
+                <h2>${urgencyText}: SABER Deadline Reminder</h2>
+                <p style="margin: 0; font-size: 18px; font-weight: bold;">${daysUntilDeadline} days remaining</p>
+              </div>
+              
+              <div style="padding: 20px;">
+                <p>Dear <strong>${agent.firstName || agent.email}</strong>,</p>
+                ${args.customMessage ? `<p style="margin: 5px 0;"><strong>Admin Message:</strong> ${args.customMessage}</p>` : ""}
+                <p>This is a reminder about an upcoming SABER deadline for <strong>${agent.state}</strong> state:</p>
+                
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                  <h3 style="margin: 0 0 10px 0; color: #1976d2;">${deadline.indicator}</h3>
+                  <p style="margin: 5px 0;"><strong>Category:</strong> ${deadline.dliCategory}</p>
+                  <p style="margin: 5px 0;"><strong>Deadline:</strong> ${deadlineDate}</p>
+                  <p style="margin: 5px 0;"><strong>Priority:</strong> ${deadline.priority.toUpperCase()}</p>
+                  <p style="margin: 10px 0 0 0;"><strong>Description:</strong></p>
+                  <p style="margin: 5px 0;">${deadline.description}</p>
+                  ${deadline.comments ? `<p style="margin: 10px 0 0 0;"><strong>Additional Notes:</strong></p><p style="margin: 5px 0; font-style: italic;">${deadline.comments}</p>` : ""}
+                </div>
+
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="https://pebec.gov.ng${deadline.actionUrl || '/saber_agent'}" 
+                     style="background-color: #1976d2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                    Take Action Now
+                  </a>
+                </div>
+
+                <p>Please ensure this requirement is completed before the deadline to maintain compliance with SABER requirements.</p>
+                
+                <p>If you have any questions or need assistance, please contact the PEBEC support team.</p>
+              </div>
+              
+              <div style="background-color: #f1f1f1; padding: 15px; text-align: center; font-size: 12px;">
+                <p style="margin: 0;">© 2025 PEBEC | <a href="https://www.pebec.gov.ng" style="color: #1976d2;">www.pebec.gov.ng</a></p>
+                <p style="margin: 5px 0 0 0;">This is an automated reminder. Please do not reply to this email.</p>
+              </div>
+            </div>
+          `;
+
+          // Send email to the saber agent
+          console.log(`Scheduling email for agent: ${agent.email}`);
+          await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+            to: agent.email,
+            subject: `${urgencyText}: SABER Deadline - ${deadline.indicator} (${daysUntilDeadline} days remaining)`,
+            html: emailHtml
+          });
+          console.log(`Email scheduled successfully for agent: ${agent.email}`);
+
+          // CC admins and external recipients for this agent's email
+          try {
+            const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+            const adminsForSaberReminders = getAdminsForSaberReminders(allAdmins);
+            const externalCc = getExternalCcForSaberReminders();
+
+            const ccTargets = [
+              ...adminsForSaberReminders.map(a => a.email).filter(Boolean),
+              ...externalCc.map(e => e.email).filter(Boolean)
+            ];
+            const uniqueCcTargets = Array.from(new Set(ccTargets));
+
+            for (const ccEmail of uniqueCcTargets) {
+              if (!ccEmail) continue;
+              const adminEmailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                  <div style="background-color: #6b7280; color: white; padding: 20px; text-align: center;">
+                    <h2>📧 SABER Reminder CC</h2>
+                    <p style="margin: 0; font-size: 16px;">Admin Notification</p>
+                  </div>
+                  
+                  <div style="padding: 20px;">
+                    <p>Dear <strong>Admin</strong>,</p>
+                    
+                    <p>This is a copy of a SABER deadline reminder sent to <strong>${agent.firstName || agent.email}</strong> for <strong>${agent.state}</strong> state:</p>
+                    
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                      <h3 style="margin: 0 0 10px 0; color: #1976d2;">${deadline.indicator}</h3>
+                      <p style="margin: 5px 0;"><strong>Category:</strong> ${deadline.dliCategory}</p>
+                      <p style="margin: 5px 0;"><strong>Deadline:</strong> ${deadlineDate}</p>
+                      <p style="margin: 5px 0;"><strong>Priority:</strong> ${deadline.priority.toUpperCase()}</p>
+                      <p style="margin: 10px 0 0 0;"><strong>Description:</strong></p>
+                      <p style="margin: 5px 0;">${deadline.description}</p>
+                      ${deadline.comments ? `<p style="margin: 10px 0 0 0;"><strong>Additional Notes:</strong></p><p style="margin: 5px 0; font-style: italic;">${deadline.comments}</p>` : ""}
+                    </div>
+    
+                    <p><strong>Recipient:</strong> ${agent.firstName || agent.email} (${agent.state})</p>
+                    <p><strong>Days Remaining:</strong> ${daysUntilDeadline}</p>
+                    ${args.customMessage ? `<p><strong>Admin Message:</strong> ${args.customMessage}</p>` : ""}
+                  </div>
+                  
+                  <div style="background-color: #f1f1f1; padding: 15px; text-align: center; font-size: 12px;">
+                    <p style="margin: 0;">© 2025 PEBEC | <a href="https://www.pebec.gov.ng" style="color: #1976d2;">www.pebec.gov.ng</a></p>
+                    <p style="margin: 5px 0 0 0;">This is an automated CC notification. Please do not reply to this email.</p>
+                  </div>
+                </div>
+              `;
+
+              await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+                to: ccEmail,
+                subject: `[CC] ${urgencyText}: SABER Deadline - ${deadline.indicator} (${daysUntilDeadline} days remaining)`,
+                html: adminEmailHtml
+              });
+            }
+          } catch (err) {
+            console.error("Failed to send admin CC emails:", err);
+          }
         } catch (error) {
           console.error(`Failed to send custom reminder email to ${agent.email}:`, error);
           // Continue processing other agents even if one fails
         }
+      } else {
+        console.log(`Skipping agent with no email: ${agent._id} (${agent.firstName || 'No name'})`);
       }
 
       // Send custom in-app notification
@@ -1178,18 +1301,20 @@ export const testAdminCCLogic = mutation({
     ];
     const uniqueCcTargets = Array.from(new Set(ccTargets));
 
-    console.log(`Test: Found ${allAdmins.length} total admins, ${adminsForSaberReminders.length} admins for saber reminders, ${externalCc.length} external CCs`);
-    console.log(`Test: CC emails:`, uniqueCcTargets);
+                console.log(`Test: Found ${allAdmins.length} total admins, ${adminsForSaberReminders.length} admins for saber reminders, ${externalCc.length} external CCs`);
+    console.log(`Test: Admin emails:`, adminsForSaberReminders.map(a => a.email));
+    console.log(`Test: External CC emails:`, externalCc);
+    console.log(`Test: All CC emails:`, uniqueCcTargets);
 
     // Send a test email to each CC target
     for (const ccEmail of uniqueCcTargets) {
-      await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
         to: ccEmail!,
         subject: `[TEST] Admin/External CC Logic Test`,
         html: `<p>This is a test email to verify that the admin/external CC logic is working correctly.</p>
                <p>Email: ${ccEmail}</p>
-               <p>Time: ${new Date().toISOString()}</p>`
-      });
+                 <p>Time: ${new Date().toISOString()}</p>`
+        });
     }
 
     return {

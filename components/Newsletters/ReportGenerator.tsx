@@ -49,8 +49,8 @@ export default function SubscribersPage() {
     toDate,
     emailSearch
   });
-  const monthlyReport = useQuery(api.newsletters.getMonthlyReportData);
-  const customReport = useQuery(api.newsletters.getCustomReportData, customFromDate && customToDate ? {
+  const monthlyReportSummary = useQuery(api.newsletters.getMonthlyReportSummary);
+  const customReportSummary = useQuery(api.newsletters.getCustomReportSummary, customFromDate && customToDate ? {
     fromDate: customFromDate,
     toDate: customToDate,
     status: customStatus
@@ -61,30 +61,47 @@ export default function SubscribersPage() {
   const unsubscribe = useMutation(api.newsletters.unsubscribeFromNewsletter);
   const resubscribe = useMutation(api.newsletters.subscribeToNewsletter);
   const generateMonthlyPDF = () => {
-    if (!monthlyReport || !monthlyReport.length) {
+    if (!monthlyReportSummary) {
       toast.error("No monthly report data available.");
       return;
     }
+    
     const doc = new jsPDF();
-    doc.text("This Month's Subscribers", 14, 16);
-    autoTable(doc, {
-      head: [["Email", "Status", "Date"]],
-      body: monthlyReport.map(sub => [sub.email, sub.isSubscribed ? "Subscribed" : "Unsubscribed", format(new Date(sub.subscribedAt), "PPpp")])
-    });
-    doc.save("monthly_report.pdf");
+    doc.setFontSize(18);
+    doc.text(`Monthly Subscriber Report - ${monthlyReportSummary.month}`, 14, 16);
+    
+    doc.setFontSize(12);
+    doc.text(`Total Subscribers: ${monthlyReportSummary.totalCount}`, 14, 40);
+    doc.text(`Active Subscriptions: ${monthlyReportSummary.subscribedCount}`, 14, 55);
+    doc.text(`Unsubscribed: ${monthlyReportSummary.unsubscribedCount}`, 14, 70);
+    
+    // Add a note about pagination
+    doc.setFontSize(8);
+    doc.text("Note: This is a summary report. For detailed subscriber lists, use the paginated view.", 14, 90);
+    
+    doc.save("monthly_report_summary.pdf");
   };
   const generateCustomPDF = () => {
-    if (!customReport || !customReport.length) {
+    if (!customReportSummary) {
       toast.error("No data to generate PDF.");
       return;
     }
+    
     const doc = new jsPDF();
+    doc.setFontSize(18);
     doc.text("Custom Subscriber Report", 14, 16);
-    autoTable(doc, {
-      head: [["Email", "Status", "Subscribed At"]],
-      body: customReport.map(sub => [sub.email, sub.isSubscribed ? "Subscribed" : "Unsubscribed", format(new Date(sub.subscribedAt), "PPpp")])
-    });
-    doc.save("custom_report.pdf");
+    
+    doc.setFontSize(12);
+    doc.text(`Date Range: ${customReportSummary.dateRange}`, 14, 40);
+    doc.text(`Total Subscribers: ${customReportSummary.totalCount}`, 14, 55);
+    doc.text(`Active Subscriptions: ${customReportSummary.subscribedCount}`, 14, 70);
+    doc.text(`Unsubscribed: ${customReportSummary.unsubscribedCount}`, 14, 85);
+    
+    // Add a note about pagination
+    doc.setFontSize(8);
+    doc.text("Note: This is a summary report. For detailed subscriber lists, use the paginated view.", 14, 105);
+    
+    doc.save("custom_report_summary.pdf");
     setCustomDialogOpen(false);
   };
   return <div className="p-6 max-w-screen-xl mx-auto space-y-6">
