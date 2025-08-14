@@ -129,30 +129,126 @@ export const createNewsletter = mutation({
       subject,
       message,
       attachmentId,
-      createdAt: now
+      createdAt: now,
+      status: "sending",
+      startedAt: now,
+      totalSubscribers: 0,
+      totalBatches: 0,
+      batchesCompleted: 0,
+      sentCount: 0,
+      failedCount: 0
     });
-    const subscribers = await ctx.db.query("newsletter_subscribers").filter(q => q.eq(q.field("isSubscribed"), true)).collect();
+    
+    // Get total subscriber count
+    const subscribers = await ctx.db.query("newsletter_subscribers")
+      .filter(q => q.eq(q.field("isSubscribed"), true))
+      .collect();
+    
+    console.log(`Starting newsletter send to ${subscribers.length} subscribers`);
+    
+    // Process subscribers in batches to avoid the 1000 scheduled function limit
+    const BATCH_SIZE = 500; // Process 500 emails per batch
+    const totalBatches = Math.ceil(subscribers.length / BATCH_SIZE);
+
+    await ctx.db.patch(newsletterId, {
+      totalSubscribers: subscribers.length,
+      totalBatches
+    });
+    
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const startIndex = batchIndex * BATCH_SIZE;
+      const endIndex = Math.min(startIndex + BATCH_SIZE, subscribers.length);
+      const batchSubscribers = subscribers.slice(startIndex, endIndex);
+      
+      console.log(`Scheduling batch ${batchIndex + 1}/${totalBatches} with ${batchSubscribers.length} subscribers`);
+      
+      // Schedule batch processing with a small delay between batches to spread load
+      await ctx.scheduler.runAfter(batchIndex * 2000, api.newsletters.processBatch, {
+        newsletterId,
+        subscribers: batchSubscribers.map(sub => sub.email),
+        subject,
+        message,
+        attachmentId,
+        batchIndex: batchIndex + 1,
+        totalBatches
+      });
+    }
+    
+    return { success: true, newsletterId };
+  }
+});
+
+// Process a batch of newsletter emails
+export const processBatch = mutation({
+  args: {
+    newsletterId: v.id("newsletters"),
+    subscribers: v.array(v.string()),
+    subject: v.string(),
+    message: v.string(),
+    attachmentId: v.optional(v.id("_storage")),
+    batchIndex: v.number(),
+    totalBatches: v.number()
+  },
+  handler: async (ctx, args) => {
+    const { newsletterId, subscribers, subject, message, attachmentId, batchIndex, totalBatches } = args;
+    
+    console.log(`Processing batch ${batchIndex}/${totalBatches} with ${subscribers.length} emails`);
+    
+    // Get attachment URL if provided
     const fileUrl = attachmentId ? await ctx.storage.getUrl(attachmentId) : undefined;
-    for (const sub of subscribers) {
-      await ctx.scheduler.runAfter(0, api.email.sendEmail, {
-        to: sub.email,
+    
+    let successCount = 0;
+    let failureCount = 0;
+    
+    // Send emails to all subscribers in this batch
+    for (const email of subscribers) {
+      try {
+        await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+          to: email,
         subject,
         html: `
             <div style="font-family: Arial; line-height: 1.6;">
               <h2>${subject}</h2>
               <p>${message}</p>
               ${fileUrl ? `<p><a href="${fileUrl}" target="_blank">Download Attachment</a></p>` : ""}
-              <p style="font-size:12px; margin-top:20px;">If you want to unsubscribe from PEBEC Newsletter, you can email us at info@pebec.gov.ng</a>.</p>
+              <p style="font-size:12px; margin-top:20px;">If you want to unsubscribe from PEBEC Newsletter, you can email us at info@pebec.gov.ng</p>
             </div>
           `
       });
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to send email to ${email}:`, error);
+        failureCount++;
+      }
     }
+    
+    console.log(`Batch ${batchIndex}/${totalBatches} complete: ${successCount} sent, ${failureCount} failed`);
+
+    // Update progress counters on the newsletter doc
+    const newsletter = await ctx.db.get(newsletterId);
+    if (newsletter) {
+      const updatedBatchesCompleted = (newsletter.batchesCompleted ?? 0) + 1;
+      const updatedSentCount = (newsletter.sentCount ?? 0) + successCount;
+      const updatedFailedCount = (newsletter.failedCount ?? 0) + failureCount;
+      const finished = updatedBatchesCompleted >= (newsletter.totalBatches ?? totalBatches);
+      await ctx.db.patch(newsletterId, {
+        batchesCompleted: updatedBatchesCompleted,
+        sentCount: updatedSentCount,
+        failedCount: updatedFailedCount,
+        status: finished ? "completed" : "sending",
+        finishedAt: finished ? new Date().toISOString() : undefined
+      });
+    }
+    
     return {
-      success: true,
-      newsletterId
+      batchIndex,
+      totalBatches,
+      successCount,
+      failureCount
     };
   }
 });
+
 export const getNewsletters = query({
   args: {
     page: v.number(),
@@ -337,6 +433,14 @@ export const getMonthlyReportData = query({
 });
 export const getAllNewsletters = query(async ctx => {
   return await ctx.db.query("newsletters").order("desc").collect();
+});
+
+// Get a single newsletter (with progress fields) by id
+export const getNewsletterById = query({
+  args: { id: v.id("newsletters") },
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id);
+  }
 });
 export const getCustomReportData = query({
   args: {

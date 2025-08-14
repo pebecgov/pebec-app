@@ -400,7 +400,16 @@ export default defineSchema({
     subject: v.string(),
     message: v.string(),
     attachmentId: v.optional(v.id("_storage")),
-    createdAt: v.string()
+    createdAt: v.string(),
+    // Sending progress (optional for older rows)
+    status: v.optional(v.union(v.literal("sending"), v.literal("completed"))),
+    totalSubscribers: v.optional(v.number()),
+    totalBatches: v.optional(v.number()),
+    batchesCompleted: v.optional(v.number()),
+    sentCount: v.optional(v.number()),
+    failedCount: v.optional(v.number()),
+    startedAt: v.optional(v.string()),
+    finishedAt: v.optional(v.string())
   }),
   access_codes: defineTable({
     code: v.string(),
