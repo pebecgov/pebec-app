@@ -300,15 +300,39 @@ export const deleteSubscriber = mutation({
   }
 });
 export const getMonthlyReportData = query({
-  handler: async ctx => {
+  args: {
+    page: v.optional(v.number()),
+    pageSize: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const page = args.page ?? 0;
+    const pageSize = args.pageSize ?? 5000; // Reasonable chunk size under 8192 limit
+    
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const subscribers = await ctx.db.query("newsletter_subscribers").collect();
-    return subscribers.filter(s => {
+    
+    // Get all subscribers first, then filter by date and paginate
+    const allSubscribers = await ctx.db.query("newsletter_subscribers").collect();
+    const monthlySubscribers = allSubscribers.filter(s => {
       const subDate = new Date(s.subscribedAt);
       return subDate >= start && subDate <= end;
     });
+    
+    // Calculate pagination
+    const startIndex = page * pageSize;
+    const endIndex = startIndex + pageSize;
+    const hasMore = endIndex < monthlySubscribers.length;
+    const pageData = monthlySubscribers.slice(startIndex, endIndex);
+    
+    return {
+      data: pageData,
+      totalCount: monthlySubscribers.length,
+      hasMore,
+      currentPage: page,
+      pageSize,
+      totalPages: Math.ceil(monthlySubscribers.length / pageSize)
+    };
   }
 });
 export const getAllNewsletters = query(async ctx => {
@@ -318,21 +342,99 @@ export const getCustomReportData = query({
   args: {
     fromDate: v.string(),
     toDate: v.string(),
-    status: v.string()
+    status: v.string(),
+    page: v.optional(v.number()),
+    pageSize: v.optional(v.number())
   },
-  handler: async (ctx, {
-    fromDate,
-    toDate,
-    status
-  }) => {
+  handler: async (ctx, args) => {
+    const { fromDate, toDate, status } = args;
+    const page = args.page ?? 0;
+    const pageSize = args.pageSize ?? 5000; // Reasonable chunk size under 8192 limit
+    
     const from = new Date(fromDate);
     const to = new Date(toDate);
-    const subscribers = await ctx.db.query("newsletter_subscribers").collect();
-    return subscribers.filter(s => {
+    
+    // Get all subscribers first, then filter and paginate
+    const allSubscribers = await ctx.db.query("newsletter_subscribers").collect();
+    const filteredSubscribers = allSubscribers.filter(s => {
       const subDate = new Date(s.subscribedAt);
       const withinRange = subDate >= from && subDate <= to;
-      const matchesStatus = status === "all" || status === "subscribed" && s.isSubscribed || status === "unsubscribed" && !s.isSubscribed;
+      const matchesStatus = status === "all" || 
+        (status === "subscribed" && s.isSubscribed) || 
+        (status === "unsubscribed" && !s.isSubscribed);
       return withinRange && matchesStatus;
     });
+    
+    // Calculate pagination
+    const startIndex = page * pageSize;
+    const endIndex = startIndex + pageSize;
+    const hasMore = endIndex < filteredSubscribers.length;
+    const pageData = filteredSubscribers.slice(startIndex, endIndex);
+    
+    return {
+      data: pageData,
+      totalCount: filteredSubscribers.length,
+      hasMore,
+      currentPage: page,
+      pageSize,
+      totalPages: Math.ceil(filteredSubscribers.length / pageSize)
+    };
+  }
+});
+
+// Summary function for PDF generation (returns counts only, not full data)
+export const getMonthlyReportSummary = query({
+  handler: async (ctx) => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    const allSubscribers = await ctx.db.query("newsletter_subscribers").collect();
+    const monthlySubscribers = allSubscribers.filter(s => {
+      const subDate = new Date(s.subscribedAt);
+      return subDate >= start && subDate <= end;
+    });
+    
+    const subscribedCount = monthlySubscribers.filter(s => s.isSubscribed).length;
+    const unsubscribedCount = monthlySubscribers.length - subscribedCount;
+    
+    return {
+      totalCount: monthlySubscribers.length,
+      subscribedCount,
+      unsubscribedCount,
+      month: now.toLocaleString('default', { month: 'long', year: 'numeric' })
+    };
+  }
+});
+
+export const getCustomReportSummary = query({
+  args: {
+    fromDate: v.string(),
+    toDate: v.string(),
+    status: v.string()
+  },
+  handler: async (ctx, { fromDate, toDate, status }) => {
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    
+    const allSubscribers = await ctx.db.query("newsletter_subscribers").collect();
+    const filteredSubscribers = allSubscribers.filter(s => {
+      const subDate = new Date(s.subscribedAt);
+      const withinRange = subDate >= from && subDate <= to;
+      const matchesStatus = status === "all" || 
+        (status === "subscribed" && s.isSubscribed) || 
+        (status === "unsubscribed" && !s.isSubscribed);
+      return withinRange && matchesStatus;
+    });
+    
+    const subscribedCount = filteredSubscribers.filter(s => s.isSubscribed).length;
+    const unsubscribedCount = filteredSubscribers.length - subscribedCount;
+    
+    return {
+      totalCount: filteredSubscribers.length,
+      subscribedCount,
+      unsubscribedCount,
+      dateRange: `${from.toLocaleDateString()} - ${to.toLocaleDateString()}`
+    };
   }
 });

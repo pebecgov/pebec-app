@@ -61,88 +61,67 @@ export default function SubscribersPage() {
   const resubscribe = useMutation(api.newsletters.subscribeToNewsletter);
   const [monthlyDialogOpen, setMonthlyDialogOpen] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
-  const monthlyReport = useQuery(api.newsletters.getMonthlyReportData);
+  const monthlyReportSummary = useQuery(api.newsletters.getMonthlyReportSummary);
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
   const [customStatus, setCustomStatus] = useState("all");
-  const customReport = useQuery(api.newsletters.getCustomReportData, customFromDate && customToDate ? {
+  const customReportSummary = useQuery(api.newsletters.getCustomReportSummary, customFromDate && customToDate ? {
     fromDate: customFromDate,
     toDate: customToDate,
     status: customStatus
   } : "skip");
   const generateMonthlyPDF = () => {
-    if (!monthlyReport || !monthlyReport.length) {
+    if (!monthlyReportSummary) {
       toast.error("No data to generate PDF.");
       return;
     }
-    const subscribedCount = monthlyReport.filter(s => s.isSubscribed).length;
-    const unsubscribedCount = monthlyReport.length - subscribedCount;
+    
     const doc = new jsPDF({
-      orientation: "landscape",
+      orientation: "portrait",
       unit: "pt",
       format: "A4"
     });
+    
     doc.setFontSize(18);
-    doc.text("This Month's Subscribers", 40, 40);
-    const table = autoTable(doc, {
-      startY: 60,
-      head: [["Email", "Status", "Date"]],
-      body: monthlyReport.map(sub => [sub.email, sub.isSubscribed ? "Subscribed" : "Unsubscribed", format(new Date(sub.subscribedAt), "PPpp")]),
-      styles: {
-        fontSize: 10
-      },
-      headStyles: {
-        fillColor: [41, 128, 185],
-        textColor: [255, 255, 255]
-      },
-      margin: {
-        top: 60
-      },
-      didDrawPage: data => {
-        const y = data.cursor?.y ?? 80;
-        doc.setFontSize(12);
-        doc.text(`Total Subscribed: ${subscribedCount}`, 40, y + 20);
-        doc.text(`Total Unsubscribed: ${unsubscribedCount}`, 40, y + 40);
-      }
-    });
-    doc.save("monthly_report.pdf");
+    doc.text(`Monthly Subscriber Report - ${monthlyReportSummary.month}`, 40, 40);
+    
+    doc.setFontSize(14);
+    doc.text(`Total Subscribers: ${monthlyReportSummary.totalCount}`, 40, 80);
+    doc.text(`Active Subscriptions: ${monthlyReportSummary.subscribedCount}`, 40, 100);
+    doc.text(`Unsubscribed: ${monthlyReportSummary.unsubscribedCount}`, 40, 120);
+    
+    // Add a note about pagination
+    doc.setFontSize(10);
+    doc.text("Note: This is a summary report. For detailed subscriber lists, use the paginated view.", 40, 160);
+    
+    doc.save("monthly_report_summary.pdf");
   };
   const generatePDF = () => {
-    if (!customReport || !customReport.length) {
+    if (!customReportSummary) {
       toast.error("No data to generate PDF.");
       return;
     }
-    const subscribedCount = customReport.filter(s => s.isSubscribed).length;
-    const unsubscribedCount = customReport.length - subscribedCount;
+    
     const doc = new jsPDF({
-      orientation: "landscape",
+      orientation: "portrait",
       unit: "pt",
       format: "A4"
     });
+    
     doc.setFontSize(18);
     doc.text("Custom Subscriber Report", 40, 40);
-    autoTable(doc, {
-      startY: 60,
-      head: [["Email", "Status", "Subscribed At"]],
-      body: customReport.map(sub => [sub.email, sub.isSubscribed ? "Subscribed" : "Unsubscribed", format(new Date(sub.subscribedAt), "PPpp")]),
-      styles: {
-        fontSize: 10
-      },
-      headStyles: {
-        fillColor: [41, 128, 185],
-        textColor: [255, 255, 255]
-      },
-      margin: {
-        top: 60
-      },
-      didDrawPage: data => {
-        const y = data.cursor?.y ?? 80;
-        doc.setFontSize(12);
-        doc.text(`Total Subscribed: ${subscribedCount}`, 40, y + 20);
-        doc.text(`Total Unsubscribed: ${unsubscribedCount}`, 40, y + 40);
-      }
-    });
-    doc.save("custom_report.pdf");
+    
+    doc.setFontSize(14);
+    doc.text(`Date Range: ${customReportSummary.dateRange}`, 40, 80);
+    doc.text(`Total Subscribers: ${customReportSummary.totalCount}`, 40, 100);
+    doc.text(`Active Subscriptions: ${customReportSummary.subscribedCount}`, 40, 120);
+    doc.text(`Unsubscribed: ${customReportSummary.unsubscribedCount}`, 40, 140);
+    
+    // Add a note about pagination
+    doc.setFontSize(10);
+    doc.text("Note: This is a summary report. For detailed subscriber lists, use the paginated view.", 40, 180);
+    
+    doc.save("custom_report_summary.pdf");
     setCustomDialogOpen(false);
   };
   const handleAdd = async () => {
@@ -392,31 +371,7 @@ export default function SubscribersPage() {
           Next
         </Button>
       </div>
-      <Dialog open={monthlyDialogOpen} onOpenChange={setMonthlyDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>This Month's Subscribers</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[400px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-2 text-left">Email</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyReport?.map(s => <tr key={s._id} className="border-t">
-                    <td className="px-4 py-2">{s.email}</td>
-                    <td className="px-4 py-2">{s.isSubscribed ? "Subscribed" : "Unsubscribed"}</td>
-                    <td className="px-4 py-2">{format(new Date(s.subscribedAt), "PPpp")}</td>
-                  </tr>)}
-              </tbody>
-            </table>
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
         <DialogContent className="space-y-4 max-w-md">

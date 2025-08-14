@@ -657,14 +657,23 @@ export function getAdminsForSaberReminders(admins: any[]) {
   return regularAdmins.concat(saberOnlyAdmin);
 }
 
-// External CC emails for saber reminders (comma-separated list in env)
-const SABER_EXTRA_CC_EMAILS = (process.env.SABER_EXTRA_CC_EMAILS?.split(',') || [])
-  .map(e => e.trim())
-  .filter(Boolean);
-
 // Helper function to fetch external CC recipients for saber reminders from env
 export function getExternalCcForSaberReminders(): { email: string }[] {
-  return SABER_EXTRA_CC_EMAILS.map(email => ({ email }));
+  const envEmails = process.env.SABER_EXTRA_CC_EMAILS;
+  console.log("SABER_EXTRA_CC_EMAILS env value:", envEmails);
+  
+  if (!envEmails) {
+    console.log("No SABER_EXTRA_CC_EMAILS found in environment");
+    return [];
+  }
+  
+  const emails = envEmails.split(',')
+    .map(e => e.trim())
+    .filter(Boolean)
+    .map(email => ({ email }));
+    
+  console.log("Parsed external CC emails:", emails);
+  return emails;
 }
 
 export const getAdminEmails = mutation(async ctx => {
