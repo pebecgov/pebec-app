@@ -2,7 +2,7 @@
 
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUserOrThrow, getAdminsForSaberReminders } from "./users";
+import { getCurrentUserOrThrow, getAdminsForSaberReminders, getExternalCcForSaberReminders } from "./users";
 import { api } from "./_generated/api";
 
 // Nigerian states for validation
@@ -848,12 +848,21 @@ export const sendDeadlineReminderEmail = mutation({
     try {
       const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
       const adminsForSaberReminders = getAdminsForSaberReminders(allAdmins);
+      const externalCc = getExternalCcForSaberReminders();
       
       console.log(`SABER REMINDER: Found ${allAdmins.length} total admins, ${adminsForSaberReminders.length} admins for saber reminders`);
       
-      for (const admin of adminsForSaberReminders) {
-        if (admin.email) {
-          console.log(`SABER REMINDER: Sending CC email to admin: ${admin.email}`);
+      const ccTargets = [
+        ...adminsForSaberReminders.map(a => a.email).filter(Boolean),
+        ...externalCc.map(e => e.email).filter(Boolean)
+      ];
+
+      // Ensure uniqueness
+      const uniqueCcTargets = Array.from(new Set(ccTargets));
+
+      for (const ccEmail of uniqueCcTargets) {
+        if (ccEmail) {
+          console.log(`SABER REMINDER: Sending CC email to: ${ccEmail}`);
           
           const adminEmailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
@@ -863,7 +872,7 @@ export const sendDeadlineReminderEmail = mutation({
               </div>
               
               <div style="padding: 20px;">
-                <p>Dear <strong>${admin.firstName || 'Admin'}</strong>,</p>
+                <p>Dear <strong>Admin</strong>,</p>
                 
                 <p>This is a copy of a SABER deadline reminder sent to <strong>${user.firstName || user.email}</strong> for <strong>${user.state}</strong> state:</p>
                 
@@ -888,13 +897,13 @@ export const sendDeadlineReminderEmail = mutation({
             </div>
           `;
 
-          await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-            to: admin.email,
+              await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+                to: ccEmail,
             subject: `[CC] ${urgencyText}: SABER Deadline - ${deadline.indicator} (${args.daysUntilDeadline} days remaining)`,
             html: adminEmailHtml
           });
           
-          console.log(`SABER REMINDER: CC email scheduled for admin: ${admin.email}`);
+              console.log(`SABER REMINDER: CC email scheduled for: ${ccEmail}`);
         }
       }
     } catch (error) {
@@ -1158,25 +1167,29 @@ export const testAdminCCLogic = mutation({
       throw new Error("Only admins can test this function");
     }
 
-    // Get all admins
+    // Get all admins + external CCs
     const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
     const adminsForSaberReminders = getAdminsForSaberReminders(allAdmins);
-    
-    console.log(`Test: Found ${allAdmins.length} total admins, ${adminsForSaberReminders.length} admins for saber reminders`);
-    console.log(`Test: Admin emails:`, adminsForSaberReminders.map(a => a.email));
-    
-    // Send a test email to each admin
-    for (const admin of adminsForSaberReminders) {
-      if (admin.email) {
-        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-          to: admin.email,
-          subject: `[TEST] Admin CC Logic Test`,
-          html: `<p>This is a test email to verify that the admin CC logic is working correctly.</p>
-                 <p>Admin: ${admin.firstName || 'Admin'}</p>
-                 <p>Email: ${admin.email}</p>
-                 <p>Time: ${new Date().toISOString()}</p>`
-        });
-      }
+    const externalCc = getExternalCcForSaberReminders();
+
+    const ccTargets = [
+      ...adminsForSaberReminders.map(a => a.email).filter(Boolean),
+      ...externalCc.map(e => e.email).filter(Boolean)
+    ];
+    const uniqueCcTargets = Array.from(new Set(ccTargets));
+
+    console.log(`Test: Found ${allAdmins.length} total admins, ${adminsForSaberReminders.length} admins for saber reminders, ${externalCc.length} external CCs`);
+    console.log(`Test: CC emails:`, uniqueCcTargets);
+
+    // Send a test email to each CC target
+    for (const ccEmail of uniqueCcTargets) {
+      await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+        to: ccEmail!,
+        subject: `[TEST] Admin/External CC Logic Test`,
+        html: `<p>This is a test email to verify that the admin/external CC logic is working correctly.</p>
+               <p>Email: ${ccEmail}</p>
+               <p>Time: ${new Date().toISOString()}</p>`
+      });
     }
 
     return {
