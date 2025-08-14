@@ -26,6 +26,8 @@ export default function AdminNewsletterDashboard() {
   const [attachmentId, setAttachmentId] = useState<Id<"_storage"> | undefined>();
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const createNewsletter = useMutation(api.newsletters.createNewsletter);
+  const [sendingId, setSendingId] = useState<Id<"newsletters"> | null>(null);
+  const progress = useQuery(api.newsletters.getNewsletterById, sendingId ? { id: sendingId } : "skip");
   const getFileUrl = useMutation(api.tickets.getStorageUrl);
   const newsletters = useQuery(api.newsletters.getNewsletters, {
     page,
@@ -50,17 +52,14 @@ export default function AdminNewsletterDashboard() {
       toast.error("Subject and message are required.");
       return;
     }
-    await createNewsletter({
+    const res = await createNewsletter({
       subject,
       message,
       attachmentId
     });
-    toast.success("Newsletter sent!");
-    setOpen(false);
-    setSubject("");
-    setMessage("");
-    setAttachmentId(undefined);
-    setAttachmentUrl(null);
+    if (res && res.newsletterId) {
+      setSendingId(res.newsletterId as Id<"newsletters">);
+    }
   };
   const handleFileUpload = (storageId: string) => {
     setAttachmentId(storageId as Id<"_storage">);
@@ -106,11 +105,11 @@ export default function AdminNewsletterDashboard() {
               <DialogTitle>Create Newsletter</DialogTitle>
               <div className="space-y-2">
                 <Label>Subject</Label>
-                <Input value={subject} onChange={e => setSubject(e.target.value)} />
+                <Input value={subject} onChange={e => setSubject(e.target.value)} disabled={!!sendingId} />
               </div>
               <div className="space-y-2">
                 <Label>Message</Label>
-                <Textarea value={message} onChange={e => setMessage(e.target.value)} />
+                <Textarea value={message} onChange={e => setMessage(e.target.value)} disabled={!!sendingId} />
               </div>
               <div className="space-y-2">
                 <Label>Attachment (Optional)</Label>
@@ -122,7 +121,22 @@ export default function AdminNewsletterDashboard() {
                     </a>
                   </p>}
               </div>
-              <Button onClick={handleCreate}>Send Newsletter</Button>
+              {!sendingId && <Button onClick={handleCreate}>Send Newsletter</Button>}
+              {sendingId && (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">Sending newsletter...</p>
+                  <div className="w-full h-2 bg-gray-200 rounded">
+                    <div
+                      className="h-2 bg-blue-600 rounded"
+                      style={{ width: `${Math.round(((progress?.sentCount || 0) / Math.max(progress?.totalSubscribers || 1, 1)) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {progress?.sentCount || 0} / {progress?.totalSubscribers || 0} sent
+                    {typeof progress?.failedCount === 'number' && progress.failedCount > 0 ? ` • ${progress.failedCount} failed` : ""}
+                  </p>
+                </div>
+              )}
             </DialogContent>
           </Dialog>
         </div>

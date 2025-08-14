@@ -55,6 +55,11 @@ export default function SubscribersPage() {
     toDate,
     emailSearch
   });
+  const PAGE_SIZE = 20;
+  const totalSubscribersCount = subscribers?.total || 0;
+  const totalPages = Math.max(Math.ceil(totalSubscribersCount / PAGE_SIZE), 1);
+  const currentPage = page + 1;
+  const pagesRemaining = Math.max(totalPages - currentPage, 0);
   const addSubscriber = useMutation(api.newsletters.addSubscriber);
   const batchAddSubscribers = useMutation(api.newsletters.batchAddSubscribers);
   const deleteSubscriber = useMutation(api.newsletters.deleteSubscriber);
@@ -341,7 +346,12 @@ export default function SubscribersPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="overflow-x-auto border rounded-md bg-white shadow-sm">
+      <div className="flex items-center justify-between text-sm text-gray-600">
+        <span>Total subscribers: {totalSubscribersCount}</span>
+        <span>Page {currentPage} of {totalPages} • Remaining: {pagesRemaining}</span>
+      </div>
+
+      <div className="overflow-x-auto border rounded-md bg-white shadow-sm mt-2">
         <table className="w-full text-sm text-left">
           <thead className="bg-gray-100">
             <tr>
@@ -376,11 +386,12 @@ export default function SubscribersPage() {
         </table>
       </div>
 
-      <div className="flex justify-center gap-4">
+      <div className="flex items-center justify-center gap-4">
         <Button onClick={() => setPage(p => Math.max(p - 1, 0))} disabled={page === 0}>
           Previous
         </Button>
-        <Button onClick={() => setPage(p => p + 1)} disabled={subscribers && subscribers.list.length < 20}>
+        <span className="text-gray-600 text-sm">Page {currentPage} of {totalPages} • Remaining: {pagesRemaining}</span>
+        <Button onClick={() => setPage(p => p + 1)} disabled={currentPage >= totalPages}>
           Next
         </Button>
       </div>
