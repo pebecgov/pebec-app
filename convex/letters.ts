@@ -241,12 +241,12 @@ export const getAvailableRecipients = query({
       );
       availableRecipients = [...allAdmins, ...allowedStaff];
     } else if (user.role === "saber_agent") {
-      // Report Gov Agents → can only send to Admin and Innovation & Technology department
-      const allowedStaff = allStaff.filter(staff => 
-        staff.staffStream === "innovation"
-      );
-      availableRecipients = [...allAdmins, ...allowedStaff];
-    }
+        // Report Gov Agents → can only send to Admin, Innovation & Technology and Sub-National departments
+        const allowedStaff = allStaff.filter(staff => 
+          staff.staffStream === "innovation" || staff.staffStream === "sub_national"
+        );
+        availableRecipients = [...allAdmins, ...allowedStaff];
+      }
 
     return availableRecipients.map(recipient => ({
       _id: recipient._id,
