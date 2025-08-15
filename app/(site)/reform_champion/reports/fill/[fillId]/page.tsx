@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
@@ -64,7 +64,6 @@ export default function FillReportPage() {
       }
       : "skip"
   ) ?? [];
-  // Draft-related mutations and queries
   const saveDraft = useMutation(api.internal_reports.saveDraftReport);
   const deleteDraft = useMutation(api.internal_reports.deleteDraftReport);
   const drafts = useQuery(api.internal_reports.getDraftReports, convexUserId && fillId ? { submittedBy: convexUserId, templateId: fillId as Id<"report_templates"> } : "skip") ?? [];
@@ -131,6 +130,7 @@ export default function FillReportPage() {
   }, [template, drafts, convexUserId, formData]); // Added formData to dependencies to react to its initial state
 
   const submitReport = useMutation(api.internal_reports.submitInternalReport);
+  const matchHeadersWithAI = useAction(api.ai_helpers.matchExcelHeadersWithTemplate);
 
   const handleChange = (rowIndex: number, colIndex: number, value: string) => {
     setFormData(prev => {
@@ -282,11 +282,11 @@ export default function FillReportPage() {
   function ExcelHeaderConfirm({ onContinue, onCancel }: { onContinue: () => void; onCancel: () => void }) {
     return (
       <div className="flex flex-col items-center justify-center text-center p-4">
-        <div className="mb-4 text-red-600 text-base font-semibold">
-          Your Excel file's headers must <b>exactly match</b> the template headers. Do you want to continue?
+        <div className="mb-4 text-blue-600 text-base font-semibold">
         </div>
+      
         <div className="flex gap-4 mt-2 justify-center">
-          <Button size="sm" onClick={onContinue}>Continue</Button>
+          <Button size="sm" onClick={onContinue}>Continue with AI</Button>
           <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
         </div>
       </div>
@@ -308,77 +308,98 @@ export default function FillReportPage() {
       }
 
       const excelHeaders = Object.keys(excelData[0] || {});
-      const templateHeaders = template.headers.map(h => h.name);
-      const allowedMissingHeaders = ["EXPECTED TIMELINE"];
-      const requiredHeaders = templateHeaders.filter(h => !allowedMissingHeaders.includes(h));
-      const missingRequiredHeaders = requiredHeaders.filter(h => !excelHeaders.includes(h));
+      
+      // Use AI to match headers instead of requiring exact matches
+      toast.info("Matching Excel headers with template headers...");
+      
+             const aiResult = await matchHeadersWithAI({
+         excelHeaders,
+         templateHeaders: template.headers,
+         excelData,
+         existingFormData: formData
+       });
 
-      if (missingRequiredHeaders.length > 0) {
-        toast.error("Excel header mismatch. Please check your Excel header and try again.");
+      if (!aiResult.success) {
+        toast.error(`header matching failed: ${aiResult.error}`);
         return;
       }
 
-      const newRowsFromExcel: string[][] = [];
+             const { headerMapping, processedData, matchedHeaders, unmatchedTemplateHeaders, duplicateAnalysis } = aiResult;
 
-      excelData.forEach(excelRow => {
+       // Show mapping results to user
+       const matchedCount = matchedHeaders.length;
+       const totalTemplateHeaders = template.headers.length;
+       const unmatchedCount = unmatchedTemplateHeaders.length;
 
-        const newFormRow: string[] = template.headers.map(() => "");
+       let message = `✅ Matched ${matchedCount}/${totalTemplateHeaders} Template headers successfully!`;
+       
+       if (unmatchedCount > 0) {
+         message += `\n⚠️ ${unmatchedCount} Template headers couldn't be matched: ${unmatchedCount > 3 ? unmatchedTemplateHeaders.slice(0, 3).join(', ') + '...' : unmatchedTemplateHeaders.join(', ')}`;
+       }
 
-        template.headers.forEach((header, colIndex) => {
-          const excelValue = excelRow[header.name];
+       if (matchedCount === 0) {
+         toast.error("Couldn't match any headers. Please check your Excel file format.");
+         return;
+       }
 
-          let processedValue = String(excelValue || '');
+               // Use AI-processed data directly (AI handles duplicate detection)
+        const newRowsFromExcel = processedData;
+        
+        // Check for duplicates found by AI
+        const internalDuplicates = duplicateAnalysis?.internalDuplicates?.length || 0;
+        const externalDuplicates = duplicateAnalysis?.externalDuplicates?.length || 0;
+        const totalDuplicates = internalDuplicates + externalDuplicates;
+        const uniqueRowsCount = newRowsFromExcel.length - totalDuplicates;
 
-
-          if (excelValue !== undefined && excelValue !== null) {
-            switch (header.type) {
-              case "number":
-                processedValue = String(parseFloat(excelValue) || 0);
-                break;
-              case "checkbox":
-
-                processedValue = (String(excelValue).toLowerCase() === 'true' || String(excelValue) === '1' || String(excelValue).toLowerCase() === 'yes') ? "true" : "false";
-                break;
-              case "date":
-                if (typeof excelValue === 'number') {
-                  const date = new Date(Math.round((excelValue - 25569) * 86400 * 1000));
-                  processedValue = date.toISOString().split('T')[0];
-                } else {
-                  const date = new Date(excelValue);
-                  if (!isNaN(date.getTime())) {
-                    processedValue = date.toISOString().split('T')[0];
-                  } else {
-                    processedValue = '';
-                  }
-                }
-                break;
-              default:
-                processedValue = String(excelValue);
-                break;
-            }
+        if (totalDuplicates > 0) {
+          let duplicateMessage = "";
+          if (internalDuplicates > 0 && externalDuplicates > 0) {
+            duplicateMessage = `⚠️ ${internalDuplicates} Internal duplicates and ${externalDuplicates} external duplicates were detected and skipped by AI!`;
+          } else if (internalDuplicates > 0) {
+            duplicateMessage = `⚠️ ${internalDuplicates} Internal duplicates within the Excel file were detected and skipped by AI!`;
+          } else {
+            duplicateMessage = `⚠️ ${externalDuplicates} Duplicate rows matching existing data were detected and skipped by AI!`;
           }
-          newFormRow[colIndex] = processedValue;
-        });
-        newRowsFromExcel.push(newFormRow);
-      });
+          toast.warning(duplicateMessage);
+          toast.success(`${uniqueRowsCount} Unique rows imported successfully using AI header matching!`);
+        } else {
+          toast.success(`${newRowsFromExcel.length} Rows imported successfully using AI header matching!`);
+        }
+        
+        // Show a more detailed success message
+        setTimeout(() => {
+          toast.info(message, {
+            duration: 5000,
+          });
+        }, 1000);
 
-      if (formData.length === 1 && formData[0].every(cell => cell === "")) {
-        setFormData(newRowsFromExcel);
-      } else {
-        setFormData(prev => [...prev, ...newRowsFromExcel]);
-      }
-      toast.success(`${newRowsFromExcel.length} rows imported successfully from Excel!`);
+        // Filter out duplicate rows based on AI analysis
+        const allDuplicateIndices = [
+          ...(duplicateAnalysis?.internalDuplicates || []),
+          ...(duplicateAnalysis?.externalDuplicates || [])
+        ];
+        const uniqueNewRows = allDuplicateIndices.length > 0 
+          ? newRowsFromExcel.filter((_, index) => !allDuplicateIndices.includes(index))
+          : newRowsFromExcel;
+
+        if (formData.length === 1 && formData[0].every(cell => cell === "")) {
+          setFormData(uniqueNewRows);
+        } else {
+          setFormData(prev => [...prev, ...uniqueNewRows]);
+        }
+
     } catch (error) {
       console.error("Error processing Excel file:", error);
       toast.error("Failed to process Excel file. Please ensure it's in the correct format.");
     } finally {
-
       event.target.value = '';
     }
   };
 
   const currentMonth = MONTHS[new Date().getMonth()];
   const [reportTitle, setReportTitle] = useState(currentMonth);
+
+
 
   useEffect(() => {
     setReportTitle(currentMonth);
@@ -613,7 +634,7 @@ export default function FillReportPage() {
             onClick={() => setShowConfirmModal(true)}
             className="flex items-center justify-center px-2 py-1 border border-gray-300 bg-white text-gray-800 rounded-md cursor-pointer hover:bg-gray-100 transition-colors"
           >
-            <Upload className="w-4 h-4 mr-1" /> Bulk Upload
+            <Upload className="w-4 h-4 mr-1" />Bulk Upload
           </button>
 
           <input
@@ -629,8 +650,8 @@ export default function FillReportPage() {
         {showConfirmModal && (
           <Dialog open onOpenChange={setShowConfirmModal}>
             <DialogContent>
-              <DialogTitle className="text-lg text-center font-bold text-red-600">
-                Excel Header Requirement
+              <DialogTitle className="text-lg text-center font-bold text-blue-600">
+              Excel Bulk Upload
               </DialogTitle>
               <ExcelHeaderConfirm
                 onContinue={() => {
@@ -658,10 +679,11 @@ export default function FillReportPage() {
       </div>
       <Dialog open={showExcelConfirm} onOpenChange={setShowExcelConfirm}>
         <DialogContent className="max-w-md w-full p-6 rounded-lg flex flex-col items-center text-center">
-          <DialogTitle className="text-lg font-bold text-red-600 mb-2">Excel Header Requirement</DialogTitle>
-          <div className="mb-4 text-red-600 text-base font-semibold">
-            Your Excel file's headers must <b>exactly match</b> the template headers. Do you want to continue?
+          <DialogTitle className="text-lg font-bold text-blue-600 mb-2">AI-Powered Excel Upload</DialogTitle>
+          <div className="mb-4 text-blue-600 text-base font-semibold">
+            System will automatically match your Excel headers with the template headers!
           </div>
+      
           <div className="flex gap-4 mt-2 justify-center">
             <Button
               size="sm"

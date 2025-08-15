@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as ai_helpers from "../ai_helpers.js";
 import type * as business_letters from "../business_letters.js";
 import type * as cleanup from "../cleanup.js";
 import type * as crons from "../crons.js";
@@ -39,8 +40,8 @@ import type * as sendEmail from "../sendEmail.js";
 import type * as sendTicketemail from "../sendTicketemail.js";
 import type * as staff_projects from "../staff_projects.js";
 import type * as tasks from "../tasks.js";
-import type * as ticket_comments from "../ticket_comments.js";
 import type * as tickets from "../tickets.js";
+import type * as ticket_comments from "../ticket_comments.js";
 import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
@@ -54,6 +55,7 @@ import type * as users from "../users.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  ai_helpers: typeof ai_helpers;
   business_letters: typeof business_letters;
   cleanup: typeof cleanup;
   crons: typeof crons;
@@ -80,8 +82,8 @@ declare const fullApi: ApiFromModules<{
   sendTicketemail: typeof sendTicketemail;
   staff_projects: typeof staff_projects;
   tasks: typeof tasks;
-  ticket_comments: typeof ticket_comments;
   tickets: typeof tickets;
+  ticket_comments: typeof ticket_comments;
   upload: typeof upload;
   uploadTicketsPdf: typeof uploadTicketsPdf;
   users: typeof users;
