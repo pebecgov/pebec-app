@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as ai_helpers from "../ai_helpers.js";
 import type * as business_letters from "../business_letters.js";
 import type * as chat from "../chat.js";
 import type * as cleanup from "../cleanup.js";
@@ -60,6 +61,7 @@ import type * as utils_appResult from "../utils/appResult.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  ai_helpers: typeof ai_helpers;
   business_letters: typeof business_letters;
   chat: typeof chat;
   cleanup: typeof cleanup;
