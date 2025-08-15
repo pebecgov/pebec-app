@@ -34,7 +34,7 @@ export default function WorldBankDLIAnalysis() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">DLI Dashboard Analysis </h1>
+      <h1 className="text-3xl font-bold mb-6">World Bank DLI Dashboard Analysis</h1>
 
       {/* DLI Selection */}
       <div className="mb-8">
