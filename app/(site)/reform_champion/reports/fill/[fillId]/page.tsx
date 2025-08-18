@@ -50,6 +50,15 @@ export default function FillReportPage() {
   const draftLoadedRef = useRef(false); // To ensure draft loads only once
   const [showExcelConfirm, setShowExcelConfirm] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState<{
+    currentChunk: number;
+    totalChunks: number;
+    processedRows: number;
+    totalRows: number;
+    isLargeDataset?: boolean;
+  } | null>(null);
+
 
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
   const convexUserId = convexUser?._id;
@@ -278,6 +287,164 @@ export default function FillReportPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Function to process Excel data in chunks to keep UI responsive
+  const processExcelDataInChunks = async (excelData: any[], headerMapping: Record<string, string>) => {
+    const CHUNK_SIZE = 50; // Keep 50-row chunks as requested
+    const QUARTER_SIZE = Math.ceil(excelData.length / 4); // Process 1/4 of rows at a time
+    const totalRows = excelData.length;
+    const totalChunks = Math.ceil(totalRows / CHUNK_SIZE);
+    const processedData: string[][] = [];
+    const isLargeDataset = totalRows > 1000;
+
+    // Show progress for all datasets to ensure responsiveness
+    setProcessingProgress({
+      currentChunk: 0,
+      totalChunks,
+      processedRows: 0,
+      totalRows,
+      isLargeDataset
+    });
+
+    // Show processing mode
+    toast.info(`Processing ${totalRows.toLocaleString()} rows in quarters with 10-second breaks for responsiveness.`, {
+      duration: 3000,
+    });
+
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      const startIndex = chunkIndex * CHUNK_SIZE;
+      const endIndex = Math.min(startIndex + CHUNK_SIZE, totalRows);
+      const chunkData = excelData.slice(startIndex, endIndex);
+
+      // Process this chunk
+      const chunkProcessedData: string[][] = [];
+      
+      chunkData.forEach((excelRow: any) => {
+        const newFormRow: string[] = template!.headers.map(() => "");
+
+        template!.headers.forEach((templateHeader, colIndex) => {
+          // Skip EXPECTED TIMELINE column as it's automatically calculated
+          if (templateHeader.name === "EXPECTED TIMELINE") {
+            newFormRow[colIndex] = ""; // Leave empty for automatic calculation
+            return;
+          }
+
+          // Find the Excel header that maps to this template header
+          const mappedExcelHeader = Object.keys(headerMapping).find(
+            excelHeader => headerMapping[excelHeader] === templateHeader.name
+          );
+
+          if (mappedExcelHeader && excelRow[mappedExcelHeader] !== undefined) {
+            const excelValue = excelRow[mappedExcelHeader];
+            let processedValue = String(excelValue || '');
+
+            // Process the value based on the template header type
+            if (excelValue !== undefined && excelValue !== null) {
+              switch (templateHeader.type) {
+                case "number":
+                  processedValue = String(parseFloat(excelValue) || 0);
+                  break;
+                case "checkbox":
+                  processedValue = (String(excelValue).toLowerCase() === 'true' || 
+                                  String(excelValue) === '1' || 
+                                  String(excelValue).toLowerCase() === 'yes') ? "true" : "false";
+                  break;
+                case "date":
+                  if (typeof excelValue === 'number') {
+                    // Handle Excel date numbers
+                    const date = new Date(Math.round((excelValue - 25569) * 86400 * 1000));
+                    processedValue = date.toISOString().split('T')[0];
+                  } else {
+                    const date = new Date(excelValue);
+                    if (!isNaN(date.getTime())) {
+                      processedValue = date.toISOString().split('T')[0];
+                    } else {
+                      processedValue = '';
+                    }
+                  }
+                  break;
+                default:
+                  processedValue = String(excelValue);
+                  break;
+              }
+            }
+            newFormRow[colIndex] = processedValue;
+          }
+        });
+
+        chunkProcessedData.push(newFormRow);
+      });
+
+             // Add chunk data to processed data
+       processedData.push(...chunkProcessedData);
+
+       // Update progress
+       setProcessingProgress({
+         currentChunk: chunkIndex + 1,
+         totalChunks,
+         processedRows: processedData.length,
+         totalRows,
+         isLargeDataset
+       });
+
+       // Clear chunk data to free memory immediately
+       chunkProcessedData.length = 0;
+
+       // Check if we've processed 1/4 of the data
+       const currentProcessedRows = processedData.length;
+       const targetQuarter = Math.ceil(currentProcessedRows / QUARTER_SIZE);
+       const isQuarterComplete = currentProcessedRows >= targetQuarter * QUARTER_SIZE && chunkIndex < totalChunks - 1;
+
+                if (isQuarterComplete) {
+           // Update the form with current quarter data
+           if (formData.length === 1 && formData[0].every(cell => cell === "")) {
+             setFormData([...processedData]);
+           } else {
+             setFormData(prev => {
+               const existingData = prev.length === 1 && prev[0].every(cell => cell === "") ? [] : prev;
+               return [...existingData, ...processedData];
+             });
+           }
+
+           // Clear processed data to free memory
+           processedData.length = 0;
+           
+           // Wait 10 seconds before continuing
+           toast.info(`Quarter ${targetQuarter} complete! Processed ${currentProcessedRows.toLocaleString()} rows. Taking a 10-second break...`, {
+             duration: 5000,
+           });
+           
+           await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second break
+           
+           toast.info("Resuming processing...", {
+             duration: 2000,
+           });
+         }
+
+       // Final update if this is the last chunk
+       if (chunkIndex === totalChunks - 1 && processedData.length > 0) {
+         if (formData.length === 1 && formData[0].every(cell => cell === "")) {
+           setFormData([...processedData]);
+         } else {
+           setFormData(prev => {
+             const existingData = prev.length === 1 && prev[0].every(cell => cell === "") ? [] : prev;
+             return [...existingData, ...processedData];
+           });
+         }
+       }
+
+       // Yield control back to the browser to prevent UI freezing
+       if (chunkIndex < totalChunks - 1) {
+         // Simple timeout for better performance
+         await new Promise(resolve => setTimeout(resolve, 10));
+       }
+    }
+
+    // Clear progress
+    setProcessingProgress(null);
+
+    return processedData;
+  };
+
 
   function ExcelHeaderConfirm({ onContinue, onCancel }: { onContinue: () => void; onCancel: () => void }) {
     return (
@@ -293,12 +460,14 @@ export default function FillReportPage() {
     );
   }
 
-  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !template) {
       toast.error("No file selected or template not loaded.");
       return;
     }
+
+    setIsUploading(true);
 
     try {
       const excelData = await parseExcelFile(file);
@@ -307,91 +476,67 @@ export default function FillReportPage() {
         return;
       }
 
-      const excelHeaders = Object.keys(excelData[0] || {});
+             const excelHeaders = Object.keys(excelData[0] || {});
+       
+       // Show warning for very large datasets
+       if (excelData.length > 10000) {
+         toast.info(`Large dataset detected (${excelData.length.toLocaleString()} rows). Processing will be done in small chunks to maintain responsiveness.`, {
+           duration: 4000,
+         });
+       }
+       
+       // Use AI to match headers only
+       toast.info("Matching Excel headers with template headers...");
       
-      // Use AI to match headers instead of requiring exact matches
-      toast.info("Matching Excel headers with template headers...");
-      
-             const aiResult = await matchHeadersWithAI({
-         excelHeaders,
-         templateHeaders: template.headers,
-         excelData,
-         existingFormData: formData
-       });
+      const aiResult = await matchHeadersWithAI({
+        excelHeaders,
+        templateHeaders: template.headers
+      });
 
       if (!aiResult.success) {
-        toast.error(`header matching failed: ${aiResult.error}`);
+        toast.error(`Header matching failed: ${aiResult.error}`);
         return;
       }
 
-             const { headerMapping, processedData, matchedHeaders, unmatchedTemplateHeaders, duplicateAnalysis } = aiResult;
+      const { headerMapping, matchedHeaders, unmatchedTemplateHeaders } = aiResult;
 
-       // Show mapping results to user
-       const matchedCount = matchedHeaders.length;
-       const totalTemplateHeaders = template.headers.length;
-       const unmatchedCount = unmatchedTemplateHeaders.length;
+      // Show mapping results to user
+      const matchedCount = matchedHeaders?.length || 0;
+      const totalTemplateHeaders = template.headers.length;
+      const unmatchedCount = unmatchedTemplateHeaders?.length || 0;
 
-       let message = `✅ Matched ${matchedCount}/${totalTemplateHeaders} Template headers successfully!`;
+      let message = `✅ Matched ${matchedCount}/${totalTemplateHeaders} Template headers successfully!`;
+      
+      if (unmatchedCount > 0 && unmatchedTemplateHeaders) {
+        message += `\n⚠️ ${unmatchedCount} Template headers couldn't be matched: ${unmatchedCount > 3 ? unmatchedTemplateHeaders.slice(0, 3).join(', ') + '...' : unmatchedTemplateHeaders.join(', ')}`;
+      }
+
+      if (matchedCount === 0) {
+        toast.error("Couldn't match any headers. Please check your Excel file format.");
+        return;
+      }
+
+             // Process data locally using the header mapping
+       toast.info(`Processing ${excelData.length.toLocaleString()} rows locally...`);
        
-       if (unmatchedCount > 0) {
-         message += `\n⚠️ ${unmatchedCount} Template headers couldn't be matched: ${unmatchedCount > 3 ? unmatchedTemplateHeaders.slice(0, 3).join(', ') + '...' : unmatchedTemplateHeaders.join(', ')}`;
-       }
+       const processedData = await processExcelDataInChunks(excelData, headerMapping);
+      
+      toast.success(`${processedData.length} Rows imported successfully using AI header matching!`);
+      
+      // Show a more detailed success message
+      setTimeout(() => {
+        toast.info(message, {
+          duration: 5000,
+        });
+      }, 1000);
 
-       if (matchedCount === 0) {
-         toast.error("Couldn't match any headers. Please check your Excel file format.");
-         return;
-       }
-
-               // Use AI-processed data directly (AI handles duplicate detection)
-        const newRowsFromExcel = processedData;
-        
-        // Check for duplicates found by AI
-        const internalDuplicates = duplicateAnalysis?.internalDuplicates?.length || 0;
-        const externalDuplicates = duplicateAnalysis?.externalDuplicates?.length || 0;
-        const totalDuplicates = internalDuplicates + externalDuplicates;
-        const uniqueRowsCount = newRowsFromExcel.length - totalDuplicates;
-
-        if (totalDuplicates > 0) {
-          let duplicateMessage = "";
-          if (internalDuplicates > 0 && externalDuplicates > 0) {
-            duplicateMessage = `⚠️ ${internalDuplicates} Internal duplicates and ${externalDuplicates} external duplicates were detected and skipped by AI!`;
-          } else if (internalDuplicates > 0) {
-            duplicateMessage = `⚠️ ${internalDuplicates} Internal duplicates within the Excel file were detected and skipped by AI!`;
-          } else {
-            duplicateMessage = `⚠️ ${externalDuplicates} Duplicate rows matching existing data were detected and skipped by AI!`;
-          }
-          toast.warning(duplicateMessage);
-          toast.success(`${uniqueRowsCount} Unique rows imported successfully using AI header matching!`);
-        } else {
-          toast.success(`${newRowsFromExcel.length} Rows imported successfully using AI header matching!`);
-        }
-        
-        // Show a more detailed success message
-        setTimeout(() => {
-          toast.info(message, {
-            duration: 5000,
-          });
-        }, 1000);
-
-        // Filter out duplicate rows based on AI analysis
-        const allDuplicateIndices = [
-          ...(duplicateAnalysis?.internalDuplicates || []),
-          ...(duplicateAnalysis?.externalDuplicates || [])
-        ];
-        const uniqueNewRows = allDuplicateIndices.length > 0 
-          ? newRowsFromExcel.filter((_, index) => !allDuplicateIndices.includes(index))
-          : newRowsFromExcel;
-
-        if (formData.length === 1 && formData[0].every(cell => cell === "")) {
-          setFormData(uniqueNewRows);
-        } else {
-          setFormData(prev => [...prev, ...uniqueNewRows]);
-        }
+             // Form data is already updated during chunked processing
 
     } catch (error) {
       console.error("Error processing Excel file:", error);
       toast.error("Failed to process Excel file. Please ensure it's in the correct format.");
     } finally {
+      setIsUploading(false);
       event.target.value = '';
     }
   };
@@ -436,13 +581,42 @@ export default function FillReportPage() {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-gray-600">{template.description}</p>
-          {currentDraft && lastSavedAt && (
-            <p className="text-sm text-green-600 mt-1">
-              💾 Draft saved at {lastSavedAt.toLocaleString()}
-            </p>
-          )}
-        </div>
+                     <p className="text-gray-600">{template.description}</p>
+                       {currentDraft && lastSavedAt && (
+              <p className="text-sm text-green-600 mt-1">
+                💾 Draft saved at {lastSavedAt.toLocaleString()}
+              </p>
+            )}
+            
+                         {processingProgress && (
+               <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                 <div className="flex items-center justify-between mb-2">
+                   <span className="text-sm font-medium text-blue-800">
+                     Processing Data {processingProgress.currentChunk}/{processingProgress.totalChunks}
+                   </span>
+                   <span className="text-sm text-blue-600">
+                     {Math.round((processingProgress.processedRows / processingProgress.totalRows) * 100)}%
+                   </span>
+                 </div>
+                 <div className="w-full bg-blue-200 rounded-full h-2">
+                   <div 
+                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                     style={{ width: `${(processingProgress.processedRows / processingProgress.totalRows) * 100}%` }}
+                   ></div>
+                 </div>
+                 <p className="text-xs text-blue-600 mt-1">
+                   Processed {processingProgress.processedRows.toLocaleString()} of {processingProgress.totalRows.toLocaleString()} rows
+                 </p>
+                 <p className="text-xs text-blue-500 mt-1">
+                   ⚡ Processing in 50-row chunks, updating table every 1/4 of data with 10-second breaks
+                 </p>
+                 <p className="text-xs text-blue-400 mt-1">
+                   💡 Please don't close this page during processing
+                 </p>
+               </div>
+             )}
+            
+         </div>
         <div className="flex gap-2">
           {/* Download Excel template button */}
           <Button variant="outline" onClick={handleDownloadTemplateExcel}>
@@ -605,7 +779,11 @@ export default function FillReportPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4 items-center">
-        <Button onClick={() => addRow(false)} variant="outline">
+        <Button 
+          onClick={() => addRow(false)} 
+          variant="outline"
+          disabled={isUploading}
+        >
           ➕ Add Empty Row
         </Button>
         {/* <Button
@@ -632,9 +810,15 @@ export default function FillReportPage() {
         <div className="border rounded-md bg-gray-50 flex items-center gap-2">
           <button
             onClick={() => setShowConfirmModal(true)}
-            className="flex items-center justify-center px-2 py-1 border border-gray-300 bg-white text-gray-800 rounded-md cursor-pointer hover:bg-gray-100 transition-colors"
+            disabled={isUploading}
+            className={`flex items-center justify-center px-2 py-1 border border-gray-300 bg-white text-gray-800 rounded-md transition-colors ${
+              isUploading 
+                ? 'cursor-not-allowed opacity-50' 
+                : 'cursor-pointer hover:bg-gray-100'
+            }`}
           >
-            <Upload className="w-4 h-4 mr-1" />Bulk Upload
+            <Upload className="w-4 h-4 mr-1" />
+            {isUploading ? 'Uploading...' : 'Bulk Upload'}
           </button>
 
           <input
@@ -667,13 +851,18 @@ export default function FillReportPage() {
           onClick={handleSaveDraft}
           variant="outline"
           className="flex items-center gap-1"
+          disabled={isUploading}
         >
           <Save className="w-4 h-4" />
           Save as Draft
         </Button>
       </div>
       <div className="flex gap-2">
-        <Button onClick={handleSubmit} className="bg-green-600 text-white">
+        <Button 
+          onClick={handleSubmit} 
+          className="bg-green-600 text-white"
+          disabled={isUploading}
+        >
           ✅ Submit Report
         </Button>
       </div>
