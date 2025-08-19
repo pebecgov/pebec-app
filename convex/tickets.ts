@@ -1266,11 +1266,11 @@ export const getTopAndBottomMdaPerformanceByMonth = query({
         avgTime
       };
     });
-    const top3 = [...mdaStats].filter(mda => mda.count > 0).sort((a, b) => b.count - a.count || a.avgTime - b.avgTime).slice(0, 3);
-    const bottom3 = [...mdaStats].sort((a, b) => a.count - b.count || b.avgTime - a.avgTime).slice(0, 3);
+    const top5 = [...mdaStats].filter(mda => mda.count > 0).sort((a, b) => b.count - a.count || a.avgTime - b.avgTime).slice(0, 5);
+    const bottom5 = [...mdaStats].sort((a, b) => a.count - b.count || b.avgTime - a.avgTime).slice(0, 5);
     return {
-      top3,
-      bottom3
+      top5,
+      bottom5
     };
   }
 });
