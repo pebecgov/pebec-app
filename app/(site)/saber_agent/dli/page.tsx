@@ -209,7 +209,9 @@ export default function ViewDLIPage() {
       
       {}
     {user?.ecConfirmed && <div>
-    <h1 className="text-2xl font-bold text-center mb-10">Disbursement Linked Indicator</h1>
+
+    <h1 className="text-2xl font-bold text-center mb-10">Disbursement Linked Indicator <br /> <span className="text-gray-600">Please click start on the DLI your state is currently working on to begin</span></h1>
+
 
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
       {dliTemplates.map(dli => {
@@ -258,11 +260,9 @@ export default function ViewDLIPage() {
         
               {}
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                <a href={fileUrls[dli._id]} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                  <Button className="w-full sm:w-auto bg-blue-600 text-white rounded-xl">
-                    Download Guide
-                  </Button>
-                </a>
+
+               
+
                 <Button onClick={() => {
                   if (!isStarted) {
                     handleStart(dli._id, progress.steps);
@@ -327,16 +327,22 @@ export default function ViewDLIPage() {
         <X size={20} />
       </button>
 
-      <h2 className="text-2xl font-bold mb-4 text-center">Confirm DLI Steps</h2>
 
-      <ul className="space-y-2 mb-4">
-        {stepNames.map((step, index) => <li key={index} className="bg-gray-100 px-4 py-2 rounded text-sm">
-            Step {index + 1}: {step}
-          </li>)}
-      </ul>
+      <h2 className="text-2xl font-bold mb-4 text-center">Important Notice<span className="text-red-600">!!</span></h2>
+
+      <div className="space-y-2 mb-4">
+        <p className="py-1"> Please read this carefully before proceeding.</p>
+   
+
+<p className="py-2">Once you tick a box, it cannot be undone. Ensure you have fully and accurately completed the step before ticking the box.
+</p>
+
+<b>You will not be able to uncheck it afterwards.</b>
+      </div>
 
       <Button onClick={handleConfirmStart} className="bg-green-600 text-white w-full">
-        Confirm & Start DLI
+       OK, I understand
+
       </Button>
     </div>
   </div>}
