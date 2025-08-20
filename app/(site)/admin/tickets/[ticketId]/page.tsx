@@ -10,7 +10,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import TicketComments from "@/components/TicketsComments";
 import { toast } from "sonner";
-import { FaArrowLeft, FaTrashAlt, FaFileAlt, FaDownload } from "react-icons/fa";
+import { FaArrowLeft, FaTrashAlt, FaUser, FaEnvelope, FaFileAlt, FaDownload, FaPhone, FaMapMarkerAlt, FaBuilding,FaCalendarAlt, FaBriefcase } from "react-icons/fa";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { CheckIcon, XCircleIcon, ArrowPathIcon } from "@heroicons/react/24/solid";
@@ -246,6 +246,44 @@ export default function AdminTicketDetailsPage() {
             __html: ticket.description
           }} />
         </div>
+
+         <div className="mt-6 p-5 bg-white shadow-md rounded-lg border">
+                <h3 className="font-semibold text-lg mb-3">User Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-700 text-sm">
+                  <div className="flex items-center gap-2">
+                    <FaUser className="text-gray-600" />
+                    <span><strong>Name:</strong> {ticket.fullName}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FaEnvelope className="text-gray-600" />
+                    <span><strong>Email:</strong> {ticket.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FaPhone className="text-gray-600" />
+                    <span><strong>Phone:</strong> {ticket.phoneNumber}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FaCalendarAlt className="text-gray-600" />
+                    <span><strong>Date:</strong> {new Date(ticket.incidentDate).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FaMapMarkerAlt className="text-gray-600" />
+                    <span><strong>Location:</strong> {ticket.state}, {ticket.address}</span>
+                  </div>
+                 {(ticket?.businessName || ticket.businessName) && <div className="flex items-center gap-2">
+            <FaBriefcase className="text-gray-600" />
+            <span>
+              <strong>Business:</strong> {ticket?.businessName || ticket.businessName}
+            </span>
+          </div>}
+        
+                  <div className="flex items-center gap-2">
+                    <FaBuilding className="text-gray-600" />
+                    <span><strong>MDA:</strong> {ticket.assignedMDAName || ticket.assignedMDA}</span>
+                  </div>
+                </div>
+              </div>
+        
         {fileUrls.length > 0 && (
           <div className="mt-6 p-4 border rounded-lg bg-gray-50">
             <h3 className="font-semibold text-lg mb-2">Uploaded Files</h3>
