@@ -99,7 +99,9 @@ export default function BFAReportsPage() {
   }, [submittedReports, getFileUrl]);
   const filteredReports = submittedReports.filter(r => {
     const template = reportTemplates.find(t => t._id === r.templateId);
-    return r.reportName === "BFA Report" || template?.title === "BFA Report";
+    return r.reportName === "BFA Report" || 
+           (r.reportName && r.reportName.match(/^BFA Report\s*\([^)]+\)$/)) ||
+           template?.title === "BFA Report";
   }).filter(report => {
     const reportDate = new Date(report.submittedAt).toISOString().split("T")[0];
     const matchesStart = startDate ? reportDate >= startDate : true;

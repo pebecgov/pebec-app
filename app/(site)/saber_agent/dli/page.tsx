@@ -16,10 +16,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 export default function ViewDLIPage() {
   const router = useRouter();
   const user = useQuery(api.users.getCurrentUsers);
-  const dliTemplates = useQuery(api.dli.getAllDliTemplates) || [];
+  const dliTemplates = useQuery(api.dli.getAllDliTemplatesWithGuideUrls) || [];
   const [shouldRefetch, setShouldRefetch] = useState(false);
   const dliProgressList = useQuery(api.dli.getAllUserDLIProgress, shouldRefetch ? {} : undefined);
-  const getFileUrl = useMutation(api.dli.getStorageUrl);
+  // No longer needed because guideUrl is precomputed on server
   const startDLI = useMutation(api.dli.startDLI);
   const setupSteps = useMutation(api.dli.setupSteps);
   const completeStep = useMutation(api.dli.completeStep);
@@ -40,29 +40,11 @@ export default function ViewDLIPage() {
     }
   }, [dliProgressList, dliProgressLists.length]);
   useEffect(() => {
-    const fetchGuideUrls = async () => {
-      const urls: {
-        [key: string]: string;
-      } = {};
-      for (const dli of dliTemplates) {
-        if (dli.guideFileId) {
-          try {
-            const url = await getFileUrl({
-              storageId: dli.guideFileId as Id<"_storage">
-            });
-            if (url) {
-              urls[dli._id] = url;
-            }
-          } catch (error) {
-            console.error(`Error fetching guide file for ${dli.title}:`, error);
-          }
-        }
-      }
-      setFileUrls(urls);
-    };
-    if (dliTemplates.length > 0) {
-      fetchGuideUrls();
+    const urls: { [key: string]: string } = {};
+    for (const dli of dliTemplates) {
+      if (dli.guideUrl) urls[dli._id] = dli.guideUrl as string;
     }
+    setFileUrls(urls);
   }, [dliTemplates]);
   const progressMap = (dliProgressList || []).filter(progress => progress.state === user?.state).reduce((map, progress) => {
     map[progress.dliTemplateId] = progress;
@@ -227,8 +209,9 @@ export default function ViewDLIPage() {
       
       {}
     {user?.ecConfirmed && <div>
+
     <h1 className="text-2xl font-bold text-center mb-10">Disbursement Linked Indicator <br /> <span className="text-gray-600">Please click start on the DLI your state is currently working on to begin</span></h1>
-    
+
 
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
       {dliTemplates.map(dli => {
@@ -277,7 +260,9 @@ export default function ViewDLIPage() {
         
               {}
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
+
                
+
                 <Button onClick={() => {
                   if (!isStarted) {
                     handleStart(dli._id, progress.steps);
@@ -342,6 +327,7 @@ export default function ViewDLIPage() {
         <X size={20} />
       </button>
 
+
       <h2 className="text-2xl font-bold mb-4 text-center">Important Notice<span className="text-red-600">!!</span></h2>
 
       <div className="space-y-2 mb-4">
@@ -356,6 +342,7 @@ export default function ViewDLIPage() {
 
       <Button onClick={handleConfirmStart} className="bg-green-600 text-white w-full">
        OK, I understand
+
       </Button>
     </div>
   </div>}

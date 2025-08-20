@@ -48,6 +48,18 @@ export const getAllDliTemplates = query({
     return await ctx.db.query("dli_templates").collect();
   }
 });
+
+// Optimized fetch: includes precomputed guide URLs to avoid N client calls
+export const getAllDliTemplatesWithGuideUrls = query({
+  handler: async ctx => {
+    const templates = await ctx.db.query("dli_templates").collect();
+    const enriched = await Promise.all(templates.map(async t => ({
+      ...t,
+      guideUrl: t.guideFileId ? await ctx.storage.getUrl(t.guideFileId) : undefined
+    })));
+    return enriched;
+  }
+});
 export const deleteDliTemplate = mutation({
   args: {
     id: v.id("dli_templates")

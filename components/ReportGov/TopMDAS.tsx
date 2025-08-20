@@ -5,11 +5,14 @@ import React, { useEffect, useState } from 'react';
 import { api } from '@/convex/_generated/api';
 import { useQuery } from 'convex/react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { mdalistIcon } from '../mdalistIcon';
 
 const podiumStyles = [
   'bg-gradient-to-t from-yellow-500 to-yellow-400 text-white h-72 z-20',
   'bg-gradient-to-t from-gray-500 to-gray-400 text-white h-64 z-10',
-  'bg-gradient-to-t from-orange-500 to-orange-400 text-white h-56 z-0'
+  'bg-gradient-to-t from-orange-500 to-orange-400 text-white h-56 z-0',
+  'bg-gradient-to-t from-blue-500 to-blue-400 text-white h-48 z-0',
+  'bg-gradient-to-t from-purple-500 to-purple-400 text-white h-40 z-0'
 ];
 
 const monthNames = [
@@ -32,12 +35,12 @@ const TopMDAs = () => {
   useEffect(() => {
     if (!data) return;
     const used = new Set();
-    const uniqueTop = data.top3.filter(mda => {
+    const uniqueTop = data.top5.filter(mda => {
       if (used.has(mda.name)) return false;
       used.add(mda.name);
       return true;
     });
-    const uniqueBottom = data.bottom3.filter(mda => !used.has(mda.name));
+    const uniqueBottom = data.bottom5.filter(mda => !used.has(mda.name));
     setTop(uniqueTop);
     setBottom(uniqueBottom);
   }, [data]);
@@ -102,23 +105,44 @@ const TopMDAs = () => {
 
         <div className="flex flex-col sm:flex-row justify-center items-end gap-4 sm:gap-6">
           {top.map((mda, i) => (
-            <div 
-              key={i} 
-              className={`relative flex flex-col items-center justify-end w-full sm:w-1/3 max-w-xs mx-auto rounded-t-3xl shadow-xl px-3 pt-16 pb-4 ${podiumStyles[i]} transform transition-all hover:scale-105`}
-            >
+                         <div 
+               key={i} 
+               className={`relative flex flex-col items-center justify-end w-full sm:w-1/3 max-w-xs mx-auto rounded-t-3xl shadow-xl px-3 pt-16 ${
+                 i >= 4 ? 'pb-0' : 'pb-4'
+               } ${podiumStyles[i]} transform transition-all hover:scale-105`}
+             >
               <div className="absolute top-2 right-2 text-xs font-bold text-white bg-black/60 px-2 py-1 rounded-full shadow z-20">
                 #{i + 1}
               </div>
               
-              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 w-14 h-14 rounded-full bg-white border-4 border-gray-200 flex items-center justify-center shadow-md z-10">
-                <span className="text-xl">🏛️</span>
-              </div>
+                             <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 w-14 h-14 rounded-full bg-white border-4 border-gray-200 flex items-center justify-center shadow-md z-10">
+                 <span className="text-xl">
+                   {(() => {
+                      let icon = mdalistIcon.find(icon => icon.name === mda.name);
+                     if (!icon && mda.name.includes(' - ')) {
+                       const abbreviation = mda.name.split(' - ')[0];
+                       icon = mdalistIcon.find(icon => icon.abbreviation === abbreviation);
+                     }
+                     
+                   
+                     if (!icon) {
+                       icon = mdalistIcon.find(icon => mda.name.includes(icon.name));
+                     }
+                     
+                     return icon?.icon || '🏛️';
+                   })()}
+                 </span>
+               </div>
               
               <div className="w-full mb-2">
-                <p className="text-center font-semibold text-xs sm:text-sm leading-tight line-clamp-2">
+                <p className={`text-center font-semibold leading-tight line-clamp-2 ${
+                  i >= 4 ? 'text-[0.3rem] sm:text-xs' : 'text-xs sm:text-sm'
+                }`}>
                   {mda.name}
                 </p>
-                <p className="text-[0.7rem] sm:text-xs text-center leading-snug mt-1">
+                <p className={`text-center leading-snug mt-1 ${
+                  i >= 4 ? 'text-[0.2rem] sm:text-[0.6rem]' : 'text-[0.7rem] sm:text-xs'
+                }`}>
                   Received: {mda.total} | Resolved: {mda.count}<br />
                   Avg Time: {(mda.avgTime / 3600000).toFixed(1)} hrs
                 </p>

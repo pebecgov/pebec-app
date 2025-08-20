@@ -30,6 +30,7 @@ export default function EventPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [organization, setOrganization] = useState("");
   const [isVip, setIsVip] = useState(false);
   const [vipCode, setVipCode] = useState("");
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
@@ -234,7 +235,8 @@ export default function EventPage() {
       const year = now.getFullYear();
       const index = String(count + 1).padStart(3, "0");
       const ticketNumber = `PEBEC-EV-${day}${month}${year}-${index}`;
-      const qrCodeUrl = await QRCode.toDataURL(ticketNumber);
+      const qrValue = `https://www.pebec.gov.ng/events/${eventId}`;
+      const qrCodeUrl = await QRCode.toDataURL(qrValue);
       const ticketOwner = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : `${firstName} ${lastName}`;
       const userAnswers = answers.map(a => ({
         questionText: questions.find(q => q._id === a.questionId)?.questionText || "Unknown Question",
@@ -289,6 +291,7 @@ export default function EventPage() {
         firstName: !currentUser ? firstName : undefined,
         lastName: !currentUser ? lastName : undefined,
         phone: !currentUser ? phone : undefined,
+        organization: organization ? organization : undefined,
         qrCode: qrCodeUrl,
         ticketPdfId: storageId as Id<"_storage">,
         isVip
@@ -356,7 +359,7 @@ export default function EventPage() {
       setTicketData(null);
     }
   };
-  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim()) || (event?.eventType === "vip" || event?.eventType === "vip_and_general" && isVip) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim());
+  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim()) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
   return <div className="relative mx-auto w-full bg-white pt-12 mt-30 px-10 md:px-30 lg:px-30 md:mb-20  ">
       <div className="flex flex-col md:flex-row gap-8">
 
@@ -375,7 +378,7 @@ export default function EventPage() {
       </h1>
       {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
-      {event?.eventType === "vip" && <div>
+      {event?.eventType === "vip" && event?.vipAccessCode && <div>
           <label className="text-sm font-medium">Enter Your Access Code</label>
           <input type="text" value={vipCode} onChange={e => {
               const code = e.target.value;
@@ -424,6 +427,10 @@ export default function EventPage() {
         <div>
           <label className="text-xs font-semibold text-gray-500">Phone Number</label>
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" required />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-500">Organization </label>
+          <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Company/Institution" />
         </div>
         <div>
           <label className="text-xs font-semibold text-gray-500">Email Address</label>

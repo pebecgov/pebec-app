@@ -38,7 +38,7 @@ export default function StateDLIsPage() {
           <div>
             <p className="text-lg font-semibold mb-1">Welcome Mr. Governor</p>
             <p className="text-sm">
-              {userData.firstName} {userData.lastName}, we're glad to have you here!
+              {userData.firstName} {userData.lastName} we're glad to have you here!
             </p>
           </div>
           <button onClick={() => setShowWelcome(false)} className="ml-4 text-green-800 hover:text-green-600">
