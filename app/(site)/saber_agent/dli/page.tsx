@@ -16,10 +16,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 export default function ViewDLIPage() {
   const router = useRouter();
   const user = useQuery(api.users.getCurrentUsers);
-  const dliTemplates = useQuery(api.dli.getAllDliTemplates) || [];
+  const dliTemplates = useQuery(api.dli.getAllDliTemplatesWithGuideUrls) || [];
   const [shouldRefetch, setShouldRefetch] = useState(false);
   const dliProgressList = useQuery(api.dli.getAllUserDLIProgress, shouldRefetch ? {} : undefined);
-  const getFileUrl = useMutation(api.dli.getStorageUrl);
+  // No longer needed because guideUrl is precomputed on server
   const startDLI = useMutation(api.dli.startDLI);
   const setupSteps = useMutation(api.dli.setupSteps);
   const completeStep = useMutation(api.dli.completeStep);
@@ -40,29 +40,11 @@ export default function ViewDLIPage() {
     }
   }, [dliProgressList, dliProgressLists.length]);
   useEffect(() => {
-    const fetchGuideUrls = async () => {
-      const urls: {
-        [key: string]: string;
-      } = {};
-      for (const dli of dliTemplates) {
-        if (dli.guideFileId) {
-          try {
-            const url = await getFileUrl({
-              storageId: dli.guideFileId as Id<"_storage">
-            });
-            if (url) {
-              urls[dli._id] = url;
-            }
-          } catch (error) {
-            console.error(`Error fetching guide file for ${dli.title}:`, error);
-          }
-        }
-      }
-      setFileUrls(urls);
-    };
-    if (dliTemplates.length > 0) {
-      fetchGuideUrls();
+    const urls: { [key: string]: string } = {};
+    for (const dli of dliTemplates) {
+      if (dli.guideUrl) urls[dli._id] = dli.guideUrl as string;
     }
+    setFileUrls(urls);
   }, [dliTemplates]);
   const progressMap = (dliProgressList || []).filter(progress => progress.state === user?.state).reduce((map, progress) => {
     map[progress.dliTemplateId] = progress;
