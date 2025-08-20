@@ -34,19 +34,23 @@ const TopMDAs = () => {
 
   useEffect(() => {
     if (!data) return;
-    const used = new Set();
-    const uniqueTop = data.top5.filter(mda => {
-      if (used.has(mda.name)) return false;
-      used.add(mda.name);
+    const used = new Set<string>();
+    const uniqueTop = (data.top5 ?? []).filter(mda => {
+      const name = mda?.name;
+      if (!name || used.has(name)) return false;
+      used.add(name);
       return true;
     });
-    const uniqueBottom = data.bottom5.filter(mda => !used.has(mda.name));
+    const uniqueBottom = (data.bottom5 ?? []).filter(mda => {
+      const name = mda?.name;
+      return Boolean(name && !used.has(name));
+    });
     setTop(uniqueTop);
     setBottom(uniqueBottom);
   }, [data]);
 
   const renderChart = (mda: any, index: number) => {
-    const hours = parseFloat((mda.avgTime / 3600000).toFixed(2));
+    const hours = Number((((mda?.avgTime ?? 0) / 3600000)).toFixed(2));
     const chartData = [
       { name: 'Start', value: 0 },
       { name: 'Resolution', value: hours }
@@ -105,46 +109,44 @@ const TopMDAs = () => {
 
         <div className="flex flex-col sm:flex-row justify-center items-end gap-4 sm:gap-6">
           {top.map((mda, i) => (
-                         <div 
-               key={i} 
-               className={`relative flex flex-col items-center justify-end w-full sm:w-1/3 max-w-xs mx-auto rounded-t-3xl shadow-xl px-3 pt-16 ${
-                 i >= 4 ? 'pb-0' : 'pb-4'
-               } ${podiumStyles[i]} transform transition-all hover:scale-105`}
-             >
+            <div 
+              key={i} 
+              className={`relative flex flex-col items-center justify-end w-full sm:w-1/3 max-w-xs mx-auto rounded-t-3xl shadow-xl px-3 pt-16 ${
+                i >= 4 ? 'pb-0' : 'pb-4'
+              } ${podiumStyles[i]} transform transition-all hover:scale-105`}
+            >
               <div className="absolute top-2 right-2 text-xs font-bold text-white bg-black/60 px-2 py-1 rounded-full shadow z-20">
                 #{i + 1}
               </div>
               
-                             <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 w-14 h-14 rounded-full bg-white border-4 border-gray-200 flex items-center justify-center shadow-md z-10">
-                 <span className="text-xl">
-                   {(() => {
-                      let icon = mdalistIcon.find(icon => icon.name === mda.name);
-                     if (!icon && mda.name.includes(' - ')) {
-                       const abbreviation = mda.name.split(' - ')[0];
-                       icon = mdalistIcon.find(icon => icon.abbreviation === abbreviation);
-                     }
-                     
-                   
-                     if (!icon) {
-                       icon = mdalistIcon.find(icon => mda.name.includes(icon.name));
-                     }
-                     
-                     return icon?.icon || '🏛️';
-                   })()}
-                 </span>
-               </div>
+              <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 w-14 h-14 rounded-full bg-white border-4 border-gray-200 flex items-center justify-center shadow-md z-10">
+                <span className="text-xl">
+                  {(() => {
+                    const mdaName = mda?.name ?? '';
+                    let icon = mdalistIcon.find(icon => icon.name === mdaName);
+                    if (!icon && mdaName.includes(' - ')) {
+                      const abbreviation = mdaName.split(' - ')[0];
+                      icon = mdalistIcon.find(icon => icon.abbreviation === abbreviation);
+                    }
+                    if (!icon && mdaName) {
+                      icon = mdalistIcon.find(icon => mdaName.includes(icon.name));
+                    }
+                    return icon?.icon || '🏛️';
+                  })()}
+                </span>
+              </div>
               
               <div className="w-full mb-2">
                 <p className={`text-center font-semibold leading-tight line-clamp-2 ${
                   i >= 4 ? 'text-[0.3rem] sm:text-xs' : 'text-xs sm:text-sm'
                 }`}>
-                  {mda.name}
+                  {mda?.name ?? 'Unknown MDA'}
                 </p>
                 <p className={`text-center leading-snug mt-1 ${
                   i >= 4 ? 'text-[0.2rem] sm:text-[0.6rem]' : 'text-[0.7rem] sm:text-xs'
                 }`}>
-                  Received: {mda.total} | Resolved: {mda.count}<br />
-                  Avg Time: {(mda.avgTime / 3600000).toFixed(1)} hrs
+                  Received: {mda?.total ?? 0} | Resolved: {mda?.count ?? 0}<br />
+                  Avg Time: {(((mda?.avgTime ?? 0) / 3600000).toFixed(1))} hrs
                 </p>
               </div>
               
