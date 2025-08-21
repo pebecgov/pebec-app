@@ -267,7 +267,7 @@ export default function UserProfile() {
           </div>
           <div>
   <Label>State</Label>
-  {role === "reform_champion" || role === "state_governor" || role === "deputies" ? <Input value={form.state} readOnly disabled className="w-full bg-gray-100 text-gray-700 cursor-not-allowed" /> : <Select value={form.state} onValueChange={value => setForm({
+  {role === "reform_champion" || role === "state_governor" || role === "deputies" || role === "saber_agent" ? <Input value={form.state} readOnly disabled className="w-full bg-gray-100 text-gray-700 cursor-not-allowed" /> : <Select value={form.state} onValueChange={value => setForm({
             ...form,
             state: value
           })}>
