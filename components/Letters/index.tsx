@@ -47,7 +47,7 @@ export default function SubmitLetterForm({
 
   // For saber_agent, get staff users with saber permissions
   const saberPermissions = [
-    "/admin/saber-overview",
+    "/admin/saber",
     "/admin/saber-reports",
   ];
 
