@@ -1342,10 +1342,10 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
   }
   else if (cleanedFormData.reportType === "type7" && cleanedFormData.type7Data) {
   const {
-    evidenceOfCommittedTurnaroundLink,
+    reportPublishedSelect,
     year2024Link,
     year2025Link,
-    monthlyComplianceLink,
+    grievianvceMechanismLink,
   } = cleanedFormData.type7Data;
 
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -1419,8 +1419,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
  
    doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("Compliance Report: Operational GRMs \n" +
-      " in Two Key BEE MDAs  ", 35, y);
+    doc.text("Grieviance Redress Mechanism (GRM) Report", 35, y);
     y += 14;
 
   doc.setFontSize(10);
@@ -1431,7 +1430,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     "This report provides a comprehensive overview and compliance verification of operational Grievance Redress Mechanisms (GRMs) in two key Business Enabling Environment (BEE) State MDAs, in line with the requirements of the State Action on Business Enabling Reforms (SABER) Verification Protocol (Version 3.0, March 5, 2024). It details the operational status of GRMs, response timelines, and grievance handling outcomes within the stipulated timeframe."
   );
 
-  addHeader("GRM System and Documentation");
+  addHeader("GRM System");
 
   addParagraph(
     "Each of the two key BEE MDAs has an established and operational GRM, equipped to capture essential grievance details through a manual and/or online register. This includes, at a minimum:\n" +
@@ -1442,10 +1441,10 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
       "- Date of response and/or acknowledgement by the MDA"
   );
 
-  addParagraph(`Evidence of committed turnaround time to resolve grievances received communicated to the public or SLA on GRM on the MDA or state official website: ${evidenceOfCommittedTurnaroundLink || "N/A"}`);
+  addParagraph(`Do you have a Grievance Redress Mechanism? ${reportPublishedSelect  || "N/A"} `);
 
   addParagraph(
-    "Evidence of this should include scanned pages or screenshots of the grievance register, indicating entries from January 1, 2024 to December 31, 2024 (for Year 2) and from January 1, 2025 to December 31, 2025 (for Year 3)."
+    `Here is the link to the GRM: ${grievianvceMechanismLink || "N/A"}`
   );
 
   addParagraph(`- For 2024 (Year 2): GRM Report link: ${year2024Link || "N/A"}`);
@@ -1463,22 +1462,6 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
       "- Clarity of information received (location and operational hours)"
   );
 
-  addHeader("Monthly Publication of Compliance Statistics");
-
-  addParagraph(
-    "Starting from January 1, 2025, each of the five key BEE MDAs have published monthly statistics on their official website. These statistics must include:\n" +
-      "- Committed turnaround times (service delivery timelines) per business regulatory process\n" +
-      "- Percentage of total request for services rendered completed within the committed timelines (service delivery timelines) for each regulatory process"
-  );
-
-  addParagraph(`Compliance Report link: ${monthlyComplianceLink || "N/A"}`);
-
-  doc.setFont("helvetica", "bold");
-  addParagraph(
-    "At least nine (9) monthly publications must be made available by December 31, 2025, and each report must be published within three months of the month’s end. Backend timestamp evidence will be used to verify the publication date.\n\n" +
-      "Hyperlinks to the relevant state portals or MDA websites must be included in the report."
-  );
-  doc.setFont("helvetica", "normal");
 
   addHeader("Conclusion");
   addParagraph(
@@ -1786,7 +1769,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
   } 
   if (cleanedFormData.reportType === "type12" && cleanedFormData.type12Data) {
   const {
-    executiveOrderLink,
+    
     fiveMDA = [],
     mdaRecords = [],
     backEndVerf,
@@ -1878,17 +1861,7 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     });
   }
 
-  addHeader("Executive Order Verification");
-  addParagraph(
-    "The State Governor has issued an Executive Order directing five selected BEE State MDAs to publish the following on official websites:\n" +
-      "- Service Fees\n" +
-      "- Procedures\n" +
-      "- Service Level Agreements (SLAs)\n" +
-      "- Grievance Redress Mechanisms (GRMs)\n" +
-      "- Rules for mandatory advance communication of upcoming changes to regulations or procedures"
-  );
-  addParagraph(`Executive Order link: ${executiveOrderLink || "N/A"}`);
-  
+
   addHeader("Online Publication Verification (for all 5 BEE MDAs)");
   addParagraph(
     "For each of the five selected BEE MDAs, provide the following:"
@@ -1901,20 +1874,23 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
 
       addParagraph(`• Title of Regulatory Process: ${record.titleOfRP || "N/A"}`);
       addParagraph(`• Web Link to Published Info: ${record.WebLinkPI || "N/A"}`);
-      addParagraph(`• Screenshot/Date Stamp Link: ${record.link2Sr || "N/A"}`);
-      addParagraph(`• Supporting Docs / Step-by-step Procedure: ${record.link2Sup || "N/A"}`);
       addParagraph(`• SLA References / Timeline Commitments: ${record.slaRef || "N/A"}`);
+       addParagraph(`• Date of publication: ${record.link2Sup || "N/A"}`);
     });
   }
 
-  addHeader("Backend Verification");
-  addParagraph("States are required to provide backend timestamp data to verify that publication occurred before the deadline. This evidence should be collected directly from web platform administrators or IT teams of the respective MDAs or state ICT office.");
-  addParagraph(`Backend verification evidence link: ${backEndVerf || "N/A"}`);
-
-  addHeader("Conclusion");
+    addHeader("Conclusion");
   addParagraph(
     "By implementing these transparency mechanisms, the state demonstrates its commitment to improving the business environment. Public access to regulatory information helps businesses make informed decisions and builds public trust in administrative processes."
   );
+  // addHeader("Backend Verification");
+  // addParagraph("States are required to provide backend timestamp data to verify that publication occurred before the deadline. This evidence should be collected directly from web platform administrators or IT teams of the respective MDAs or state ICT office.");
+  // addParagraph(`Backend verification evidence link: ${backEndVerf || "N/A"}`);
+
+  // addHeader("Conclusion");
+  // addParagraph(
+  //   "By implementing these transparency mechanisms, the state demonstrates its commitment to improving the business environment. Public access to regulatory information helps businesses make informed decisions and builds public trust in administrative processes."
+  // );
 }
   else {
 
