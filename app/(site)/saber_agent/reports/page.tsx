@@ -186,7 +186,8 @@ export interface Type6Data {
   };
 }
 export interface Type7Data {
-  evidenceOfCommittedTurnaroundLink: string;
+  grevianceMechSelect: string;
+  grievianvceMechanismLink?: string;
   year2024Link?: string;
   year2025Link?: string;
   monthlyComplianceLink?: string;
@@ -247,7 +248,6 @@ export interface Type11Data {
 }
 export interface Type12Data {
   fiveMDA?: string[];
-  executiveOrderLink?: string;
   backEndVerf?: string
   mdaRecords: {
     NameOfMDA: string;
@@ -258,6 +258,15 @@ export interface Type12Data {
     slaRef?: string;
 
   }[];
+}
+
+export interface Type14Data {
+  monthlyComplianceLink?: string;
+  reportPublishedSelect?: string;
+  infoSelect?: string
+  monthlyComplianceSelect?: string;
+  monthlyComplianceMonth?: string;
+
 }
 
 interface DLICategory {
@@ -283,8 +292,10 @@ const dliCategories: DLICategory[] = [
     id: "dli5",
     name: "DLI-5",
     reportTypes: [
-      { value: "type7", label: "Operational GRMs in Two Key BEE MDAs – Compliance Report Template" },
-      { value: "type12", label: "Compliance Report: Publication of Business Regulatory Processes by BEE State MDAs" },
+      { value: "type12", label: "Publication of Business Regulatory Processes by 5 BEE State MDAs" },
+      { value: "type7", label: "Grievance Redress Mechanism (GRM) Report" },
+      { value: "type14", label: "Monthly Ccompliance Report By 5 MDAs For Each Regulatory Process" },
+      
     ]
   },
   {
@@ -327,6 +338,7 @@ type ReportTypeDataMap = {
   type6Data: Type6Data;
   type7Data: Type7Data;
   type12Data: Type12Data;
+  type14Data: Type14Data;
 };
 function DownloadButton({
   fileId,
@@ -361,7 +373,7 @@ function DownloadButton({
 }
 
 export interface FormData {
-  reportType: "type1" | "type2" | "type3" | "type4" | "type5" | "type6" | "type7" | "type8" | "type9" | "type10" | "type11" | "type12";
+  reportType: "type1" | "type2" | "type3" | "type4" | "type5" | "type6" | "type7" | "type8" | "type9" | "type10" | "type11" | "type12" | "type14";
   type1Data?: Type1Data;
   type2Data?: Type2Data;
   type3Data?: Type3Data;
@@ -374,6 +386,7 @@ export interface FormData {
   type10Data?: Type10Data;
   type11Data?: Type11Data;
   type12Data?: Type12Data;
+  type14Data?: Type14Data;
 }
 
 
@@ -493,7 +506,8 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
   }
   else if (reportType === "type7") {
     base.type7Data = {
-      evidenceOfCommittedTurnaroundLink: "",
+      grevianceMechSelect: "",
+      grievianvceMechanismLink: "",
       year2024Link: "",
       year2025Link: "",
       monthlyComplianceLink: "",
@@ -516,6 +530,15 @@ const getInitialFormData = (reportType: FormData["reportType"]): FormData => {
       ],
     };
   }
+  else if (reportType === "type14"){
+    base.type14Data = {
+    monthlyComplianceSelect:"",
+    monthlyComplianceLink: "",
+    reportPublishedSelect: "",
+    infoSelect: "",
+    monthlyComplianceMonth: "",
+    }
+  }
   return base;
 };
 
@@ -537,7 +560,7 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
     case "type6":
       return `${statePrefix}Grievance Redress Mechanism (GRM) Report`;
     case "type7":
-      return `${statePrefix}Operational GRMs in Two Key BEE MDAs – Compliance Report Template`;
+      return `${statePrefix}Grievance Redress Mechanism (GRM) Report`;
     case "type8":
       return `${statePrefix}Certificate of Authentication of Small Claims Court Reports`;
     case "type9":
@@ -547,7 +570,9 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
     case "type11":
       return `${statePrefix}Small Claims Court Time To Disposition Indicator For The Month`;
     case "type12":
-      return `${statePrefix}Compliance Report: Publication of Business Regulatory Processes by BEE State MDAs`;
+      return `${statePrefix}Publication of Business Regulatory Processes by 5 BEE State MDAs`;
+    case "type14":
+      return `${statePrefix}Monthly Ccompliance Report By 5 MDAs For Each Regulatory Process`;
 
     default:
       return `${statePrefix}Saber Agent Report`;
