@@ -42,6 +42,15 @@ export const submitLetter = mutation({
           throw new Error("SABER agents can only send letters to Sub-National staff");
         }
       }
+
+      // World Bank → can send to Admin and all Staff departments
+      if (senderRole === "world_bank") {
+        const isAdmin = recipientRole === "admin";
+        const isStaff = recipientRole === "staff";
+        if (!isAdmin && !isStaff) {
+          throw new Error("World Bank can only send letters to Admin and Staff departments");
+        }
+      }
     }
     
     const letterId = await ctx.db.insert("letters", {
@@ -242,6 +251,9 @@ export const getAvailableRecipients = query({
       // SABER agents → can only send to Sub-National department staff
       const allowedStaff = allStaff.filter(staff => staff.staffStream === "sub_national");
       availableRecipients = [...allowedStaff];
+    } else if (user.role === "world_bank") {
+      // World Bank → can send to Admin and all Staff departments
+      availableRecipients = [...allAdmins, ...allStaff];
     }
 
     return availableRecipients.map(recipient => ({
