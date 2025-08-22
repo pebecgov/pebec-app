@@ -33,9 +33,9 @@ export default function WorldBankSidebar({
       path: "/world_bank"
     },
     {
-      name: "SABER Materials",
+      name: "SABER Documents",
       icon: "/images/saber_icon.png",
-      path: "/world_bank/saber-materials"
+      path: "/world_bank/saber-documents"
     }
   ];
 
