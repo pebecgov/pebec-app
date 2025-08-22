@@ -285,7 +285,7 @@ const DLI5Form = ({
       {/* Type 14 Form Fields */}
       {templateFormData.reportType === "type14" && templateFormData.type14Data && (
         <div className="space-y-4">
-          <h4 className="text-lg font-medium">Monthly Ccompliance Report By 5 MDAs For Each Regulatory Process<br /></h4>
+          <h4 className="text-lg font-medium">Monthly Compliance Report By 5 MDAs For Each Regulatory Process<br /></h4>
                   
            
              <div className="space-y-2">

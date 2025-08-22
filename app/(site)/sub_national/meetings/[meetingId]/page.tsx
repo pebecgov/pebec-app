@@ -99,7 +99,7 @@ export default function MeetingDetails() {
 
         {}
         <div className="flex items-center gap-4 mt-4">
-          <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={60} height={60} className="rounded-full border" />
+          <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={60} height={60} className="rounded-full border object-cover" />
           <div>
             <h1 className="text-2xl font-bold">{meeting.title}</h1>
             <p className="text-sm text-gray-500">Hosted by {meeting.creatorName || "Unknown Organizer"}</p>
@@ -132,7 +132,7 @@ export default function MeetingDetails() {
             
             <div className="mt-3 space-y-2">
               {attendees.map(attendee => <div key={attendee._id} className="flex items-center gap-3 bg-gray-100 rounded-lg px-3 py-2">
-                  <Image src={attendee.imageUrl || "/default-avatar.png"} alt="User" width={40} height={40} className="rounded-full border" />
+                  <Image src={attendee.imageUrl || "/default-avatar.png"} alt="User" width={40} height={40} className="rounded-full border object-cover" />
                   <div>
                     <p className="text-sm font-medium">{attendee.firstName} {attendee.lastName}</p>
                     <p className={`text-xs ${meeting.acceptedAttendees.includes(attendee._id) ? "text-green-500" : "text-yellow-500"}`}>

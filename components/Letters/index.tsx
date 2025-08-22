@@ -164,7 +164,7 @@ export default function SubmitLetterForm({
             {(() => {
           const user = department === "admin" ? users.find(u => u._id === selectedUser) : availableRecipients.find(u => u._id === selectedUser);
           return user ? <>
-                  <Image src={user.imageUrl || "/default-avatar.png"} alt="User" width={36} height={36} className="rounded-full" />
+                  <Image src={('imageUrl' in user ? user.imageUrl : undefined) || "/default-avatar.png"} alt="User" width={36} height={36} className="rounded-full object-cover aspect-square border-gray-300" />
                   <div>
                     <p className="font-semibold text-sm">
                       {user.firstName} {user.lastName}

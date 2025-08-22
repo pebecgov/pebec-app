@@ -328,7 +328,13 @@ export default function Admin() {
           {}
           <TableCell className="py-3 px-4 whitespace-nowrap max-w-xs">
   <div className="flex items-center gap-3">
-    <Image src={user.imageUrl || "/default-avatar.png"} alt="Profile" width={36} height={36} className="rounded-full object-cover border border-gray-300" />
+    <Image
+  src={user.imageUrl || "/default-avatar.png"}
+  alt="Profile"
+  width={36}
+  height={36}
+  className="rounded-full aspect-square object-cover border border-gray-300"
+/>
     <div className="flex flex-col max-w-[160px] overflow-hidden">
       <span className="font-medium text-sm leading-tight text-ellipsis overflow-hidden whitespace-nowrap">
         {user.firstName} {user.lastName}

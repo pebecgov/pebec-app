@@ -170,7 +170,7 @@ export default function Meetings() {
                 </button>
                 {isDropdownOpen && <div className="absolute z-10 bg-white border rounded-md shadow-md mt-1 w-full max-h-60 overflow-auto">
                     {users.map(user => <div key={user._id} onClick={() => handleUserSelection(user._id)} className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-100 ${selectedUsers.includes(user._id) ? "bg-blue-100" : ""}`}>
-                        <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full" />
+                        <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
                         <span>{user.firstName} {user.lastName}</span>
                       </div>)}
                   </div>}
@@ -184,7 +184,7 @@ export default function Meetings() {
                 {selectedUsers.map(userId => {
               const user = users?.find(u => u._id === userId);
               return user && <div key={user._id} className="flex items-center gap-2 bg-white px-2 py-1 rounded-md shadow">
-                        <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full" />
+                        <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
                         <span className="text-sm">{user.firstName} {user.lastName}</span>
                         <button className="text-red-500 text-xs hover:bg-red-100 px-1 rounded" onClick={e => {
                   e.stopPropagation();

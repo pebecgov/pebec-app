@@ -294,7 +294,7 @@ const dliCategories: DLICategory[] = [
     reportTypes: [
       { value: "type12", label: "Publication of Business Regulatory Processes by 5 BEE State MDAs" },
       { value: "type7", label: "Grievance Redress Mechanism (GRM) Report" },
-      { value: "type14", label: "Monthly Ccompliance Report By 5 MDAs For Each Regulatory Process" },
+      { value: "type14", label: "Monthly Compliance Report By 5 MDAs For Each Regulatory Process" },
       
     ]
   },
@@ -572,7 +572,7 @@ const getReportTitle = (reportType: FormData["reportType"], userState?: string):
     case "type12":
       return `${statePrefix}Publication of Business Regulatory Processes by 5 BEE State MDAs`;
     case "type14":
-      return `${statePrefix}Monthly Ccompliance Report By 5 MDAs For Each Regulatory Process`;
+      return `${statePrefix}Monthly Compliance Report By 5 MDAs For Each Regulatory Process`;
 
     default:
       return `${statePrefix}Saber Agent Report`;
