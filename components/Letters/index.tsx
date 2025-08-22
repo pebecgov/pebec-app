@@ -23,6 +23,7 @@ export default function SubmitLetterForm({
   const saveUploadedFile = useMutation(api.tickets.saveUploadedFile);
   const users = useQuery(api.users.getAllAdminsAndStaff) || [];
   const availableRecipients = useQuery(api.letters.getAvailableRecipients) || [];
+  const currentUser = useQuery(api.users.getCurrentUsers);
   const [letterName, setLetterName] = useState("");
   const [description, setDescription] = useState("");
   const [fileId, setFileId] = useState<Id<"_storage"> | null>(null);
@@ -40,6 +41,21 @@ export default function SubmitLetterForm({
   const availableStreams = [...new Set(availableRecipients.map(r => r.staffStream))];
   const staffStreams = availableStreams.length > 0 ? allStaffStreams.filter(stream => availableStreams.includes(stream)) : allStaffStreams;
   const filteredUsers = department === "admin" ? users.filter(u => u.role === "admin") : availableRecipients.filter(u => u.staffStream === selectedStream);
+
+  // Check if current user is saber_agent
+  const isSaberAgent = currentUser?.role === "saber_agent";
+
+  // For saber_agent, get staff users with saber permissions
+  const saberPermissions = [
+    "/admin/saber",
+    "/admin/saber-reports",
+  ];
+
+  const staffWithSaberPermissions = users.filter(user => 
+    user.role === "staff" && 
+    user.permissions && 
+    saberPermissions.some(permission => user?.permissions?.includes(permission))
+  );
 
   const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -128,55 +144,97 @@ export default function SubmitLetterForm({
         {/* Letter Title */}
         <Input placeholder="Letter Subject" value={letterName} onChange={e => setLetterName(e.target.value)} className="mb-3" />
 
-        {/* Department Selection */}
-        <select value={department} onChange={e => {
-        setDepartment(e.target.value);
-        setSelectedStream("");
-        setSelectedUser(null);
-      }} className="w-full border rounded-md p-2 mb-3">
-          <option value="">Select Department</option>
-          <option value="admin">Admin</option>
-          <option value="staff">PEBEC Staff</option>
-        </select>
+        {/* Different interface for saber_agent vs regular users */}
+        {isSaberAgent ? (
+          // Saber Agent Interface - Direct Staff Selection
+          <div className="mb-4">
+            <select 
+              value={selectedUser ?? ""} 
+              onChange={e => setSelectedUser(e.target.value as Id<"users">)} 
+              className="w-full border rounded-md p-2 mb-4"
+            >
+              <option value="">Select Staff</option>
+              {staffWithSaberPermissions.map(user => (
+                <option key={user._id} value={user._id}>
+                  {user.firstName} {user.lastName}
+                  {user.jobTitle ? ` (${user.jobTitle})` : ""} - {formatWorkstream(user.staffStream || "")}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          // Regular User Interface - Department and Stream Selection
+          <>
+            {/* Department Selection */}
+            <select value={department} onChange={e => {
+              setDepartment(e.target.value);
+              setSelectedStream("");
+              setSelectedUser(null);
+            }} className="w-full border rounded-md p-2 mb-3">
+              <option value="">Select Department</option>
+              <option value="admin">Admin</option>
+              <option value="staff">PEBEC Staff</option>
+            </select>
 
-        {/* Staff Stream Selection */}
-        {department === "staff" && <select value={selectedStream} onChange={e => {
-        setSelectedStream(e.target.value);
-        setSelectedUser(null);
-      }} className="w-full border rounded-md p-2 mb-3">
-            <option value="">Select Staff Stream</option>
-            {staffStreams.map(stream => <option key={stream} value={stream}>
-                {formatWorkstream(stream)}
-              </option>)}
-          </select>}
+            {/* Staff Stream Selection */}
+            {department === "staff" && (
+              <select value={selectedStream} onChange={e => {
+                setSelectedStream(e.target.value);
+                setSelectedUser(null);
+              }} className="w-full border rounded-md p-2 mb-3">
+                <option value="">Select Staff Stream</option>
+                {staffStreams.map(stream => (
+                  <option key={stream} value={stream}>
+                    {formatWorkstream(stream)}
+                  </option>
+                ))}
+              </select>
+            )}
 
-        {/* User Selection */}
-        {(department === "admin" || selectedStream) && <select value={selectedUser ?? ""} onChange={e => setSelectedUser(e.target.value as Id<"users">)} className="w-full border rounded-md p-2 mb-4">
-            <option value="">Select User</option>
-            {filteredUsers.map(user => <option key={user._id} value={user._id}>
-    {user.firstName} {user.lastName}
-    {user.jobTitle ? ` (${user.jobTitle})` : ""} - {formatRoleAndWorkstream(user.role || "", user.staffStream)}
-  </option>)}
-          </select>}
+            {/* User Selection */}
+            {(department === "admin" || selectedStream) && (
+              <select value={selectedUser ?? ""} onChange={e => setSelectedUser(e.target.value as Id<"users">)} className="w-full border rounded-md p-2 mb-4">
+                <option value="">Select User</option>
+                {filteredUsers.map(user => (
+                  <option key={user._id} value={user._id}>
+                    {user.firstName} {user.lastName}
+                    {user.jobTitle ? ` (${user.jobTitle})` : ""} - {formatRoleAndWorkstream(user.role || "", user.staffStream)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
+        )}
 
         {/* Selected User Preview */}
-        {selectedUser && <div className="flex items-center gap-3 border p-3 rounded-lg bg-gray-50 mb-4">
+        {selectedUser && (
+          <div className="flex items-center gap-3 border p-3 rounded-lg bg-gray-50 mb-4">
             {(() => {
+
           const user = department === "admin" ? users.find(u => u._id === selectedUser) : availableRecipients.find(u => u._id === selectedUser);
           return user ? <>
                   <Image src={('imageUrl' in user ? user.imageUrl : undefined) || "/default-avatar.png"} alt="User" width={36} height={36} className="rounded-full object-cover aspect-square border-gray-300" />
+
+             
                   <div>
                     <p className="font-semibold text-sm">
                       {user.firstName} {user.lastName}
                     </p>
                     <p className="text-xs text-gray-500">
-  {user.jobTitle ? `${user.jobTitle}, ` : ""}
-  {department === "admin" ? formatRoleAndWorkstream(user.role || "", user.staffStream) : formatWorkstream(user.staffStream || "")}
-              </p>
+                      {user.jobTitle ? `${user.jobTitle}, ` : ""}
+                      {isSaberAgent 
+                        ? formatWorkstream(user.staffStream || "") 
+                        : department === "admin" 
+                          ? formatRoleAndWorkstream(user.role || "", user.staffStream) 
+                          : formatWorkstream(user.staffStream || "")
+                      }
+                    </p>
                   </div>
-                </> : null;
-        })()}
-          </div>}
+                </>
+              ) : null;
+            })()}
+          </div>
+        )}
 
         {/* Main Letter Body with Attachment */}
         <div className="mb-4">

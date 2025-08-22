@@ -57,9 +57,11 @@ export default function WorldBankLayoutClient({
             </button>
           </div>
 
+          
+
           {/* Logo */}
           <div className="flex-1 flex justify-center md:justify-start">
-            <Link href="/">
+            {/* <Link href="/">
               <Image 
                 src="/images/logo/logo_pebec1.PNG" 
                 alt="PEBEC Logo" 
@@ -67,7 +69,7 @@ export default function WorldBankLayoutClient({
                 height={50} 
                 className="cursor-pointer" 
               />
-            </Link>
+            </Link> */}
           </div>
 
           {/* User Actions */}
