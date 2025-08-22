@@ -35,13 +35,20 @@ export const submitLetter = mutation({
         }
       }
 
-      // Report Gov Agents → can only send to Admin and Innovation & Technology department
+      // SABER agents → can only send to Sub-National department staff
       if (senderRole === "saber_agent") {
+        const isAllowedStaff = recipientRole === "staff" && recipientStream === "sub_national";
+        if (!isAllowedStaff) {
+          throw new Error("SABER agents can only send letters to Sub-National staff");
+        }
+      }
+
+      // World Bank → can send to Admin and all Staff departments
+      if (senderRole === "world_bank") {
         const isAdmin = recipientRole === "admin";
-        const isAllowedStaff = recipientStream === "innovation";
-        
-        if (!isAdmin && !isAllowedStaff) {
-          throw new Error("Report Gov Agents can only send letters to Admin and Innovation & Technology department");
+        const isStaff = recipientRole === "staff";
+        if (!isAdmin && !isStaff) {
+          throw new Error("World Bank can only send letters to Admin and Staff departments");
         }
       }
     }
@@ -241,12 +248,13 @@ export const getAvailableRecipients = query({
       );
       availableRecipients = [...allAdmins, ...allowedStaff];
     } else if (user.role === "saber_agent") {
-        // Report Gov Agents → can only send to Admin, Innovation & Technology and Sub-National departments
-        const allowedStaff = allStaff.filter(staff => 
-          staff.staffStream === "innovation" || staff.staffStream === "sub_national"
-        );
-        availableRecipients = [...allAdmins, ...allowedStaff];
-      }
+      // SABER agents → can only send to Sub-National department staff
+      const allowedStaff = allStaff.filter(staff => staff.staffStream === "sub_national");
+      availableRecipients = [...allowedStaff];
+    } else if (user.role === "world_bank") {
+      // World Bank → can send to Admin and all Staff departments
+      availableRecipients = [...allAdmins, ...allStaff];
+    }
 
     return availableRecipients.map(recipient => ({
       _id: recipient._id,
