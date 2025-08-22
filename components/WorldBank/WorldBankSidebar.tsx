@@ -35,7 +35,7 @@ export default function WorldBankSidebar({
     {
       name: "SABER Documents",
       icon: "/images/saber_icon.png",
-      path: "/world_bank/saber-materials"
+      path: "/world_bank/saber-documents"
     },
     {
       name: "Send Letters",
