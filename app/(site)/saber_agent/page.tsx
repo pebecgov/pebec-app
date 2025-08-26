@@ -7,14 +7,17 @@ import DLIStatusCard from "@/components/ReformChampionDashboard/DLIStatusCard";
 import DLIProgressChart from "@/components/ReformChampionDashboard/DLIProgressChart";
 import ActivitySummary from "@/components/ReformChampionDashboard/ActivitySummary";
 import MaterialsCallout from "@/components/ReformChampionDashboard/MaterialsCallout";
+
 export default function SubNational() {
   const user = useQuery(api.users.getCurrentUsers);
   const state = user?.state || "your state";
-  return <div className="grid gap-6 mt-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      
+  
+  return (
+    <div className="grid gap-6 mt-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <DLIStatusCard state={state} />
       <DLIProgressChart />
       <ActivitySummary />
       <MaterialsCallout />
-    </div>;
+    </div>
+  );
 }

@@ -21,7 +21,8 @@ export const createEvent = mutation({
     vipAccessCode: v.optional(v.string()),
     ticketLimit: v.optional(v.number()),
     vipTicketLimit: v.optional(v.number()),
-    generalTicketLimit: v.optional(v.number())
+    generalTicketLimit: v.optional(v.number()),
+    isSaberEvent: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -40,9 +41,52 @@ export const createEvent = mutation({
       vipAccessCode: args.vipAccessCode,
       ticketLimit: args.ticketLimit,
       vipTicketLimit: args.vipTicketLimit,
-      generalTicketLimit: args.generalTicketLimit
+      generalTicketLimit: args.generalTicketLimit,
+      isSaberEvent: args.isSaberEvent || false
     });
     return event;
+  }
+});
+
+// Mark existing event as SABER event
+export const markEventAsSaber = mutation({
+  args: {
+    eventId: v.id("events")
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    // Only admins can mark events as SABER events
+    if (user.role !== "admin") {
+      throw new Error("Only admins can mark events as SABER events");
+    }
+    
+    await ctx.db.patch(args.eventId, {
+      isSaberEvent: true,
+      updatedAt: Date.now()
+    });
+    
+    return { success: true };
+  }
+});
+
+// Remove SABER event designation
+export const unmarkEventAsSaber = mutation({
+  args: {
+    eventId: v.id("events")
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    // Only admins can unmark events as SABER events
+    if (user.role !== "admin") {
+      throw new Error("Only admins can unmark events as SABER events");
+    }
+    
+    await ctx.db.patch(args.eventId, {
+      isSaberEvent: false,
+      updatedAt: Date.now()
+    });
+    
+    return { success: true };
   }
 });
 export const createEventQuestion = mutation({
@@ -227,6 +271,36 @@ export const getEvents = query({
       const registrations = await ctx.db.query("event_registrations").withIndex("byEvent", q => q.eq("eventId", event._id)).collect();
       const vipTicketsSold = registrations.filter(r => r.isVip).length;
       const generalTicketsSold = registrations.filter(r => !r.isVip).length;
+      return {
+        ...event,
+        createdBy,
+        vipTicketsSold,
+        generalTicketsSold,
+        ...(event.coverImageId ? {
+          coverImageUrl: (await ctx.storage.getUrl(event.coverImageId)) ?? ""
+        } : {})
+      };
+    }));
+  }
+});
+
+// Get SABER-specific events
+export const getSaberEvents = query({
+  args: {},
+  handler: async ctx => {
+    const events = await ctx.db.query("events")
+      .withIndex("bySaberEvent", q => q.eq("isSaberEvent", true))
+      .order("desc")
+      .collect();
+    
+    return Promise.all(events.map(async event => {
+      const createdBy = await ctx.db.get(event.createdBy);
+      const registrations = await ctx.db.query("event_registrations")
+        .withIndex("byEvent", q => q.eq("eventId", event._id))
+        .collect();
+      const vipTicketsSold = registrations.filter(r => r.isVip).length;
+      const generalTicketsSold = registrations.filter(r => !r.isVip).length;
+      
       return {
         ...event,
         createdBy,

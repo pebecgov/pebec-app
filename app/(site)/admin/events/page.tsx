@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -10,12 +10,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 type EventType = 'vip' | 'general' | 'vip_and_general';
 export default function ManageEventsPage() {
   const events = useQuery(api.events.getAllEventsWithStats);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<EventType | 'all'>('all');
   const [dateFilter, setDateFilter] = useState('');
+  
+  const markEventAsSaber = useMutation(api.events.markEventAsSaber);
+  const unmarkEventAsSaber = useMutation(api.events.unmarkEventAsSaber);
   const filteredEvents = useMemo(() => {
     return events?.filter(event => {
       const matchesSearch = event.title.toLowerCase().includes(search.toLowerCase());
@@ -24,6 +29,25 @@ export default function ManageEventsPage() {
       return matchesSearch && matchesType && matchesDate;
     }) || [];
   }, [events, search, typeFilter, dateFilter]);
+
+  const handleMarkAsSaber = async (eventId: string) => {
+    try {
+      await markEventAsSaber({ eventId: eventId as any });
+      toast.success("Event marked as SABER event");
+    } catch (error) {
+      toast.error("Failed to mark event as SABER event");
+    }
+  };
+
+  const handleUnmarkAsSaber = async (eventId: string) => {
+    try {
+      await unmarkEventAsSaber({ eventId: eventId as any });
+      toast.success("Event unmarked as SABER event");
+    } catch (error) {
+      toast.error("Failed to unmark event as SABER event");
+    }
+  };
+
   return <div className="max-w-7xl mx-auto p-6">
       <h1 className="text-3xl font-bold text-green-700 mb-6">Manage Events</h1>
 
@@ -57,6 +81,7 @@ export default function ManageEventsPage() {
               <TableHead>Location</TableHead>
               <TableHead>Tickets</TableHead>
               <TableHead>Attendees</TableHead>
+              <TableHead>SABER</TableHead>
               <TableHead>Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -93,6 +118,30 @@ export default function ManageEventsPage() {
                     </>}
                 </TableCell>
                 <TableCell>{event.totalAttendees}</TableCell>
+                <TableCell>
+                  {event.isSaberEvent ? (
+                    <div className="flex flex-col gap-2">
+                      <Badge className="bg-green-100 text-green-800">SABER Event</Badge>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleUnmarkAsSaber(event._id)}
+                        className="text-xs"
+                      >
+                        Remove SABER
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleMarkAsSaber(event._id)}
+                      className="text-xs"
+                    >
+                      Mark as SABER
+                    </Button>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Link href={`/admin/events/${event._id}`}>
                     <Button variant="outline" size="sm">

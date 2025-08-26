@@ -15,7 +15,7 @@ export default function DLIProgressPage() {
   const {
     dliId
   } = useParams();
-  const dliTemplate = useQuery(api.dli.getDliTemplate, {
+  const dliTemplate = useQuery(api.dli.getDliTemplateWithGuideUrl, {
     id: dliId as Id<"dli_templates">
   });
   const user = useQuery(api.users.getCurrentUsers);

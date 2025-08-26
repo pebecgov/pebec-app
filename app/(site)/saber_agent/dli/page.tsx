@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 export default function ViewDLIPage() {
   const router = useRouter();
   const user = useQuery(api.users.getCurrentUsers);
-  const dliTemplates = useQuery(api.dli.getAllDliTemplatesWithGuideUrls) || [];
+  const dliTemplates = useQuery(api.dli.getDliTemplatesBasic) || [];
   const [shouldRefetch, setShouldRefetch] = useState(false);
   const dliProgressList = useQuery(api.dli.getAllUserDLIProgress, shouldRefetch ? {} : undefined);
   // No longer needed because guideUrl is precomputed on server
@@ -24,9 +24,7 @@ export default function ViewDLIPage() {
   const setupSteps = useMutation(api.dli.setupSteps);
   const completeStep = useMutation(api.dli.completeStep);
   const confirmEC = useMutation(api.dli.confirmEC);
-  const [fileUrls, setFileUrls] = useState<{
-    [key: string]: string;
-  }>({});
+  // Guide URLs are now fetched on-demand in specific DLI pages
   const [selectedDli, setSelectedDli] = useState<string | null>(null);
   const [stepNames, setStepNames] = useState<string[]>([]);
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -34,18 +32,16 @@ export default function ViewDLIPage() {
     [key: string]: number;
   }>({});
   const [dliProgressLists, setDliProgressLists] = useState(dliProgressList || []);
+  
+  // Update dliProgressLists when dliProgressList changes
   useEffect(() => {
-    if (dliProgressLists.length !== dliProgressLists.length) {
-      setDliProgressLists(dliProgressLists);
+    if (dliProgressList) {
+      setDliProgressLists(dliProgressList);
     }
-  }, [dliProgressList, dliProgressLists.length]);
-  useEffect(() => {
-    const urls: { [key: string]: string } = {};
-    for (const dli of dliTemplates) {
-      if (dli.guideUrl) urls[dli._id] = dli.guideUrl as string;
-    }
-    setFileUrls(urls);
-  }, [dliTemplates]);
+  }, [dliProgressList]);
+  
+  // Note: Guide URLs are now fetched on-demand in the specific DLI page
+  // This reduces initial page load time significantly
   const progressMap = (dliProgressList || []).filter(progress => progress.state === user?.state).reduce((map, progress) => {
     map[progress.dliTemplateId] = progress;
     return map;
@@ -78,9 +74,7 @@ export default function ViewDLIPage() {
         }))
       });
       setShowSetupModal(false);
-      setTimeout(() => {
-        router.push(`/saber_agent/dli/${selectedDli}`);
-      }, 500);
+      router.push(`/saber_agent/dli/${selectedDli}`);
     } catch (err) {
       console.error("Failed to start DLI:", err);
     }

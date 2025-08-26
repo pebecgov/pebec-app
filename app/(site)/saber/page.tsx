@@ -16,11 +16,18 @@ export default function SaberUserPage() {
   const beraps = useQuery(api.saber.getAllBERAPs) || [];
   const [activeTab, setActiveTab] = useState<"dli" | "">("");
   const firstBerap = beraps[0];
+  
+  // Reset activeTab to show cards when component mounts or when navigating back
   useEffect(() => {
-    if (dlis.length > 0 && beraps.length === 0) {
+    setActiveTab("");
+  }, []);
+  
+  // Only auto-show DLIs if there are DLIs but no BERAPs
+  useEffect(() => {
+    if (dlis.length > 0 && beraps.length === 0 && activeTab === "") {
       setActiveTab("dli");
     }
-  }, [dlis, beraps]);
+  }, [dlis, beraps, activeTab]);
   return <div className="max-w-7xl mx-auto mt-30">
       {}
       <div className="relative w-full h-[300px]">
@@ -133,6 +140,43 @@ export default function SaberUserPage() {
               </div>
             </SpotlightCard>
           </motion.div>}
+
+          {/* SABER Events and Materials Cards for Public View */}
+          <motion.div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6" initial={{
+            opacity: 0
+          }} animate={{
+            opacity: 1
+          }} transition={{
+            delay: 1.6
+          }}>
+            <SpotlightCard spotlightColor="rgba(0, 229, 255, 0.2)">
+              <div className="space-y-4">
+                <h2 className="text-2xl font-semibold text-sky-200">Events</h2>
+                <p className="text-sm text-gray-300">
+                  Stay updated with SABER-related events, workshops, and activities.
+                </p>
+                <Link href="/saber/events">
+                  <Button className="mt-2">
+                    View Events
+                  </Button>
+                </Link>
+              </div>
+            </SpotlightCard>
+
+            <SpotlightCard spotlightColor="rgba(0, 229, 255, 0.2)">
+              <div className="space-y-4">
+                <h2 className="text-2xl font-semibold text-sky-200">Materials</h2>
+                <p className="text-sm text-gray-300">
+                  Access SABER documents, guides, and resources for public use.
+                </p>
+                <Link href="/saber/materials">
+                  <Button className="mt-2">
+                    View Materials
+                  </Button>
+                </Link>
+              </div>
+            </SpotlightCard>
+          </motion.div>
 
         {}
         {activeTab === "dli" && <div className="space-y-8">
