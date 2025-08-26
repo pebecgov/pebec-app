@@ -15,6 +15,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import Image from "next/image";
 import { ChevronDown } from "lucide-react";
 import UpcomingMeetings from "@/components/UpcomingMeetings";
+import UserAvatar from "@/components/UserAvater";
 import { Textarea } from "@/components/ui/textarea";
 export default function Meetings() {
   const {
@@ -170,7 +171,8 @@ export default function Meetings() {
                 </button>
                 {isDropdownOpen && <div className="absolute z-10 bg-white border rounded-md shadow-md mt-1 w-full max-h-60 overflow-auto">
                     {users.map(user => <div key={user._id} onClick={() => handleUserSelection(user._id)} className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-100 ${selectedUsers.includes(user._id) ? "bg-blue-100" : ""}`}>
-                        <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
+                        <UserAvatar src={user.imageUrl} size={25} />
+                      
                         <span>{user.firstName} {user.lastName}</span>
                       </div>)}
                   </div>}

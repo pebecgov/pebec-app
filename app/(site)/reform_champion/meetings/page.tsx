@@ -10,6 +10,7 @@ import "react-calendar/dist/Calendar.css";
 import "@/app/calendar.css";
 import { format, isSameDay, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
+import UserAvatar from "@/components/UserAvater";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast, Toaster } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -165,7 +166,8 @@ export default function MdaSlots() {
           </select>
 
           {selectedUserObj && <div className="mt-4 border rounded-lg p-4 bg-gray-50 flex items-center gap-4">
-    <img src={selectedUserObj.imageUrl || "/default-avatar.png"} alt="Staff Avatar" className="w-12 h-12 rounded-full object-cover border" />
+    <UserAvatar src={selectedUserObj.imageUrl} size={60} />
+  
     <div className="text-sm">
       <p className="font-medium text-gray-800">
         {selectedUserObj.firstName} {selectedUserObj.lastName}

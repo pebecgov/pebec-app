@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
+import UserAvatar from "@/components/UserAvater";
 import { Id } from "@/convex/_generated/dataModel";
 import Image from "next/image";
 import { ChevronDown } from "lucide-react";
@@ -184,7 +185,7 @@ export default function Meetings() {
                 {selectedUsers.map(userId => {
               const user = users?.find(u => u._id === userId);
               return user && <div key={user._id} className="flex items-center gap-2 bg-white px-2 py-1 rounded-md shadow">
-                        <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
+                       <UserAvatar src={user.imageUrl} size={20} />
                         <span className="text-sm">{user.firstName} {user.lastName}</span>
                         <button className="text-red-500 text-xs hover:bg-red-100 px-1 rounded" onClick={e => {
                   e.stopPropagation();

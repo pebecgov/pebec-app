@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Paperclip, FileText, Upload, Trash2, Loader2 } from "lucide-react";
-import Image from "next/image";
+import UserAvatar from "@/components/UserAvater";
 import { toast } from "sonner";
 import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
 
@@ -254,13 +254,11 @@ export default function SubmitLetterForm({
               
               return user ? (
                 <>
-                  <Image 
-                    src={"imageUrl" in user && user.imageUrl ? user.imageUrl : "/default-avatar.png"} 
-                    alt="User" 
-                    width={36} 
-                    height={36} 
-                    className="rounded-full object-cover aspect-square border border-gray-300" 
+                  <UserAvatar 
+                    src={"imageUrl" in user && user.imageUrl ? user.imageUrl : undefined}
+                    size={36}
                   />
+                  
                   <div>
                     <p className="font-semibold text-sm">
                       {user.firstName} {user.lastName}
