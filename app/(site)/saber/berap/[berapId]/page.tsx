@@ -8,10 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Download, FileText, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@headlessui/react";
 import Loader from "@/components/Loader";
 export default function BERAPDetailPage() {
   const {
@@ -20,75 +17,36 @@ export default function BERAPDetailPage() {
   const berap = useQuery(api.saber.getBERAPById, {
     id: berapId as Id<"berap">
   });
-  const router = useRouter();
   const allMaterials = useQuery(api.saber.getMaterialsByParent, {
     parentId: berapId as Id<"berap">
   });
   const materials = allMaterials?.filter((_, index) => index !== 1) || [];
-
-  const getStorageUrl = useMutation(api.saber.getStorageUrl);
   if (!berap) return <p className="text-center mt-10">Loading BERAP...</p>;
-  return <>
+  return <div>
       {}
-      <div className="w-full bg-gray-100 border-b border-gray-200 py-10 px-6 md:px-20 mt-30">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-          {}
-          <div>
-            <h1 className="text-2xl md:text-4xl font-semibold text-gray-900 mb-2">
+      <section className="bg-gray-300 border-b border-sky-200 py-12 mt-30">
+        <div className="max-w-7xl mx-auto px-6 mt-10">
+          <Link href="/saber" className=" mb-5 inline-flex items-center text-sky-700 font-medium hover:underline text-sm">
+            ← Back to Saber
+          </Link>
+        </div>
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="flex-1 space-y-2">
+            <h1 className="text-4xl md:text-4xl font-extrabold text-black tracking-tight">
               {berap.title}
             </h1>
-            <p className="text-md text-gray-600">Year: {berap.year}</p>
+            <p className="text-gray-700 text-lg">Year: {berap.year}</p>
           </div>
-
-          {}
-          <div className="relative w-full h-40 md:h-52">
-            <Image src="/images/berap_banner.svg" alt="BERAP Banner" fill style={{
-            objectFit: "contain"
-          }} priority />
+          <div className="flex-1">
+            <Image src="/images/berap_banner.svg" alt="BERAP Banner" width={400} height={300} className="mx-auto" />
           </div>
         </div>
-      </div>
+      </section>
 
       {}
-      <Button onClick={() => router.back()} className="inline-flex items-center gap-2 text-blue-700 hover:underline text-sm font-medium px-10">
-  <ArrowLeft className="w-4 h-4" />
-  Go Back
-    </Button>
-
-      {}
-      <div className="max-w-7xl mx-auto px-6 py-10">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 p-6 mt-10">
         {}
-        <div className="bg-white border border-blue-100 rounded-lg shadow-sm px-6 py-5 mb-10 max-w-fit">
-          <div className="flex items-center gap-2 mb-4 text-gray-800 font-semibold text-lg">
-            <Paperclip className="w-5 h-5 text-blue-600" />
-            Resource Materials
-          </div>
-
-          {materials === undefined ? (
-  <div className="flex justify-center items-center py-6">
-    <Loader />
-  </div>
-) : materials.length === 0 ? (
-  <p className="text-sm text-muted-foreground">No materials uploaded.</p>
-) : (
-  <ul className="space-y-3">
-    {materials.map(mat => (
-      <li key={mat._id} className="bg-blue-50 border border-blue-100 rounded-md px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-blue-600" />
-          <span className="text-sm font-medium text-gray-800 truncate">
-            {mat.name}
-          </span>
-        </div>
-        <DownloadButton fileId={mat.fileId} link={mat.link} />
-      </li>
-    ))}
-  </ul>
-)}
-        </div>
-
-        {}
-        <div className="space-y-6">
+        <div className="md:col-span-2 space-y-6">
           <div className="prose prose-blue max-w-none text-gray-800" dangerouslySetInnerHTML={{
           __html: berap.description
         }} />
@@ -103,8 +61,30 @@ export default function BERAPDetailPage() {
               <p className="text-sm text-gray-700 mt-1">{berap.progressReport}</p>
             </div>}
         </div>
+
+        {}
+        <aside className="space-y-6">
+          <div className="bg-gray-50 border p-4 rounded-lg">
+            <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
+              <Paperclip className="w-5 h-5 text-blue-600" /> Resource Materials
+            </h3>
+            {materials === undefined ? <div className="flex justify-center items-center py-6">
+                <Loader />
+              </div> : materials.length === 0 ? <p className="text-sm text-muted-foreground">No materials uploaded.</p> : <ul className="space-y-3">
+                {materials.map(mat => <li key={mat._id} className="bg-blue-50 border border-blue-100 rounded-md px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="text-sm font-medium text-gray-800 truncate">
+                        {mat.name}
+                      </span>
+                    </div>
+                    <DownloadButton fileId={mat.fileId} link={mat.link} />
+                  </li>)}
+              </ul>}
+          </div>
+        </aside>
       </div>
-    </>;
+    </div>;
 }
 function DownloadButton({
   fileId,
