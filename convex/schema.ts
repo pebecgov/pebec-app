@@ -162,8 +162,9 @@ export default defineSchema({
     vipTicketLimit: v.optional(v.number()),
     generalTicketLimit: v.optional(v.number()),
     signUpsDisabled: v.optional(v.boolean()),
-    isVip: v.optional(v.boolean())
-  }).index("byCreatedBy", ["createdBy"]),
+    isVip: v.optional(v.boolean()),
+    isSaberEvent: v.optional(v.boolean())
+  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]),
   event_registrations: defineTable({
     eventId: v.id("events"),
     userId: v.optional(v.id("users")),
@@ -375,8 +376,9 @@ export default defineSchema({
     materialUploadId: v.id("_storage"),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
-    reference: v.optional(v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework")))
-  }).index("byRoles", ["roles"]).index("byCreatedBy", ["createdBy"]).index("byReference", ["reference"]),
+    reference: v.optional(v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework"))),
+    isPublic: v.optional(v.boolean())
+  }).index("byRoles", ["roles"]).index("byCreatedBy", ["createdBy"]).index("byReference", ["reference"]).index("byPublic", ["isPublic"]),
   business_letters: defineTable({
     title: v.string(),
     companyName: v.string(),

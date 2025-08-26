@@ -37,6 +37,7 @@ export default function AddSaberMaterialModal({
   const [fileSize, setFileSize] = useState<number>(0);
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [reference, setReference] = useState<Reference | "">("");
+  const [isPublic, setIsPublic] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const addMaterial = useMutation(api.saber_materials.addSaberMaterial);
   const handleSubmit = async () => {
@@ -64,7 +65,8 @@ export default function AddSaberMaterialModal({
         createdAt: Date.now(),
         roles: selectedRoles,
         materialUploadId: fileId as any,
-        reference: reference as Reference
+        reference: reference as Reference,
+        isPublic
       });
       toast.success("Material uploaded successfully");
       setTitle("");
@@ -137,6 +139,22 @@ export default function AddSaberMaterialModal({
                 </div>
                 {errors.includes("Access Roles") && <p className="text-sm text-red-600 mt-1">At least one role must be selected.</p>}
               </div>}
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Visibility Settings</h3>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input 
+                  type="checkbox" 
+                  className="accent-blue-600" 
+                  checked={isPublic} 
+                  onChange={(e) => setIsPublic(e.target.checked)} 
+                />
+                <span>Make this material public (visible on SABER dashboard to everyone)</span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1">
+                If unchecked, this material will only be visible to selected roles in their materials section.
+              </p>
+            </div>
 
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Upload Supporting Document</h3>

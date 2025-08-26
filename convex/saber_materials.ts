@@ -26,11 +26,13 @@ export const addSaberMaterial = mutation({
       v.literal("vice_president"),
       v.literal("world_bank")
     )),
-    reference: v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework"))
+    reference: v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework")),
+    isPublic: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("saber_materials", {
-      ...args
+      ...args,
+      isPublic: args.isPublic || false
     });
   }
 });
@@ -69,6 +71,60 @@ export const getSaberMaterialsByReference = query({
     reference
   }) => {
     return await ctx.db.query("saber_materials").withIndex("byReference", q => q.eq("reference", reference)).order("desc").collect();
+  }
+});
+
+// Get public SABER materials for dashboard display
+export const getPublicSaberMaterials = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("saber_materials")
+      .withIndex("byPublic", q => q.eq("isPublic", true))
+      .order("desc")
+      .collect();
+  }
+});
+
+// Get SABER materials for dashboard (public + role-specific)
+export const getSaberMaterialsForDashboard = query({
+  args: {
+    role: v.optional(v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ))
+  },
+  handler: async (ctx, { role }) => {
+    const publicMaterials = await ctx.db.query("saber_materials")
+      .withIndex("byPublic", q => q.eq("isPublic", true))
+      .collect();
+    
+    let roleMaterials = [];
+    if (role && role !== "admin") {
+      roleMaterials = await ctx.db.query("saber_materials")
+        .withIndex("byRoles", q => q.eq("roles", role))
+        .collect();
+    } else if (role === "admin") {
+      roleMaterials = await ctx.db.query("saber_materials").collect();
+    }
+    
+    // Combine and deduplicate
+    const allMaterials = [...publicMaterials, ...roleMaterials];
+    const uniqueMaterials = allMaterials.filter((material, index, self) => 
+      index === self.findIndex(m => m._id === material._id)
+    );
+    
+    return uniqueMaterials.sort((a, b) => b.createdAt - a.createdAt);
   }
 });
 export const updateSaberMaterialRoles = mutation({

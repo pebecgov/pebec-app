@@ -60,6 +60,29 @@ export const getAllDliTemplatesWithGuideUrls = query({
     return enriched;
   }
 });
+
+// Optimized: Get only basic DLI templates without guide URLs for faster loading
+export const getDliTemplatesBasic = query({
+  handler: async ctx => {
+    return await ctx.db.query("dli_templates").collect();
+  }
+});
+
+// Optimized: Get specific DLI template with guide URL only when needed
+export const getDliTemplateWithGuideUrl = query({
+  args: {
+    id: v.id("dli_templates")
+  },
+  handler: async (ctx, args) => {
+    const template = await ctx.db.get(args.id);
+    if (!template) return null;
+    
+    return {
+      ...template,
+      guideUrl: template.guideFileId ? await ctx.storage.getUrl(template.guideFileId) : undefined
+    };
+  }
+});
 export const deleteDliTemplate = mutation({
   args: {
     id: v.id("dli_templates")
