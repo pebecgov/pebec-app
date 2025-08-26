@@ -8,7 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Paperclip, FileText, Upload, Trash2 } from "lucide-react";
+import { X, Paperclip, FileText, Upload, Trash2, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
@@ -77,12 +77,26 @@ export default function SubmitLetterForm({
     setIsUploading(true);
     try {
       const uploadUrl = await generateUploadUrl();
+      
+      if (!uploadUrl) {
+        throw new Error("Failed to generate upload URL");
+      }
+
       const uploadResponse = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": selectedFile.type },
         body: selectedFile
       });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+      }
+
       const { storageId } = await uploadResponse.json();
+      
+      if (!storageId) {
+        throw new Error("No storage ID returned from upload");
+      }
       
       await saveUploadedFile({
         storageId,
@@ -95,8 +109,8 @@ export default function SubmitLetterForm({
       setShowAttachmentUpload(false);
       toast.success("File uploaded successfully!");
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to upload file");
+      console.error("File upload error:", error);
+      toast.error(`Failed to upload file: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsUploading(false);
     }
@@ -114,6 +128,7 @@ export default function SubmitLetterForm({
       toast.error("Please complete all required fields.");
       return;
     }
+    
     setIsSubmitting(true);
     try {
       await submitLetter({
@@ -125,24 +140,33 @@ export default function SubmitLetterForm({
       toast.success("✅ Letter Sent Successfully!");
       onClose?.();
     } catch (error) {
-      console.error(error);
-      toast.error("❌ Failed to submit letter.");
+      console.error("Letter submission error:", error);
+      toast.error(`❌ Failed to submit letter: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  return <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4">
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg relative">
         {/* Close button */}
-        <button onClick={onClose} className="absolute top-3 right-3 text-gray-500 hover:text-gray-700">
+        <button 
+          onClick={onClose} 
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 transition-colors"
+        >
           <X size={20} />
         </button>
 
         <h2 className="text-xl font-bold mb-4">Submit Letter</h2>
 
         {/* Letter Title */}
-        <Input placeholder="Letter Subject" value={letterName} onChange={e => setLetterName(e.target.value)} className="mb-3" />
+        <Input 
+          placeholder="Letter Subject" 
+          value={letterName} 
+          onChange={e => setLetterName(e.target.value)} 
+          className="mb-3" 
+        />
 
         {/* Different interface for saber_agent vs regular users */}
         {isSaberAgent ? (
@@ -166,11 +190,15 @@ export default function SubmitLetterForm({
           // Regular User Interface - Department and Stream Selection
           <>
             {/* Department Selection */}
-            <select value={department} onChange={e => {
-              setDepartment(e.target.value);
-              setSelectedStream("");
-              setSelectedUser(null);
-            }} className="w-full border rounded-md p-2 mb-3">
+            <select 
+              value={department} 
+              onChange={e => {
+                setDepartment(e.target.value);
+                setSelectedStream("");
+                setSelectedUser(null);
+              }} 
+              className="w-full border rounded-md p-2 mb-3"
+            >
               <option value="">Select Department</option>
               <option value="admin">Admin</option>
               <option value="staff">PEBEC Staff</option>
@@ -178,10 +206,14 @@ export default function SubmitLetterForm({
 
             {/* Staff Stream Selection */}
             {department === "staff" && (
-              <select value={selectedStream} onChange={e => {
-                setSelectedStream(e.target.value);
-                setSelectedUser(null);
-              }} className="w-full border rounded-md p-2 mb-3">
+              <select 
+                value={selectedStream} 
+                onChange={e => {
+                  setSelectedStream(e.target.value);
+                  setSelectedUser(null);
+                }} 
+                className="w-full border rounded-md p-2 mb-3"
+              >
                 <option value="">Select Staff Stream</option>
                 {staffStreams.map(stream => (
                   <option key={stream} value={stream}>
@@ -193,7 +225,11 @@ export default function SubmitLetterForm({
 
             {/* User Selection */}
             {(department === "admin" || selectedStream) && (
-              <select value={selectedUser ?? ""} onChange={e => setSelectedUser(e.target.value as Id<"users">)} className="w-full border rounded-md p-2 mb-4">
+              <select 
+                value={selectedUser ?? ""} 
+                onChange={e => setSelectedUser(e.target.value as Id<"users">)} 
+                className="w-full border rounded-md p-2 mb-4"
+              >
                 <option value="">Select User</option>
                 {filteredUsers.map(user => (
                   <option key={user._id} value={user._id}>
@@ -218,7 +254,13 @@ export default function SubmitLetterForm({
               
               return user ? (
                 <>
-                  <Image src={user.imageUrl || "/default-avatar.png"} alt="User" width={36} height={36} className="rounded-full" />
+                  <Image 
+                    src={"imageUrl" in user && user.imageUrl ? user.imageUrl : "/default-avatar.png"} 
+                    alt="User" 
+                    width={36} 
+                    height={36} 
+                    className="rounded-full object-cover aspect-square border border-gray-300" 
+                  />
                   <div>
                     <p className="font-semibold text-sm">
                       {user.firstName} {user.lastName}
@@ -248,8 +290,14 @@ export default function SubmitLetterForm({
               {fileId && (
                 <div className="flex items-center gap-1 text-green-600 text-xs bg-green-50 px-2 py-1 rounded">
                   <FileText size={12} />
-                  <span className="truncate max-w-[100px]">{fileName}</span>
-                  <button onClick={handleRemoveFile} className="ml-1 hover:text-red-600">
+                  <span className="truncate max-w-[100px]" title={fileName}>
+                    {fileName}
+                  </span>
+                  <button 
+                    onClick={handleRemoveFile} 
+                    className="ml-1 hover:text-red-600 transition-colors"
+                    title="Remove attachment"
+                  >
                     <X size={12} />
                   </button>
                 </div>
@@ -317,12 +365,20 @@ export default function SubmitLetterForm({
                       disabled={isUploading}
                       className="h-7 px-2 text-xs"
                     >
-                      {isUploading ? "..." : "Upload"}
+                      {isUploading ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                          Uploading...
+                        </>
+                      ) : (
+                        "Upload"
+                      )}
                     </Button>
                     <button 
                       onClick={() => setSelectedFile(null)}
-                      className="p-1 hover:text-red-600"
+                      className="p-1 hover:text-red-600 transition-colors"
                       title="Remove file"
+                      disabled={isUploading}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -334,9 +390,21 @@ export default function SubmitLetterForm({
         </div>
 
         {/* Submit Button */}
-        <Button onClick={handleSubmit} className="w-full bg-green-700 hover:bg-green-800 text-white" disabled={isSubmitting}>
-          {isSubmitting ? "Sending..." : "Send Letter"}
+        <Button 
+          onClick={handleSubmit} 
+          className="w-full bg-green-700 hover:bg-green-800 text-white transition-colors" 
+          disabled={isSubmitting || isUploading}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 size={16} className="animate-spin mr-2" />
+              Sending...
+            </>
+          ) : (
+            "Send Letter"
+          )}
         </Button>
       </div>
-    </div>;
+    </div>
+  );
 }

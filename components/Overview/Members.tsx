@@ -92,7 +92,7 @@ export default function Members() {
           }} className="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-10" style={{
             left: `${20 + index * 50}px`
           }}>
-                <Image src={image} width={50} height={50} className="rounded-full border-4 border-white shadow-lg" alt={`Member ${index + 1}`} />
+                <Image src={image} width={50} height={50} className="rounded-full border-4 border-white shadow-lg object-cover" alt={`Member ${index + 1}`} />
               </motion.div>)}
           </AnimatePresence>
 

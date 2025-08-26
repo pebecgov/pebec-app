@@ -107,7 +107,7 @@ export default function UpcomingMeetings({
                 {}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={35} height={35} className="rounded-full border" />
+                    <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={35} height={35} className="rounded-full border object-cover" />
                     <div>
                       <h3 className="font-semibold text-gray-900 dark:text-white">{meeting.title}</h3>
                       <p className="text-xs text-gray-500">{new Date(meeting.meetingDate).toLocaleString()}</p>

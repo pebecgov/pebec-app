@@ -5,7 +5,7 @@ import autoTable from "jspdf-autotable";
 const currentYear = new Date().getFullYear();
 const yearsToShow = [currentYear - 3, currentYear - 2, currentYear - 1];
 
-import type { FormData, Type12Data, Type1Data, Type2Data, Type3Data, Type4Data, Type5Data, Type6Data, Type7Data } from "./page";
+import type { FormData, Type12Data, Type14Data, Type1Data, Type2Data, Type3Data, Type4Data, Type5Data, Type6Data, Type7Data } from "./page";
 
 export function generateTemplatePDF(formData: FormData, currentUserState: string | undefined) {
   const doc = new jsPDF({
@@ -73,6 +73,15 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
   Object.keys(cleanedFormData.type12Data).forEach((key) => {
     if (Array.isArray(cleanedFormData.type12Data[key])) {
       cleanedFormData.type12Data[key] = cleanedFormData.type12Data[key].filter(
+        (item: any) => typeof item === "string" ? item.trim() !== "" : true
+      );
+    }
+  });
+}
+if  (cleanedFormData.type14Data) {
+  Object.keys(cleanedFormData.type14Data).forEach((key) => {
+    if (Array.isArray(cleanedFormData.type14Data[key])) {
+      cleanedFormData.type14Data[key] = cleanedFormData.type14Data[key].filter(
         (item: any) => typeof item === "string" ? item.trim() !== "" : true
       );
     }
@@ -1340,133 +1349,516 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
       y += 6;
     });
   }
-  else if (cleanedFormData.reportType === "type7" && cleanedFormData.type7Data) {
+else if (cleanedFormData.reportType === "type7" && cleanedFormData.type7Data) {
   const {
     reportPublishedSelect,
+    grevianceMechSelect,
     year2024Link,
     year2025Link,
     grievianvceMechanismLink,
   } = cleanedFormData.type7Data;
 
+  // Initialize page settings and variables
   const pageWidth = doc.internal.pageSize.getWidth();
-  const marginLeft = 20;
-  const marginX = 14
-  const maxWidth = pageWidth - marginLeft * 2;
-  let y = 20;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginLeft = 25;
+  const marginRight = 25;
+  const maxWidth = pageWidth - marginLeft - marginRight;
+  let y = 30;
+  let currentPage = 1;
 
-  // Styled Header
-  const addHeader = (text: string, spacing = 10) => {
-    if (y + 16 > 280) {
+  // Enhanced styling functions
+  const addTitle = (text: string) => {
+    if (y + 25 > pageHeight - 30) {
       doc.addPage();
-      y = 20;
+      currentPage++;
+      y = 30;
+    }
+    
+    // Add background rectangle for title
+    doc.setFillColor(41, 128, 185); // Professional blue
+    doc.rect(marginLeft - 5, y - 15, maxWidth + 10, 20, 'F');
+    
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255); // White text
+    
+    // Center the title
+    const textWidth = doc.getTextWidth(text);
+    const centerX = (pageWidth - textWidth) / 2;
+    doc.text(text, centerX, y);
+    y += 25;
+    doc.setTextColor(0, 0, 0); // Reset to black
+  };
+
+  const addHeader = (text: string, spacing = 15) => {
+    if (y + 16 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
     }
 
     y += spacing;
-    doc.setFontSize(14);
+    
+    // Add subtle background for headers
+    doc.setFillColor(236, 240, 241); // Light gray
+    doc.rect(marginLeft - 2, y - 12, maxWidth + 4, 16, 'F');
+    
+    doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(0);
+    doc.setTextColor(52, 73, 94); // Dark blue-gray
     doc.text(text, marginLeft, y);
-    y += 6;
+    y += 8;
+    
+    // Add underline
+    doc.setDrawColor(52, 73, 94);
+    doc.setLineWidth(0.5);
+    doc.line(marginLeft, y, marginLeft + maxWidth, y);
+    y += 8;
+    
+    doc.setTextColor(0, 0, 0); // Reset to black
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
   };
 
-  const addParagraph = (text: string, spacing = 6) => {
-    const lines = doc.splitTextToSize(text, maxWidth);
-    const requiredHeight = lines.length * spacing;
-
-    if (y + requiredHeight > 280) {
+  const addSubHeader = (text: string, spacing = 10) => {
+    if (y + 12 > pageHeight - 30) {
       doc.addPage();
-      y = 20;
+      currentPage++;
+      y = 30;
+    }
+
+    y += spacing;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185); // Blue
+    doc.text(text, marginLeft, y);
+    y += 8;
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+  };
+
+  const addParagraph = (text: string, spacing = 6, indent = 0) => {
+    const lines = doc.splitTextToSize(text, maxWidth - indent);
+    const requiredHeight = lines.length * spacing + 5;
+
+    if (y + requiredHeight > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
     }
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
+    doc.setTextColor(44, 62, 80); // Dark gray for better readability
 
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
 
-    lines.forEach((line) => {
+    lines.forEach((line, index) => {
+      const currentX = marginLeft + indent;
       const urls = line.match(urlRegex);
+      
       if (urls) {
-        let startX = marginLeft;
+        let startX = currentX;
         const parts = line.split(urlRegex);
 
         parts.forEach((part) => {
           if (urlRegex.test(part)) {
-            doc.setTextColor(0, 0, 255);
+            doc.setTextColor(41, 128, 185); // Blue for links
+            doc.setFont("helvetica", "normal");
             doc.textWithLink(part, startX, y, { url: part });
             const partWidth = doc.getTextWidth(part);
             startX += partWidth;
           } else {
-            doc.setTextColor(0, 0, 0);
+            doc.setTextColor(44, 62, 80);
             doc.text(part, startX, y);
             const partWidth = doc.getTextWidth(part);
             startX += partWidth;
           }
         });
       } else {
-        doc.setTextColor(0, 0, 0);
-        doc.text(line, marginLeft, y);
+        doc.setTextColor(44, 62, 80);
+        doc.text(line, currentX, y);
       }
 
       y += spacing;
     });
 
+    y += 3; // Extra spacing after paragraph
     doc.setTextColor(0, 0, 0);
   };
 
-  // Title
- 
-   doc.setFontSize(18);
+  const addBulletPoint = (text: string, spacing = 6) => {
+    const bulletText = `• ${text}`;
+    addParagraph(bulletText, spacing, 5);
+  };
+
+  const addKeyValuePair = (key: string, value: string, spacing = 8) => {
+    if (y + 12 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    // Add background for key-value pairs
+    doc.setFillColor(249, 249, 249);
+    doc.rect(marginLeft - 2, y - 3, maxWidth + 4, 12, 'F');
+
     doc.setFont("helvetica", "bold");
-    doc.text("Grieviance Redress Mechanism (GRM) Report", 35, y);
-    y += 14;
+    doc.setFontSize(10);
+    doc.setTextColor(52, 73, 94);
+    doc.text(`${key}:`, marginLeft, y + 5);
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
+    const keyWidth = doc.getTextWidth(`${key}: `);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(44, 62, 80);
+    
+    // Handle long values by wrapping
+    const valueLines = doc.splitTextToSize(value || "N/A", maxWidth - keyWidth - 10);
+    valueLines.forEach((line, index) => {
+      if (key === "GRM System Link" && value && value.startsWith("http")) {
+        doc.setTextColor(41, 128, 185);
+        doc.textWithLink(line, marginLeft + keyWidth + 5, y + 5 + (index * spacing), { url: value });
+      } else {
+        doc.text(line, marginLeft + keyWidth + 5, y + 5 + (index * spacing));
+      }
+    });
 
-  // Main content
+    y += Math.max(12, valueLines.length * spacing + 4);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addPerformanceCard = (year: string, link: string, targetPercentage: string, description: string) => {
+    if (y + 40 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    // Add card background with lighter performance color coding
+    const performanceColors = {
+      "2024": {
+        border: [52, 152, 219],    // Blue border
+        background: [230, 245, 255], // Light blue background
+        badge: [41, 128, 185]       // Darker blue for badge
+      },
+      "2025": {
+        border: [46, 204, 113],     // Green border  
+        background: [230, 255, 240], // Light green background
+        badge: [39, 174, 96]        // Darker green for badge
+      }
+    };
+
+    const colors = performanceColors[year as keyof typeof performanceColors] || performanceColors["2024"];
+    
+    // Card background - much lighter
+    doc.setFillColor(colors.background[0], colors.background[1], colors.background[2]);
+    doc.setDrawColor(colors.border[0], colors.border[1], colors.border[2]);
+    doc.setLineWidth(1);
+    doc.rect(marginLeft, y, maxWidth, 35, 'FD');
+
+    y += 12;
+
+    // Year header - darker color for contrast
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(colors.badge[0], colors.badge[1], colors.badge[2]);
+    doc.text(`${year} Performance Report`, marginLeft + 5, y);
+    y += 8;
+
+    // Target percentage badge - solid background with white text
+    doc.setFillColor(colors.badge[0], colors.badge[1], colors.badge[2]);
+    doc.rect(marginLeft + 5, y - 5, 60, 10, 'F');
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255); // White text on solid background
+    doc.text(`Target: ${targetPercentage}`, marginLeft + 8, y + 1);
+
+    // Description - dark text for readability
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(33, 37, 41); // Very dark gray
+    doc.text(description, marginLeft + 75, y + 1);
+    y += 8;
+
+    // Link
+    if (link && link !== "N/A") {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(41, 128, 185); // Blue for links
+      const linkText = link.length > 60 ? link.substring(0, 57) + "..." : link;
+      doc.textWithLink(`Report Link: ${linkText}`, marginLeft + 8, y, { url: link });
+    } else {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(108, 117, 125); // Medium gray for "not available"
+      doc.text("Report Link: Not Available", marginLeft + 8, y);
+    }
+
+    y += 15;
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addDivider = () => {
+    y += 5;
+    doc.setDrawColor(189, 195, 199);
+    doc.setLineWidth(0.5);
+    doc.line(marginLeft, y, marginLeft + maxWidth, y);
+    y += 10;
+  };
+
+  const addInfoBox = (title: string, content: string, type: "info" | "warning" | "success" = "info") => {
+    if (y + 30 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    const colors = {
+      info: {
+        border: [52, 152, 219],     // Blue border
+        background: [230, 245, 255], // Light blue background
+        title: [41, 128, 185]        // Darker blue for title
+      },
+      warning: {
+        border: [243, 156, 18],      // Orange border
+        background: [255, 248, 230], // Light orange background
+        title: [211, 134, 15]        // Darker orange for title
+      },
+      success: {
+        border: [46, 204, 113],      // Green border
+        background: [230, 255, 240], // Light green background
+        title: [39, 174, 96]         // Darker green for title
+      }
+    };
+
+    const color = colors[type];
+    
+    // Box background - much lighter
+    doc.setFillColor(color.background[0], color.background[1], color.background[2]);
+    doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
+    doc.setLineWidth(1);
+    
+    const boxHeight = 25;
+    doc.rect(marginLeft, y, maxWidth, boxHeight, 'FD');
+
+    y += 8;
+
+    // Title - darker color for better contrast
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(color.title[0], color.title[1], color.title[2]);
+    doc.text(title, marginLeft + 5, y);
+    y += 8;
+
+    // Content - dark text for readability
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(33, 37, 41); // Very dark gray, almost black
+    const contentLines = doc.splitTextToSize(content, maxWidth - 10);
+    contentLines.forEach((line, index) => {
+      doc.text(line, marginLeft + 5, y + (index * 6));
+    });
+
+    y += Math.max(12, contentLines.length * 6 + 5);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addFooterToCurrentPage = () => {
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(127, 140, 141);
+    doc.text(`Page ${currentPage}`, pageWidth - 40, pageHeight - 15);
+    doc.text("Generated on: " + new Date().toLocaleDateString(), marginLeft, pageHeight - 15);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  // Main document generation
+  addTitle("Grievance Redress Mechanism (GRM)");
+  addSubHeader("Comprehensive Compliance and Verification Report");
+
+  addHeader("Executive Summary");
   addParagraph(
-    "This report provides a comprehensive overview and compliance verification of operational Grievance Redress Mechanisms (GRMs) in two key Business Enabling Environment (BEE) State MDAs, in line with the requirements of the State Action on Business Enabling Reforms (SABER) Verification Protocol (Version 3.0, March 5, 2024). It details the operational status of GRMs, response timelines, and grievance handling outcomes within the stipulated timeframe."
+    "This comprehensive report provides detailed analysis and compliance verification of operational Grievance Redress Mechanisms (GRMs) implemented across two key Business Enabling Environment (BEE) State Ministry, Department, and Agency (MDA) entities. The assessment aligns with the State Action on Business Enabling Reforms (SABER) Verification Protocol Version 3.0 (March 5, 2024), ensuring systematic evaluation of GRM operational status, response effectiveness, and grievance resolution outcomes within established Service Level Agreement (SLA) timeframes."
   );
 
-  addHeader("GRM System");
+  addDivider();
 
+  addHeader("Introduction and Regulatory Context");
   addParagraph(
-    "Each of the two key BEE MDAs has an established and operational GRM, equipped to capture essential grievance details through a manual and/or online register. This includes, at a minimum:\n" +
-      "- Name of complainant\n" +
-      "- Contact information\n" +
-      "- Date grievance was received\n" +
-      "- Description of the issue\n" +
-      "- Date of response and/or acknowledgement by the MDA"
+    "This verification report examines the implementation and operational effectiveness of Grievance Redress Mechanisms within designated BEE State MDAs, providing stakeholders with comprehensive insights into complaint handling processes, resolution timelines, and institutional responsiveness. The assessment encompasses both manual and digital grievance management systems, ensuring comprehensive coverage of all available complaint channels."
   );
 
-  addParagraph(`Do you have a Grievance Redress Mechanism? ${reportPublishedSelect  || "N/A"} `);
-
   addParagraph(
-    `Here is the link to the GRM: ${grievianvceMechanismLink || "N/A"}`
+    "The evaluation framework emphasizes transparency, accountability, and institutional trust-building through systematic documentation of grievance handling processes, response timelines, and resolution outcomes. This approach supports the development of an inclusive business environment where concerns can be addressed efficiently and effectively."
   );
 
-  addParagraph(`- For 2024 (Year 2): GRM Report link: ${year2024Link || "N/A"}`);
-  addParagraph("At least 50% of received grievances were resolved within the SLA timeline.");
+  addDivider();
 
-  addParagraph(`- For 2025 (Year 3):GRM Report link: ${year2025Link || "N/A"}`);
-  addParagraph("At least 75% of received grievances were resolved within the SLA timeline.");
+  addHeader("GRM System Architecture and Components");
+  addSubHeader("Core System Requirements");
+
+  addParagraph(
+    "Each designated BEE MDA operates a comprehensive and functional GRM system designed to capture, process, and resolve grievances through established protocols. The system architecture incorporates both manual and digital components to ensure accessibility and comprehensive coverage of all stakeholder concerns."
+  );
+
+  addInfoBox(
+    "Essential GRM Data Elements",
+    "All GRM systems must capture: Complainant identification and contact details, Grievance receipt date and classification, Comprehensive issue description and documentation, MDA response and acknowledgement timestamps, Resolution status and outcome documentation",
+    "info"
+  );
+
+  addSubHeader("Minimum Data Collection Standards");
+  addParagraph("The GRM framework requires systematic collection of the following essential information elements:");
+
+  addBulletPoint("Complete complainant identification including name and verified contact information");
+  addBulletPoint("Comprehensive contact details enabling effective communication throughout the resolution process");
+  addBulletPoint("Precise grievance receipt date with timestamping for accountability and tracking purposes");
+  addBulletPoint("Detailed description of the issue including relevant documentation and supporting evidence");
+  addBulletPoint("Official MDA response date and acknowledgement confirmation with responsible officer identification");
+  addBulletPoint("Resolution timeline tracking with intermediate status updates and final outcome documentation");
+
+  addDivider();
+
+  addHeader("System Implementation Assessment");
+  addSubHeader("Operational Status Verification");
+
+  addKeyValuePair("GRM System Operational Status", grevianceMechSelect);
+  
+  if (grievianvceMechanismLink && grievianvceMechanismLink !== "N/A") {
+    addKeyValuePair("GRM System Access Link", grievianvceMechanismLink);
+    
+    addInfoBox(
+      "System Accessibility Confirmation",
+      "The GRM system link has been provided and should be tested for functionality, user accessibility, and complaint submission capabilities during the verification process.",
+      "success"
+    );
+  } else {
+    addInfoBox(
+      "System Access Information Required",
+      "GRM system access information is currently not available. Please provide the official GRM portal link or alternative access method for comprehensive verification.",
+      "warning"
+    );
+  }
+
+  addDivider();
+
+  addHeader("Performance Metrics and SLA Compliance");
+  addSubHeader("Annual Performance Analysis");
+
+  addParagraph(
+    "The GRM performance evaluation encompasses multi-year analysis to demonstrate progressive improvement in grievance resolution effectiveness. Performance targets increase annually to ensure continuous enhancement of service delivery standards."
+  );
+
+  // Performance cards for each year
+  addPerformanceCard(
+    "2024 (Year 2)", 
+    year2024Link, 
+    "50%", 
+    "Minimum threshold for grievances resolved within SLA timeline"
+  );
+
+  addPerformanceCard(
+    "2025 (Year 3)", 
+    year2025Link, 
+    "75%", 
+    "Enhanced target demonstrating improved resolution efficiency"
+  );
+
+  addSubHeader("Performance Improvement Trajectory");
+  addParagraph(
+    "The progressive increase in resolution targets from 50% in Year 2 to 75% in Year 3 demonstrates the state's commitment to continuous improvement in grievance handling efficiency. This structured approach ensures systematic enhancement of institutional responsiveness while maintaining quality standards in complaint resolution."
+  );
+
+  addDivider();
 
   addHeader("Communication Channel Verification");
+  addSubHeader("Responsiveness Testing Protocol");
 
   addParagraph(
-    "The contact information (email or telephone) published for each MDA has been tested and verified for responsiveness during working hours. The IVA attempted contact over a maximum of 72 hours. Evidence of this includes timestamped call logs or email correspondences, demonstrating:\n" +
-      "- Date and time of contact attempt\n" +
-      "- MDA’s response (automated or human)\n" +
-      "- Clarity of information received (location and operational hours)"
+    "Comprehensive verification of published contact information ensures that businesses and citizens can effectively access GRM services during designated operational periods. The Independent Verification Agent (IVA) conducts systematic testing of all published communication channels."
   );
 
+  addInfoBox(
+    "Verification Testing Standards",
+    "Contact verification includes: 72-hour maximum testing window, Multiple contact attempt documentation, Response quality and information accuracy assessment, Operational hours verification and accessibility confirmation",
+    "info"
+  );
+
+  addSubHeader("Testing Documentation Requirements");
+  addParagraph("The communication channel verification process requires comprehensive documentation including:");
+
+  addBulletPoint("Precise date and time stamps for each contact attempt within the 72-hour testing window");
+  addBulletPoint("Detailed MDA response documentation including both automated acknowledgements and human interactions");
+  addBulletPoint("Assessment of information clarity including location details and operational hour confirmation");
+  addBulletPoint("Response quality evaluation focusing on helpfulness and accuracy of provided information");
+  addBulletPoint("Accessibility verification during published operational hours with multiple communication methods tested");
+
+  addDivider();
+
+  addHeader("Quality Assurance and Verification Standards");
+  addSubHeader("Documentation and Evidence Requirements");
+
+  addParagraph(
+    "Comprehensive verification requires systematic collection and maintenance of supporting documentation to ensure transparency and accountability in the GRM assessment process. All evidence must be timestamped and independently verifiable."
+  );
+
+  addSubHeader("Required Supporting Materials");
+  addParagraph("The verification process mandates collection of the following supporting documentation:");
+
+  addBulletPoint("System screenshots demonstrating GRM portal functionality and user interface accessibility");
+  addBulletPoint("Grievance registers showing complaint intake, processing, and resolution tracking");
+  addBulletPoint("Service Level Agreement documents outlining response timelines and resolution commitments");
+  addBulletPoint("Website publication links providing public access to GRM information and submission processes");
+  addBulletPoint("Communication testing logs with timestamped contact attempts and response documentation");
+
+  addDivider();
+
+  addHeader("Institutional Impact and Benefits");
+  addSubHeader("Transparency and Trust Building");
+
+  addParagraph(
+    "The implementation of comprehensive GRM systems delivers significant institutional benefits that extend beyond individual complaint resolution. These mechanisms serve as fundamental pillars of good governance and public accountability."
+  );
+
+  addSubHeader("Strategic Advantages");
+  addParagraph("Effective GRM implementation provides multiple strategic benefits:");
+
+  addBulletPoint("Enhanced institutional transparency through systematic complaint handling and public reporting");
+  addBulletPoint("Strengthened public trust through reliable grievance resolution and responsive communication");
+  addBulletPoint("Improved business environment through predictable complaint resolution processes and clear escalation paths");
+  addBulletPoint("Risk mitigation through early identification of systemic issues and proactive resolution strategies");
+  addBulletPoint("Regulatory compliance demonstration supporting broader governance and accountability objectives");
+
+  addDivider();
+
+  addHeader("Recommendations for System Enhancement");
+  addSubHeader("Continuous Improvement Opportunities");
+
+  addParagraph("Based on the verification assessment, the following recommendations support ongoing GRM effectiveness:");
+
+  addBulletPoint("Implement automated tracking systems for enhanced complaint monitoring and resolution timeline management");
+  addBulletPoint("Develop comprehensive staff training programs focusing on customer service excellence and technical competency");
+  addBulletPoint("Establish regular system audits ensuring consistent performance standards and identifying improvement opportunities");
+  addBulletPoint("Create stakeholder feedback mechanisms enabling continuous system refinement based on user experience");
+  addBulletPoint("Implement cross-MDA knowledge sharing protocols facilitating best practice dissemination and standardization");
+
+  addDivider();
 
   addHeader("Conclusion");
   addParagraph(
-    "This verification template supports the structured validation of GRM functionality and responsiveness within the two designated MDAs. It ensures transparency, strengthens institutional trust, and fosters an inclusive grievance resolution culture among businesses and the general public. All relevant documents including screenshots, registers, SLA documents, and links to publication websites should be attached as annexes."
+    "This comprehensive verification framework provides structured validation of GRM functionality and institutional responsiveness across designated BEE State MDAs. The systematic approach ensures transparency, accountability, and continuous improvement in grievance resolution processes while building sustainable trust between government institutions and the business community."
   );
+
+  addParagraph(
+    "The progressive performance targets and comprehensive documentation requirements demonstrate the state's commitment to excellence in public service delivery. Continued implementation of these standards will further enhance the business enabling environment while maintaining high standards of institutional accountability and citizen satisfaction."
+  );
+
+
+  // Add footer to the final page
+  addFooterToCurrentPage();
 }
   else if (formData.reportType === "type8" && cleanedFormData.type8Data) {
     const type8Data = cleanedFormData.type8Data;
@@ -1767,137 +2159,715 @@ export function generateTemplatePDF(formData: FormData, currentUserState: string
     docLandscape.text(`SIGNATURE: ${signature}`, marginX, summaryY);
     return docLandscape;
   } 
-  if (cleanedFormData.reportType === "type12" && cleanedFormData.type12Data) {
+else if (cleanedFormData.reportType === "type12" && cleanedFormData.type12Data) {
   const {
-    
     fiveMDA = [],
     mdaRecords = [],
     backEndVerf,
   } = cleanedFormData.type12Data;
 
+  // Initialize page settings and variables
   const pageWidth = doc.internal.pageSize.getWidth();
-  const marginLeft = 20;
-  const maxWidth = pageWidth - marginLeft * 2;
-  let y = 20;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginLeft = 25;
+  const marginRight = 25;
+  const maxWidth = pageWidth - marginLeft - marginRight;
+  let y = 30;
+  let currentPage = 1;
 
-  const addHeader = (text: string, spacing = 10) => {
-    if (y + 16 > 280) {
+  // Enhanced styling functions
+  const addTitle = (text: string) => {
+    if (y + 25 > pageHeight - 30) {
       doc.addPage();
-      y = 20;
+      currentPage++;
+      y = 30;
     }
-    y += spacing;
-    doc.setFontSize(14);
+    
+    // Add background rectangle for title
+    doc.setFillColor(41, 128, 185); // Professional blue
+    doc.rect(marginLeft - 5, y - 15, maxWidth + 10, 20, 'F');
+    
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(0);
+    doc.setTextColor(255, 255, 255); // White text
+    
+    // Center the title
+    const textWidth = doc.getTextWidth(text);
+    const centerX = (pageWidth - textWidth) / 2;
+    doc.text(text, centerX, y);
+    y += 25;
+    doc.setTextColor(0, 0, 0); // Reset to black
+  };
+
+  const addHeader = (text: string, spacing = 15) => {
+    if (y + 16 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    y += spacing;
+    
+    // Add subtle background for headers
+    doc.setFillColor(236, 240, 241); // Light gray
+    doc.rect(marginLeft - 2, y - 12, maxWidth + 4, 16, 'F');
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(52, 73, 94); // Dark blue-gray
     doc.text(text, marginLeft, y);
-    y += 6;
+    y += 8;
+    
+    // Add underline
+    doc.setDrawColor(52, 73, 94);
+    doc.setLineWidth(0.5);
+    doc.line(marginLeft, y, marginLeft + maxWidth, y);
+    y += 8;
+    
+    doc.setTextColor(0, 0, 0); // Reset to black
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
   };
 
-  const addParagraph = (text: string, spacing = 6) => {
-    const lines = doc.splitTextToSize(text, maxWidth);
-    const requiredHeight = lines.length * spacing;
-
-    if (y + requiredHeight > 280) {
+  const addSubHeader = (text: string, spacing = 10) => {
+    if (y + 12 > pageHeight - 30) {
       doc.addPage();
-      y = 20;
+      currentPage++;
+      y = 30;
+    }
+
+    y += spacing;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185); // Blue
+    doc.text(text, marginLeft, y);
+    y += 8;
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+  };
+
+  const addParagraph = (text: string, spacing = 6, indent = 0) => {
+    const lines = doc.splitTextToSize(text, maxWidth - indent);
+    const requiredHeight = lines.length * spacing + 5;
+
+    if (y + requiredHeight > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
     }
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
+    doc.setTextColor(44, 62, 80); // Dark gray for better readability
 
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
 
-    lines.forEach((line) => {
+    lines.forEach((line, index) => {
+      const currentX = marginLeft + indent;
       const urls = line.match(urlRegex);
+      
       if (urls) {
-        let startX = marginLeft;
+        let startX = currentX;
         const parts = line.split(urlRegex);
 
         parts.forEach((part) => {
           if (urlRegex.test(part)) {
-            doc.setTextColor(0, 0, 255);
+            doc.setTextColor(41, 128, 185); // Blue for links
+            doc.setFont("helvetica", "normal");
             doc.textWithLink(part, startX, y, { url: part });
-            startX += doc.getTextWidth(part);
+            const partWidth = doc.getTextWidth(part);
+            startX += partWidth;
           } else {
-            doc.setTextColor(0, 0, 0);
+            doc.setTextColor(44, 62, 80);
             doc.text(part, startX, y);
-            startX += doc.getTextWidth(part);
+            const partWidth = doc.getTextWidth(part);
+            startX += partWidth;
           }
         });
       } else {
-        doc.setTextColor(0, 0, 0);
-        doc.text(line, marginLeft, y);
+        doc.setTextColor(44, 62, 80);
+        doc.text(line, currentX, y);
       }
+
       y += spacing;
     });
 
+    y += 3; // Extra spacing after paragraph
     doc.setTextColor(0, 0, 0);
   };
 
-  // Title
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
-  doc.text(
-    "Compliance Report: Publication of Business Regulatory  \n" +
-    "Processes by BEE State MDAs"
-    , marginLeft, y);
-  y += 10;
-  
+  const addBulletPoint = (text: string, spacing = 6) => {
+    const bulletText = `• ${text}`;
+    addParagraph(bulletText, spacing, 5);
+  };
+
+  const addKeyValuePair = (key: string, value: string, spacing = 8) => {
+    if (y + 12 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    // Add background for key-value pairs
+    doc.setFillColor(249, 249, 249);
+    doc.rect(marginLeft - 2, y - 3, maxWidth + 4, 12, 'F');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(52, 73, 94);
+    doc.text(`${key}:`, marginLeft, y + 5);
+
+    const keyWidth = doc.getTextWidth(`${key}: `);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(44, 62, 80);
+    
+    // Handle long values by wrapping
+    const valueLines = doc.splitTextToSize(value || "N/A", maxWidth - keyWidth - 10);
+    valueLines.forEach((line, index) => {
+      doc.text(line, marginLeft + keyWidth + 5, y + 5 + (index * spacing));
+    });
+
+    y += Math.max(12, valueLines.length * spacing + 4);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addMDACard = (record: any, index: number) => {
+    if (y + 50 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    // Add card background
+    doc.setFillColor(252, 253, 254);
+    doc.setDrawColor(189, 195, 199);
+    doc.setLineWidth(0.5);
+    doc.rect(marginLeft, y, maxWidth, 45, 'FD');
+
+    y += 12;
+
+    // MDA Header
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(52, 73, 94);
+    doc.text(`MDA ${index + 1}: ${record.NameOfMDA || "Unnamed MDA"}`, marginLeft + 5, y);
+    y += 12;
+
+    // Details with improved formatting
+    const details = [
+      { key: "Regulatory Process", value: record.titleOfRP },
+      { key: "Web Link", value: record.WebLinkPI },
+      { key: "SLA Reference/Timeline", value: record.slaRef },
+      { key: "Publication Date", value: record.link2Sup }
+    ];
+
+    details.forEach((detail) => {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(41, 128, 185);
+      doc.text(`${detail.key}:`, marginLeft + 8, y);
+
+      const keyWidth = doc.getTextWidth(`${detail.key}: `);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(44, 62, 80);
+      
+      const value = detail.value || "N/A";
+      const valueLines = doc.splitTextToSize(value, maxWidth - keyWidth - 15);
+      
+      if (detail.key === "Web Link" && value !== "N/A" && value.startsWith("http")) {
+        doc.setTextColor(41, 128, 185);
+        doc.textWithLink(valueLines[0], marginLeft + keyWidth + 10, y, { url: value });
+      } else {
+        valueLines.forEach((line, lineIndex) => {
+          doc.text(line, marginLeft + keyWidth + 10, y + (lineIndex * 6));
+        });
+      }
+      
+      y += Math.max(8, valueLines.length * 6);
+    });
+
+    y += 10; // Space after card
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addDivider = () => {
+    y += 5;
+    doc.setDrawColor(189, 195, 199);
+    doc.setLineWidth(0.5);
+    doc.line(marginLeft, y, marginLeft + maxWidth, y);
+    y += 10;
+  };
+
+  const addNumberedList = (items: string[]) => {
+    items.forEach((item, index) => {
+      if (y + 10 > pageHeight - 30) {
+        doc.addPage();
+        currentPage++;
+        y = 30;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(41, 128, 185);
+      doc.text(`${index + 1}.`, marginLeft, y);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(44, 62, 80);
+      const lines = doc.splitTextToSize(item, maxWidth - 15);
+      lines.forEach((line, lineIndex) => {
+        doc.text(line, marginLeft + 15, y + (lineIndex * 6));
+      });
+
+      y += Math.max(8, lines.length * 6 + 2);
+    });
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addFooterToCurrentPage = () => {
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(127, 140, 141);
+    doc.text(`Page ${currentPage}`, pageWidth - 40, pageHeight - 15);
+    doc.text("Generated on: " + new Date().toLocaleDateString(), marginLeft, pageHeight - 15);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  // Main document generation
+  addTitle("Publication of Business Regulatory Processes"
+    );
+
+
+  addDivider();
+
   addHeader("Introduction");
-  addParagraph("This compliance report outlines the publication status of business regulatory processes, fees, service procedures, timelines, and relevant administrative protocols by the five key Business Enabling Environment (BEE) State MDAs, in line with the requirements under the Disbursement Linked Indicator (DLI5). The report also includes verification of the issuance and implementation of an Executive Order mandating transparency and public availability of this information.");
+  addParagraph(
+    "This compliance assessment examines the publication status of business regulatory processes by designated BEE State MDAs, ensuring alignment with transparency requirements under the Disbursement Linked Indicator framework. The report encompasses verification of comprehensive information availability, including regulatory processes, associated fees, service procedures, processing timelines, and relevant administrative protocols."
+  );
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
+  addParagraph(
+    "The assessment also includes verification of Executive Order issuance and implementation, mandating transparency and public accessibility of regulatory information across all designated state entities."
+  );
 
-  addHeader("Key Publication Requirements");
-  addParagraph("Each of the five selected BEE State MDAs has published comprehensive information on at least one core business regulatory process not covered under other DLIs (e.g., not Right of Way, Certificate of Occupancy, or construction permits). The information is published on the state’s official website or the MDAs’ websites. ");
+  addDivider();
+
+  addHeader("Regulatory Framework and Requirements");
+  addSubHeader("Key Publication Standards");
+
+  addParagraph("Each designated BEE State MDA must demonstrate compliance with the following publication requirements:");
+
+  addBulletPoint("Comprehensive documentation of at least one core business regulatory process not covered under other DLIs");
+  addBulletPoint("Exclusion of processes such as Right of Way, Certificate of Occupancy, or construction permits already covered elsewhere");
+  addBulletPoint("Publication on official state website or respective MDA websites for public accessibility");
+  addBulletPoint("Complete information including fees, procedures, timelines, and administrative requirements");
+  addBulletPoint("Regular updates and maintenance of published information for accuracy");
+
+  addDivider();
 
   if (fiveMDA.length > 0) {
-    addParagraph("The Five MDAs Selected for Our State are:");
-    fiveMDA.forEach((mda, i) => {
-      addParagraph(`- ${mda}`);
-    });
-  }
-
-
-  addHeader("Online Publication Verification (for all 5 BEE MDAs)");
-  addParagraph(
-    "For each of the five selected BEE MDAs, provide the following:"
-  );
-  if (mdaRecords.length === 0) {
-    addParagraph("No MDA publication records available.");
+    addHeader("Designated State MDAs");
+    addSubHeader("Selected BEE State Entities");
+    addParagraph("The following five MDAs have been selected for assessment and compliance verification:");
+    
+    y += 5;
+    addNumberedList(fiveMDA);
+    
+    addParagraph(
+      "These entities represent key regulatory functions within the state's business enabling environment framework and have been strategically selected to ensure comprehensive coverage of essential business processes."
+    );
   } else {
-    mdaRecords.forEach((record, index) => {
-      addHeader(`MDA ${index + 1}: ${record.NameOfMDA || "Unnamed MDA"}`, 8);
-
-      addParagraph(`• Title of Regulatory Process: ${record.titleOfRP || "N/A"}`);
-      addParagraph(`• Web Link to Published Info: ${record.WebLinkPI || "N/A"}`);
-      addParagraph(`• SLA References / Timeline Commitments: ${record.slaRef || "N/A"}`);
-       addParagraph(`• Date of publication: ${record.link2Sup || "N/A"}`);
-    });
+    addHeader("Designated State MDAs");
+    addParagraph("No MDA entities have been specified for this assessment period. Please provide the list of designated BEE State MDAs for comprehensive evaluation.");
   }
 
-    addHeader("Conclusion");
-  addParagraph(
-    "By implementing these transparency mechanisms, the state demonstrates its commitment to improving the business environment. Public access to regulatory information helps businesses make informed decisions and builds public trust in administrative processes."
-  );
-  // addHeader("Backend Verification");
-  // addParagraph("States are required to provide backend timestamp data to verify that publication occurred before the deadline. This evidence should be collected directly from web platform administrators or IT teams of the respective MDAs or state ICT office.");
-  // addParagraph(`Backend verification evidence link: ${backEndVerf || "N/A"}`);
+  addDivider();
 
-  // addHeader("Conclusion");
-  // addParagraph(
-  //   "By implementing these transparency mechanisms, the state demonstrates its commitment to improving the business environment. Public access to regulatory information helps businesses make informed decisions and builds public trust in administrative processes."
-  // );
+  addHeader("Publication Verification Results");
+  addSubHeader("Online Accessibility Assessment");
+
+  if (mdaRecords.length === 0) {
+    addParagraph(
+      "No MDA publication records are currently available for verification. This may indicate that the publication process is still in progress or that data collection is incomplete. Please ensure all designated MDAs have submitted their publication documentation for comprehensive assessment."
+    );
+    
+    addParagraph(
+      "Recommended next steps include direct engagement with each MDA's IT department or communications team to verify publication status and obtain necessary documentation links."
+    );
+  } else {
+    addParagraph(
+      "The following assessment results detail the publication status and accessibility of regulatory information for each designated MDA:"
+    );
+    
+    y += 10;
+
+    mdaRecords.forEach((record, index) => {
+      addMDACard(record, index);
+    });
+
+    addSubHeader("Publication Quality Assessment");
+    addParagraph(
+      "Each MDA's published information has been evaluated based on completeness, accessibility, and compliance with established transparency standards. The assessment criteria include information accuracy, website functionality, document accessibility, and adherence to prescribed formatting requirements."
+    );
+  }
+
+  addDivider();
+
+  addHeader("Compliance Analysis");
+  addSubHeader("Transparency and Accountability Measures");
+
+  addParagraph(
+    "The implementation of comprehensive publication requirements demonstrates the state's commitment to:"
+  );
+
+  addBulletPoint("Enhanced business environment transparency through accessible regulatory information");
+  addBulletPoint("Reduced administrative burden on businesses through clear process documentation");
+  addBulletPoint("Improved regulatory predictability and business planning capabilities");
+  addBulletPoint("Strengthened public trust through open government initiatives");
+  addBulletPoint("Alignment with international best practices in regulatory transparency");
+
+  if (backEndVerf && backEndVerf !== "N/A") {
+    addDivider();
+    addHeader("Backend Verification");
+    addSubHeader("Technical Validation Process");
+    
+    addParagraph(
+      "States are required to provide backend timestamp data to verify that publication occurred within established deadlines. This technical evidence should be collected directly from web platform administrators, IT teams of respective MDAs, or the state ICT office."
+    );
+    
+    addKeyValuePair("Backend Verification Evidence", backEndVerf);
+    
+    addParagraph(
+      "This technical validation ensures publication authenticity and timeline compliance, supporting the overall transparency initiative's credibility and effectiveness."
+    );
+  }
+
+  addDivider();
+
+  addHeader("Recommendations");
+  addSubHeader("Enhancement Opportunities");
+
+  addParagraph("Based on the assessment findings, the following recommendations are proposed:");
+
+  addBulletPoint("Establish standardized publication templates across all MDAs for consistency");
+  addBulletPoint("Implement regular review cycles to ensure information remains current and accurate");
+  addBulletPoint("Develop user feedback mechanisms to improve information accessibility and usefulness");
+  addBulletPoint("Create centralized monitoring systems for ongoing compliance verification");
+  addBulletPoint("Establish backup publication channels to ensure continuous information availability");
+
+  addDivider();
+
+  addHeader("Conclusion");
+  addParagraph(
+    "The implementation of comprehensive transparency mechanisms demonstrates the state's strategic commitment to improving the business enabling environment. Public access to detailed regulatory information empowers businesses to make informed decisions, reduces administrative uncertainty, and builds sustainable trust in governmental administrative processes."
+  );
+
+  addParagraph(
+    "Continued commitment to these transparency standards will further enhance the state's business climate, attract investment, and support economic development objectives while maintaining high standards of public accountability and administrative efficiency."
+  );
+
+  y += 10;
+  addSubHeader("Supporting Documentation");
+  addParagraph(
+    "All relevant supporting materials, including website screenshots, publication timestamps, administrative correspondence, and compliance verification documents, are maintained as annexes to this comprehensive assessment report."
+  );
+
+  // Add footer to the final page
+  addFooterToCurrentPage();
+}
+  else if (cleanedFormData.reportType === "type14" && cleanedFormData.type14Data) {
+  const {
+    monthlyComplianceSelect,
+    infoSelect,
+    reportPublishedSelect,
+    monthlyComplianceMonth,
+    monthlyComplianceLink,
+  } = cleanedFormData.type14Data;
+
+  // Initialize page settings and variables
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginLeft = 25;
+  const marginRight = 25;
+  const maxWidth = pageWidth - marginLeft - marginRight;
+  let y = 30;
+  let currentPage = 1;
+
+  // Enhanced styling functions
+  const addTitle = (text: string) => {
+    if (y + 25 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+    
+    // Add background rectangle for title
+    doc.setFillColor(41, 128, 185); // Professional blue
+    doc.rect(marginLeft - 5, y - 15, maxWidth + 10, 20, 'F');
+    
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255); // White text
+    
+    // Center the title
+    const textWidth = doc.getTextWidth(text);
+    const centerX = (pageWidth - textWidth) / 2;
+    doc.text(text, centerX, y);
+    y += 25;
+    doc.setTextColor(0, 0, 0); // Reset to black
+  };
+
+  const addHeader = (text: string, spacing = 15) => {
+    if (y + 16 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    y += spacing;
+    
+    // Add subtle background for headers
+    doc.setFillColor(236, 240, 241); // Light gray
+    doc.rect(marginLeft - 2, y - 12, maxWidth + 4, 16, 'F');
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(52, 73, 94); // Dark blue-gray
+    doc.text(text, marginLeft, y);
+    y += 8;
+    
+    // Add underline
+    doc.setDrawColor(52, 73, 94);
+    doc.setLineWidth(0.5);
+    doc.line(marginLeft, y, marginLeft + maxWidth, y);
+    y += 8;
+    
+    doc.setTextColor(0, 0, 0); // Reset to black
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+  };
+
+  const addSubHeader = (text: string, spacing = 10) => {
+    if (y + 12 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    y += spacing;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(41, 128, 185); // Blue
+    doc.text(text, marginLeft, y);
+    y += 8;
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+  };
+
+  const addParagraph = (text: string, spacing = 6, indent = 0) => {
+    const lines = doc.splitTextToSize(text, maxWidth - indent);
+    const requiredHeight = lines.length * spacing + 5;
+
+    if (y + requiredHeight > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(44, 62, 80); // Dark gray for better readability
+
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+
+    lines.forEach((line, index) => {
+      const currentX = marginLeft + indent;
+      const urls = line.match(urlRegex);
+      
+      if (urls) {
+        let startX = currentX;
+        const parts = line.split(urlRegex);
+
+        parts.forEach((part) => {
+          if (urlRegex.test(part)) {
+            doc.setTextColor(41, 128, 185); // Blue for links
+            doc.setFont("helvetica", "normal");
+            doc.textWithLink(part, startX, y, { url: part });
+            const partWidth = doc.getTextWidth(part);
+            startX += partWidth;
+          } else {
+            doc.setTextColor(44, 62, 80);
+            doc.text(part, startX, y);
+            const partWidth = doc.getTextWidth(part);
+            startX += partWidth;
+          }
+        });
+      } else {
+        doc.setTextColor(44, 62, 80);
+        doc.text(line, currentX, y);
+      }
+
+      y += spacing;
+    });
+
+    y += 3; // Extra spacing after paragraph
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addBulletPoint = (text: string, spacing = 6) => {
+    const bulletText = `• ${text}`;
+    addParagraph(bulletText, spacing, 5);
+  };
+
+  const addKeyValuePair = (key: string, value: string, spacing = 8) => {
+    if (y + 12 > pageHeight - 30) {
+      doc.addPage();
+      currentPage++;
+      y = 30;
+    }
+
+    // Add background for key-value pairs
+    doc.setFillColor(249, 249, 249);
+    doc.rect(marginLeft - 2, y - 3, maxWidth + 4, 12, 'F');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(52, 73, 94);
+    doc.text(`${key}:`, marginLeft, y + 5);
+
+    const keyWidth = doc.getTextWidth(`${key}: `);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(44, 62, 80);
+    
+    // Handle long values by wrapping
+    const valueLines = doc.splitTextToSize(value || "N/A", maxWidth - keyWidth - 10);
+    valueLines.forEach((line, index) => {
+      doc.text(line, marginLeft + keyWidth + 5, y + 5 + (index * spacing));
+    });
+
+    y += Math.max(12, valueLines.length * spacing + 4);
+    doc.setTextColor(0, 0, 0);
+  };
+
+  const addDivider = () => {
+    y += 5;
+    doc.setDrawColor(189, 195, 199);
+    doc.setLineWidth(0.5);
+    doc.line(marginLeft, y, marginLeft + maxWidth, y);
+    y += 10;
+  };
+
+  const addFooterToCurrentPage = () => {
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(127, 140, 141);
+    doc.text(`Page ${currentPage}`, pageWidth - 40, pageHeight - 15);
+    doc.text("Generated on: " + new Date().toLocaleDateString(), marginLeft, pageHeight - 15);
+    doc.setTextColor(0, 0, 0); // Reset color
+  };
+
+  // Main document generation
+  addTitle("Monthly Compliance Report");
+  addSubHeader("Assessment of 5 MDAs Regulatory Processes");
+
+  addHeader("Executive Summary");
+  addParagraph(
+    "This comprehensive compliance report provides a systematic evaluation of regulatory adherence across five Ministry, Department, and Agency (MDA) entities. The assessment focuses on transparency, accountability, and regulatory process effectiveness in accordance with established compliance frameworks."
+  );
+
+  addDivider();
+
+  addHeader("Introduction to Compliance Reports");
+  addParagraph(
+    "The Compliance Report represents a structured framework designed to systematically track organizational adherence to regulatory, legal, and internal requirements. This framework serves multiple critical functions:"
+  );
+
+  addBulletPoint("Promotes transparency and accountability in regulatory processes");
+  addBulletPoint("Enables systematic risk management and mitigation strategies");
+  addBulletPoint("Facilitates informed decision-making through comprehensive documentation");
+  addBulletPoint("Ensures continuous monitoring of compliance-related activities");
+
+  addDivider();
+
+  addHeader("Key Components of Compliance Framework");
+  addSubHeader("Essential Data Elements");
+  
+  addParagraph("A comprehensive compliance report incorporates the following critical components:");
+
+  addBulletPoint("Basic Business Information: Entity name, registered address, contact details");
+  addBulletPoint("Complainant Details: Name, contact information, and relationship to the issue");
+  addBulletPoint("Grievance Documentation: Date received, detailed issue description");
+  addBulletPoint("Response Tracking: Acknowledgement date, response timeline, resolution status");
+  addBulletPoint("Compliance Status: Current standing and any remedial actions required");
+
+  y += 5;
+  
+  addSubHeader("Data Protection Considerations");
+  addParagraph(
+    "Note: Sensitive business information including personal contact details are maintained confidentially and are not published publicly in accordance with data protection regulations."
+  );
+
+  addDivider();
+
+  addHeader("Strategic Importance of Compliance Reporting");
+  addBulletPoint("Legal Risk Mitigation: Helps organizations avoid regulatory penalties and maintain legal standing");
+  addBulletPoint("Credibility Enhancement: Strengthens stakeholder trust and organizational reputation");
+  addBulletPoint("Transparency Promotion: Ensures accountability in regulatory and operational processes");
+  addBulletPoint("Sustainability Support: Enables long-term risk management and organizational resilience");
+
+  addDivider();
+
+  addHeader("Assessment Results");
+  addSubHeader("Monthly Compliance Report Implementation");
+
+  addKeyValuePair("MDA Monthly Compliance Report Status", monthlyComplianceSelect);
+  addKeyValuePair("Required Information Elements Present", infoSelect);
+  addKeyValuePair("Public Publication Status", reportPublishedSelect);
+  addKeyValuePair("Assessment Period", monthlyComplianceMonth);
+  
+  if (monthlyComplianceLink && monthlyComplianceLink !== "N/A") {
+    addKeyValuePair("Compliance Report Access Link", monthlyComplianceLink);
+  }
+
+  addDivider();
+
+  addHeader("Recommendations and Next Steps");
+  addParagraph(
+    "Based on the assessment findings, the following recommendations are proposed to enhance compliance reporting effectiveness:"
+  );
+
+  addBulletPoint("Implement standardized reporting templates across all MDAs");
+  addBulletPoint("Establish regular publication schedules for transparency");
+  addBulletPoint("Develop comprehensive data collection protocols");
+  addBulletPoint("Create stakeholder feedback mechanisms for continuous improvement");
+
+  addDivider();
+
+  addHeader("Conclusion");
+  addParagraph(
+    "This verification framework supports the structured validation of Grievance Redress Mechanism (GRM) functionality and responsiveness across the designated MDAs. The systematic approach ensures transparency, strengthens institutional trust, and fosters an inclusive grievance resolution culture that benefits both businesses and the general public."
+  );
+
+  addParagraph(
+    "Moving forward, consistent implementation of these compliance reporting standards will enhance regulatory effectiveness and promote a culture of accountability within the governmental framework."
+  );
+
+  y += 10;
+  addSubHeader("Supporting Documentation");
+  addParagraph(
+    "All relevant supporting materials including screenshots, compliance registers, Service Level Agreement documents, and publication website links are maintained as annexes to this report for comprehensive verification purposes."
+  );
+
+  // Add footer to the final page
+  addFooterToCurrentPage();
 }
   else {
 
     const headers: string[] = [];
     const allRows: any[][] = [];
     let maxRows = 1;
-    let typeSpecificData: Type1Data | Type2Data | Type3Data | Type4Data | Type5Data | Type6Data | Type7Data | Type12Data | undefined;
+    let typeSpecificData: Type1Data | Type2Data | Type3Data | Type4Data | Type5Data | Type6Data | Type7Data | Type12Data | Type14Data | undefined;
     let reportTitlePrefix = " ";
 
     switch (cleanedFormData.reportType) {

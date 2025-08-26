@@ -207,7 +207,9 @@ export default function SubmitLetterForm({
   </select>}
 
         {selectedUserDetails && <div className="flex items-center gap-3 border p-3 rounded-lg bg-gray-50 mb-4">
-            <Image src={selectedUserDetails.imageUrl || "/default-avatar.png"} alt="User" width={36} height={36} className="rounded-full object-cover" />
+            <div className="w-9 h-9 rounded-full overflow-hidden border flex-shrink-0">
+              <Image src={selectedUserDetails.imageUrl || "/default-avatar.png"} alt="User" width={36} height={36} className="w-full h-full object-cover" />
+            </div>
             <div className="min-w-0">
               <p className="font-semibold text-sm truncate">
                 {selectedUserDetails.firstName} {selectedUserDetails.lastName}
