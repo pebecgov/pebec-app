@@ -13,8 +13,9 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/
 import { Pagination, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Roles } from "@/global";
 import { mdasList } from "@/components/mdaList";
+import UserAvatar from "@/components/UserAvater";
 import { useToast } from "@/hooks/use-toast";
-import Image from "next/image";
+// import Image from "next/image";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -328,13 +329,7 @@ export default function Admin() {
           {}
           <TableCell className="py-3 px-4 whitespace-nowrap max-w-xs">
   <div className="flex items-center gap-3">
-    <Image
-  src={user.imageUrl || "/default-avatar.png"}
-  alt="Profile"
-  width={36}
-  height={36}
-  className="rounded-full aspect-square object-cover border border-gray-300"
-/>
+    <UserAvatar src={user.imageUrl} size={36} />
     <div className="flex flex-col max-w-[160px] overflow-hidden">
       <span className="font-medium text-sm leading-tight text-ellipsis overflow-hidden whitespace-nowrap">
         {user.firstName} {user.lastName}

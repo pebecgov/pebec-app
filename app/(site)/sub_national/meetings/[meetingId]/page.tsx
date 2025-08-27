@@ -13,6 +13,7 @@ import { ArrowLeft, CalendarDays, Clock, CircleCheck, Users } from "lucide-react
 import * as Dialog from "@radix-ui/react-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import UserAvatar from "@/components/UserAvater";
 export default function MeetingDetails() {
   const {
     user
@@ -99,7 +100,8 @@ export default function MeetingDetails() {
 
         {}
         <div className="flex items-center gap-4 mt-4">
-          <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={60} height={60} className="rounded-full border object-cover" />
+          <UserAvatar src={meeting.creatorImage} size={60} />
+          {/* <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={60} height={60} className="rounded-full border object-cover" /> */}
           <div>
             <h1 className="text-2xl font-bold">{meeting.title}</h1>
             <p className="text-sm text-gray-500">Hosted by {meeting.creatorName || "Unknown Organizer"}</p>
