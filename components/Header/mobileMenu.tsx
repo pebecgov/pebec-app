@@ -282,6 +282,18 @@ const MobileMenu = () => {
                     <FaPhone /> Contact Us
                   </Link>
                 </li>
+
+                {}
+                {user && (
+                  <li>
+                    <button 
+                      onClick={handleSignOut} 
+                      className="w-full p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-600 hover:bg-red-100 transition-colors"
+                    >
+                      <FaSignOutAlt /> Sign Out
+                    </button>
+                  </li>
+                )}
               </ul>
             </nav>
           </div>
