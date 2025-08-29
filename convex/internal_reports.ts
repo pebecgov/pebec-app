@@ -594,3 +594,49 @@ export const getSubmittedReportsWithState = query({
     }));
   }
 });
+
+// Submit large report as file instead of array data
+export const submitLargeReport = mutation({
+  args: {
+    templateId: v.id("report_templates"),
+    submittedBy: v.id("users"),
+    role: v.union(
+      v.literal("user"),
+      v.literal("admin"),
+      v.literal("mda"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("federal"),
+      v.literal("saber_agent"),
+      v.literal("deputies"),
+      v.literal("magistrates"),
+      v.literal("state_governor"),
+      v.literal("president"),
+      v.literal("vice_president"),
+      v.literal("world_bank")
+    ),
+    fileId: v.id("_storage"),
+    fileName: v.string(),
+    fileSize: v.number(),
+    reportName: v.optional(v.string()),
+    totalRows: v.number()
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.submittedBy);
+    const mdaName = user?.mdaName ?? undefined;
+    await ctx.db.insert("submitted_reports", {
+      templateId: args.templateId,
+      submittedBy: args.submittedBy,
+      role: args.role,
+      data: [], // Empty data since we're using file
+      mdaName,
+      submittedAt: Date.now(),
+      isDraft: false,
+      reportName: args.reportName,
+      fileId: args.fileId,
+      fileName: args.fileName,
+      fileSize: args.fileSize,
+      totalRows: args.totalRows
+    });
+  }
+});
