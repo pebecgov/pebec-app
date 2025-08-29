@@ -259,6 +259,7 @@ export default defineSchema({
     reportName: v.optional(v.string()),
     mdaName: v.optional(v.string()),
     fileSize: v.optional(v.number()),
+    totalRows: v.optional(v.number()),
     isDraft: v.optional(v.boolean()),
     updatedAt: v.optional(v.number())
   }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]),
@@ -581,5 +582,32 @@ export default defineSchema({
     emailSent: v.boolean(), // Whether email was sent successfully
     notificationSent: v.boolean(), // Whether in-app notification was sent
     createdAt: v.number()
-  }).index("byDeadline", ["deadlineId"]).index("byUser", ["userId"]).index("byScheduled", ["scheduledFor"]).index("byState", ["state"])
+  }).index("byDeadline", ["deadlineId"]).index("byUser", ["userId"]).index("byScheduled", ["scheduledFor"]).index("byState", ["state"]),
+  
+  // Excel Upload Tables
+  excelData: defineTable({
+    data: v.any(), // Raw Excel row data
+    headers: v.array(v.string()), // Column headers from Excel
+    chunkIndex: v.number(), // Which chunk this data belongs to
+    batchId: v.string(), // Unique identifier for the upload batch
+    templateId: v.optional(v.id("report_templates")), // Reference to report template
+    uploadedAt: v.number(), // When this chunk was uploaded
+    processed: v.boolean(), // Whether this data has been processed
+  }).index("byBatchId", ["batchId"]).index("byProcessed", ["processed"]).index("byUploadedAt", ["uploadedAt"]).index("byTemplateId", ["templateId"]),
+  
+  processedExcelData: defineTable({
+    originalData: v.any(), // Original Excel data
+    processedAt: v.number(), // When this data was processed
+    batchId: v.string(), // Reference to the original batch
+    templateId: v.optional(v.id("report_templates")), // Reference to report template
+    // Add specific fields based on your Excel structure
+    // Example fields (uncomment and modify as needed):
+    // name: v.optional(v.string()),
+    // email: v.optional(v.string()),
+    // phone: v.optional(v.string()),
+    // address: v.optional(v.string()),
+    // state: v.optional(v.string()),
+    // businessName: v.optional(v.string()),
+    // industry: v.optional(v.string()),
+  }).index("byBatchId", ["batchId"]).index("byProcessedAt", ["processedAt"]).index("byTemplateId", ["templateId"])
 });
