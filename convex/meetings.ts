@@ -614,3 +614,116 @@ export const getAvailableSlotsForStaff = query({
     return futureSlots;
   }
 });
+
+// ===== Room Booking APIs =====
+export const createRoomBooking = mutation({
+  args: {
+    room: v.union(v.literal("staff_conference"), v.literal("dg_conference")),
+    date: v.string(), // yyyy-MM-dd
+    startTime: v.string(), // HH:mm
+    endTime: v.string(), // HH:mm
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    createdBy: v.id("users")
+  },
+  handler: async (ctx, args) => {
+    const { room, date, startTime, endTime, title, description, createdBy } = args;
+
+    // Validate time ordering and working hours 08:00-18:00
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = endTime.split(":").map(Number);
+    const startMinutes = sh * 60 + sm;
+    const endMinutes = eh * 60 + em;
+    if (endMinutes <= startMinutes) {
+      throw new Error("End time must be after start time");
+    }
+    if (startMinutes < 8 * 60 || endMinutes > 18 * 60) {
+      throw new Error("Bookings must be within 08:00 - 18:00");
+    }
+
+    // Prevent overlaps for the same room/date
+    const existing = await ctx.db
+      .query("room_bookings")
+      .withIndex("byRoomAndDate", q => q.eq("room", room).eq("date", date))
+      .collect();
+    const overlaps = existing.some(b => {
+      const [bsH, bsM] = b.startTime.split(":").map(Number);
+      const [beH, beM] = b.endTime.split(":").map(Number);
+      const bStart = bsH * 60 + bsM;
+      const bEnd = beH * 60 + beM;
+      return startMinutes < bEnd && endMinutes > bStart;
+    });
+    if (overlaps) {
+      throw new Error("This room is already booked for the selected time range");
+    }
+
+    // Insert booking
+    const bookingId = await ctx.db.insert("room_bookings", {
+      room,
+      date,
+      startTime,
+      endTime,
+      createdBy,
+      createdAt: Date.now(),
+      title,
+      description
+    });
+
+    // Notify admins (optional: notify all staff/admins)
+    const admins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    for (const admin of admins) {
+      await ctx.db.insert("notifications", {
+        userId: admin._id,
+        message: `New room booking: ${room === "staff_conference" ? "Staff Conference Room" : "DG Conference Room"} on ${date} ${startTime}-${endTime}`,
+        isRead: false,
+        createdAt: Date.now(),
+        type: "room_booking_created"
+      });
+    }
+
+    return { success: true, bookingId };
+  }
+});
+
+export const listRoomBookingsByDate = query({
+  args: {
+    room: v.union(v.literal("staff_conference"), v.literal("dg_conference")),
+    date: v.string()
+  },
+  handler: async (ctx, { room, date }) => {
+    const rows = await ctx.db
+      .query("room_bookings")
+      .withIndex("byRoomAndDate", q => q.eq("room", room).eq("date", date))
+      .collect();
+    return rows.sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+  }
+});
+
+export const listMyUpcomingRoomBookings = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const today = new Date();
+    const ymd = today.toISOString().split("T")[0];
+    const all = await ctx.db
+      .query("room_bookings")
+      .withIndex("byCreatedBy", q => q.eq("createdBy", userId))
+      .collect();
+    return all
+      .filter(b => b.date >= ymd)
+      .sort((a, b) => (a.date === b.date ? (a.startTime < b.startTime ? -1 : 1) : a.date < b.date ? -1 : 1));
+  }
+});
+
+export const deleteRoomBooking = mutation({
+  args: { bookingId: v.id("room_bookings"), requesterId: v.id("users") },
+  handler: async (ctx, { bookingId, requesterId }) => {
+    const booking = await ctx.db.get(bookingId);
+    if (!booking) throw new Error("Booking not found");
+    const requester = await ctx.db.get(requesterId);
+    const isAdmin = requester?.role === "admin";
+    const isOwner = booking.createdBy === requesterId;
+    if (!isAdmin && !isOwner) throw new Error("Not authorized to delete this booking");
+    await ctx.db.delete(bookingId);
+    return { success: true };
+  }
+});

@@ -67,6 +67,10 @@ export default function Sidebar({
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff"
   }, {
+    name: "Meeting Rooms",
+    icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+    path: "/staff/rooms"
+  }, {
     name: "Internal letters",
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/letters"

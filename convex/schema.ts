@@ -485,6 +485,23 @@ export default defineSchema({
       email: v.string()
     }))
   }),
+  // Meeting room bookings for Staff Conference Room and DG Conference Room
+  room_bookings: defineTable({
+    room: v.union(
+      v.literal("staff_conference"),
+      v.literal("dg_conference")
+    ),
+    date: v.string(), // yyyy-MM-dd
+    startTime: v.string(), // HH:mm (24h)
+    endTime: v.string(),   // HH:mm (24h)
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    title: v.optional(v.string()),
+    description: v.optional(v.string())
+  })
+    .index("byDate", ["date"]) 
+    .index("byRoomAndDate", ["room", "date"]) 
+    .index("byCreatedBy", ["createdBy"]),
   media: defineTable({
     userId: v.id("users"),
     title: v.string(),

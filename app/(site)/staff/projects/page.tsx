@@ -16,6 +16,31 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search, Users, Eye, Shield, Calendar, Tag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
+function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookings: any[]; href: string }) {
+  const formatRange = (b: any) => `${b.startTime} - ${b.endTime}`;
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex items-center justify-between">
+        <CardTitle className="text-base">{title} — Today</CardTitle>
+        <Link href={href} className="text-sm text-blue-600 hover:underline">Manage</Link>
+      </CardHeader>
+      <CardContent>
+        {bookings.length === 0 ? (
+          <p className="text-sm text-gray-600">Available all day.</p>
+        ) : (
+          <ul className="space-y-1">
+            {bookings.map((b: any) => (
+              <li key={b._id} className="text-sm text-gray-800">
+                {formatRange(b)}{b.title ? ` — ${b.title}` : ""}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 const workstreams = [
   "regulatory", "innovation", "judiciary", "communications",
   "investments", "receptionist", "account", "auditor", "sub_national"
@@ -36,6 +61,11 @@ export default function ProjectsPage() {
   const convexUser = useQuery(api.users.getUserByClerkId, {
     clerkUserId: user?.id ?? ""
   });
+
+  // Today's room availability
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayRoomStaff = useQuery(api.meetings.listRoomBookingsByDate, { room: "staff_conference", date: todayStr }) || [];
+  const todayRoomDG = useQuery(api.meetings.listRoomBookingsByDate, { room: "dg_conference", date: todayStr }) || [];
 
   // Get different types of projects
   const myProjects = useQuery(api.staff_projects.getMyProjects) || [];
@@ -201,6 +231,12 @@ export default function ProjectsPage() {
             New Project
           </Button>
         </Link>
+      </div>
+
+      {/* Today’s Meeting Rooms availability for Investments staff */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <RoomAvailabilityCard title="Staff Conference Room" bookings={todayRoomStaff} href="/staff/rooms" />
+        <RoomAvailabilityCard title="DG Conference Room" bookings={todayRoomDG} href="/staff/rooms" />
       </div>
 
       {/* Search and Filters */}
