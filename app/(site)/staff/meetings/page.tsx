@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
@@ -22,6 +23,7 @@ export default function StaffAvailabilityPage() {
   const {
     user
   } = useUser();
+  const router = useRouter();
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? {
     clerkUserId: user.id
   } : "skip");
@@ -58,6 +60,8 @@ export default function StaffAvailabilityPage() {
     slotId: null
   });
   const staffStream = convexUser?.staffStream;
+  const backPath = staffStream === "investments" ? "/staff/projects" : "/staff";
+  const backLabel = staffStream === "investments" ? "Back to Projects" : "Back to Dashboard";
   useEffect(() => {
     availability.forEach(async slot => {
       const start = parseISO(`${slot.date}T${slot.startTime}`);
@@ -154,6 +158,9 @@ export default function StaffAvailabilityPage() {
     }
   }, [availability, activeTab, showAllMeetings, selectedDate]);
   return <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="mb-4">
+        <Button variant="outline" onClick={() => router.push(backPath)}>← {backLabel}</Button>
+      </div>
       <h1 className="text-2xl font-bold mb-6">🧑‍💼 Staff Meetings Management</h1>
 
       <div className="flex flex-col lg:flex-row gap-6">

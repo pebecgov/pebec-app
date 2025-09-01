@@ -5,9 +5,16 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { format, parseISO, isSameDay, isSameWeek, addDays, isFriday, isSaturday, isSunday } from "date-fns";
 import { useMemo, JSX } from "react";
+import { useUser } from "@clerk/nextjs";
+import { Button } from "@/components/ui/button";
 import { CalendarDaysIcon, ClockIcon } from "@heroicons/react/24/solid";
 export default function StaffAnalytics() {
+  const { user } = useUser();
   const currentUser = useQuery(api.users.getCurrentUsers);
+  const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayRoomStaff = useQuery(api.meetings.listRoomBookingsByDate, { room: "staff_conference", date: todayStr });
+  const todayRoomDG = useQuery(api.meetings.listRoomBookingsByDate, { room: "dg_conference", date: todayStr });
   const allSlots = useQuery(api.meetings.getAllAvailableSlots) || [];
   const users = useQuery(api.users.getAllUsers) || [];
   const staffStream = currentUser?.staffStream;
@@ -77,6 +84,18 @@ export default function StaffAnalytics() {
   };
   if (!currentUser) return <div className="p-6 text-center text-gray-400">Loading user info...</div>;
   return <div className="w-full max-w-6xl mx-auto px-4 py-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <RoomAvailabilityCard
+          title="Staff Conference Room"
+          bookings={todayRoomStaff || []}
+          href="/staff/rooms"
+        />
+        <RoomAvailabilityCard
+          title="DG Conference Room"
+          bookings={todayRoomDG || []}
+          href="/staff/rooms"
+        />
+      </div>
       <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
         <span role="img" aria-label="chart">
           🗓️
@@ -138,4 +157,28 @@ export default function StaffAnalytics() {
         </div>
       </div>
     </div>;
+}
+
+function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookings: any[]; href: string }) {
+  const formatRange = (b: any) => `${b.startTime} - ${b.endTime}`;
+  return (
+    <div className="bg-white border rounded-2xl p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-md font-semibold text-gray-800">{title} — Today</h3>
+        <a href={href} className="text-sm text-blue-600 hover:underline">Manage</a>
+      </div>
+      {bookings.length === 0 ? (
+        <p className="text-sm text-gray-500">Available all day.</p>
+      ) : (
+        <ul className="space-y-2">
+          {bookings.map((b) => (
+            <li key={b._id} className="text-sm text-gray-700">
+              {formatRange(b)}
+              {b.title ? ` — ${b.title}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
