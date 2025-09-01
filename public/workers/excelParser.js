@@ -11,6 +11,7 @@ let chunkIndex = 0;
 let chunkSize = 1000;
 let headers = [];
 let rows = [];
+let sheetsProcessed = [];
 
 self.onmessage = async (event) => {
   const { type, file, chunkSize: newChunkSize, batchId } = event.data;
@@ -25,32 +26,58 @@ self.onmessage = async (event) => {
       // Read the file as array buffer
       const arrayBuffer = await readFileAsArrayBuffer(file);
       
-      // Parse Excel file
+      // Parse Excel file - process ALL sheets
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
       
-      // Convert to JSON
-      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      headers = data[0] || [];
+      // Process all sheets and merge rows
+      let allRows = [];
+      let allHeaders = [];
+      let totalOriginalRows = 0;
+      let sheetsProcessed = [];
       
-      // Filter out empty rows (rows with no meaningful data)
-      rows = data.slice(1).filter(row => {
-        // Check if row has any non-empty, non-whitespace values
-        return row.some(cell => {
-          if (cell === null || cell === undefined) return false;
-          const cellStr = String(cell).trim();
-          return cellStr.length > 0;
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Convert to JSON
+        const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const sheetHeaders = data[0] || [];
+        
+        // Filter out empty rows (rows with no meaningful data)
+        const sheetRows = data.slice(1).filter(row => {
+          // Check if row has any non-empty, non-whitespace values
+          return row.some(cell => {
+            if (cell === null || cell === undefined) return false;
+            const cellStr = String(cell).trim();
+            return cellStr.length > 0;
+          });
         });
+        
+        if (sheetRows.length > 0) {
+          // Get headers from first sheet (assuming all sheets have same structure)
+          if (allHeaders.length === 0) {
+            allHeaders = sheetHeaders;
+          }
+          
+          // Add all rows from this sheet
+          allRows.push(...sheetRows);
+          sheetsProcessed.push(sheetName);
+          totalOriginalRows += data.length - 1; // Include header row in count
+          
+          console.log(`Worker: Processed sheet "${sheetName}" with ${sheetRows.length} rows`);
+        }
       });
       
+      headers = allHeaders;
+      rows = allRows;
       totalRows = rows.length;
       
       // Send total rows info
-      const originalRowCount = data.length - 1; // Subtract header row
-      const emptyRowsFiltered = originalRowCount - totalRows;
+      const emptyRowsFiltered = totalOriginalRows - totalRows;
       
-      let message = `Parsed ${totalRows} rows from Excel file`;
+      let message = `Parsed ${totalRows} rows from ${sheetsProcessed.length} sheets`;
+      if (sheetsProcessed.length > 1) {
+        message += ` (${sheetsProcessed.join(', ')})`;
+      }
       if (emptyRowsFiltered > 0) {
         message += ` (filtered out ${emptyRowsFiltered} empty rows)`;
       }
@@ -88,6 +115,7 @@ self.onmessage = async (event) => {
     totalRows = 0;
     headers = [];
     rows = [];
+    sheetsProcessed = [];
     currentBatchId = null;
   }
 };
@@ -137,7 +165,7 @@ function processNextChunk() {
       total: totalRows,
       processed: Math.min(currentIndex, totalRows),
       status: 'uploading',
-      message: `Processing chunk ${chunkIndex} of ${Math.ceil(totalRows / chunkSize)}`
+      message: `Processing chunk ${chunkIndex} of ${Math.ceil(totalRows / chunkSize)} from ${sheetsProcessed.length} sheets`
     }
   });
 }

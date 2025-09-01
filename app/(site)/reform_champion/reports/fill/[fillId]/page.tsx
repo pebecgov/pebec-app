@@ -370,30 +370,56 @@ export default function FillReportPage() {
     }
   };
 
-  // Function to parse Excel data (re-used from previous discussion)
-  const parseExcelFile = (file: File): Promise<any[]> => {
+    // Function to parse Excel data from all sheets (simple merge for same headers)
+  const parseExcelFile = (file: File): Promise<{data: any[], sheetsProcessed: string[], allHeaders: string[]}> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0]; // Get the first sheet
-        const worksheet = workbook.Sheets[sheetName];
         
-        // Convert to JSON and filter out empty rows
-        const json = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+        const allData: any[] = [];
+        const sheetsProcessed: string[] = [];
+        let allHeaders: string[] = [];
         
-        // Filter out rows that are completely empty or have no meaningful data
-        const filteredJson = json.filter(row => {
-          // Check if the row object has any non-empty values
-          return Object.values(row).some(value => {
-            if (value === null || value === undefined) return false;
-            const valueStr = String(value).trim();
-            return valueStr.length > 0;
+        // Process all sheets and merge rows directly
+        workbook.SheetNames.forEach(sheetName => {
+          const worksheet = workbook.Sheets[sheetName];
+          const json = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+          
+          // Filter out rows that are completely empty or have no meaningful data
+          const filteredJson = json.filter(row => {
+            return Object.values(row).some(value => {
+              if (value === null || value === undefined) return false;
+              const valueStr = String(value).trim();
+              return valueStr.length > 0;
+            });
           });
+          
+          // Only add data if the sheet has meaningful content
+          if (filteredJson.length > 0) {
+            console.log(`📊 Processing sheet "${sheetName}" with ${filteredJson.length} rows`);
+            
+            // Get headers from first sheet (assuming all sheets have same structure)
+            if (allHeaders.length === 0 && filteredJson[0]) {
+              allHeaders = Object.keys(filteredJson[0]);
+              console.log(`📊 Headers from sheet "${sheetName}":`, allHeaders);
+            }
+            
+            // Add all rows directly (no normalization needed for same headers)
+            allData.push(...filteredJson);
+            sheetsProcessed.push(sheetName);
+            
+            console.log(`📊 Sheet "${sheetName}": ${filteredJson.length} rows added to total dataset`);
+          } else {
+            console.log(`📊 Sheet "${sheetName}": No data (empty or all rows filtered out)`);
+          }
         });
         
-        resolve(filteredJson);
+        console.log(`📊 Total combined data: ${allData.length} rows from ${sheetsProcessed.length} sheets`);
+        console.log(`📊 Final headers:`, allHeaders);
+        
+        resolve({ data: allData, sheetsProcessed, allHeaders });
       };
       reader.onerror = (error) => reject(error);
       reader.readAsArrayBuffer(file);
@@ -566,9 +592,9 @@ export default function FillReportPage() {
       <div className="flex flex-col items-center justify-center text-center p-4">
         <div className="mb-4 text-blue-600 text-base font-semibold">
         </div>
-      
+        
         <div className="flex gap-4 mt-2 justify-center">
-          <Button size="sm" onClick={onContinue}>Continue with AI</Button>
+          <Button size="sm" onClick={onContinue}>Continue</Button>
           <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
         </div>
       </div>
@@ -584,16 +610,17 @@ export default function FillReportPage() {
 
      setIsUploading(true);
 
-     try {
-       // First, get the headers from the Excel file (only once)
-       const excelData = await parseExcelFile(file);
-       if (excelData.length === 0) {
-         toast.error("The uploaded Excel file is empty.");
-         setIsUploading(false);
-         return;
-       }
+         try {
+      // First, get the headers from the Excel file (from all sheets)
+      const parseResult = await parseExcelFile(file);
+      if (parseResult.data.length === 0) {
+        toast.error("The uploaded Excel file is empty or contains no valid data.");
+        setIsUploading(false);
+        return;
+      }
 
-       const excelHeaders = Object.keys(excelData[0] || {});
+      const { data: excelData, sheetsProcessed, allHeaders } = parseResult;
+      const excelHeaders = allHeaders.length > 0 ? allHeaders : Object.keys(excelData[0] || {});
        
        // Use AI to match headers ONCE at the beginning
        toast.info("Matching Excel headers with template using AI...", { duration: 2000 });
@@ -622,34 +649,64 @@ export default function FillReportPage() {
          return;
        }
 
-       // Show mapping success
-       toast.success(`AI matched ${matchedCount}/${totalTemplateHeaders} headers successfully!`, {
-         duration: 3000,
-       });
+             // Show mapping success and sheets processed
+      toast.success(`AI matched ${matchedCount}/${totalTemplateHeaders} headers successfully!`, {
+        duration: 3000,
+      });
 
-       if (unmatchedCount > 0) {
-         toast.info(`${unmatchedCount} template headers couldn't be matched and will be left empty.`, {
+             // Show which sheets were processed
+       if (sheetsProcessed.length > 1) {
+         toast.info(`📊 Processed ${sheetsProcessed.length} sheets: ${sheetsProcessed.join(', ')}`, {
+           duration: 5000,
+         });
+         
+         // Show info about merged data
+         toast.info(`📋 Merged ${excelData.length} total rows from all sheets`, {
            duration: 4000,
+         });
+       } else if (sheetsProcessed.length === 1) {
+         toast.info(`📊 Processed sheet: ${sheetsProcessed[0]}`, {
+           duration: 3000,
          });
        }
 
-       // Show info about empty row filtering
-       if (excelData.length > 0) {
-         const originalRowCount = excelData.length;
-         const filteredRowCount = excelData.filter(row => 
-           Object.values(row).some(value => {
-             if (value === null || value === undefined) return false;
-             const valueStr = String(value).trim();
-             return valueStr.length > 0;
-           })
-         ).length;
-         
-         if (originalRowCount !== filteredRowCount) {
-           toast.info(`Filtered out ${originalRowCount - filteredRowCount} empty rows. Processing ${filteredRowCount} rows with data.`, {
-             duration: 4000,
+      if (unmatchedCount > 0) {
+        toast.info(`${unmatchedCount} template headers couldn't be matched and will be left empty.`, {
+          duration: 4000,
+        });
+      }
+
+             // Show info about empty row filtering and sheet data distribution
+      if (excelData.length > 0) {
+        const originalRowCount = excelData.length;
+        const filteredRowCount = excelData.filter(row => 
+          Object.values(row).some(value => {
+            if (value === null || value === undefined) return false;
+            const valueStr = String(value).trim();
+            return valueStr.length > 0;
+          })
+        ).length;
+        
+        if (originalRowCount !== filteredRowCount) {
+          toast.info(`Filtered out ${originalRowCount - filteredRowCount} empty rows. Processing ${filteredRowCount} rows with data.`, {
+            duration: 4000,
+          });
+        }
+        
+                 // Show data distribution across sheets
+         if (sheetsProcessed.length > 1) {
+           console.log(`📊 Data from multiple sheets:`, {
+             totalRows: excelData.length,
+             sheetsProcessed,
+             allHeaders,
+             sampleRow: excelData[0]
+           });
+           
+           toast.info(`📋 Successfully merged ${excelData.length} rows from ${sheetsProcessed.length} sheets with same headers`, {
+             duration: 5000,
            });
          }
-       }
+      }
 
        // Now create web worker for processing data (without AI calls)
        const worker = new Worker('/workers/excelParser.js');
@@ -670,8 +727,17 @@ export default function FillReportPage() {
            // Process the chunk data using the pre-matched headers
            const excelData = data.rows;
            
+           console.log(`🔍 Processing chunk with ${excelData.length} rows`);
+           if (excelData.length > 0) {
+             console.log(`🔍 Sample row from chunk:`, {
+               headers: Object.keys(excelData[0]),
+               values: Object.values(excelData[0]),
+               headerMapping: headerMapping
+             });
+           }
+           
            // Process this chunk with the pre-determined header mapping
-           const chunkProcessedData = excelData.map((excelRow: any) => {
+           const chunkProcessedData = excelData.map((excelRow: any, rowIndex: number) => {
              const newFormRow: string[] = template.headers.map(() => "");
 
              template.headers.forEach((templateHeader, colIndex) => {
@@ -709,7 +775,7 @@ export default function FillReportPage() {
                        } else {
                          const date = new Date(excelValue);
                          if (!isNaN(date.getTime())) {
-                           processedValue = date.toISOString().split('T')[0];
+                           processedValue = processedValue;
                          } else {
                            processedValue = '';
                          }
@@ -720,6 +786,12 @@ export default function FillReportPage() {
                        break;
                    }
                  }
+                 
+                 // Log the first few rows for debugging
+                 if (rowIndex < 3) {
+                   console.log(`🔍 Row ${rowIndex + 1} - ${templateHeader.name}: "${excelValue}" → "${processedValue}"`);
+                 }
+                 
                  newFormRow[colIndex] = processedValue;
                }
              });
@@ -747,6 +819,9 @@ export default function FillReportPage() {
            worker.terminate();
            setProcessingProgress(null);
            setIsUploading(false);
+           
+           console.log(`✅ Upload complete! Processed ${data.totalRows} rows`);
+           console.log(`✅ Final form data length:`, formData.length);
            
            toast.success(`${data.totalRows} Rows imported successfully!`);
            
@@ -1249,12 +1324,7 @@ export default function FillReportPage() {
            <Save className="w-4 h-4" />
            Save as Draft
          </Button>
-         {formData.length > rowsPerPage && (
-           <div className="flex items-center text-sm text-gray-600">
-             <span className="mr-2">💾</span>
-             <span>All {formData.length.toLocaleString()} rows will be saved</span>
-           </div>
-         )}
+        
       </div>
              <div className="flex gap-2">
          <Button 
@@ -1264,16 +1334,11 @@ export default function FillReportPage() {
          >
            ✅ Submit Report
          </Button>
-         {formData.length > rowsPerPage && (
-           <div className="flex items-center text-sm text-gray-600">
-             <span className="mr-2">📄</span>
-             <span>All {formData.length.toLocaleString()} rows will be submitted</span>
-           </div>
-         )}
+         
        </div>
       <Dialog open={showExcelConfirm} onOpenChange={setShowExcelConfirm}>
         <DialogContent className="max-w-md w-full p-6 rounded-lg flex flex-col items-center text-center">
-          <DialogTitle className="text-lg font-bold text-blue-600 mb-2">AI-Powered Excel Upload</DialogTitle>
+          <DialogTitle className="text-lg font-bold text-blue-600 mb-2">Excel Upload</DialogTitle>
           <div className="mb-4 text-blue-600 text-base font-semibold">
             System will automatically match your Excel headers with the template headers!
           </div>
