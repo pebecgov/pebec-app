@@ -137,6 +137,13 @@ export default function Sidebar({
     icon: <FaRegFileArchive className="w-5 h-5" />,
     path: "/admin/materials"
   }, {
+    name: "Facility Management",
+    icon: <PresentationChartBarIcon className="w-5 h-5" />,
+    items: [{
+      name: "Conference Room Bookings",
+      path: "/admin/rooms"
+    }]
+  }, {
     name: "User Management",
     icon: <UserGroupIcon className="w-5 h-5" />,
     items: [{
