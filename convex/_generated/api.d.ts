@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as ai_helper_scoring from "../ai_helper_scoring.js";
 import type * as business_letters from "../business_letters.js";
 import type * as chat from "../chat.js";
 import type * as cleanup from "../cleanup.js";
@@ -26,6 +27,7 @@ import type * as images from "../images.js";
 import type * as internal_notes from "../internal_notes.js";
 import type * as internal_reports from "../internal_reports.js";
 import type * as letters from "../letters.js";
+import type * as mda_scoring from "../mda_scoring.js";
 import type * as media from "../media.js";
 import type * as meetings from "../meetings.js";
 import type * as messages from "../messages.js";
@@ -60,6 +62,7 @@ import type * as utils_appResult from "../utils/appResult.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  ai_helper_scoring: typeof ai_helper_scoring;
   business_letters: typeof business_letters;
   chat: typeof chat;
   cleanup: typeof cleanup;
@@ -73,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   internal_notes: typeof internal_notes;
   internal_reports: typeof internal_reports;
   letters: typeof letters;
+  mda_scoring: typeof mda_scoring;
   media: typeof media;
   meetings: typeof meetings;
   messages: typeof messages;
