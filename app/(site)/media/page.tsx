@@ -29,13 +29,22 @@ export default function MediaPage() {
       {}
       <div className="relative w-full h-[300px] md:h-[400px]">
         <Image src="/images/media_cover.png" alt="PEBEC Media" fill className="object-cover" priority />
-        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-center px-4">
-          <h1 className="text-white text-3xl md:text-4xl font-bold">
-            Discover PEBEC’s Gallery
-          </h1>
-          <p className="text-white mt-3 text-sm md:text-base max-w-xl">
-            Explore our latest media content and updates
-          </p>
+        <div className="absolute inset-0 bg-black/50 flex flex-row items-center justify-center text-center px-4 gap-6">
+          <Image 
+            src="/images/logo/logo_pebec.jpg" 
+            alt="PEBEC Logo" 
+            width={80} 
+            height={80} 
+            className="rounded-lg"
+          />
+          <div className="flex flex-col items-center">
+            <h1 className="text-white text-3xl md:text-4xl font-bold">
+              Discover PEBEC's Gallery
+            </h1>
+            <p className="text-white mt-3 text-sm md:text-base max-w-xl">
+              Explore our latest media content and updates
+            </p>
+          </div>
         </div>
       </div>
 
