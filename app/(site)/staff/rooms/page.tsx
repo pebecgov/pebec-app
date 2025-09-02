@@ -10,11 +10,14 @@ import "react-datepicker/dist/react-datepicker.css";
 import { TimePicker } from "@/components/ui/time-picker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type RoomKey = "staff_conference" | "dg_conference";
 
 export default function StaffRoomsPage() {
   const { user } = useUser();
+  const router = useRouter();
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
 
   const [room, setRoom] = useState<RoomKey>("staff_conference");
@@ -30,15 +33,43 @@ export default function StaffRoomsPage() {
   const createBooking = useMutation(api.meetings.createRoomBooking);
   const deleteBooking = useMutation(api.meetings.deleteRoomBooking);
 
+  // Check for booking conflicts
+  const hasConflict = useMemo(() => {
+    if (!startTime || !endTime || !selectedDate) return false;
+    
+    const s = new Date(selectedDate);
+    s.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
+    const e = new Date(selectedDate);
+    e.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
+    
+    return bookings.some((booking: any) => {
+      const bookingStart = new Date(selectedDate);
+      const [startHour, startMin] = booking.startTime.split(':').map(Number);
+      bookingStart.setHours(startHour, startMin, 0, 0);
+      
+      const bookingEnd = new Date(selectedDate);
+      const [endHour, endMin] = booking.endTime.split(':').map(Number);
+      bookingEnd.setHours(endHour, endMin, 0, 0);
+      
+      // Check if there's any overlap
+      return (s < bookingEnd && e > bookingStart);
+    });
+  }, [startTime, endTime, selectedDate, bookings]);
+
   const handleCreate = async () => {
     if (!convexUser?._id) return toast.error("User not loaded");
-    if (!selectedDate || !startTime || !endTime) return toast.error("Select date, start, end");
+    if (!selectedDate || !startTime || !endTime) return toast.error("Please select date, start time, and end time");
 
     const s = new Date(selectedDate);
     s.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
     const e = new Date(selectedDate);
     e.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
-    if (e <= s) return toast.error("End must be after start");
+    if (e <= s) return toast.error("End time must be after start time");
+
+    if (hasConflict) {
+      toast.error("This time slot conflicts with an existing booking. Please choose a different time.");
+      return;
+    }
 
     const fmt = (d: Date) => d.toTimeString().slice(0, 5);
     try {
@@ -51,13 +82,17 @@ export default function StaffRoomsPage() {
         description: description || undefined,
         createdBy: convexUser._id,
       });
-      toast.success("Room booked");
+      toast.success("Room booked successfully!");
       setTitle("");
       setDescription("");
       setStartTime(null);
       setEndTime(null);
     } catch (e: any) {
-      toast.error(e.message || "Failed to book room");
+      if (e.message?.includes("conflict") || e.message?.includes("overlap")) {
+        toast.error("This time slot conflicts with an existing booking. Please choose a different time.");
+      } else {
+        toast.error("Failed to book room. Please try again.");
+      }
     }
   };
 
@@ -65,63 +100,37 @@ export default function StaffRoomsPage() {
     if (!convexUser?._id) return;
     try {
       await deleteBooking({ bookingId: bookingId as any, requesterId: convexUser._id });
-      toast.success("Booking deleted");
+      toast.success("Booking deleted successfully");
     } catch (e: any) {
-      toast.error(e.message || "Failed to delete");
+      toast.error("Failed to delete booking. Please try again.");
     }
+  };
+
+  const handleBack = () => {
+    router.back();
   };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
+      {/* Back Button */}
+      <Button 
+        variant="ghost" 
+        onClick={handleBack}
+        className="mb-4 flex items-center gap-2 hover:bg-gray-100"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back
+      </Button>
+
       <h1 className="text-2xl font-bold mb-4">Meeting Rooms</h1>
 
-      <div className="bg-white p-4 rounded-lg shadow mb-6 grid gap-3 md:grid-cols-2">
-        <div>
-          <label className="block text-sm font-medium mb-1">Room</label>
-          <select
-            className="w-full border rounded px-3 py-2"
-            value={room}
-            onChange={(e) => setRoom(e.target.value as RoomKey)}
-          >
-            <option value="staff_conference">Staff Conference Room</option>
-            <option value="dg_conference">DG Conference Room</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Date</label>
-          <DatePicker selected={selectedDate} onChange={(d) => setSelectedDate(d)} minDate={new Date()} className="w-full border rounded px-3 py-2" />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Start</label>
-          <TimePicker value={startTime} onChange={setStartTime} placeholder="Select start time" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">End</label>
-          <TimePicker value={endTime} onChange={setEndTime} placeholder="Select end time" />
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium mb-1">Title (optional)</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border rounded px-3 py-2" />
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium mb-1">Description (optional)</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border rounded px-3 py-2" rows={3} />
-        </div>
-
-        <div className="md:col-span-2 flex justify-end">
-          <Button onClick={handleCreate}>Book Room</Button>
-        </div>
-      </div>
-
-      <div className="bg-white p-4 rounded-lg shadow">
+      {/* Bookings Display - Moved to top */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Bookings for {dateStr}</h2>
         </div>
         {bookings.length === 0 ? (
-          <p className="text-sm text-gray-600">No bookings yet.</p>
+          <p className="text-sm text-gray-600">No bookings for this date.</p>
         ) : (
           <ul className="divide-y">
             {bookings.map((b: any) => (
@@ -139,6 +148,69 @@ export default function StaffRoomsPage() {
             ))}
           </ul>
         )}
+      </div>
+
+      {/* Booking Form */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-4">Book a Room</h2>
+        
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium mb-1">Room</label>
+            <select
+              className="w-full border rounded px-3 py-2"
+              value={room}
+              onChange={(e) => setRoom(e.target.value as RoomKey)}
+            >
+              <option value="staff_conference">Staff Conference Room</option>
+              <option value="dg_conference">DG Conference Room</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Date</label>
+            <DatePicker selected={selectedDate} onChange={(d) => setSelectedDate(d)} minDate={new Date()} className="w-full border rounded px-3 py-2" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Start Time</label>
+            <TimePicker value={startTime} onChange={setStartTime} placeholder="Select start time" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">End Time</label>
+            <TimePicker value={endTime} onChange={setEndTime} placeholder="Select end time" />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1">Title (optional)</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border rounded px-3 py-2" />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium mb-1">Description (optional)</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border rounded px-3 py-2" rows={3} />
+          </div>
+
+          {/* Conflict Warning */}
+          {hasConflict && (
+            <div className="md:col-span-2">
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-red-800 text-sm">
+                  ⚠️ This time slot conflicts with an existing booking. Please choose a different time.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="md:col-span-2 flex justify-end">
+            <Button 
+              onClick={handleCreate}
+              disabled={hasConflict}
+              className={hasConflict ? "opacity-50 cursor-not-allowed" : ""}
+            >
+              Book Room
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

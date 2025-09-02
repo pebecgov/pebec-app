@@ -90,11 +90,6 @@ export default function StaffAnalytics() {
           bookings={todayRoomStaff || []}
           href="/staff/rooms"
         />
-        <RoomAvailabilityCard
-          title="DG Conference Room"
-          bookings={todayRoomDG || []}
-          href="/staff/rooms"
-        />
       </div>
       <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
         <span role="img" aria-label="chart">
@@ -165,7 +160,7 @@ function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookin
     <div className="bg-white border rounded-2xl p-6 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-md font-semibold text-gray-800">{title} — Today</h3>
-        <a href={href} className="text-sm text-blue-600 hover:underline">Manage</a>
+        <a href={href} className="text-sm cursor-pointer text-blue-600 hover:underline">Book</a>
       </div>
       {bookings.length === 0 ? (
         <p className="text-sm text-gray-500">Available all day.</p>
