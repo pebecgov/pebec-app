@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "@clerk/nextjs";
 import { FaChevronDown, FaChevronUp, FaAngleDoubleLeft, FaAngleDoubleRight, FaFileArchive, FaRegFileArchive } from "react-icons/fa";
-import { ChartAreaIcon, LogOut, NotebookPenIcon } from "lucide-react";
+import { ChartAreaIcon, LogOut, NotebookPenIcon, ChartBarIcon } from "lucide-react";
 import { ChevronDownIcon, ChevronUpIcon, ArrowLeftCircleIcon, ArrowRightCircleIcon, HomeIcon, ClipboardDocumentIcon, PresentationChartBarIcon, UserGroupIcon, DocumentIcon, EnvelopeIcon, PuzzlePieceIcon, BookOpenIcon, UserCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { useQuery } from "convex/react";
@@ -53,6 +53,10 @@ export default function Sidebar({
     name: "ReportGov",
     icon: <ExclamationTriangleIcon className="w-5 h-5" />,
     path: "/admin/tickets"
+  }, {
+    name: "Scoring Metrics",
+    icon: <ChartBarIcon className="w-5 h-5" />,
+    path: "/admin/scoring-metrics"
   }, {
     name: "Reports & Letters",
     icon: <DocumentIcon className="w-5 h-5" />,
