@@ -54,6 +54,10 @@ export default function Sidebar({
     icon: <ExclamationTriangleIcon className="w-5 h-5" />,
     path: "/admin/tickets"
   }, {
+    name: "Scoring Metrics",
+    icon: <ChartBarIcon className="w-5 h-5" />,
+    path: "/admin/scoring-metrics"
+  }, {
     name: "Reports & Letters",
     icon: <DocumentIcon className="w-5 h-5" />,
     items: [{
