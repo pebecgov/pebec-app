@@ -56,8 +56,80 @@ export default defineSchema({
     email: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     assignedUsers: v.array(v.id("users")),
-    createdAt: v.number()
-  }).index("byName", ["name"]),
+    createdAt: v.number(),
+    // Scoring Metrics Fields
+    currentScore: v.optional(v.number()), // Overall performance score (0-100)
+    lastScoredAt: v.optional(v.number()), // When the last scoring was done
+    scoringPeriod: v.optional(v.string()), // e.g., "Q1 2025", "Monthly"
+    // Individual metric scores
+    serviceLevelAgreementScore: v.optional(v.number()), // 0-30 points
+    mysteryShoppingScore: v.optional(v.number()), // 0-20 points
+    interMdaCollaborationScore: v.optional(v.number()), // 0-15 points
+    stakeholderEngagementScore: v.optional(v.number()), // 0-10 points
+    reportGovernanceScore: v.optional(v.number()), // 0-5 points
+    reportGovernanceResolutionScore: v.optional(v.number()), // 0-15 points
+    monthlyReportSubmissionScore: v.optional(v.number()), // 0-3 points
+    timelinessInSubmittingScore: v.optional(v.number()), // 0-2 points
+    // Performance indicators
+    totalTickets: v.optional(v.number()),
+    resolvedTickets: v.optional(v.number()),
+    averageResponseTime: v.optional(v.number()), // in hours
+    averageResolutionTime: v.optional(v.number()), // in hours
+    resolutionRate: v.optional(v.number()), // percentage
+    // Website indicators
+    hasActiveWebsite: v.optional(v.boolean()),
+    hasReportGovLink: v.optional(v.boolean()),
+    hasActiveUsers: v.optional(v.boolean())
+  }).index("byName", ["name"]).index("byScore", ["currentScore"]),
+  
+  // New table for scoring history
+  mda_scoring_history: defineTable({
+    mdaId: v.id("mdas"),
+    mdaName: v.string(),
+    scoringPeriod: v.string(), // e.g., "Q1 2025", "Monthly"
+    scoredBy: v.id("users"), // Admin who did the scoring
+    scoredAt: v.number(),
+    // Individual metric scores
+    serviceLevelAgreementScore: v.number(),
+    mysteryShoppingScore: v.number(),
+    interMdaCollaborationScore: v.number(),
+    stakeholderEngagementScore: v.number(),
+    reportGovernanceScore: v.number(),
+    reportGovernanceResolutionScore: v.number(),
+    monthlyReportSubmissionScore: v.number(),
+    timelinessInSubmittingScore: v.number(),
+    // Total scores
+    totalScore: v.number(),
+    totalPercentage: v.number(),
+    grade: v.string(), // A, B, C, D, F
+    status: v.string(), // Compliant, Non-Compliant
+    // Performance data at time of scoring
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    averageResponseTime: v.number(),
+    averageResolutionTime: v.number(),
+    resolutionRate: v.number(),
+    // Notes and comments
+    notes: v.optional(v.string()),
+    recommendations: v.optional(v.string())
+  }).index("byMda", ["mdaId"]).index("byPeriod", ["scoringPeriod"]).index("byDate", ["scoredAt"]),
+  
+  // New table for monthly report tracking
+  mda_monthly_reports: defineTable({
+    mdaId: v.id("mdas"),
+    mdaName: v.string(),
+    month: v.string(), // e.g., "January 2025"
+    year: v.number(),
+    deadline: v.number(), // timestamp
+    submittedDate: v.optional(v.number()), // timestamp when submitted
+    submitted: v.boolean(),
+    onTime: v.boolean(),
+    reportFileId: v.optional(v.id("_storage")),
+    reportFileName: v.optional(v.string()),
+    submittedBy: v.optional(v.id("users")),
+    status: v.union(v.literal("pending"), v.literal("submitted"), v.literal("late"), v.literal("overdue")),
+    notes: v.optional(v.string())
+  }).index("byMda", ["mdaId"]).index("byMonth", ["month", "year"]).index("byStatus", ["status"]),
   tickets: defineTable({
     title: v.string(),
     description: v.string(),
