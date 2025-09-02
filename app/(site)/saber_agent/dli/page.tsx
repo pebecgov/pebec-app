@@ -28,6 +28,7 @@ export default function ViewDLIPage() {
   const [selectedDli, setSelectedDli] = useState<string | null>(null);
   const [stepNames, setStepNames] = useState<string[]>([]);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showBERAPModal, setShowBERAPModal] = useState(false);
   const [activeStep, setActiveStep] = useState<{
     [key: string]: number;
   }>({});
@@ -46,14 +47,22 @@ export default function ViewDLIPage() {
     map[progress.dliTemplateId] = progress;
     return map;
   }, {} as Record<string, any>);
+
   const handleStart = (dliId: string, steps: {
     title: string;
-  }[]) => {
+  }[], dliTitle: string) => {
     if (!steps || steps.length === 0) return;
     setSelectedDli(dliId);
     setStepNames(steps.map(s => s.title));
-    setShowSetupModal(true);
+    
+    // Check if this is the BERAP ELIGIBLITY CRITERIA DLI
+    if (dliTitle === "BERAP ELIGIBLITY CRITERIA") {
+      setShowBERAPModal(true);
+    } else {
+      setShowSetupModal(true);
+    }
   };
+
   const handleConfirmStart = async () => {
     if (!selectedDli || stepNames.length === 0) return;
     try {
@@ -74,6 +83,7 @@ export default function ViewDLIPage() {
         }))
       });
       setShowSetupModal(false);
+      setShowBERAPModal(false);
       router.push(`/saber_agent/dli/${selectedDli}`);
     } catch (err) {
       console.error("Failed to start DLI:", err);
@@ -259,7 +269,7 @@ export default function ViewDLIPage() {
 
                 <Button onClick={() => {
                   if (!isStarted) {
-                    handleStart(dli._id, progress.steps);
+                    handleStart(dli._id, progress.steps, dli.title);
                   } else {
                     router.push(`/saber_agent/dli/${dli._id}`);
                   }
@@ -340,6 +350,101 @@ export default function ViewDLIPage() {
       </Button>
     </div>
   </div>}
+
+      {/* BERAP ELIGIBLITY CRITERIA Modal */}
+      {showBERAPModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white p-8 rounded-xl shadow-lg">
+          <button onClick={() => setShowBERAPModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-black">
+            <X size={20} />
+          </button>
+
+                     <h2 className="text-2xl font-bold mb-6 text-center text-green-600">BERAP ELIGIBLITY CRITERIA</h2>
+
+           <div className="space-y-6 text-sm leading-relaxed">
+             <div>
+               <h3 className="font-semibold text-lg mb-3 text-green-600">1. Improved planning and accountability of business-enabling reforms</h3>
+              <p className="mb-3">
+                State Business-Enabling Reform Action Plans (BERAP) are annual documents prepared by the state, approved by the State 
+                Executive Council, and published on an official State website, outlining the state's 12-month detailed plan to improve the 
+                business-enabling environment. The BERAPs, at a minimum, must include:
+              </p>
+              <ul className="list-disc pl-6 space-y-1 mb-3">
+                <li>list of contributing entities</li>
+                <li>summary of private sector consultations (except for the Annual State BERAP for 2023)</li>
+                <li>Reform objective and defined actions</li>
+                <li>timelines</li>
+                <li>list of responsible entities for the actions</li>
+                <li>targets (quantifiable impact of reform actions to the private sector)</li>
+              </ul>
+              <p className="mb-3">
+                The Progress Report of the BERAP is a document prepared by the state that shows the progress that has been made by the 
+                State towards achieving the targets set forth in the BERAP, or—in the case the state did not produce a BERAP the previous 
+                year–other state documents. The Progress Report should, at a minimum, include:
+              </p>
+              <ul className="list-disc pl-6 space-y-1 mb-3">
+                <li>the status of each action in the BERAP, or other state documents, and its resulting impact</li>
+                <li>explanation for actions not completed by the expected end-date</li>
+                <li>next steps</li>
+              </ul>
+              <p>
+                The approved BERAP will be made available on an official State website that can be accessed by the deadline defined  
+                in the Eligibility Criteria table.
+              </p>
+            </div>
+
+                         <div>
+               <h3 className="font-semibold text-lg mb-3 text-green-600">2. Continued transparency of annual State Budget and Audited Financial Statements</h3>
+              <p className="mb-3">
+                The following disclosures will be made on the official website of the State that can be accessed by the deadline 
+                defined in the Eligibility Criteria Table:
+              </p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <strong>Annual state budget approved by the State Assembly:</strong> This means that the annual state budget has been passed by 
+                  the State Assembly and has obtained the Governor's assent by the specified date in the Eligibility Criteria Table. The 
+                  approved budget shall include appropriations according to the functional/organizational and detailed economic 
+                  classifications of expenditures.
+                </li>
+                <li>
+                  <strong>Annual state budget prepared under national Chart of Accounts (GFS compliant):</strong> The national Chart of Accounts 
+                  (CoA) is the approved FAAC CoA/budget classification system, domesticated to the State requirement in terms of 
+                  elements without varying the structure and segments.
+                </li>
+                <li>
+                  <strong>Audited financial statements:</strong> The annual audited financial statements should contain a complete set of financial 
+                  statements including, at a minimum: the sources and uses of funds statements (or receipts and payments of funds 
+                  statement); the appropriation for the year in review as well as the actual spending and balances against the 
+                  appropriation; comparative actual expenditures of the preceding year; a summary statement of the state's debt 
+                  stock and debt servicing; accounting policies applied; and all disclosure notes to the accounts required under the 
+                  selected financial reporting framework.
+                </li>
+                <li>
+                  <strong>International Public Sector Accounting Standards (IPSAS).</strong> IPSAS-compliant annual audited financial statements: 
+                  At the minimum, Part 1 of the IPSAS Cash Basis of reporting should be applied by each state.
+                </li>
+              </ul>
+            </div>
+
+                         <div>
+               <h3 className="font-semibold text-lg mb-3 text-green-600">3. Strengthened and transparent debt management</h3>
+              <p>
+                States publish an annual State Debt Sustainability Analysis and Debt Management Strategy Report (SDSA-DMSR) by 
+                December 31 of the relevant year. The SDSA-DMSR must include the following: (1) medium-term budget forecasts; 
+                (2) detailed description of the debt portfolio and borrowing options; including a summary analysis of the 
+                projections of performance indicators used to assess Debt Management Strategy, and their implications for cost
+                risk profile of State debt portfolio for the 4th year ahead (i.e., t+4); and (3) analysis of the debt and fiscal figures in 
+                the preceding calendar year. The SDSA-DMSR must be published on a state official website.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 flex justify-center">
+                         <Button onClick={handleConfirmStart} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg rounded-xl">
+               Proceed
+             </Button>
+          </div>
+        </div>
+      </div>}
 
     </div>;
 }
