@@ -26,7 +26,7 @@ export default function ReportGovPage() {
     if (isSignedIn && user?.publicMetadata?.role === "user") {
       router.push("/reportgov");
     } else {
-      router.push("/reportgov-guest");
+      router.push("/reportgov-guest?guest=1");
     }
   };
   const handleSignInClick = () => router.push("/sign-in");
