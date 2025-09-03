@@ -165,14 +165,23 @@ function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookin
       {bookings.length === 0 ? (
         <p className="text-sm text-gray-500">Available all day.</p>
       ) : (
-        <ul className="space-y-2">
-          {bookings.map((b) => (
-            <li key={b._id} className="text-sm text-gray-700">
-              {formatRange(b)}
-              {b.title ? ` — ${b.title}` : ""}
-            </li>
-          ))}
-        </ul>
+                 <ul className="space-y-2">
+           {bookings.map((b) => (
+             <li key={b._id} className="text-sm text-gray-700">
+               {formatRange(b)}
+               <span 
+                 className={`text-xs font-medium capitalize ml-2 px-2 py-1 rounded-full ${
+                   (b.meetingType || "internal") === "internal" 
+                     ? "bg-green-100 text-green-800" 
+                     : "bg-red-100 text-red-800"
+                 }`}
+               >
+                 {(b.meetingType || "internal") === "internal" ? "Internal" : "External"}
+               </span>
+               {b.title ? ` — ${b.title}` : ""}
+             </li>
+           ))}
+         </ul>
       )}
     </div>
   );

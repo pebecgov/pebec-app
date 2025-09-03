@@ -26,6 +26,7 @@ export default function StaffRoomsPage() {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [meetingType, setMeetingType] = useState<"internal" | "external">("internal");
 
   const dateStr = useMemo(() => (selectedDate ? selectedDate.toISOString().split("T")[0] : ""), [selectedDate]);
   const bookings = useQuery(api.meetings.listRoomBookingsByDate, dateStr ? { room, date: dateStr } : "skip") || [];
@@ -80,11 +81,13 @@ export default function StaffRoomsPage() {
         endTime: fmt(e),
         title: title || undefined,
         description: description || undefined,
+        meetingType: meetingType,
         createdBy: convexUser._id,
       });
       toast.success("Room booked successfully!");
       setTitle("");
       setDescription("");
+      setMeetingType("internal");
       setStartTime(null);
       setEndTime(null);
     } catch (e: any) {
@@ -137,6 +140,7 @@ export default function StaffRoomsPage() {
               <li key={b._id} className="py-3 flex items-center justify-between">
                 <div>
                   <p className="font-medium">{b.startTime} - {b.endTime} ({b.room === "staff_conference" ? "Staff Room" : "DG Room"})</p>
+                  <p className="text-sm text-gray-500 capitalize">{b.meetingType || "internal"} meeting</p>
                   {(b.title || b.description) && (
                     <p className="text-sm text-gray-600">{b.title || b.description}</p>
                   )}
@@ -164,6 +168,18 @@ export default function StaffRoomsPage() {
             >
               <option value="staff_conference">Staff Conference Room</option>
               <option value="dg_conference">DG Conference Room</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Meeting Type</label>
+            <select
+              className="w-full border rounded px-3 py-2"
+              value={meetingType}
+              onChange={(e) => setMeetingType(e.target.value as "internal" | "external")}
+            >
+              <option value="internal">Internal Meeting</option>
+              <option value="external">External Meeting</option>
             </select>
           </div>
 

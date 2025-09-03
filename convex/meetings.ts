@@ -624,10 +624,11 @@ export const createRoomBooking = mutation({
     endTime: v.string(), // HH:mm
     title: v.optional(v.string()),
     description: v.optional(v.string()),
+    meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
     createdBy: v.id("users")
   },
   handler: async (ctx, args) => {
-    const { room, date, startTime, endTime, title, description, createdBy } = args;
+    const { room, date, startTime, endTime, title, description, meetingType, createdBy } = args;
 
     // Validate time ordering and working hours 08:00-18:00
     const [sh, sm] = startTime.split(":").map(Number);
@@ -666,7 +667,8 @@ export const createRoomBooking = mutation({
       createdBy,
       createdAt: Date.now(),
       title,
-      description
+      description,
+      meetingType
     });
 
     // Notify admins (optional: notify all staff/admins)
