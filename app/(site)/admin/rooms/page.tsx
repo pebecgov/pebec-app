@@ -27,6 +27,7 @@ export default function AdminRoomsPage() {
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [meetingType, setMeetingType] = useState<"internal" | "external">("internal");
 
   const dateStr = useMemo(() => (selectedDate ? selectedDate.toISOString().split("T")[0] : ""), [selectedDate]);
   
@@ -86,11 +87,13 @@ export default function AdminRoomsPage() {
         endTime: fmt(e),
         title: title || undefined,
         description: description || undefined,
+        meetingType: meetingType,
         createdBy: convexUser._id,
       });
       toast.success("Room booked successfully!");
       setTitle("");
       setDescription("");
+      setMeetingType("internal");
       setStartTime(null);
       setEndTime(null);
     } catch (e: any) {
@@ -205,6 +208,7 @@ export default function AdminRoomsPage() {
                           Delete
                         </Button>
                       </div>
+                      <p className="text-sm text-gray-500 capitalize mb-1">{booking.meetingType || "internal"} meeting</p>
                       {booking.title && (
                         <p className="font-medium text-gray-900 mb-1">{booking.title}</p>
                       )}
@@ -239,7 +243,7 @@ export default function AdminRoomsPage() {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-green-600" />
-                          <span className="font-medium text-sm">
+                          <span className="text-sm">
                             {formatTime(booking.startTime)} - {formatTime(booking.endTime)}
                           </span>
                         </div>
@@ -251,6 +255,7 @@ export default function AdminRoomsPage() {
                           Delete
                         </Button>
                       </div>
+                      <p className="text-sm text-gray-500 capitalize mb-1">{booking.meetingType || "internal"} meeting</p>
                       {booking.title && (
                         <p className="font-medium text-gray-900 mb-1">{booking.title}</p>
                       )}
@@ -281,6 +286,18 @@ export default function AdminRoomsPage() {
               >
                 <option value="staff_conference">Staff Conference Room</option>
                 <option value="dg_conference">DG Conference Room</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Meeting Type</label>
+              <select
+                className="w-full border rounded-lg px-3 py-2"
+                value={meetingType}
+                onChange={(e) => setMeetingType(e.target.value as "internal" | "external")}
+              >
+                <option value="internal">Internal Meeting</option>
+                <option value="external">External Meeting</option>
               </select>
             </div>
 
