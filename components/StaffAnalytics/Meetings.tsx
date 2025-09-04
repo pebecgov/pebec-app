@@ -156,6 +156,26 @@ export default function StaffAnalytics() {
 
 function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookings: any[]; href: string }) {
   const formatRange = (b: any) => `${b.startTime} - ${b.endTime}`;
+  
+  // Get all unique attendee IDs from all bookings
+  const allAttendeeIds = bookings
+    .filter(b => b.attendees && b.attendees.length > 0)
+    .flatMap(b => b.attendees)
+    .filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
+  
+  const attendeeUsers = useQuery(
+    api.meetings.getUsersByIds, 
+    allAttendeeIds.length > 0 ? { userIds: allAttendeeIds } : "skip"
+  ) || [];
+  
+  const getAttendeeNames = (attendeeIds: string[]) => {
+    if (!attendeeIds || attendeeIds.length === 0) return [];
+    return attendeeIds.map(id => {
+      const user = attendeeUsers.find(u => u && u._id === id);
+      return user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email : "Unknown";
+    });
+  };
+  
   return (
     <div className="bg-white border rounded-2xl p-6 shadow-sm">
       <div className="flex items-center justify-between mb-3">
@@ -167,19 +187,30 @@ function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookin
       ) : (
                  <ul className="space-y-2">
            {bookings.map((b) => (
-             <li key={b._id} className="text-sm text-gray-700">
-               {formatRange(b)}
-               <span 
-                 className={`text-xs font-medium capitalize ml-2 px-2 py-1 rounded-full ${
-                   (b.meetingType || "internal") === "internal" 
-                     ? "bg-green-100 text-green-800" 
-                     : "bg-red-100 text-red-800"
-                 }`}
-               >
-                 {(b.meetingType || "internal") === "internal" ? "Internal" : "External"}
-               </span>
-               {b.title ? ` — ${b.title}` : ""}
-             </li>
+                         <li key={b._id} className="text-sm text-gray-700">
+              {formatRange(b)}
+              <span 
+                className={`text-xs font-medium capitalize ml-2 px-2 py-1 rounded-full ${
+                  (b.meetingType || "internal") === "internal" 
+                    ? "bg-green-100 text-green-800" 
+                    : "bg-red-100 text-red-800"
+                }`}
+              >
+                {(b.meetingType || "internal") === "internal" ? "Internal" : "External"}
+              </span>
+              {b.title ? ` — ${b.title}` : ""}
+              {b.attendees && b.attendees.length > 0 && (
+                <div className="mt-1">
+                  <span className="text-xs text-gray-500">
+                    Attendees ({b.attendees.length}): {
+                      attendeeUsers.length > 0 
+                        ? getAttendeeNames(b.attendees).join(", ")
+                        : "Loading..."
+                    }
+                  </span>
+                </div>
+              )}
+            </li>
            ))}
          </ul>
       )}

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { TimePicker } from "@/components/ui/time-picker";
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ArrowLeft, Calendar, Clock, Users, Building2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import StaffMemberSelector from "@/components/StaffMemberSelector";
 
 type RoomKey = "staff_conference" | "dg_conference";
 
@@ -28,12 +30,35 @@ export default function AdminRoomsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [meetingType, setMeetingType] = useState<"internal" | "external">("internal");
+  const [attendees, setAttendees] = useState<Id<"users">[]>([]);
 
   const dateStr = useMemo(() => (selectedDate ? selectedDate.toISOString().split("T")[0] : ""), [selectedDate]);
   
   // Get bookings for both rooms
   const staffBookings = useQuery(api.meetings.listRoomBookingsByDate, dateStr ? { room: "staff_conference", date: dateStr } : "skip") || [];
   const dgBookings = useQuery(api.meetings.listRoomBookingsByDate, dateStr ? { room: "dg_conference", date: dateStr } : "skip") || [];
+  
+  // Get all unique attendee IDs from all bookings
+  const allAttendeeIds = useMemo(() => {
+    return [...staffBookings, ...dgBookings]
+      .filter(b => b.attendees && b.attendees.length > 0)
+      .flatMap(b => b.attendees)
+      .filter((id): id is Id<"users"> => id !== undefined)
+      .filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
+  }, [staffBookings, dgBookings]);
+  
+  const attendeeUsers = useQuery(
+    api.meetings.getUsersByIds, 
+    allAttendeeIds.length > 0 ? { userIds: allAttendeeIds } : "skip"
+  ) || [];
+  
+  const getAttendeeNames = (attendeeIds: string[]) => {
+    if (!attendeeIds || attendeeIds.length === 0) return [];
+    return attendeeIds.map(id => {
+      const user = attendeeUsers.find(u => u && u._id === id);
+      return user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email : "Unknown";
+    });
+  };
   
   const createBooking = useMutation(api.meetings.createRoomBooking);
   const deleteBooking = useMutation(api.meetings.deleteRoomBooking);
@@ -88,12 +113,14 @@ export default function AdminRoomsPage() {
         title: title || undefined,
         description: description || undefined,
         meetingType: meetingType,
+        attendees: meetingType === "internal" && attendees.length > 0 ? attendees : undefined,
         createdBy: convexUser._id,
       });
       toast.success("Room booked successfully!");
       setTitle("");
       setDescription("");
       setMeetingType("internal");
+      setAttendees([]);
       setStartTime(null);
       setEndTime(null);
     } catch (e: any) {
@@ -215,6 +242,22 @@ export default function AdminRoomsPage() {
                       {booking.description && (
                         <p className="text-sm text-gray-600">{booking.description}</p>
                       )}
+                      {booking.attendees && booking.attendees.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500 mb-1">Attendees ({booking.attendees.length}):</p>
+                          <div className="flex flex-wrap gap-1">
+                            {attendeeUsers.length > 0 ? (
+                              getAttendeeNames(booking.attendees).map((name, index) => (
+                                <span key={index} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  {name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-400">Loading...</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -261,6 +304,22 @@ export default function AdminRoomsPage() {
                       )}
                       {booking.description && (
                         <p className="text-sm text-gray-600">{booking.description}</p>
+                      )}
+                      {booking.attendees && booking.attendees.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500 mb-1">Attendees ({booking.attendees.length}):</p>
+                          <div className="flex flex-wrap gap-1">
+                            {attendeeUsers.length > 0 ? (
+                              getAttendeeNames(booking.attendees).map((name, index) => (
+                                <span key={index} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  {name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-400">Loading...</span>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -339,6 +398,17 @@ export default function AdminRoomsPage() {
                 placeholder="Meeting description"
               />
             </div>
+
+            {/* Staff Member Selection - Only show for internal meetings */}
+            {meetingType === "internal" && (
+              <div className="md:col-span-2">
+                <StaffMemberSelector
+                  selectedStaff={attendees}
+                  onStaffChange={setAttendees}
+                  disabled={hasConflict}
+                />
+              </div>
+            )}
 
             {/* Conflict Warning */}
             {hasConflict && (
