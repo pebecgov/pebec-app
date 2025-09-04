@@ -498,7 +498,8 @@ export default defineSchema({
     createdAt: v.number(),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
-    meetingType: v.optional(v.union(v.literal("internal"), v.literal("external")))
+    meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
+    attendees: v.optional(v.array(v.id("users")))
   })
     .index("byDate", ["date"]) 
     .index("byRoomAndDate", ["room", "date"]) 

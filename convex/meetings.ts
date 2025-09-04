@@ -625,10 +625,11 @@ export const createRoomBooking = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
+    attendees: v.optional(v.array(v.id("users"))),
     createdBy: v.id("users")
   },
   handler: async (ctx, args) => {
-    const { room, date, startTime, endTime, title, description, meetingType, createdBy } = args;
+    const { room, date, startTime, endTime, title, description, meetingType, attendees, createdBy } = args;
 
     // Validate time ordering and working hours 08:00-18:00
     const [sh, sm] = startTime.split(":").map(Number);
@@ -668,7 +669,8 @@ export const createRoomBooking = mutation({
       createdAt: Date.now(),
       title,
       description,
-      meetingType
+      meetingType,
+      attendees
     });
 
     // Notify admins (optional: notify all staff/admins)
@@ -681,6 +683,50 @@ export const createRoomBooking = mutation({
         createdAt: Date.now(),
         type: "room_booking_created"
       });
+    }
+
+    // If it's an internal meeting with attendees, notify them
+    if (meetingType === "internal" && attendees && attendees.length > 0) {
+      const creator = await ctx.db.get(createdBy);
+      const roomName = room === "staff_conference" ? "Staff Conference Room" : "DG Conference Room";
+      
+      for (const attendeeId of attendees) {
+        const attendee = await ctx.db.get(attendeeId);
+        if (attendee) {
+          // Create notification
+          await ctx.db.insert("notifications", {
+            userId: attendeeId,
+            message: `You've been invited to a meeting: ${title || "Room Booking"} in ${roomName} on ${date} at ${startTime}-${endTime}`,
+            isRead: false,
+            createdAt: Date.now(),
+            type: "meeting_invite"
+          });
+
+          // Send email if attendee has email
+          if (attendee.email) {
+            await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+              to: attendee.email,
+              subject: `Meeting Invitation: ${title || "Room Booking"}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                  <h2 style="color: #1976d2;">Meeting Invitation</h2>
+                  <p>Hello ${attendee.firstName || "User"},</p>
+                  <p>You have been invited to a meeting by ${creator?.firstName || "Staff Member"}.</p>
+                  <p><strong>Meeting Details:</strong></p>
+                  <ul>
+                    <li><strong>Title:</strong> ${title || "Room Booking"}</li>
+                    <li><strong>Room:</strong> ${roomName}</li>
+                    <li><strong>Date:</strong> ${date}</li>
+                    <li><strong>Time:</strong> ${startTime} - ${endTime}</li>
+                    ${description ? `<li><strong>Description:</strong> ${description}</li>` : ""}
+                  </ul>
+                  <p>Please check your calendar and confirm your attendance.</p>
+                </div>
+              `
+            });
+          }
+        }
+      }
     }
 
     return { success: true, bookingId };
@@ -698,6 +744,41 @@ export const listRoomBookingsByDate = query({
       .withIndex("byRoomAndDate", q => q.eq("room", room).eq("date", date))
       .collect();
     return rows.sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+  }
+});
+
+export const getAllStaffMembers = query({
+  args: {},
+  handler: async (ctx) => {
+    const staff = await ctx.db
+      .query("users")
+      .withIndex("byRole", q => q.eq("role", "staff"))
+      .collect();
+    const admins = await ctx.db
+      .query("users")
+      .withIndex("byRole", q => q.eq("role", "admin"))
+      .collect();
+    
+    // Combine staff and admins, sort by name
+    const allStaff = [...staff, ...admins].sort((a, b) => {
+      const nameA = `${a.firstName || ""} ${a.lastName || ""}`.trim();
+      const nameB = `${b.firstName || ""} ${b.lastName || ""}`.trim();
+      return nameA.localeCompare(nameB);
+    });
+    
+    return allStaff;
+  }
+});
+
+export const getUsersByIds = query({
+  args: {
+    userIds: v.array(v.id("users"))
+  },
+  handler: async (ctx, { userIds }) => {
+    const users = await Promise.all(
+      userIds.map(id => ctx.db.get(id))
+    );
+    return users.filter(Boolean);
   }
 });
 
