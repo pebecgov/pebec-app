@@ -99,8 +99,19 @@ export default function StaffMemberSelector({ selectedStaff, onStaffChange, disa
               onValueChange={setSearchValue}
             />
             <CommandEmpty>No staff members found.</CommandEmpty>
-            <CommandGroup>
-              {staffMembers.map((staff) => (
+            <CommandGroup className="max-h-60 overflow-y-auto">
+              {staffMembers
+                .filter((staff) => {
+                  if (!searchValue) return true;
+                  const fullName = `${staff.firstName || ""} ${staff.lastName || ""}`.trim();
+                  const searchLower = searchValue.toLowerCase();
+                  return (
+                    fullName.toLowerCase().includes(searchLower) ||
+                    staff.email.toLowerCase().includes(searchLower) ||
+                    staff.role.toLowerCase().includes(searchLower)
+                  );
+                })
+                .map((staff) => (
                 <CommandItem
                   key={staff._id}
                   onSelect={() => handleSelect(staff._id)}

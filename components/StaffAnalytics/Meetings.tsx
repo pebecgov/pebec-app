@@ -8,6 +8,7 @@ import { useMemo, JSX } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { CalendarDaysIcon, ClockIcon } from "@heroicons/react/24/solid";
+import RoomAvailabilityCardComponent from "@/components/RoomAvailabilityCard";
 export default function StaffAnalytics() {
   const { user } = useUser();
   const currentUser = useQuery(api.users.getCurrentUsers);
@@ -85,10 +86,10 @@ export default function StaffAnalytics() {
   if (!currentUser) return <div className="p-6 text-center text-gray-400">Loading user info...</div>;
   return <div className="w-full max-w-6xl mx-auto px-4 py-10">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <RoomAvailabilityCard
+        <RoomAvailabilityCardComponent
           title="Staff Conference Room"
-          bookings={todayRoomStaff || []}
           href="/staff/rooms"
+          room="staff_conference"
         />
       </div>
       <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
@@ -152,68 +153,4 @@ export default function StaffAnalytics() {
         </div>
       </div>
     </div>;
-}
-
-function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookings: any[]; href: string }) {
-  const formatRange = (b: any) => `${b.startTime} - ${b.endTime}`;
-  
-  // Get all unique attendee IDs from all bookings
-  const allAttendeeIds = bookings
-    .filter(b => b.attendees && b.attendees.length > 0)
-    .flatMap(b => b.attendees)
-    .filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
-  
-  const attendeeUsers = useQuery(
-    api.meetings.getUsersByIds, 
-    allAttendeeIds.length > 0 ? { userIds: allAttendeeIds } : "skip"
-  ) || [];
-  
-  const getAttendeeNames = (attendeeIds: string[]) => {
-    if (!attendeeIds || attendeeIds.length === 0) return [];
-    return attendeeIds.map(id => {
-      const user = attendeeUsers.find(u => u && u._id === id);
-      return user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email : "Unknown";
-    });
-  };
-  
-  return (
-    <div className="bg-white border rounded-2xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-md font-semibold text-gray-800">{title} — Today</h3>
-        <a href={href} className="text-sm cursor-pointer text-blue-600 hover:underline">Book</a>
-      </div>
-      {bookings.length === 0 ? (
-        <p className="text-sm text-gray-500">Available all day.</p>
-      ) : (
-                 <ul className="space-y-2">
-           {bookings.map((b) => (
-                         <li key={b._id} className="text-sm text-gray-700">
-              {formatRange(b)}
-              <span 
-                className={`text-xs font-medium capitalize ml-2 px-2 py-1 rounded-full ${
-                  (b.meetingType || "internal") === "internal" 
-                    ? "bg-green-100 text-green-800" 
-                    : "bg-red-100 text-red-800"
-                }`}
-              >
-                {(b.meetingType || "internal") === "internal" ? "Internal" : "External"}
-              </span>
-              {b.title ? ` — ${b.title}` : ""}
-              {b.attendees && b.attendees.length > 0 && (
-                <div className="mt-1">
-                  <span className="text-xs text-gray-500">
-                    Attendees ({b.attendees.length}): {
-                      attendeeUsers.length > 0 
-                        ? getAttendeeNames(b.attendees).join(", ")
-                        : "Loading..."
-                    }
-                  </span>
-                </div>
-              )}
-            </li>
-           ))}
-         </ul>
-      )}
-    </div>
-  );
 }

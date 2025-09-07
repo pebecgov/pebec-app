@@ -235,8 +235,18 @@ export default function ProjectsPage() {
 
       {/* Today’s Meeting Rooms availability for Investments staff */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <RoomAvailabilityCard title="Staff Conference Room" bookings={todayRoomStaff} href="/staff/rooms" />
-        <RoomAvailabilityCard title="DG Conference Room" bookings={todayRoomDG} href="/staff/rooms" />
+        <RoomAvailabilityCard 
+          title="Staff Conference Room" 
+          bookings={todayRoomStaff} 
+          href="/staff/rooms" 
+          room="staff_conference"
+        />
+        <RoomAvailabilityCard 
+          title="DG Conference Room" 
+          bookings={todayRoomDG} 
+          href="/staff/rooms" 
+          room="dg_conference"
+        />
       </div>
 
       {/* Search and Filters */}
