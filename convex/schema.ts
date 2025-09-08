@@ -26,7 +26,9 @@ export default defineSchema({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     )),
     jobTitle: v.optional(v.string()),
     roleRequest: v.optional(v.object({
@@ -226,7 +228,9 @@ export default defineSchema({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     createdBy: v.id("users"),
     headers: v.array(v.object({
@@ -251,7 +255,9 @@ export default defineSchema({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     data: v.optional(v.array(v.array(v.string()))),
     submittedAt: v.number(),
@@ -329,7 +335,9 @@ export default defineSchema({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     )),
     status: v.optional(v.union(v.literal("sent"), v.literal("acknowledged"), v.literal("in_progress"), v.literal("resolved"))),
     sentTo: v.optional(v.id("users")),

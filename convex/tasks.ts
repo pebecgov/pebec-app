@@ -33,7 +33,9 @@ export const getUsersByRole = query({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     )
   },
   handler: async (ctx, {

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -14,8 +15,25 @@ import { formatRoleAndWorkstream, formatRole } from "@/lib/formatters";
 import LetterViewModal from "@/components/Letters/LetterViewModal";
 
 export default function ReceivedLettersPage() {
+  const { user } = useUser();
   const allLetters = useQuery(api.letters.getLettersReceivedByUser) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
+  
+  // Get user role from metadata
+  const userRole = user?.publicMetadata?.role as string;
+  
+  // Determine the appropriate title based on role
+  const getTitle = () => {
+    switch (userRole) {
+      case 'ngf':
+        return '📥 NGF Received Letters';
+      case 'dmo':
+        return '📥 DMO Received Letters';
+      case 'world_bank':
+      default:
+        return '📥 Received Letters';
+    }
+  };
   const getFileUrl = useMutation(api.letters.getLetterFileUrl);
   const updateStatus = useMutation(api.letters.updateLetterStatus);
   const [fileUrls, setFileUrls] = useState<{
@@ -99,7 +117,7 @@ export default function ReceivedLettersPage() {
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-2xl font-bold text-gray-800">📥 Received Letters</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{getTitle()}</h1>
         <Button 
           variant="outline" 
           onClick={() => setFilters({

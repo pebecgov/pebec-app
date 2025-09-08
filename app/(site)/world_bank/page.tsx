@@ -4,6 +4,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableCell, TableHead } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,10 +17,27 @@ import { Id } from "@/convex/_generated/dataModel";
 const nigeriaStates = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
 
 export default function WorldBankDLIAnalysis() {
+  const { user } = useUser();
   const dliTemplates = useQuery(api.dli.getAllDliTemplates);
   const [selectedDLI, setSelectedDLI] = useState<Id<"dli_templates"> | null>(null);
   const [selectedStep, setSelectedStep] = useState<any>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  
+  // Get user role from metadata
+  const userRole = user?.publicMetadata?.role as string;
+  
+  // Determine the appropriate title based on role
+  const getTitle = () => {
+    switch (userRole) {
+      case 'ngf':
+        return 'NGF DLI Dashboard Analysis';
+      case 'dmo':
+        return 'DMO DLI Dashboard Analysis';
+      case 'world_bank':
+      default:
+        return 'World Bank DLI Dashboard Analysis';
+    }
+  };
 
   const stepAnalysis = useQuery(api.dli.getDLIStepAnalysis, 
     selectedDLI ? { dliTemplateId: selectedDLI } : "skip"
@@ -34,7 +52,7 @@ export default function WorldBankDLIAnalysis() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">World Bank DLI Dashboard Analysis</h1>
+      <h1 className="text-3xl font-bold mb-6">{getTitle()}</h1>
 
       {/* DLI Selection */}
       <div className="mb-8">
