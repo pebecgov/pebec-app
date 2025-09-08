@@ -213,6 +213,7 @@ export default function StaffRoomsPage() {
         </button>
        
       </div>
+
    {/* Booking Tab */}
    {activeTab === "booking" && (
         <div className="space-y-6">
