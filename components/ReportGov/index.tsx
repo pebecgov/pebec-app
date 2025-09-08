@@ -127,6 +127,8 @@ export default function ReportGovPage() {
               else if (role === "president") router.push("/president");
               else if (role === "vice_president") router.push("/vice_president");
               else if (role === "world_bank") router.push("/world_bank");
+              else if (role === "ngf") router.push("/world_bank");
+              else if (role === "dmo") router.push("/world_bank");
               else if (role === "user") router.push("/reportgov");
               else router.push("/");
             }} className="w-[140px] h-[140px] bg-green-800 rounded-[10px_10px_140px_10px] shadow-xl hover:scale-105 hover:bg-green-700 transition-all flex items-center justify-center">

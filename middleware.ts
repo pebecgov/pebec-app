@@ -58,8 +58,15 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // World Bank role: restrict to /world_bank only
-  if (role === "world_bank" && !isWorldBankRoute(req)) {
+  // World Bank, NGF, and DMO roles: restrict to /world_bank only
+  if ((role === "world_bank" || role === "ngf" || role === "dmo") && !isWorldBankRoute(req)) {
+    return NextResponse.redirect(new URL("/world_bank", req.url));
+  }
+  
+  // NGF and DMO roles: restrict access to letters routes
+  if ((role === "ngf" || role === "dmo") && 
+      (req.nextUrl.pathname === "/world_bank/send-letters" || 
+       req.nextUrl.pathname === "/world_bank/received-letters")) {
     return NextResponse.redirect(new URL("/world_bank", req.url));
   }
 

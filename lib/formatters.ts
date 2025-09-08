@@ -17,7 +17,9 @@ export function formatRole(role: string): string {
     "state_governor": "State Governor",
     "vice_president": "Vice President",
     "world_bank": "World Bank",
-    "saber_agent": "Saber Agent"
+    "saber_agent": "Saber Agent",
+    "ngf": "NGF",
+    "dmo": "DMO"
   };
   
   // Check if we have a special mapping

@@ -20,7 +20,9 @@ export const createReportTemplate = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     createdBy: v.id("users"),
     headers: v.array(v.object({
@@ -52,7 +54,9 @@ export const submitReport = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     fileId: v.optional(v.id("_storage")),
     fileUrl: v.optional(v.string()),
@@ -153,7 +157,9 @@ export const updateReportTemplate = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     headers: v.array(v.object({
       name: v.string(),
@@ -207,7 +213,9 @@ export const submitInternalReport = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     data: v.array(v.array(v.string())),
     reportName: v.optional(v.string())
@@ -246,7 +254,9 @@ export const saveDraftReport = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     data: v.array(v.array(v.string())),
     draftId: v.optional(v.id("submitted_reports"))
@@ -421,7 +431,9 @@ export const getAvailableReports = query({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     userId: v.optional(v.id("users"))
   },

@@ -4,18 +4,51 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import { useUser } from "@clerk/nextjs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Download, FileText, FileSpreadsheet, Calendar } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 
 export default function WorldBankSaberMaterialsPage() {
+  const { user } = useUser();
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
+  
+  // Get user role from metadata
+  const userRole = user?.publicMetadata?.role as string;
+  
+  // Determine the appropriate title based on role
+  const getTitle = () => {
+    switch (userRole) {
+      case 'ngf':
+        return 'NGF SABER Documents';
+      case 'dmo':
+        return 'DMO SABER Documents';
+      case 'world_bank':
+      default:
+        return 'SABER Documents';
+    }
+  };
 
-  // Get SABER materials specifically for World Bank role
+  // Get SABER materials for World Bank, NGF, and DMO roles
   const worldBankMaterials = useQuery(api.saber_materials.getSaberMaterialsByRole, {
     role: "world_bank"
   });
+  const ngfMaterials = useQuery(api.saber_materials.getSaberMaterialsByRole, {
+    role: "ngf"
+  });
+  const dmoMaterials = useQuery(api.saber_materials.getSaberMaterialsByRole, {
+    role: "dmo"
+  });
+  
+  // Combine all materials and remove duplicates
+  const allMaterials = useMemo(() => {
+    const materials = [...(worldBankMaterials || []), ...(ngfMaterials || []), ...(dmoMaterials || [])];
+    const uniqueMaterials = materials.filter((material, index, self) => 
+      index === self.findIndex(m => m._id === material._id)
+    );
+    return uniqueMaterials.sort((a, b) => b.createdAt - a.createdAt);
+  }, [worldBankMaterials, ngfMaterials, dmoMaterials]);
 
   const getDownloadUrl = useMutation(api.tickets.getStorageUrl);
 
@@ -73,31 +106,31 @@ export default function WorldBankSaberMaterialsPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">SABER Documents</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{getTitle()}</h1>
         <p className="text-gray-600">
           Access and download SABER program materials and documentation provided by PEBEC administration.
         </p>
       </div>
 
-      {!worldBankMaterials ? (
+      {!allMaterials ? (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="ml-2 text-gray-600">Loading materials...</span>
         </div>
-      ) : worldBankMaterials.length === 0 ? (
+      ) : allMaterials.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Materials Available</h3>
             <p className="text-gray-600">
-              There are currently no SABER materials available for World Bank users. 
+              There are currently no SABER materials available for your role. 
               Please check back later or contact the administration.
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {worldBankMaterials.map((material) => (
+          {allMaterials.map((material) => (
             <Card key={material._id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">

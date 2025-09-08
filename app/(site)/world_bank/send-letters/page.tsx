@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import { useUser } from "@clerk/nextjs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Id } from "@/convex/_generated/dataModel";
 import Letters from "@/components/Letters";
@@ -12,8 +13,25 @@ import { Download, Eye, FileText } from "lucide-react";
 import LetterViewModal from "@/components/Letters/LetterViewModal";
 
 export default function ViewLettersPage() {
+  const { user } = useUser();
   const allLetters = useQuery(api.letters.getUserLetters) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
+  
+  // Get user role from metadata
+  const userRole = user?.publicMetadata?.role as string;
+  
+  // Determine the appropriate title based on role
+  const getTitle = () => {
+    switch (userRole) {
+      case 'ngf':
+        return '📬 NGF Letters';
+      case 'dmo':
+        return '📬 DMO Letters';
+      case 'world_bank':
+      default:
+        return '📬 World Bank Letters';
+    }
+  };
   const getFileUrl = useMutation(api.letters.getLetterFileUrl);
   const [fileUrls, setFileUrls] = useState<Record<string, {
     url: string;
@@ -63,7 +81,7 @@ export default function ViewLettersPage() {
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-2xl font-bold text-gray-800">📬 World Bank Letters</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{getTitle()}</h1>
         <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
           Send Letter
         </Button>

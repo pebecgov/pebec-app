@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SignOutButton } from "@clerk/nextjs";
+import { SignOutButton, useUser } from "@clerk/nextjs";
 import { FaAngleDoubleLeft, FaAngleDoubleRight } from "react-icons/fa";
 
 export default function WorldBankSidebar({
@@ -15,6 +15,23 @@ export default function WorldBankSidebar({
   setIsOpen: (value: boolean) => void;
 }) {
   const pathname = usePathname();
+  const { user } = useUser();
+  
+  // Get user role from metadata
+  const userRole = user?.publicMetadata?.role as string;
+  
+  // Determine the appropriate title based on role
+  const getTitle = () => {
+    switch (userRole) {
+      case 'ngf':
+        return 'NGF Dashboard';
+      case 'dmo':
+        return 'DMO Dashboard';
+      case 'world_bank':
+      default:
+        return 'World Bank DLI Dashboard';
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) {}
@@ -26,28 +43,38 @@ export default function WorldBankSidebar({
     }
   };
 
-  const menuSections = [
+  // Define all possible menu sections
+  const allMenuSections = [
     {
       name: "DLI Status",
       icon: "/images/saber_icon.png",
-      path: "/world_bank"
+      path: "/world_bank",
+      showFor: ["world_bank", "ngf", "dmo"] // Show for all roles
     },
     {
       name: "SABER Documents",
       icon: "/images/saber_icon.png",
-      path: "/world_bank/saber-documents"
+      path: "/world_bank/saber-documents",
+      showFor: ["world_bank", "ngf", "dmo"] // Show for all roles
     },
     {
       name: "Send Letters",
       icon: "/images/saber_icon.png",
-      path: "/world_bank/send-letters"
+      path: "/world_bank/send-letters",
+      showFor: ["world_bank"] // Only show for World Bank
     },
     {
       name: "Received Letters",
       icon: "/images/saber_icon.png",
-      path: "/world_bank/received-letters"
+      path: "/world_bank/received-letters",
+      showFor: ["world_bank"] // Only show for World Bank
     }
   ];
+  
+  // Filter menu sections based on user role
+  const menuSections = allMenuSections.filter(section => 
+    section.showFor.includes(userRole || "world_bank")
+  );
 
   return (
     <>
@@ -58,7 +85,7 @@ export default function WorldBankSidebar({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-300">
           <h2 className={`text-md font-semibold text-gray-700 ${isOpen ? "block" : "hidden"}`}>
-            World Bank <br /> DLI Dashboard
+            {getTitle()}
           </h2>
           <button 
             className="hidden md:flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full shadow-md hover:bg-gray-300 transition" 

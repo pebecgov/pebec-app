@@ -132,7 +132,9 @@ export const setUserRole = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     )
   },
   handler: async (ctx, {
@@ -456,7 +458,9 @@ export const updateUserInConvex = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     mdaId: v.optional(v.id("mdas")),
     mdaName: v.optional(v.string()),
@@ -508,7 +512,9 @@ export const updateUserRoleInConvex = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ),
     staffStream: v.optional(v.string()),
     state: v.optional(v.string()),
@@ -762,7 +768,9 @@ const allowedRoles = v.union(
   v.literal("state_governor"),
   v.literal("deputies"),
   v.literal("magistrates"),
-  v.literal("world_bank")
+  v.literal("world_bank"),
+  v.literal("ngf"),
+  v.literal("dmo")
 );
 export const requestInternalRole = mutation({
   args: {

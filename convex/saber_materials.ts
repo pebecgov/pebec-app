@@ -24,7 +24,9 @@ export const addSaberMaterial = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     )),
     reference: v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework")),
     isPublic: v.optional(v.boolean())
@@ -48,7 +50,7 @@ export const deleteSaberMaterial = mutation({
 });
 export const getSaberMaterialsByRole = query({
   args: {
-    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president"), v.literal("world_bank"))
+    role: v.union(v.literal("user"), v.literal("admin"), v.literal("mda"), v.literal("staff"), v.literal("reform_champion"), v.literal("federal"), v.literal("saber_agent"), v.literal("deputies"), v.literal("magistrates"), v.literal("state_governor"), v.literal("president"), v.literal("vice_president"), v.literal("world_bank"), v.literal("ngf"), v.literal("dmo"))
   },
   handler: async (ctx, {
     role
@@ -101,7 +103,9 @@ export const getSaberMaterialsForDashboard = query({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ))
   },
   handler: async (ctx, { role }) => {
@@ -143,7 +147,9 @@ export const updateSaberMaterialRoles = mutation({
       v.literal("state_governor"),
       v.literal("president"),
       v.literal("vice_president"),
-      v.literal("world_bank")
+      v.literal("world_bank"),
+      v.literal("ngf"),
+      v.literal("dmo")
     ))
   },
   handler: async (ctx, {

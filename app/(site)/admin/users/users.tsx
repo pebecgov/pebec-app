@@ -251,6 +251,8 @@ export default function Admin() {
           <SelectItem value="president">President</SelectItem>
           <SelectItem value="vice_president">Vice President</SelectItem>
           <SelectItem value="world_bank">World Bank</SelectItem>
+          <SelectItem value="ngf">NGF</SelectItem>
+          <SelectItem value="dmo">DMO</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -416,6 +418,8 @@ export default function Admin() {
                     <SelectItem value="president">President</SelectItem>
                     <SelectItem value="vice_president">Vice President</SelectItem>
                     <SelectItem value="world_bank">World Bank</SelectItem>
+                    <SelectItem value="ngf">NGF</SelectItem>
+                    <SelectItem value="dmo">DMO</SelectItem>
                   </SelectContent>
                 </Select>
 
