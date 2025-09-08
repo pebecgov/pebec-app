@@ -44,7 +44,7 @@ export default function StaffRoomsPage() {
   const [attendees, setAttendees] = useState<Id<"users">[]>([]);
   const [editingBooking, setEditingBooking] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"daily" | "weekly" | "booking">("daily");
+  const [activeTab, setActiveTab] = useState<"daily" | "weekly" | "booking">("booking");
 
   const dateStr = useMemo(() => (selectedDate ? selectedDate.toISOString().split("T")[0] : ""), [selectedDate]);
   const bookings = useQuery(api.meetings.listRoomBookingsByDate, dateStr ? { room, date: dateStr } : "skip") || [];
@@ -181,27 +181,7 @@ export default function StaffRoomsPage() {
 
       {/* Tabs */}
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6">
-        <button
-          onClick={() => setActiveTab("daily")}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-            activeTab === "daily"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Daily View
-        </button>
-        <button
-          onClick={() => setActiveTab("weekly")}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-            activeTab === "weekly"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Weekly View
-        </button>
-        <button
+      <button
           onClick={() => setActiveTab("booking")}
           className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
             activeTab === "booking"
@@ -211,91 +191,31 @@ export default function StaffRoomsPage() {
         >
           Book Room
         </button>
+        <button
+          onClick={() => setActiveTab("daily")}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+            activeTab === "daily"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+         Today&apos;s Meetings
+        </button>
+        <button
+          onClick={() => setActiveTab("weekly")}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+            activeTab === "weekly"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+         Scheduled Meetings
+        </button>
+       
       </div>
 
-      {/* Daily View Tab */}
-      {activeTab === "daily" && (
-        <div className="space-y-6">
-          {/* Bookings Display */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Bookings for {dateStr}</h2>
-        </div>
-        {bookings.length === 0 ? (
-          <p className="text-sm text-gray-600">No bookings for this date.</p>
-        ) : (
-          <ul className="divide-y">
-            {bookings.map((b: any) => (
-              <li key={b._id} className="py-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{b.startTime} - {b.endTime} ({b.room === "staff_conference" ? "Staff Room" : "DG Room"})</p>
-                  <p className="text-sm text-gray-500 capitalize">{b.meetingType || "internal"} meeting</p>
-                  {(b.title || b.description) && (
-                    <p className="text-sm text-gray-600">{b.title || b.description}</p>
-                  )}
-                  {b.attendees && b.attendees.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">Attendees ({b.attendees.length}):</p>
-                      <div className="flex flex-wrap gap-1">
-                        {attendeeUsers.length > 0 ? (
-                          getAttendeeNames(b.attendees).map((name, index) => (
-                            <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                              {name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-400">Loading...</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {b.creatorName && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500">
-                        Booked by: <span className="font-medium text-gray-700">{b.creatorName}</span>
-                      </p>
-                    </div>
-                  )}
-                </div>
-                {(convexUser?._id === b.createdBy || convexUser?.role === "admin") && (
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEdit(b)}>
-                      <Edit className="w-4 h-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(b._id)}>Delete</Button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-        </div>
-      )}
-
-      {/* Weekly View Tab */}
-      {activeTab === "weekly" && (
-        <div className="space-y-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-semibold mb-4">Weekly Room Availability</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              View room bookings for the next 5 working days. Use the navigation buttons to browse through different weeks.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RoomAvailabilityCard 
-              title="Staff Conference Room" 
-              href="/staff/rooms" 
-              room="staff_conference"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Booking Tab */}
-      {activeTab === "booking" && (
+   {/* Booking Tab */}
+   {activeTab === "booking" && (
         <div className="space-y-6">
           {/* Booking Form */}
       <div className="bg-white p-4 rounded-lg shadow">
@@ -390,6 +310,77 @@ export default function StaffRoomsPage() {
       </div>
         </div>
       )}
+      {/* Daily View Tab */}
+      {activeTab === "daily" && (
+        <div className="space-y-6">
+          {/* Bookings Display */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">Bookings for {dateStr}</h2>
+        </div>
+        {bookings.length === 0 ? (
+          <p className="text-sm text-gray-600">No bookings for this date.</p>
+        ) : (
+          <ul className="divide-y">
+            {bookings.map((b: any) => (
+              <li key={b._id} className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{b.startTime} - {b.endTime} ({b.room === "staff_conference" ? "Staff Room" : "DG Room"})</p>
+                  <p className="text-sm text-gray-500 capitalize">{b.meetingType || "internal"} meeting</p>
+                  {(b.title || b.description) && (
+                    <p className="text-sm text-gray-600">{b.title || b.description}</p>
+                  )}
+                  {b.attendees && b.attendees.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500 mb-1">Attendees ({b.attendees.length}):</p>
+                      <div className="flex flex-wrap gap-1">
+                        {attendeeUsers.length > 0 ? (
+                          getAttendeeNames(b.attendees).map((name, index) => (
+                            <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                              {name}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-400">Loading...</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {(convexUser?._id === b.createdBy || convexUser?.role === "admin") && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(b)}>
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(b._id)}>Delete</Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+        </div>
+      )}
+
+      {/* Weekly View Tab */}
+      {activeTab === "weekly" && (
+        <div className="space-y-6">
+        
+
+          <div className="grid lg:px-36 grid-cols-1 gap-6">
+            <RoomAvailabilityCard 
+              title="Staff Conference Room" 
+              href="/staff/rooms" 
+              room="staff_conference"
+              showBookButton={false}
+            />
+          </div>
+        </div>
+      )}
+
+   
 
       {/* Edit Modal */}
       {editingBooking && (

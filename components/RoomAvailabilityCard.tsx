@@ -13,9 +13,10 @@ interface RoomAvailabilityCardProps {
   bookings?: any[]; // Keep for backward compatibility
   href: string;
   room?: "staff_conference" | "dg_conference"; // Make optional for backward compatibility
+  showBookButton?: boolean; // Make book button optional
 }
 
-export default function RoomAvailabilityCard({ title, bookings, href, room }: RoomAvailabilityCardProps) {
+export default function RoomAvailabilityCard({ title, bookings, href, room, showBookButton = true }: RoomAvailabilityCardProps) {
   const [selectedDay, setSelectedDay] = useState(new Date());
   
   // Get next 5 working days from today
@@ -96,7 +97,9 @@ export default function RoomAvailabilityCard({ title, bookings, href, room }: Ro
           {title} — {formatDateForDisplay(selectedDay)}
           {isToday && <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Today</span>}
         </h3>
-        <a href={href} className="text-sm cursor-pointer text-green-600 hover:underline">Book</a>
+        {showBookButton && (
+          <a href={href} className="text-sm cursor-pointer text-green-600 hover:underline">Book</a>
+        )}
       </div>
 
       {/* Day Navigation */}
@@ -151,8 +154,8 @@ export default function RoomAvailabilityCard({ title, bookings, href, room }: Ro
                   <span 
                     className={`text-xs font-medium capitalize px-2 py-1 rounded-full ${
                       (b.meetingType || "internal") === "internal" 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-red-100 text-red-800"
+                        ? "bg-white text-gray-700" 
+                        : "bg-black text-white"
                     }`}
                   >
                     {(b.meetingType || "internal") === "internal" ? "Internal" : "External"}
