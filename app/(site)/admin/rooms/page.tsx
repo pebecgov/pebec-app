@@ -11,9 +11,12 @@ import "react-datepicker/dist/react-datepicker.css";
 import { TimePicker } from "@/components/ui/time-picker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, Clock, Users, Building2 } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Users, Building2, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
 import StaffMemberSelector from "@/components/StaffMemberSelector";
+import EditMeetingModal from "@/components/EditMeetingModal";
+import RoomAvailabilityCard from "@/components/RoomAvailabilityCard";
+import { isWorkingDay } from "@/lib/dateUtils";
 
 type RoomKey = "staff_conference" | "dg_conference";
 
@@ -22,15 +25,26 @@ export default function AdminRoomsPage() {
   const router = useRouter();
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
 
-  const [activeTab, setActiveTab] = useState<"admin" | "booking">("admin");
+  const [activeTab, setActiveTab] = useState<"admin" | "weekly" | "booking">("admin");
   const [room, setRoom] = useState<RoomKey>("staff_conference");
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
+    const today = new Date();
+    // If today is weekend, set to next Monday
+    if (!isWorkingDay(today)) {
+      const nextMonday = new Date(today);
+      nextMonday.setDate(today.getDate() + (1 + 7 - today.getDay()) % 7);
+      return nextMonday;
+    }
+    return today;
+  });
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [meetingType, setMeetingType] = useState<"internal" | "external">("internal");
   const [attendees, setAttendees] = useState<Id<"users">[]>([]);
+  const [editingBooking, setEditingBooking] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const dateStr = useMemo(() => (selectedDate ? selectedDate.toISOString().split("T")[0] : ""), [selectedDate]);
   
@@ -150,6 +164,16 @@ export default function AdminRoomsPage() {
     return timeStr;
   };
 
+  const handleEdit = (booking: any) => {
+    setEditingBooking(booking);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingBooking(null);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Back Button */}
@@ -174,7 +198,17 @@ export default function AdminRoomsPage() {
               : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          Booked Meetings
+          Daily View
+        </button>
+        <button
+          onClick={() => setActiveTab("weekly")}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+            activeTab === "weekly"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          Weekly View
         </button>
         <button
           onClick={() => setActiveTab("booking")}
@@ -198,16 +232,17 @@ export default function AdminRoomsPage() {
               selected={selectedDate} 
               onChange={(d) => setSelectedDate(d)} 
               minDate={new Date()} 
+              filterDate={(date) => isWorkingDay(date)}
               className="w-full max-w-xs border rounded px-3 py-2" 
             />
           </div>
 
           {/* Staff Conference Room Card */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="bg-blue-50 px-6 py-4 border-b border-blue-200">
+            <div className="bg-green-50 px-6 py-4 border-b border-green-200">
               <div className="flex items-center gap-3">
-                <Building2 className="w-6 h-6 text-blue-600" />
-                <h2 className="text-xl font-semibold text-blue-900">Staff Conference Room</h2>
+                <Building2 className="w-6 h-6 text-green-600" />
+                <h2 className="text-xl font-semibold text-green-900">Staff Conference Room</h2>
               </div>
             </div>
             <div className="p-6">
@@ -222,18 +257,28 @@ export default function AdminRoomsPage() {
                     <div key={booking._id} className="border rounded-lg p-4 bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-blue-600" />
+                          <Clock className="w-4 h-4 text-green-600" />
                           <span className="font-medium text-sm">
                             {formatTime(booking.startTime)} - {formatTime(booking.endTime)}
                           </span>
                         </div>
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
-                          onClick={() => handleDelete(booking._id)}
-                        >
-                          Delete
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleEdit(booking)}
+                          >
+                            <Edit className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            onClick={() => handleDelete(booking._id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-sm text-gray-500 capitalize mb-1">{booking.meetingType || "internal"} meeting</p>
                       {booking.title && (
@@ -248,7 +293,7 @@ export default function AdminRoomsPage() {
                           <div className="flex flex-wrap gap-1">
                             {attendeeUsers.length > 0 ? (
                               getAttendeeNames(booking.attendees).map((name, index) => (
-                                <span key={index} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                                   {name}
                                 </span>
                               ))
@@ -290,13 +335,23 @@ export default function AdminRoomsPage() {
                             {formatTime(booking.startTime)} - {formatTime(booking.endTime)}
                           </span>
                         </div>
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
-                          onClick={() => handleDelete(booking._id)}
-                        >
-                          Delete
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleEdit(booking)}
+                          >
+                            <Edit className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            onClick={() => handleDelete(booking._id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-sm text-gray-500 capitalize mb-1">{booking.meetingType || "internal"} meeting</p>
                       {booking.title && (
@@ -311,7 +366,7 @@ export default function AdminRoomsPage() {
                           <div className="flex flex-wrap gap-1">
                             {attendeeUsers.length > 0 ? (
                               getAttendeeNames(booking.attendees).map((name, index) => (
-                                <span key={index} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                                   {name}
                                 </span>
                               ))
@@ -326,6 +381,31 @@ export default function AdminRoomsPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Weekly View Tab */}
+      {activeTab === "weekly" && (
+        <div className="space-y-6">
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h2 className="text-lg font-semibold mb-4">Weekly Room Availability</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              View and manage room bookings for the next 5 working days. Use the navigation buttons to browse through different weeks.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RoomAvailabilityCard 
+              title="Staff Conference Room" 
+              href="/admin/rooms" 
+              room="staff_conference"
+            />
+            <RoomAvailabilityCard 
+              title="DG Conference Room" 
+              href="/admin/rooms" 
+              room="dg_conference"
+            />
           </div>
         </div>
       )}
@@ -366,6 +446,7 @@ export default function AdminRoomsPage() {
                 selected={selectedDate} 
                 onChange={(d) => setSelectedDate(d)} 
                 minDate={new Date()} 
+                filterDate={(date) => isWorkingDay(date)}
                 className="w-full border rounded-lg px-3 py-2" 
               />
             </div>
@@ -433,6 +514,16 @@ export default function AdminRoomsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingBooking && (
+        <EditMeetingModal
+          isOpen={isEditModalOpen}
+          onClose={handleCloseEditModal}
+          booking={editingBooking}
+          requesterId={convexUser?._id!}
+        />
       )}
     </div>
   );

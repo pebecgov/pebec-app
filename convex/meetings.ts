@@ -747,6 +747,26 @@ export const listRoomBookingsByDate = query({
   }
 });
 
+export const listRoomBookingsByDateRange = query({
+  args: {
+    room: v.union(v.literal("staff_conference"), v.literal("dg_conference")),
+    startDate: v.string(),
+    endDate: v.string()
+  },
+  handler: async (ctx, { room, startDate, endDate }) => {
+    const rows = await ctx.db
+      .query("room_bookings")
+      .withIndex("byDate")
+      .filter(q => q.and(
+        q.eq(q.field("room"), room),
+        q.gte(q.field("date"), startDate),
+        q.lte(q.field("date"), endDate)
+      ))
+      .collect();
+    return rows.sort((a, b) => (a.date === b.date ? (a.startTime < b.startTime ? -1 : 1) : a.date < b.date ? -1 : 1));
+  }
+});
+
 export const getAllStaffMembers = query({
   args: {},
   handler: async (ctx) => {
@@ -794,6 +814,70 @@ export const listMyUpcomingRoomBookings = query({
     return all
       .filter(b => b.date >= ymd)
       .sort((a, b) => (a.date === b.date ? (a.startTime < b.startTime ? -1 : 1) : a.date < b.date ? -1 : 1));
+  }
+});
+
+export const updateRoomBooking = mutation({
+  args: { 
+    bookingId: v.id("room_bookings"), 
+    requesterId: v.id("users"),
+    room: v.optional(v.union(v.literal("staff_conference"), v.literal("dg_conference"))),
+    date: v.optional(v.string()),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
+    attendees: v.optional(v.array(v.id("users")))
+  },
+  handler: async (ctx, { bookingId, requesterId, ...updates }) => {
+    const booking = await ctx.db.get(bookingId);
+    if (!booking) throw new Error("Booking not found");
+    const requester = await ctx.db.get(requesterId);
+    const isAdmin = requester?.role === "admin";
+    const isOwner = booking.createdBy === requesterId;
+    if (!isAdmin && !isOwner) throw new Error("Not authorized to update this booking");
+
+    // If updating time/date, validate and check for conflicts
+    if (updates.startTime || updates.endTime || updates.date || updates.room) {
+      const startTime = updates.startTime || booking.startTime;
+      const endTime = updates.endTime || booking.endTime;
+      const date = updates.date || booking.date;
+      const room = updates.room || booking.room;
+
+      // Validate time ordering and working hours 08:00-18:00
+      const [sh, sm] = startTime.split(":").map(Number);
+      const [eh, em] = endTime.split(":").map(Number);
+      const startMinutes = sh * 60 + sm;
+      const endMinutes = eh * 60 + em;
+      if (endMinutes <= startMinutes) {
+        throw new Error("End time must be after start time");
+      }
+      if (startMinutes < 8 * 60 || endMinutes > 18 * 60) {
+        throw new Error("Bookings must be within 08:00 - 18:00");
+      }
+
+      // Prevent overlaps for the same room/date (excluding current booking)
+      const existing = await ctx.db
+        .query("room_bookings")
+        .withIndex("byRoomAndDate", q => q.eq("room", room).eq("date", date))
+        .collect();
+      const overlaps = existing.some(b => {
+        if (b._id === bookingId) return false; // Skip current booking
+        const [bsH, bsM] = b.startTime.split(":").map(Number);
+        const [beH, beM] = b.endTime.split(":").map(Number);
+        const bStart = bsH * 60 + bsM;
+        const bEnd = beH * 60 + beM;
+        return startMinutes < bEnd && endMinutes > bStart;
+      });
+      if (overlaps) {
+        throw new Error("This room is already booked for the selected time range");
+      }
+    }
+
+    // Update booking
+    await ctx.db.patch(bookingId, updates);
+    return { success: true };
   }
 });
 
