@@ -101,12 +101,22 @@ export default function ScoringMetricsPage() {
     reportGovLink: false,
   });
   const [reportgovRate, setReportgovRate] = useState(0);
+  const [manualReportGovRate, setManualReportGovRate] = useState(0);
+  const [useManualReportGov, setUseManualReportGov] = useState(false);
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [scoringPeriod, setScoringPeriod] = useState(`1st Half ${new Date().getFullYear()}`);
   const currentYear = new Date().getFullYear();
   const [notes, setNotes] = useState('');
   const [recommendations, setRecommendations] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Manual monthly report overrides
+  const [manualMonthlyReports, setManualMonthlyReports] = useState<{[key: string]: boolean}>({});
+  const [useManualMonthlyReports, setUseManualMonthlyReports] = useState(false);
+  
+  // Manual timeliness overrides
+  const [manualTimeliness, setManualTimeliness] = useState<{[key: string]: boolean}>({});
+  const [useManualTimeliness, setUseManualTimeliness] = useState(false);
 
   // Convex queries and mutations
   const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores);
@@ -370,6 +380,15 @@ export default function ScoringMetricsPage() {
 
   // Calculate total score
   const calculateTotalScore = () => {
+    // Use manual overrides if enabled, otherwise use automatic calculations
+    const reportGovScore = useManualReportGov ? manualReportGovRate : reportgovRate;
+    const monthlyReportScore = useManualMonthlyReports ? 
+      (Object.values(manualMonthlyReports).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 3 : 
+      monthlyReportData.score;
+    const timelinessScore = useManualTimeliness ? 
+      (Object.values(manualTimeliness).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 2 : 
+      deadlineData.score;
+
     const baseScores = {
       serviceLevelAgreement: slaMethod === 'file' 
         ? (overallPercentage !== null ? (overallPercentage / 100) * 30 : 0)
@@ -378,9 +397,9 @@ export default function ScoringMetricsPage() {
       interMdaCollaboration: (collaborationRate / 10) * 15,
       stakeholderEngagement: (stakeholderRate / 10) * 10,
       reportGovernance: Object.values(checkboxItems).filter(Boolean).length / 3 * 5,
-      reportGovernanceResolution: reportgovRate,
-      monthlyReportSubmission: monthlyReportData.score,
-      timelinessInSubmitting: deadlineData.score
+      reportGovernanceResolution: reportGovScore,
+      monthlyReportSubmission: monthlyReportScore,
+      timelinessInSubmitting: timelinessScore
     };
 
     // Apply averaging with past data if available
@@ -772,36 +791,79 @@ export default function ScoringMetricsPage() {
                     </span>
                   </div>
                   
-                  <div className="text-sm mb-3">
-                                                              <p className="text-xs text-blue-600 mb-2">
-                       📅 Evaluating: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${currentYear}` : 
-                                     scoringPeriod.includes("2nd Half") ? `Jul-Dec ${currentYear}` : "All Periods"}
-                     </p>
-                     <p>Total Tickets: {ticketResolutionData.totalTickets}</p>
-                     <p>Resolved: {ticketResolutionData.resolvedTickets}</p>
-                     <p>Resolution Rate: {ticketResolutionData.resolutionRate.toFixed(1)}%</p>
-                     <p className="text-xs text-gray-500">
-                       Data Source: {periodTicketData ? 'Period-specific' : 'Overall MDA data'}
-                     </p>
-                     <p className="text-xs text-gray-500">
-                       Period Data: {periodTicketData ? 
-                         `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` : 
-                         'No period data available'
-                       }
-                     </p>
-                     <p>Avg Response Time: {ticketResolutionData.averageResponseTime.toFixed(1)} hours</p>
-                     <p>Avg Resolution Time: {ticketResolutionData.averageResolutionTime.toFixed(1)} hours</p>
+                  {/* Toggle between automatic and manual */}
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="reportgov-mode"
+                        checked={!useManualReportGov}
+                        onChange={() => setUseManualReportGov(false)}
+                        className="mr-2"
+                      />
+                      Automatic
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="reportgov-mode"
+                        checked={useManualReportGov}
+                        onChange={() => setUseManualReportGov(true)}
+                        className="mr-2"
+                      />
+                      Manual
+                    </label>
                   </div>
 
-                  <button
-                    onClick={() => setReportgovRate(ticketResolutionData.score)}
-                    className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
-                  >
-                    Calculate Score
-                  </button>
+                  {!useManualReportGov ? (
+                    <>
+                      <div className="text-sm mb-3">
+                        <p className="text-xs text-blue-600 mb-2">
+                          📅 Evaluating: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${currentYear}` : 
+                                         scoringPeriod.includes("2nd Half") ? `Jul-Dec ${currentYear}` : "All Periods"}
+                        </p>
+                        <p>Total Tickets: {ticketResolutionData.totalTickets}</p>
+                        <p>Resolved: {ticketResolutionData.resolvedTickets}</p>
+                        <p>Resolution Rate: {ticketResolutionData.resolutionRate.toFixed(1)}%</p>
+                        <p className="text-xs text-gray-500">
+                          Data Source: {periodTicketData ? 'Period-specific' : 'Overall MDA data'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Period Data: {periodTicketData ? 
+                            `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` : 
+                            'No period data available'
+                          }
+                        </p>
+                        <p>Avg Response Time: {ticketResolutionData.averageResponseTime.toFixed(1)} hours</p>
+                        <p>Avg Resolution Time: {ticketResolutionData.averageResolutionTime.toFixed(1)} hours</p>
+                      </div>
+
+                      <button
+                        onClick={() => setReportgovRate(ticketResolutionData.score)}
+                        className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
+                      >
+                        Calculate Score
+                      </button>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Manual Score (0-15)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="15"
+                          step="0.1"
+                          value={manualReportGovRate}
+                          onChange={(e) => setManualReportGovRate(Number(e.target.value))}
+                          className="w-full border rounded px-3 py-2"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="text-center mt-3">
-                    Score: {reportgovRate.toFixed(1)}/15
+                    Score: {useManualReportGov ? manualReportGovRate.toFixed(1) : reportgovRate.toFixed(1)}/15
                   </div>
                 </div>
               </div>
@@ -820,6 +882,30 @@ export default function ScoringMetricsPage() {
                     </span>
                   </div>
                   
+                  {/* Toggle between automatic and manual */}
+                  <div className="flex gap-4 mb-3 w-full">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="monthly-mode"
+                        checked={!useManualMonthlyReports}
+                        onChange={() => setUseManualMonthlyReports(false)}
+                        className="mr-2"
+                      />
+                      Automatic
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="monthly-mode"
+                        checked={useManualMonthlyReports}
+                        onChange={() => setUseManualMonthlyReports(true)}
+                        className="mr-2"
+                      />
+                      Manual
+                    </label>
+                  </div>
+                  
                   <div className="w-full bg-gray-50 p-4 rounded-md mb-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium">Progress:</span>
@@ -834,13 +920,43 @@ export default function ScoringMetricsPage() {
                   </div>
                   
                   {/* Monthly Report Grid */}
-                  {realMonthlyReports && (
-                    <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-4">
-                      {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
-                        const monthName = new Date(periodMonth.year, periodMonth.month, 1)
-                          .toLocaleString('default', { month: 'short' });
+                  <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-4">
+                    {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
+                      const monthName = new Date(periodMonth.year, periodMonth.month, 1)
+                        .toLocaleString('default', { month: 'short' });
+                      const monthKey = `${periodMonth.year}-${periodMonth.month}`;
+                      
+                      if (useManualMonthlyReports) {
+                        // Manual mode - show checkboxes
+                        const isChecked = manualMonthlyReports[monthKey] || false;
+                        return (
+                          <div key={index} className="p-2 rounded-md text-center border">
+                            <div className="font-medium mb-1">{monthName}</div>
+                            <label className="flex items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => setManualMonthlyReports(prev => ({
+                                  ...prev,
+                                  [monthKey]: e.target.checked
+                                }))}
+                                className="mr-1"
+                              />
+                              <span className="text-xs">Submitted</span>
+                            </label>
+                          </div>
+                        );
+                      } else {
+                        // Automatic mode - show status from data
+                        if (!realMonthlyReports) {
+                          return (
+                            <div key={index} className="p-2 rounded-md text-center bg-gray-100 text-gray-600">
+                              <div className="font-medium">{monthName}</div>
+                              <div className="text-xs">No data</div>
+                            </div>
+                          );
+                        }
                         
-                        // Find if there's a report for this month
                         const monthReport = realMonthlyReports.find(report => {
                           const reportDate = new Date(report.deadline);
                           return reportDate.getMonth() === periodMonth.month && 
@@ -864,9 +980,9 @@ export default function ScoringMetricsPage() {
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  )}
+                      }
+                    })}
+                  </div>
                   
                   <div className="flex items-center w-full space-x-4">
                     <label className="block text-sm font-medium">Score:</label>
@@ -874,17 +990,23 @@ export default function ScoringMetricsPage() {
                       type="range"
                       min="0"
                       max="100"
-                      value={monthlyReportData.percentage}
+                      value={useManualMonthlyReports ? 
+                        (Object.values(manualMonthlyReports).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 100 : 
+                        monthlyReportData.percentage}
                       readOnly
                       className="flex-1 accent-green-500 border-none"
                     />
                     <div className="w-20 flex items-center justify-center">
                       <span className="text-sm text-gray-500 font-semibold">
-                        {monthlyReportData.percentage.toFixed(0)}%
+                        {useManualMonthlyReports ? 
+                          ((Object.values(manualMonthlyReports).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 100).toFixed(0) : 
+                          monthlyReportData.percentage.toFixed(0)}%
                       </span>
                     </div>
                     <div className="bg-gray-100 px-3 py-1 text-center rounded-md text-sm">
-                      {monthlyReportData.score.toFixed(1)}/3
+                      {useManualMonthlyReports ? 
+                        ((Object.values(manualMonthlyReports).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 3).toFixed(1) : 
+                        monthlyReportData.score.toFixed(1)}/3
                     </div>
                   </div>
                 </div>
@@ -901,6 +1023,30 @@ export default function ScoringMetricsPage() {
                     </span>
                   </div>
                   
+                  {/* Toggle between automatic and manual */}
+                  <div className="flex gap-4 mb-3 w-full">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="timeliness-mode"
+                        checked={!useManualTimeliness}
+                        onChange={() => setUseManualTimeliness(false)}
+                        className="mr-2"
+                      />
+                      Automatic
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="timeliness-mode"
+                        checked={useManualTimeliness}
+                        onChange={() => setUseManualTimeliness(true)}
+                        className="mr-2"
+                      />
+                      Manual
+                    </label>
+                  </div>
+                  
                   <div className="w-full bg-gray-50 p-4 rounded-md mb-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium">Timeliness Score:</span>
@@ -915,13 +1061,43 @@ export default function ScoringMetricsPage() {
                   </div>
                   
                   {/* Deadline Compliance Grid */}
-                  {realMonthlyReports && (
-                    <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-4">
-                      {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
-                        const monthName = new Date(periodMonth.year, periodMonth.month, 1)
-                          .toLocaleString('default', { month: 'short' });
+                  <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-4">
+                    {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
+                      const monthName = new Date(periodMonth.year, periodMonth.month, 1)
+                        .toLocaleString('default', { month: 'short' });
+                      const monthKey = `${periodMonth.year}-${periodMonth.month}`;
+                      
+                      if (useManualTimeliness) {
+                        // Manual mode - show checkboxes
+                        const isChecked = manualTimeliness[monthKey] || false;
+                        return (
+                          <div key={index} className="p-2 rounded-md text-center border">
+                            <div className="font-medium mb-1">{monthName}</div>
+                            <label className="flex items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => setManualTimeliness(prev => ({
+                                  ...prev,
+                                  [monthKey]: e.target.checked
+                                }))}
+                                className="mr-1"
+                              />
+                              <span className="text-xs">On Time</span>
+                            </label>
+                          </div>
+                        );
+                      } else {
+                        // Automatic mode - show status from data
+                        if (!realMonthlyReports) {
+                          return (
+                            <div key={index} className="p-2 rounded-md text-center bg-gray-100 text-gray-600">
+                              <div className="font-medium">{monthName}</div>
+                              <div className="text-xs">No data</div>
+                            </div>
+                          );
+                        }
                         
-                        // Find if there's a report for this month
                         const monthReport = realMonthlyReports.find(report => {
                           const reportDate = new Date(report.deadline);
                           return reportDate.getMonth() === periodMonth.month && 
@@ -950,9 +1126,9 @@ export default function ScoringMetricsPage() {
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  )}
+                      }
+                    })}
+                  </div>
                   
                   <div className="flex items-center w-full space-x-4">
                     <label className="block text-sm font-medium">Score:</label>
@@ -960,17 +1136,23 @@ export default function ScoringMetricsPage() {
                       type="range"
                       min="0"
                       max="100"
-                      value={deadlineData.percentage}
+                      value={useManualTimeliness ? 
+                        (Object.values(manualTimeliness).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 100 : 
+                        deadlineData.percentage}
                       readOnly
                       className="flex-1 accent-blue-500 border-none"
                     />
                     <div className="w-20 flex items-center justify-center">
                       <span className="text-sm text-gray-500 font-semibold">
-                        {deadlineData.percentage.toFixed(0)}%
+                        {useManualTimeliness ? 
+                          ((Object.values(manualTimeliness).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 100).toFixed(0) : 
+                          deadlineData.percentage.toFixed(0)}%
                       </span>
                     </div>
                     <div className="bg-gray-100 px-3 py-1 text-center rounded-md text-sm">
-                      {deadlineData.score.toFixed(1)}/2
+                      {useManualTimeliness ? 
+                        ((Object.values(manualTimeliness).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 2).toFixed(1) : 
+                        deadlineData.score.toFixed(1)}/2
                     </div>
                   </div>
                 </div>
