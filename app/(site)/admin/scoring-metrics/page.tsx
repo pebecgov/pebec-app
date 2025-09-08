@@ -103,6 +103,12 @@ export default function ScoringMetricsPage() {
   const [reportgovRate, setReportgovRate] = useState(0);
   const [manualReportGovRate, setManualReportGovRate] = useState(0);
   const [useManualReportGov, setUseManualReportGov] = useState(false);
+  
+  // Manual Report Gov Resolution inputs
+  const [manualTotalTickets, setManualTotalTickets] = useState(0);
+  const [manualResolvedTickets, setManualResolvedTickets] = useState(0);
+  const [manualAverageResponseTime, setManualAverageResponseTime] = useState(0);
+  const [manualAverageResolutionTime, setManualAverageResolutionTime] = useState(0);
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [scoringPeriod, setScoringPeriod] = useState(`1st Half ${new Date().getFullYear()}`);
   const currentYear = new Date().getFullYear();
@@ -253,6 +259,28 @@ export default function ScoringMetricsPage() {
   };
 
   const ticketResolutionData = calculateTicketResolutionScore();
+
+  // Calculate manual report gov resolution score
+  const calculateManualReportGovScore = () => {
+    if (manualTotalTickets === 0) return 0;
+    
+    const resolutionRate = (manualResolvedTickets / manualTotalTickets) * 100;
+    
+    // Scoring logic: Resolution rate (9 points), Response time (3 points), Resolution time (3 points)
+    let resolutionRateScore = (resolutionRate / 100) * 9;
+    let responseTimeScore = 3;
+    if (manualAverageResponseTime > 24) {
+      const penalty = (manualAverageResponseTime - 24) * 0.06;
+      responseTimeScore = Math.max(0, 3 - penalty);
+    }
+    let resolutionTimeScore = 3;
+    if (manualAverageResolutionTime > 72) {
+      const penalty = (manualAverageResolutionTime - 72) * 0.03;
+      resolutionTimeScore = Math.max(0, 3 - penalty);
+    }
+
+    return resolutionRateScore + responseTimeScore + resolutionTimeScore;
+  };
 
   // Calculate monthly report submission score (3 points)
   const calculateMonthlyReportScore = () => {
@@ -847,18 +875,70 @@ export default function ScoringMetricsPage() {
                     </>
                   ) : (
                     <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Manual Score (0-15)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="15"
-                          step="0.1"
-                          value={manualReportGovRate}
-                          onChange={(e) => setManualReportGovRate(Number(e.target.value))}
-                          className="w-full border rounded px-3 py-2"
-                        />
+                      <div className="text-sm mb-3">
+                        <p className="text-xs text-blue-600 mb-2">
+                          📅 Manual Input for: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${currentYear}` : 
+                                             scoringPeriod.includes("2nd Half") ? `Jul-Dec ${currentYear}` : "All Periods"}
+                        </p>
                       </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Total Tickets</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={manualTotalTickets}
+                            onChange={(e) => setManualTotalTickets(Number(e.target.value))}
+                            className="w-full border rounded px-3 py-2"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Resolved Tickets</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={manualTotalTickets}
+                            value={manualResolvedTickets}
+                            onChange={(e) => setManualResolvedTickets(Number(e.target.value))}
+                            className="w-full border rounded px-3 py-2"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Avg Response Time (hours)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={manualAverageResponseTime}
+                            onChange={(e) => setManualAverageResponseTime(Number(e.target.value))}
+                            className="w-full border rounded px-3 py-2"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Avg Resolution Time (hours)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={manualAverageResolutionTime}
+                            onChange={(e) => setManualAverageResolutionTime(Number(e.target.value))}
+                            className="w-full border rounded px-3 py-2"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <p>Resolution Rate: {manualTotalTickets > 0 ? ((manualResolvedTickets / manualTotalTickets) * 100).toFixed(1) : 0}%</p>
+                        <p>Scoring: Resolution Rate (9pts) + Response Time (3pts) + Resolution Time (3pts)</p>
+                      </div>
+
+                      <button
+                        onClick={() => setManualReportGovRate(calculateManualReportGovScore())}
+                        className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
+                      >
+                        Calculate Manual Score
+                      </button>
                     </div>
                   )}
 
