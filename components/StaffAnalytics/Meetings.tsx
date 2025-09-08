@@ -90,6 +90,7 @@ export default function StaffAnalytics() {
           title="Staff Conference Room"
           href="/staff/rooms"
           room="staff_conference"
+          showBookButton={true}
         />
       </div>
       <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">

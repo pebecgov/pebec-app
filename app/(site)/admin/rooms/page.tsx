@@ -25,7 +25,7 @@ export default function AdminRoomsPage() {
   const router = useRouter();
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
 
-  const [activeTab, setActiveTab] = useState<"admin" | "weekly" | "booking">("admin");
+  const [activeTab, setActiveTab] = useState<"admin" | "weekly" | "booking">("booking");
   const [room, setRoom] = useState<RoomKey>("staff_conference");
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
     const today = new Date();
@@ -190,27 +190,7 @@ export default function AdminRoomsPage() {
 
       {/* Tabs */}
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6">
-        <button
-          onClick={() => setActiveTab("admin")}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-            activeTab === "admin"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Daily View
-        </button>
-        <button
-          onClick={() => setActiveTab("weekly")}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-            activeTab === "weekly"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
-        >
-          Weekly View
-        </button>
-        <button
+      <button
           onClick={() => setActiveTab("booking")}
           className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
             activeTab === "booking"
@@ -220,6 +200,27 @@ export default function AdminRoomsPage() {
         >
           Book Room
         </button>
+        <button
+          onClick={() => setActiveTab("admin")}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+            activeTab === "admin"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          Today&apos;s Meetings
+        </button>
+        <button
+          onClick={() => setActiveTab("weekly")}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
+            activeTab === "weekly"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          Scheduled Meetings
+        </button>
+        
       </div>
 
       {/* Admin View Tab */}
@@ -388,23 +389,18 @@ export default function AdminRoomsPage() {
       {/* Weekly View Tab */}
       {activeTab === "weekly" && (
         <div className="space-y-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-semibold mb-4">Weekly Room Availability</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              View and manage room bookings for the next 5 working days. Use the navigation buttons to browse through different weeks.
-            </p>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <RoomAvailabilityCard 
               title="Staff Conference Room" 
               href="/admin/rooms" 
               room="staff_conference"
+              showBookButton={false}
             />
             <RoomAvailabilityCard 
               title="DG Conference Room" 
               href="/admin/rooms" 
               room="dg_conference"
+              showBookButton={false}
             />
           </div>
         </div>
