@@ -93,13 +93,10 @@ export default function StaffMemberSelector({ selectedStaff, onStaffChange, disa
         </PopoverTrigger>
         <PopoverContent className="w-full p-0" align="start">
           <Command>
-            <CommandInput 
-              placeholder="Search staff members..." 
-              value={searchValue}
-              onValueChange={setSearchValue}
-            />
-            <CommandEmpty>No staff members found.</CommandEmpty>
-            <CommandGroup className="max-h-60 overflow-y-auto">
+
+            <div className="max-h-60 overflow-y-auto">
+              <CommandGroup>
+
               {staffMembers
                 .filter((staff) => {
                   if (!searchValue) return true;
@@ -108,7 +105,9 @@ export default function StaffMemberSelector({ selectedStaff, onStaffChange, disa
                   return (
                     fullName.toLowerCase().includes(searchLower) ||
                     staff.email.toLowerCase().includes(searchLower) ||
-                    staff.role.toLowerCase().includes(searchLower)
+
+                    (staff.role || "").toLowerCase().includes(searchLower)
+
                   );
                 })
                 .map((staff) => (
@@ -139,7 +138,16 @@ export default function StaffMemberSelector({ selectedStaff, onStaffChange, disa
                   </div>
                 </CommandItem>
               ))}
-            </CommandGroup>
+              </CommandGroup>
+            </div>
+            <div className="border-t p-2">
+              <CommandInput 
+                placeholder="Search staff members..." 
+                value={searchValue}
+                onValueChange={setSearchValue}
+                className="border-0 focus:ring-0"
+              />
+            </div>
           </Command>
         </PopoverContent>
       </Popover>
