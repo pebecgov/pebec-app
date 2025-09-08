@@ -249,6 +249,13 @@ export default function StaffRoomsPage() {
                       </div>
                     </div>
                   )}
+                  {b.creatorName && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500">
+                        Booked by: <span className="font-medium text-gray-700">{b.creatorName}</span>
+                      </p>
+                    </div>
+                  )}
                 </div>
                 {(convexUser?._id === b.createdBy || convexUser?.role === "admin") && (
                   <div className="flex gap-2">

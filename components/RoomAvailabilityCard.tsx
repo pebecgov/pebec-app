@@ -175,6 +175,13 @@ export default function RoomAvailabilityCard({ title, bookings, href, room }: Ro
                     </span>
                   </div>
                 )}
+                {b.creatorName && (
+                  <div className="mt-2">
+                    <span className="text-xs text-gray-500">
+                      Booked by: <span className="font-medium text-gray-700">{b.creatorName}</span>
+                    </span>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

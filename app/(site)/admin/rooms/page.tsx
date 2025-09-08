@@ -303,6 +303,13 @@ export default function AdminRoomsPage() {
                           </div>
                         </div>
                       )}
+                      {booking.creatorName && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500">
+                            Booked by: <span className="font-medium text-gray-700">{booking.creatorName}</span>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -374,6 +381,13 @@ export default function AdminRoomsPage() {
                               <span className="text-xs text-gray-400">Loading...</span>
                             )}
                           </div>
+                        </div>
+                      )}
+                      {booking.creatorName && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500">
+                            Booked by: <span className="font-medium text-gray-700">{booking.creatorName}</span>
+                          </p>
                         </div>
                       )}
                     </div>

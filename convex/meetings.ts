@@ -743,7 +743,17 @@ export const listRoomBookingsByDate = query({
       .query("room_bookings")
       .withIndex("byRoomAndDate", q => q.eq("room", room).eq("date", date))
       .collect();
-    return rows.sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+    
+    // Get creator information for each booking
+    const bookingsWithCreator = await Promise.all(rows.map(async (booking) => {
+      const creator = await ctx.db.get(booking.createdBy);
+      return {
+        ...booking,
+        creatorName: creator ? `${creator.firstName || ""} ${creator.lastName || ""}`.trim() || creator.email : "Unknown User"
+      };
+    }));
+    
+    return bookingsWithCreator.sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
   }
 });
 
