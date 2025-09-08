@@ -93,8 +93,10 @@ export default function StaffMemberSelector({ selectedStaff, onStaffChange, disa
         </PopoverTrigger>
         <PopoverContent className="w-full p-0" align="start">
           <Command>
+
             <div className="max-h-60 overflow-y-auto">
               <CommandGroup>
+
               {staffMembers
                 .filter((staff) => {
                   if (!searchValue) return true;
@@ -103,7 +105,9 @@ export default function StaffMemberSelector({ selectedStaff, onStaffChange, disa
                   return (
                     fullName.toLowerCase().includes(searchLower) ||
                     staff.email.toLowerCase().includes(searchLower) ||
+
                     (staff.role || "").toLowerCase().includes(searchLower)
+
                   );
                 })
                 .map((staff) => (
