@@ -15,31 +15,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search, Users, Eye, Shield, Calendar, Tag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import RoomAvailabilityCard from "@/components/RoomAvailabilityCard";
 
-function RoomAvailabilityCard({ title, bookings, href }: { title: string; bookings: any[]; href: string }) {
-  const formatRange = (b: any) => `${b.startTime} - ${b.endTime}`;
-  return (
-    <Card>
-      <CardHeader className="pb-3 flex items-center justify-between">
-        <CardTitle className="text-base">{title} — Today</CardTitle>
-        <Link href={href} className="text-sm text-blue-600 hover:underline">Manage</Link>
-      </CardHeader>
-      <CardContent>
-        {bookings.length === 0 ? (
-          <p className="text-sm text-gray-600">Available all day.</p>
-        ) : (
-          <ul className="space-y-1">
-            {bookings.map((b: any) => (
-              <li key={b._id} className="text-sm text-gray-800">
-                {formatRange(b)}{b.title ? ` — ${b.title}` : ""}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 const workstreams = [
   "regulatory", "innovation", "judiciary", "communications",
@@ -234,18 +211,13 @@ export default function ProjectsPage() {
       </div>
 
       {/* Today’s Meeting Rooms availability for Investments staff */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 gap-4 mb-6">
         <RoomAvailabilityCard 
           title="Staff Conference Room" 
           bookings={todayRoomStaff} 
           href="/staff/rooms" 
           room="staff_conference"
-        />
-        <RoomAvailabilityCard 
-          title="DG Conference Room" 
-          bookings={todayRoomDG} 
-          href="/staff/rooms" 
-          room="dg_conference"
+          showBookButton={true}
         />
       </div>
 
