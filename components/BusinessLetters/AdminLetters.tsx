@@ -297,7 +297,7 @@ export default function BusinessLettersAdmin() {
           <td className="p-3">
             <input type="checkbox" checked={selectedLetterIds.includes(letter._id)} onChange={() => toggleSelection(letter._id)} />
           </td>
-          <td className="p-3">{letter.title}</td>
+          <td className="p-3">{letter.title.slice(0, 15)}...</td>
           <td className="p-3">{letter.companyName}</td>
           <td className="p-3">{letter.email}</td>
           <td className="p-3">{letter.phone}</td>
