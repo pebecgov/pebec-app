@@ -21,8 +21,9 @@ export default function ScoringMetricsDashboard() {
   const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics);
   const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores);
   const yearlyScoringData = useQuery(api.mda_scoring.getYearlyScoringData, { year: selectedYear });
+  const allMDAsWithScores = useQuery(api.mda_scoring.getAllMDAsLatestScores);
 
-  if (!scoringAnalytics || !mdasWithScores || !yearlyScoringData) {
+  if (!scoringAnalytics || !mdasWithScores || !yearlyScoringData || !allMDAsWithScores) {
     return <div className="text-center py-8">Loading scoring analytics...</div>;
   }
 
@@ -33,20 +34,25 @@ export default function ScoringMetricsDashboard() {
     percentage: (count / scoringAnalytics.totalMDAs) * 100
   }));
 
-  const topPerformersData = scoringAnalytics.topPerformers
+  const topPerformersData = allMDAsWithScores
     .filter(mda => mda.currentScore && mda.currentScore > 0)
+    .slice(0, 10)
     .map((mda, index) => ({
-      name: mda.name,
+      name: mda.mdaName,
       score: mda.currentScore || 0,
-      rank: index + 1
+      rank: index + 1,
+      isActive: mda.isActiveOnPlatform
     }));
 
-  const bottomPerformersData = scoringAnalytics.bottomPerformers
+  const bottomPerformersData = allMDAsWithScores
     .filter(mda => mda.currentScore && mda.currentScore > 0)
+    .slice(-10)
+    .reverse()
     .map((mda, index) => ({
-      name: mda.name,
+      name: mda.mdaName,
       score: mda.currentScore || 0,
-      rank: scoringAnalytics.totalMDAs - index
+      rank: allMDAsWithScores.length - index,
+      isActive: mda.isActiveOnPlatform
     }));
 
   return (
@@ -218,7 +224,18 @@ export default function ScoringMetricsDashboard() {
                       #{mda.rank}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {mda.name}
+                      <div className="flex items-center">
+                        {mda.name}
+                        {mda.isActive ? (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {mda.score.toFixed(1)}%
@@ -274,7 +291,18 @@ export default function ScoringMetricsDashboard() {
                       #{mda.rank}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {mda.name}
+                      <div className="flex items-center">
+                        {mda.name}
+                        {mda.isActive ? (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {mda.score.toFixed(1)}%
@@ -414,21 +442,31 @@ export default function ScoringMetricsDashboard() {
                   Last Scored
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tickets
+                  Data Source
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Resolution Rate
+                  Platform Status
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {mdasWithScores
-                .filter(mda => mda.currentScore && mda.currentScore > 0)
-                .sort((a, b) => (b.currentScore || 0) - (a.currentScore || 0))
+              {allMDAsWithScores
+                .sort((a, b) => b.currentScore - a.currentScore)
                 .map((mda) => (
-                  <tr key={mda._id} className="hover:bg-gray-50">
+                  <tr key={mda.mdaName} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {mda.name}
+                      <div className="flex items-center">
+                        {mda.mdaName}
+                        {mda.isActiveOnPlatform ? (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {(mda.currentScore || 0).toFixed(1)}%
@@ -463,10 +501,10 @@ export default function ScoringMetricsDashboard() {
                       }
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {mda.totalTickets || 0}
+                      {mda.isActiveOnPlatform ? 'Live Data' : 'Manual Only'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {(mda.resolutionRate || 0).toFixed(1)}%
+                      {mda.isActiveOnPlatform ? 'Live Data' : 'Manual Only'}
                     </td>
                   </tr>
                 ))}
