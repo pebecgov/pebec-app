@@ -56,35 +56,12 @@ export default defineSchema({
     email: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     assignedUsers: v.array(v.id("users")),
-    createdAt: v.number(),
-    // Scoring Metrics Fields
-    currentScore: v.optional(v.number()), // Overall performance score (0-100)
-    lastScoredAt: v.optional(v.number()), // When the last scoring was done
-    scoringPeriod: v.optional(v.string()), // e.g., "Q1 2025", "Monthly"
-    // Individual metric scores
-    serviceLevelAgreementScore: v.optional(v.number()), // 0-30 points
-    mysteryShoppingScore: v.optional(v.number()), // 0-20 points
-    interMdaCollaborationScore: v.optional(v.number()), // 0-15 points
-    stakeholderEngagementScore: v.optional(v.number()), // 0-10 points
-    reportGovernanceScore: v.optional(v.number()), // 0-5 points
-    reportGovernanceResolutionScore: v.optional(v.number()), // 0-15 points
-    monthlyReportSubmissionScore: v.optional(v.number()), // 0-3 points
-    timelinessInSubmittingScore: v.optional(v.number()), // 0-2 points
-    // Performance indicators
-    totalTickets: v.optional(v.number()),
-    resolvedTickets: v.optional(v.number()),
-    averageResponseTime: v.optional(v.number()), // in hours
-    averageResolutionTime: v.optional(v.number()), // in hours
-    resolutionRate: v.optional(v.number()), // percentage
-    // Website indicators
-    hasActiveWebsite: v.optional(v.boolean()),
-    hasReportGovLink: v.optional(v.boolean()),
-    hasActiveUsers: v.optional(v.boolean())
-  }).index("byName", ["name"]).index("byScore", ["currentScore"]),
+    createdAt: v.number()
+  }).index("byName", ["name"]),
   
   // New table for scoring history
   mda_scoring_history: defineTable({
-    mdaId: v.id("mdas"),
+    mdaId: v.optional(v.id("mdas")),
     mdaName: v.string(),
     scoringPeriod: v.string(), // e.g., "Q1 2025", "Monthly"
     scoredBy: v.id("users"), // Admin who did the scoring
@@ -112,7 +89,7 @@ export default defineSchema({
     // Notes and comments
     notes: v.optional(v.string()),
     recommendations: v.optional(v.string())
-  }).index("byMda", ["mdaId"]).index("byPeriod", ["scoringPeriod"]).index("byDate", ["scoredAt"]),
+  }).index("byMda", ["mdaId"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]).index("byDate", ["scoredAt"]),
   
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({

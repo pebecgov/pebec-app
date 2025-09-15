@@ -2,17 +2,54 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 
-// Get all MDAs with their current scores
+// Helper function to find MDA by flexible name matching
+async function findMdaByName(ctx: any, mdaName: string) {
+  // First try exact match
+  let mda = await ctx.db.query("mdas")
+    .withIndex("byName", (q: any) => q.eq("name", mdaName))
+    .first();
+  
+  if (mda) return mda;
+  
+  // If not found, try to find by partial matching
+  const allMdas = await ctx.db.query("mdas").collect();
+  
+  // Try to find by abbreviation prefix (e.g., "BPP - Bureau for Public Procurement" matches "Bureau for Public Procurement")
+  mda = allMdas.find((m: any) => {
+    // Remove abbreviation prefix and compare
+    const nameWithoutPrefix = m.name.replace(/^[^-]+ - /, '');
+    return nameWithoutPrefix === mdaName || m.name.includes(mdaName) || mdaName.includes(nameWithoutPrefix);
+  });
+  
+  return mda || null;
+}
+
+// Get all MDAs with their latest scores from scoring history
 export const getMDAsWithScores = query({
   args: {},
   handler: async (ctx) => {
     const mdas = await ctx.db.query("mdas").collect();
     
-    // Enrich with ticket statistics
+    // Get latest scores for each MDA from scoring history
     const enrichedMdas = await Promise.all(
       mdas.map(async (mda) => {
+        // Get the latest scoring record for this MDA
+        const latestScore = await ctx.db.query("mda_scoring_history")
+          .withIndex("byMda", q => q.eq("mdaId", mda._id))
+          .order("desc")
+          .first();
+        
+        // Get current year ticket statistics
+        const currentYear = new Date().getFullYear();
+        const yearStart = new Date(currentYear, 0, 1).getTime();
+        const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59).getTime();
+        
         const tickets = await ctx.db.query("tickets")
           .withIndex("byMDA", q => q.eq("assignedMDA", mda._id))
+          .filter(q => q.and(
+            q.gte(q.field("createdAt"), yearStart),
+            q.lte(q.field("createdAt"), yearEnd)
+          ))
           .collect();
         
         const totalTickets = tickets.length;
@@ -38,6 +75,7 @@ export const getMDAsWithScores = query({
         
         return {
           ...mda,
+          latestScore: latestScore || null,
           totalTickets,
           resolvedTickets,
           resolutionRate,
@@ -80,7 +118,7 @@ export const getMDAMonthlyReports = query({
 // Calculate and save MDA score
 export const calculateAndSaveMDAScore = mutation({
   args: {
-    mdaId: v.id("mdas"),
+    mdaId: v.optional(v.id("mdas")),
     mdaName: v.string(),
     scoringPeriod: v.string(),
     // Individual metric scores
@@ -165,28 +203,7 @@ export const calculateAndSaveMDAScore = mutation({
       recommendations: args.recommendations
     });
     
-    // Update MDA table with current scores
-    await ctx.db.patch(args.mdaId, {
-      currentScore: totalPercentage,
-      lastScoredAt: Date.now(),
-      scoringPeriod: args.scoringPeriod,
-      serviceLevelAgreementScore: args.serviceLevelAgreementScore,
-      mysteryShoppingScore: args.mysteryShoppingScore,
-      interMdaCollaborationScore: args.interMdaCollaborationScore,
-      stakeholderEngagementScore: args.stakeholderEngagementScore,
-      reportGovernanceScore: args.reportGovernanceScore,
-      reportGovernanceResolutionScore: args.reportGovernanceResolutionScore,
-      monthlyReportSubmissionScore: args.monthlyReportSubmissionScore,
-      timelinessInSubmittingScore: args.timelinessInSubmittingScore,
-      totalTickets: args.totalTickets,
-      resolvedTickets: args.resolvedTickets,
-      averageResponseTime: args.averageResponseTime,
-      averageResolutionTime: args.averageResolutionTime,
-      resolutionRate: args.resolutionRate,
-      hasActiveWebsite: args.hasActiveWebsite,
-      hasReportGovLink: args.hasReportGovLink,
-      hasActiveUsers: args.hasActiveUsers
-    });
+    // No need to update MDA table anymore - all scoring data is in mda_scoring_history
     
     return {
       success: true,
@@ -203,23 +220,40 @@ export const calculateAndSaveMDAScore = mutation({
 export const getScoringAnalytics = query({
   args: {},
   handler: async (ctx) => {
-    const mdas = await ctx.db.query("mdas")
-      .withIndex("byScore", q => q.gte("currentScore", 0))
-      .order("desc")
-      .collect();
+    // Get all MDAs
+    const mdas = await ctx.db.query("mdas").collect();
+    
+    // Get latest scores for each MDA from scoring history
+    const mdasWithLatestScores = await Promise.all(
+      mdas.map(async (mda) => {
+        const latestScore = await ctx.db.query("mda_scoring_history")
+          .withIndex("byMda", q => q.eq("mdaId", mda._id))
+          .order("desc")
+          .first();
+        
+        return {
+          ...mda,
+          currentScore: latestScore?.totalPercentage || 0,
+          latestScore
+        };
+      })
+    );
+    
+    // Sort by current score
+    const sortedMdas = mdasWithLatestScores.sort((a, b) => b.currentScore - a.currentScore);
     
     // Calculate statistics
-    const totalMDAs = mdas.length;
-    const compliantMDAs = mdas.filter(m => (m.currentScore || 0) >= 70).length;
-    const averageScore = mdas.reduce((sum, m) => sum + (m.currentScore || 0), 0) / totalMDAs;
+    const totalMDAs = sortedMdas.length;
+    const compliantMDAs = sortedMdas.filter(m => m.currentScore >= 70).length;
+    const averageScore = sortedMdas.reduce((sum, m) => sum + m.currentScore, 0) / totalMDAs;
     
     // Grade distribution
     const gradeDistribution = {
-      A: mdas.filter(m => (m.currentScore || 0) >= 90).length,
-      B: mdas.filter(m => (m.currentScore || 0) >= 80 && (m.currentScore || 0) < 90).length,
-      C: mdas.filter(m => (m.currentScore || 0) >= 70 && (m.currentScore || 0) < 80).length,
-      D: mdas.filter(m => (m.currentScore || 0) >= 60 && (m.currentScore || 0) < 70).length,
-      F: mdas.filter(m => (m.currentScore || 0) < 60).length
+      A: sortedMdas.filter(m => m.currentScore >= 90).length,
+      B: sortedMdas.filter(m => m.currentScore >= 80 && m.currentScore < 90).length,
+      C: sortedMdas.filter(m => m.currentScore >= 70 && m.currentScore < 80).length,
+      D: sortedMdas.filter(m => m.currentScore >= 60 && m.currentScore < 70).length,
+      F: sortedMdas.filter(m => m.currentScore < 60).length
     };
     
     return {
@@ -229,8 +263,8 @@ export const getScoringAnalytics = query({
       complianceRate: (compliantMDAs / totalMDAs) * 100,
       averageScore,
       gradeDistribution,
-      topPerformers: mdas.slice(0, 10),
-      bottomPerformers: mdas.slice(-10).reverse()
+      topPerformers: sortedMdas.slice(0, 10),
+      bottomPerformers: sortedMdas.slice(-10).reverse()
     };
   }
 });
@@ -291,10 +325,14 @@ export const getRealMonthlyReports = query({
     // Get all submitted reports from reform champions for the specified MDA
     let allReports;
     if (mdaName) {
+      // Find the MDA using flexible matching to get the correct name
+      const mda = await findMdaByName(ctx, mdaName);
+      const actualMdaName = mda ? mda.name : mdaName;
+      
       // Get all reports for the specific MDA, then filter by role
       allReports = await ctx.db.query("submitted_reports")
         .withIndex("byDate", q => q.gte("submittedAt", 0))
-        .filter(q => q.eq(q.field("role"), "reform_champion") && q.eq(q.field("mdaName"), mdaName))
+        .filter(q => q.eq(q.field("role"), "reform_champion") && q.eq(q.field("mdaName"), actualMdaName))
         .collect();
     } else {
       // Get all reports for the current user
@@ -309,19 +347,24 @@ export const getRealMonthlyReports = query({
     let filteredReports = allReports;
     if (scoringPeriod) {
       const currentYear = new Date().getFullYear();
+      
+      // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
+      const yearMatch = scoringPeriod.match(/\d{4}/);
+      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+      
       let startDate: number, endDate: number;
       
       if (scoringPeriod.includes("1st Half")) {
-        startDate = new Date(currentYear, 0, 1).getTime(); // January 1
-        endDate = new Date(currentYear, 5, 30).getTime();   // June 30
+        startDate = new Date(targetYear, 0, 1).getTime(); // January 1
+        endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
       } else if (scoringPeriod.includes("2nd Half")) {
-        startDate = new Date(currentYear, 6, 1).getTime();  // July 1
-        endDate = new Date(currentYear, 11, 31).getTime();  // December 31
+        startDate = new Date(targetYear, 6, 1).getTime();  // July 1
+        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
       } else {
         // Default: From January to current month
         const currentMonth = new Date().getMonth();
-        startDate = new Date(currentYear, 0, 1).getTime();
-        endDate = new Date(currentYear, currentMonth + 1, 0).getTime();
+        startDate = new Date(targetYear, 0, 1).getTime();
+        endDate = new Date(targetYear, currentMonth + 1, 0, 23, 59, 59).getTime();
       }
       
       // Filter reports by date range
@@ -337,37 +380,42 @@ export const getRealMonthlyReports = query({
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
     
+    // Extract year from scoring period for monthsToCheck
+    const yearMatch = scoringPeriod?.match(/\d{4}/);
+    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+    
     // Debug: Log the scoring period and filtering results
     console.log('getRealMonthlyReports - Scoring Period:', scoringPeriod);
+    console.log('getRealMonthlyReports - Target Year:', targetYear);
     console.log('getRealMonthlyReports - Total reports found:', allReports.length);
     console.log('getRealMonthlyReports - Filtered reports:', filteredReports.length);
     
     let monthsToCheck = [];
     
     if (scoringPeriod?.includes("1st Half")) {
-      // January to June of current year
+      // January to June of target year
       monthsToCheck = [
-        { month: 0, year: currentYear },   // January
-        { month: 1, year: currentYear },   // February
-        { month: 2, year: currentYear },   // March
-        { month: 3, year: currentYear },   // April
-        { month: 4, year: currentYear },   // May
-        { month: 5, year: currentYear }    // June
+        { month: 0, year: targetYear },   // January
+        { month: 1, year: targetYear },   // February
+        { month: 2, year: targetYear },   // March
+        { month: 3, year: targetYear },   // April
+        { month: 4, year: targetYear },   // May
+        { month: 5, year: targetYear }    // June
       ];
     } else if (scoringPeriod?.includes("2nd Half")) {
-      // July to December of current year
+      // July to December of target year
       monthsToCheck = [
-        { month: 6, year: currentYear },   // July
-        { month: 7, year: currentYear },   // August
-        { month: 8, year: currentYear },   // September
-        { month: 9, year: currentYear },   // October
-        { month: 10, year: currentYear },  // November
-        { month: 11, year: currentYear }   // December
+        { month: 6, year: targetYear },   // July
+        { month: 7, year: targetYear },   // August
+        { month: 8, year: targetYear },   // September
+        { month: 9, year: targetYear },   // October
+        { month: 10, year: targetYear },  // November
+        { month: 11, year: targetYear }   // December
       ];
     } else {
       // Default: From January to current month (not 7 months)
       for (let month = 0; month <= currentMonth; month++) {
-        monthsToCheck.push({ month, year: currentYear });
+        monthsToCheck.push({ month, year: targetYear });
       }
     }
     
@@ -422,10 +470,8 @@ export const getPastScoringData = query({
     currentPeriod: v.string()
   },
   handler: async (ctx, { mdaName, currentPeriod }) => {
-    // First get the MDA ID from the name
-    const mda = await ctx.db.query("mdas")
-      .withIndex("byName", q => q.eq("name", mdaName))
-      .first();
+    // First get the MDA ID from the name using flexible matching
+    const mda = await findMdaByName(ctx, mdaName);
     
     if (!mda) {
       return null;
@@ -518,10 +564,8 @@ export const getPeriodTicketData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    // First get the MDA ID from the name
-    const mda = await ctx.db.query("mdas")
-      .withIndex("byName", q => q.eq("name", mdaName))
-      .first();
+    // First get the MDA ID from the name using flexible matching
+    const mda = await findMdaByName(ctx, mdaName);
     
     if (!mda) {
       return null;
@@ -531,85 +575,55 @@ export const getPeriodTicketData = query({
     const currentYear = new Date().getFullYear();
     let startDate: number, endDate: number;
     
+    // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
+    const yearMatch = scoringPeriod.match(/\d{4}/);
+    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+    
     if (scoringPeriod.includes("1st Half")) {
-      startDate = new Date(currentYear, 0, 1).getTime(); // January 1
-      endDate = new Date(currentYear, 5, 30).getTime();   // June 30
+      startDate = new Date(targetYear, 0, 1).getTime(); // January 1
+      endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
     } else if (scoringPeriod.includes("2nd Half")) {
-      startDate = new Date(currentYear, 6, 1).getTime();  // July 1
-      endDate = new Date(currentYear, 11, 31).getTime();  // December 31
+      startDate = new Date(targetYear, 6, 1).getTime();  // July 1
+      endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
     } else {
       // Default - use current month
       const now = new Date();
       startDate = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).getTime();
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
     }
     
-    // Get tickets for this MDA within the date range
-    const tickets = await ctx.db.query("tickets")
+    // Get all tickets for this MDA first
+    const allTickets = await ctx.db.query("tickets")
       .withIndex("byMDA", q => q.eq("assignedMDA", mda._id))
-      .filter(q => q.and(
-        q.gte(q.field("createdAt"), startDate),
-        q.lte(q.field("createdAt"), endDate)
-      ))
       .collect();
     
-    // If no tickets found for the period, get all tickets for this MDA as fallback
-    if (tickets.length === 0) {
-      const allTickets = await ctx.db.query("tickets")
-        .withIndex("byMDA", q => q.eq("assignedMDA", mda._id))
-        .collect();
-      
-      // Filter tickets by date range in memory (more flexible)
-      const filteredTickets = allTickets.filter(ticket => 
-        ticket.createdAt >= startDate && ticket.createdAt <= endDate
-      );
-      
-      if (filteredTickets.length > 0) {
-        // Use the filtered tickets
-        const totalTickets = filteredTickets.length;
-        const resolvedTickets = filteredTickets.filter(t => t.status === "resolved" || t.status === "closed").length;
-        const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
-        
-        // Calculate average response and resolution times
-        const responseTimes = filteredTickets
-          .filter(t => t.firstResponseAt)
-          .map(t => (t.firstResponseAt! - t.createdAt) / (1000 * 60 * 60));
-        
-        const resolutionTimes = filteredTickets
-          .filter(t => t.status === "resolved" || t.status === "closed")
-          .map(t => (t.updatedAt - t.createdAt) / (1000 * 60 * 60));
-        
-        const averageResponseTime = responseTimes.length > 0 
-          ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length 
-          : 0;
-        
-        const averageResolutionTime = resolutionTimes.length > 0 
-          ? resolutionTimes.reduce((sum, time) => sum + time, 0) / resolutionTimes.length 
-          : 0;
-        
-        return {
-          totalTickets,
-          resolvedTickets,
-          resolutionRate,
-          averageResponseTime,
-          averageResolutionTime,
-          period: scoringPeriod,
-          startDate,
-          endDate
-        };
-      }
-    }
+    // Filter tickets by date range in memory (more flexible and accurate)
+    const filteredTickets = allTickets.filter(ticket => 
+      ticket.createdAt >= startDate && ticket.createdAt <= endDate
+    );
     
-    const totalTickets = tickets.length;
-    const resolvedTickets = tickets.filter(t => t.status === "resolved" || t.status === "closed").length;
+    // Debug logging
+    console.log(`MDA: ${mdaName}, Period: ${scoringPeriod}`);
+    console.log(`Target Year: ${targetYear}`);
+    console.log(`Date Range: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`);
+    console.log(`Total tickets for MDA: ${allTickets.length}`);
+    console.log(`Filtered tickets for period: ${filteredTickets.length}`);
+    console.log(`Sample ticket dates:`, allTickets.slice(0, 3).map(t => ({
+      id: t._id,
+      createdAt: new Date(t.createdAt).toLocaleDateString(),
+      status: t.status
+    })));
+    
+    const totalTickets = filteredTickets.length;
+    const resolvedTickets = filteredTickets.filter(t => t.status === "resolved" || t.status === "closed").length;
     const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
     
     // Calculate average response and resolution times
-    const responseTimes = tickets
+    const responseTimes = filteredTickets
       .filter(t => t.firstResponseAt)
       .map(t => (t.firstResponseAt! - t.createdAt) / (1000 * 60 * 60));
     
-    const resolutionTimes = tickets
+    const resolutionTimes = filteredTickets
       .filter(t => t.status === "resolved" || t.status === "closed")
       .map(t => (t.updatedAt - t.createdAt) / (1000 * 60 * 60));
     
@@ -629,7 +643,138 @@ export const getPeriodTicketData = query({
       averageResolutionTime,
       period: scoringPeriod,
       startDate,
-      endDate
+      endDate,
+      dateRange: {
+        start: new Date(startDate).toLocaleDateString(),
+        end: new Date(endDate).toLocaleDateString()
+      }
+    };
+  }
+});
+
+// Get latest scores for all MDAs from scoring history
+export const getAllMDAsLatestScores = query({
+  args: {},
+  handler: async (ctx) => {
+    // Get all unique MDA names from scoring history
+    const allScoringHistory = await ctx.db.query("mda_scoring_history").collect();
+    const uniqueMdaNames = [...new Set(allScoringHistory.map(score => score.mdaName))];
+    
+    // Get MDAs from mdas table
+    const mdas = await ctx.db.query("mdas").collect();
+    const mdaNamesFromTable = mdas.map(mda => mda.name);
+    
+    // Combine all MDA names (from table + from scoring history)
+    const allMdaNames = [...new Set([...mdaNamesFromTable, ...uniqueMdaNames])];
+    
+    const mdasWithLatestScores = await Promise.all(
+      allMdaNames.map(async (mdaName) => {
+        // Find MDA in table if it exists
+        const mda = mdas.find(m => m.name === mdaName);
+        
+        // Get latest score for this MDA (by name, since mdaId might be null)
+        const latestScore = await ctx.db.query("mda_scoring_history")
+          .withIndex("byMdaName", q => q.eq("mdaName", mdaName))
+          .order("desc")
+          .first();
+        
+        return {
+          mdaId: mda?._id || null,
+          mdaName: mdaName,
+          isActiveOnPlatform: !!mda,
+          currentScore: latestScore?.totalPercentage || 0,
+          grade: latestScore?.grade || "N/A",
+          status: latestScore?.status || "Not Scored",
+          lastScoredAt: latestScore?.scoredAt || null,
+          scoringPeriod: latestScore?.scoringPeriod || "N/A"
+        };
+      })
+    );
+    
+    // Sort by current score (highest first)
+    return mdasWithLatestScores.sort((a, b) => b.currentScore - a.currentScore);
+  }
+});
+
+// Get MDA leaderboard with latest scores
+export const getMDALeaderboard = query({
+  args: {
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, { limit = 10 }) => {
+    const mdasWithScores = await getAllMDAsLatestScores(ctx, {});
+    return mdasWithScores.slice(0, limit);
+  }
+});
+
+// Debug function to check ticket dates for a specific MDA
+export const debugTicketDates = query({
+  args: { 
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    // First get the MDA ID from the name
+    const mda = await ctx.db.query("mdas")
+      .withIndex("byName", q => q.eq("name", mdaName))
+      .first();
+    
+    if (!mda) {
+      return { error: "MDA not found" };
+    }
+    
+    // Get all tickets for this MDA
+    const allTickets = await ctx.db.query("tickets")
+      .withIndex("byMDA", q => q.eq("assignedMDA", mda._id))
+      .collect();
+    
+    // Calculate date range based on scoring period
+    const currentYear = new Date().getFullYear();
+    const yearMatch = scoringPeriod.match(/\d{4}/);
+    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+    
+    let startDate: number, endDate: number;
+    
+    if (scoringPeriod.includes("1st Half")) {
+      startDate = new Date(targetYear, 0, 1).getTime(); // January 1
+      endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
+    } else if (scoringPeriod.includes("2nd Half")) {
+      startDate = new Date(targetYear, 6, 1).getTime();  // July 1
+      endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
+    } else {
+      // Default - use current month
+      const now = new Date();
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+    }
+    
+    // Filter tickets by date range
+    const filteredTickets = allTickets.filter(ticket => 
+      ticket.createdAt >= startDate && ticket.createdAt <= endDate
+    );
+    
+    return {
+      mdaName,
+      scoringPeriod,
+      targetYear,
+      dateRange: {
+        start: new Date(startDate).toLocaleDateString(),
+        end: new Date(endDate).toLocaleDateString()
+      },
+      totalTickets: allTickets.length,
+      filteredTickets: filteredTickets.length,
+      allTicketDates: allTickets.map(t => ({
+        id: t._id,
+        createdAt: new Date(t.createdAt).toLocaleDateString(),
+        createdAtTimestamp: t.createdAt,
+        status: t.status
+      })),
+      filteredTicketDates: filteredTickets.map(t => ({
+        id: t._id,
+        createdAt: new Date(t.createdAt).toLocaleDateString(),
+        createdAtTimestamp: t.createdAt,
+        status: t.status
+      }))
     };
   }
 });
