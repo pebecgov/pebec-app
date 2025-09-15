@@ -28,12 +28,15 @@ export default function WorldBankDLIAnalysis() {
   
   // Determine the appropriate title based on role
   const getTitle = () => {
-    switch (userRole) {
+    const role = userRole?.toLowerCase();
+    switch (role) {
       case 'ngf':
         return 'NGF DLI Dashboard Analysis';
       case 'dmo':
         return 'DMO DLI Dashboard Analysis';
       case 'world_bank':
+      case 'worldbank':
+        return 'World Bank DLI Dashboard Analysis';
       default:
         return 'World Bank DLI Dashboard Analysis';
     }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import WorldBankSidebar from "@/components/WorldBank/WorldBankSidebar";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useUser } from "@clerk/nextjs";
 import NotificationBadge from "@/components/NotificationBadge";
 import Image from "next/image";
 import Link from "next/link";
@@ -13,7 +13,34 @@ export default function WorldBankLayoutClient({
 }: {
   children: React.ReactNode;
 }) {
+  const { user } = useUser();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Dynamic title based on user role
+  useEffect(() => {
+    if (user) {
+      const userRole = user.publicMetadata?.role as string;
+      const role = userRole?.toLowerCase();
+      
+      let title = "DLI Dashboard - PEBEC";
+      switch (role) {
+        case 'ngf':
+          title = "NGF DLI Dashboard - PEBEC";
+          break;
+        case 'dmo':
+          title = "DMO DLI Dashboard - PEBEC";
+          break;
+        case 'world_bank':
+        case 'worldbank':
+          title = "World Bank DLI Dashboard - PEBEC";
+          break;
+        default:
+          title = "DLI Dashboard - PEBEC";
+      }
+      
+      document.title = title;
+    }
+  }, [user]);
 
   useEffect(() => {
     const handleResize = () => {
