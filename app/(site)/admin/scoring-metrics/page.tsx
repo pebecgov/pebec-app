@@ -128,6 +128,7 @@ export default function ScoringMetricsPage() {
   const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores);
   const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics);
   const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
+  const mdaLeaderboard = useQuery(api.mda_scoring.getMDALeaderboard, { limit: 20 });
   const realMonthlyReports = useQuery(api.mda_scoring.getRealMonthlyReports, 
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   ) as any[] | undefined;
@@ -160,7 +161,7 @@ export default function ScoringMetricsPage() {
 
   // Calculate ticket resolution performance score
   const calculateTicketResolutionScore = () => {
-    if (!selectedMda || !mdasWithScores) return {
+    if (!selectedMda) return {
       percentage: 0,
       score: 0,
       totalTickets: 0,
@@ -172,28 +173,24 @@ export default function ScoringMetricsPage() {
       resolutionTimeScore: 0
     };
 
-    const mda = mdasWithScores.find(m => m.name === selectedMda);
-    if (!mda) return {
-      percentage: 0,
-      score: 0,
-      totalTickets: 0,
-      resolvedTickets: 0,
-      averageResponseTime: 0,
-      averageResolutionTime: 0,
-      resolutionRate: 0,
-      responseTimeScore: 0,
-      resolutionTimeScore: 0
-    };
+    // Find MDA in live data (might not exist if not active on platform)
+    const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
+    const mda = mdasWithScores?.find(m => 
+      m.name === selectedMda || 
+      (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
+      m.name.includes(selectedMda) ||
+      (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
+    );
 
     // Get the months for the selected scoring period
     const periodMonths = getMonthsForPeriod(scoringPeriod);
     
-    // Use period-specific ticket data if available, otherwise fall back to overall data
-    const totalTickets = periodTicketData?.totalTickets || mda.totalTickets || 0;
-    const resolvedTickets = periodTicketData?.resolvedTickets || mda.resolvedTickets || 0;
+    // Use ONLY period-specific ticket data - if no period data, show 0
+    const totalTickets = periodTicketData?.totalTickets || 0;
+    const resolvedTickets = periodTicketData?.resolvedTickets || 0;
     const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
-    const averageResponseTime = periodTicketData?.averageResponseTime || mda.averageResponseTime || 0;
-    const averageResolutionTime = periodTicketData?.averageResolutionTime || mda.averageResolutionTime || 0;
+    const averageResponseTime = periodTicketData?.averageResponseTime || 0;
+    const averageResolutionTime = periodTicketData?.averageResolutionTime || 0;
 
     // Scoring logic: Resolution rate (9 points), Response time (3 points), Resolution time (3 points)
     let resolutionRateScore = (resolutionRate / 100) * 9;
@@ -228,31 +225,35 @@ export default function ScoringMetricsPage() {
   const getMonthsForPeriod = (period: string): Array<{ month: number; year: number }> => {
     const currentYear = new Date().getFullYear();
     
+    // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
+    const yearMatch = period.match(/\d{4}/);
+    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+    
     if (period.includes("1st Half")) {
       return [
-        { month: 0, year: currentYear },   // January
-        { month: 1, year: currentYear },   // February
-        { month: 2, year: currentYear },   // March
-        { month: 3, year: currentYear },   // April
-        { month: 4, year: currentYear },   // May
-        { month: 5, year: currentYear }    // June
+        { month: 0, year: targetYear },   // January
+        { month: 1, year: targetYear },   // February
+        { month: 2, year: targetYear },   // March
+        { month: 3, year: targetYear },   // April
+        { month: 4, year: targetYear },   // May
+        { month: 5, year: targetYear }    // June
       ];
     } else if (period.includes("2nd Half")) {
       return [
-        { month: 6, year: currentYear },   // July
-        { month: 7, year: currentYear },   // August
-        { month: 8, year: currentYear },   // September
-        { month: 9, year: currentYear },   // October
-        { month: 10, year: currentYear },  // November
-        { month: 11, year: currentYear }   // December
+        { month: 6, year: targetYear },   // July
+        { month: 7, year: targetYear },   // August
+        { month: 8, year: targetYear },   // September
+        { month: 9, year: targetYear },   // October
+        { month: 10, year: targetYear },  // November
+        { month: 11, year: targetYear }   // December
       ];
     } else {
-      // Default: From January to current month of current year
+      // Default: From January to current month of target year
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const months: Array<{ month: number; year: number }> = [];
       for (let month = 0; month <= currentMonth; month++) {
-        months.push({ month, year: currentYear });
+        months.push({ month, year: targetYear });
       }
       return months;
     }
@@ -494,15 +495,20 @@ export default function ScoringMetricsPage() {
     }
 
     try {
-      const mda = mdasWithScores?.find(m => m.name === selectedMda);
-      if (!mda) {
-        toast.error("MDA not found");
-        return;
-      }
+      // Find MDA in live data, or use selected MDA name if not found
+      const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
+      const mda = mdasWithScores?.find(m => 
+        m.name === selectedMda || 
+        (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
+        m.name.includes(selectedMda) ||
+        (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
+      );
+      const mdaId = mda?._id as any; // Will be undefined if MDA doesn't exist in database yet
+      const mdaName = selectedMda;
 
       const result = await calculateScore({
-        mdaId: mda._id,
-        mdaName: mda.name,
+        mdaId: mdaId,
+        mdaName: mdaName,
         scoringPeriod: scoringPeriod,
         serviceLevelAgreementScore: finalScoreData.scores.serviceLevelAgreement,
         mysteryShoppingScore: finalScoreData.scores.mysteryShopping,
@@ -512,11 +518,11 @@ export default function ScoringMetricsPage() {
         reportGovernanceResolutionScore: finalScoreData.scores.reportGovernanceResolution,
         monthlyReportSubmissionScore: finalScoreData.scores.monthlyReportSubmission,
         timelinessInSubmittingScore: finalScoreData.scores.timelinessInSubmitting,
-        totalTickets: mda.totalTickets || 0,
-        resolvedTickets: mda.resolvedTickets || 0,
-        averageResponseTime: mda.averageResponseTime || 0,
-        averageResolutionTime: mda.averageResolutionTime || 0,
-        resolutionRate: mda.resolutionRate || 0,
+        totalTickets: mda?.totalTickets || 0,
+        resolvedTickets: mda?.resolvedTickets || 0,
+        averageResponseTime: mda?.averageResponseTime || 0,
+        averageResolutionTime: mda?.averageResolutionTime || 0,
+        resolutionRate: mda?.resolutionRate || 0,
         hasActiveWebsite: checkboxItems.activeWebsite,
         hasReportGovLink: checkboxItems.reportGovLink,
         hasActiveUsers: checkboxItems.activeUsers,
@@ -582,8 +588,103 @@ export default function ScoringMetricsPage() {
 
         {/* Tab Content */}
         {activeTab === 'dashboard' ? (
-          <div className="w-full">
+          <div className="w-full space-y-6">
             <ScoringMetricsDashboard />
+            
+            {/* MDA Leaderboard */}
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">MDA Performance Leaderboard</h2>
+              
+              {mdaLeaderboard && mdaLeaderboard.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Scored</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {mdaLeaderboard.map((mda, index) => (
+                        <tr key={mda.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              {mda.mdaName}
+                              {mda.isActiveOnPlatform ? (
+                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              mda.status === 'Compliant' 
+                                ? 'bg-green-100 text-green-800' 
+                                : mda.status === 'Non-Compliant'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {mda.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                <div 
+                                  className={`h-2 rounded-full ${
+                                    mda.currentScore >= 90 ? 'bg-green-500' :
+                                    mda.currentScore >= 80 ? 'bg-blue-500' :
+                                    mda.currentScore >= 70 ? 'bg-yellow-500' :
+                                    mda.currentScore >= 60 ? 'bg-orange-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${Math.min(mda.currentScore, 100)}%` }}
+                                ></div>
+                              </div>
+                              <span className="font-medium">{mda.currentScore.toFixed(1)}%</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              mda.grade === 'A' ? 'bg-green-100 text-green-800' :
+                              mda.grade === 'B' ? 'bg-blue-100 text-blue-800' :
+                              mda.grade === 'C' ? 'bg-yellow-100 text-yellow-800' :
+                              mda.grade === 'D' ? 'bg-orange-100 text-orange-800' :
+                              mda.grade === 'F' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {mda.grade}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {mda.lastScoredAt ? new Date(mda.lastScoredAt).toLocaleDateString() : 'Never'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {mda.scoringPeriod}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No MDA scores available yet. Start scoring MDAs to see the leaderboard!</p>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div className="w-full flex-col flex items-center justify-center">
@@ -602,14 +703,69 @@ export default function ScoringMetricsPage() {
                     <MenuItem value="">
                       <em>None</em>
                     </MenuItem>
-                    {mdasWithScores?.map((mda) => (
-                      <MenuItem key={mda._id} value={mda.name}>
-                        {mda.name}
-                      </MenuItem>
-                    ))}
+                    {mdasList.map((mda) => {
+                      // Check if this MDA exists in the database (with or without abbreviation prefix)
+                      const isActive = mdasWithScores?.find(m => 
+                        m.name === mda.name || 
+                        m.name === `${mda.abbreviation} - ${mda.name}` ||
+                        m.name.includes(mda.name) ||
+                        mda.name.includes(m.name.replace(/^[^-]+ - /, ''))
+                      );
+                      
+                      return (
+                        <MenuItem key={mda.name} value={mda.name}>
+                          {mda.name} {isActive ? '✅' : '⚠️'}
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
                 
+                {/* MDA Status Display */}
+                {selectedMda && (() => {
+                  // Find the matching MDA in the database
+                  const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
+                  const isActive = mdasWithScores?.find(m => 
+                    m.name === selectedMda || 
+                    (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
+                    m.name.includes(selectedMda) ||
+                    (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
+                  );
+                  
+                  return (
+                    <div className={`p-4 rounded-lg border ${
+                      isActive 
+                        ? 'bg-green-50 border-green-200' 
+                        : 'bg-yellow-50 border-yellow-200'
+                    }`}>
+                      <h3 className={`text-sm font-semibold mb-2 ${
+                        isActive 
+                          ? 'text-green-800' 
+                          : 'text-yellow-800'
+                      }`}>
+                        {isActive 
+                          ? '✅ MDA Active on Platform' 
+                          : '⚠️ MDA Not Active on Platform'
+                        }
+                      </h3>
+                      <div className={`text-xs space-y-1 ${
+                        isActive 
+                          ? 'text-green-700' 
+                          : 'text-yellow-700'
+                      }`}>
+                        <p>Selected MDA: {selectedMda}</p>
+                        {isActive && (
+                          <p>Database Name: {isActive.name}</p>
+                        )}
+                        {isActive 
+                          ? <p>Live data available - automatic scoring enabled</p>
+                          : <p>Manual scoring only - no live ticket/report data available</p>
+                        }
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Past Scoring Data Display */}
                 {pastScoringData && (
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
@@ -624,6 +780,7 @@ export default function ScoringMetricsPage() {
                   </div>
                 )}
                 
+                
                                  {/* Scoring Period Info */}
                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                    <h3 className="text-sm font-semibold text-green-800 mb-2">
@@ -634,7 +791,7 @@ export default function ScoringMetricsPage() {
                        new Date(m.year, m.month, 1).toLocaleString('default', { month: 'short' })
                      ).join(', ')}</p>
                      <p>Total months in period: {getMonthsForPeriod(scoringPeriod).length}</p>
-                     <p>Year: {currentYear}</p>
+                     <p>Year: {scoringPeriod.match(/\d{4}/)?.[0] || currentYear}</p>
                    </div>
                  </div>
               </div>
@@ -847,20 +1004,41 @@ export default function ScoringMetricsPage() {
                     <>
                       <div className="text-sm mb-3">
                         <p className="text-xs text-blue-600 mb-2">
-                          📅 Evaluating: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${currentYear}` : 
-                                         scoringPeriod.includes("2nd Half") ? `Jul-Dec ${currentYear}` : "All Periods"}
+                          📅 Evaluating: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${scoringPeriod.match(/\d{4}/)?.[0] || currentYear}` : 
+                                         scoringPeriod.includes("2nd Half") ? `Jul-Dec ${scoringPeriod.match(/\d{4}/)?.[0] || currentYear}` : "All Periods"}
                         </p>
                         <p>Total Tickets: {ticketResolutionData.totalTickets}</p>
                         <p>Resolved: {ticketResolutionData.resolvedTickets}</p>
                         <p>Resolution Rate: {ticketResolutionData.resolutionRate.toFixed(1)}%</p>
                         <p className="text-xs text-gray-500">
-                          Data Source: {periodTicketData ? 'Period-specific' : 'Overall MDA data'}
+                          Data Source: {(() => {
+                            const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
+                            const isActive = mdasWithScores?.find(m => 
+                              m.name === selectedMda || 
+                              (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
+                              m.name.includes(selectedMda) ||
+                              (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
+                            );
+                            return isActive 
+                              ? (periodTicketData ? 'Period-specific' : 'Overall MDA data')
+                              : 'MDA not active on platform';
+                          })()}
                         </p>
                         <p className="text-xs text-gray-500">
-                          Period Data: {periodTicketData ? 
-                            `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` : 
-                            'No period data available'
-                          }
+                          Period Data: {(() => {
+                            const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
+                            const isActive = mdasWithScores?.find(m => 
+                              m.name === selectedMda || 
+                              (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
+                              m.name.includes(selectedMda) ||
+                              (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
+                            );
+                            return isActive 
+                              ? (periodTicketData ? 
+                                  `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` : 
+                                  'No period data available')
+                              : 'Use manual input below';
+                          })()}
                         </p>
                         <p>Avg Response Time: {ticketResolutionData.averageResponseTime.toFixed(1)} hours</p>
                         <p>Avg Resolution Time: {ticketResolutionData.averageResolutionTime.toFixed(1)} hours</p>
@@ -877,8 +1055,8 @@ export default function ScoringMetricsPage() {
                     <div className="space-y-3">
                       <div className="text-sm mb-3">
                         <p className="text-xs text-blue-600 mb-2">
-                          📅 Manual Input for: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${currentYear}` : 
-                                             scoringPeriod.includes("2nd Half") ? `Jul-Dec ${currentYear}` : "All Periods"}
+                          📅 Manual Input for: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${scoringPeriod.match(/\d{4}/)?.[0] || currentYear}` : 
+                                             scoringPeriod.includes("2nd Half") ? `Jul-Dec ${scoringPeriod.match(/\d{4}/)?.[0] || currentYear}` : "All Periods"}
                         </p>
                       </div>
                       
