@@ -597,7 +597,7 @@ export default function MessageBadge() {
                 ) : (
                   filteredUsers.map((user) => (
                     <div
-                      key={user.id}
+                      key={user._id}
                       onClick={() => handleUserClick(user)}
                       className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
                     >

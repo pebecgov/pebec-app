@@ -197,13 +197,11 @@ export const getMessageableUsers = query({
     if (currentUser.role === "admin" || currentUser.role === "staff") {
       users = await ctx.db.query("users").collect();
     }
-    // Other roles can message staff and admins
+    // Other roles can only message staff
     else {
       users = await ctx.db
         .query("users")
-        .filter((q) => q.or(
-          q.eq(q.field("role"), "staff"),
-        ))
+        .filter((q) => q.eq(q.field("role"), "staff"))
         .collect();
     }
 
