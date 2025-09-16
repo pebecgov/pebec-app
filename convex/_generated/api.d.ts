@@ -26,6 +26,7 @@ import type * as internal_reports from "../internal_reports.js";
 import type * as letters from "../letters.js";
 import type * as media from "../media.js";
 import type * as meetings from "../meetings.js";
+import type * as messages from "../messages.js";
 import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
 import type * as posts from "../posts.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   letters: typeof letters;
   media: typeof media;
   meetings: typeof meetings;
+  messages: typeof messages;
   newsletters: typeof newsletters;
   notifications: typeof notifications;
   posts: typeof posts;

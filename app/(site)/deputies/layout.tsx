@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { UserButton } from "@clerk/nextjs";
 import NotificationBadge from "@/components/NotificationBadge";
+import MessageBadge from "@/components/MessageBadge";
 import Image from "next/image";
 import Link from "next/link";
 import { FaBars } from "react-icons/fa";
@@ -59,6 +60,7 @@ export default function Deputies({
 
           {}
           <div className="flex items-center gap-4">
+            <MessageBadge />
             <NotificationBadge />
           </div>
         </header>
