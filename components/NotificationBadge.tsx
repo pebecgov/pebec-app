@@ -58,7 +58,7 @@ const clerkUserId = user?.id;
       <Popover open={notificationsOpen} onOpenChange={toggleNotifications}>
         <PopoverTrigger asChild>
           <button className="relative p-3 rounded-full bg-white shadow-md border border-gray-300 hover:bg-gray-100 transition duration-200">
-            <BellIcon className="w-6 h-6 text-gray-700" />
+            <BellIcon className="w-6 h-6 text-yellow-500" />
             {unreadCount > 0 && <div className={`absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold shadow-md ${pulseAnimation}`}>
                 {unreadCount > 99 ? "99+" : unreadCount}
               </div>}

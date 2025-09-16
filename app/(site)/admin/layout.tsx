@@ -8,6 +8,7 @@ import NotificationBadge from "@/components/NotificationBadge";
 import Image from "next/image";
 import Link from "next/link";
 import { FaBars } from "react-icons/fa";
+import MessageBadge from "@/components/MessageBadge";
 export default function AdminLayout({
   children
 }: {
@@ -59,6 +60,7 @@ export default function AdminLayout({
 
           {}
           <div className="flex items-center gap-4">
+          <MessageBadge />
             <NotificationBadge />
           </div>
         </header>

@@ -8,6 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FaBars } from "react-icons/fa";
 import Sidebar from "@/components/Magistrates/MagistratesSidebar";
+import MessageBadge from "@/components/MessageBadge";
 export default function Deputies({
   children
 }: {
@@ -59,6 +60,7 @@ export default function Deputies({
 
           {}
           <div className="flex items-center gap-4">
+          <MessageBadge />
             <NotificationBadge />
           </div>
         </header>

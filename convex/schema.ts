@@ -611,5 +611,34 @@ export default defineSchema({
     emailSent: v.boolean(), // Whether email was sent successfully
     notificationSent: v.boolean(), // Whether in-app notification was sent
     createdAt: v.number()
-  }).index("byDeadline", ["deadlineId"]).index("byUser", ["userId"]).index("byScheduled", ["scheduledFor"]).index("byState", ["state"])
+  }).index("byDeadline", ["deadlineId"]).index("byUser", ["userId"]).index("byScheduled", ["scheduledFor"]).index("byState", ["state"]),
+
+  // Messaging System Tables
+  conversations: defineTable({
+    participants: v.array(v.id("users")), // Array of user IDs in the conversation
+    lastMessageAt: v.number(), // Timestamp of the last message
+    lastMessage: v.optional(v.string()), // Preview of the last message
+    lastMessageSender: v.optional(v.id("users")), // Who sent the last message
+    createdAt: v.number(),
+    updatedAt: v.number()
+  }).index("byParticipant", ["participants"]).index("byLastMessageAt", ["lastMessageAt"]),
+
+  messages: defineTable({
+    conversationId: v.id("conversations"),
+    senderId: v.id("users"),
+    content: v.string(),
+    messageType: v.union(v.literal("text"), v.literal("image"), v.literal("file")),
+    fileId: v.optional(v.id("_storage")), // For file/image messages
+    fileName: v.optional(v.string()), // Original filename for file messages
+    fileSize: v.optional(v.number()), // File size in bytes
+    isRead: v.boolean(),
+    readAt: v.optional(v.number()),
+    createdAt: v.number()
+  }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]),
+
+  message_read_status: defineTable({
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    readAt: v.number()
+  }).index("byMessage", ["messageId"]).index("byUser", ["userId"])
 });
