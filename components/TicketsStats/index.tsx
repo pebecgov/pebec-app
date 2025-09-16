@@ -28,6 +28,7 @@ export default function TicketSummary() {
   const [from, setFrom] = useState<Date | null>(null);
   const [to, setTo] = useState<Date | null>(null);
   const [mdaId, setMdaId] = useState<string>("");
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
   const stats = isSignedIn
     ? useQuery(api.tickets.getTicketStats, {
@@ -84,16 +85,52 @@ export default function TicketSummary() {
     XLSX.utils.book_append_sheet(book, sheet, "Ticket Summary");
     XLSX.writeFile(book, "ticket_summary.xlsx");
   };
-  const barChartData = {
-    labels: ["Total", "Resolved", "Closed", "Open", "Overdue", "≤72h Res", "≤72h Cls"],
-    datasets: [{
-      label: "Tickets",
-      data: stats ? [stats.totalTickets, stats.resolved, stats.closed, stats.open, stats.overdue, stats.resolvedWithin72h, stats.closedWithin72h] : [],
-      backgroundColor: "#3B82F6",
-      borderRadius: 8,
-      barThickness: 35
-    }]
+  // Create filtered chart data based on selected status
+  const getFilteredChartData = () => {
+    if (!stats) return { labels: [], datasets: [] };
+    
+    if (!selectedStatus) {
+      // Show all data when no status is selected
+      return {
+        labels: ["Total", "Resolved", "Closed", "Open", "Overdue", "≤72h Res", "≤72h Cls"],
+        datasets: [{
+          label: "Tickets",
+          data: [stats.totalTickets, stats.resolved, stats.closed, stats.open, stats.overdue, stats.resolvedWithin72h, stats.closedWithin72h],
+          backgroundColor: "#3B82F6",
+          borderRadius: 8,
+          barThickness: 35
+        }]
+      };
+    }
+    
+    // Filter data based on selected status
+    const statusMap = {
+      "Total Tickets": { label: "Total", value: stats.totalTickets },
+      "Resolved": { label: "Resolved", value: stats.resolved },
+      "Closed": { label: "Closed", value: stats.closed },
+      "Open": { label: "Open", value: stats.open },
+      "Overdue": { label: "Overdue", value: stats.overdue }
+    };
+    
+    const selectedData = statusMap[selectedStatus as keyof typeof statusMap];
+    if (!selectedData) return { labels: [], datasets: [] };
+    
+    return {
+      labels: [selectedData.label],
+      datasets: [{
+        label: "Tickets",
+        data: [selectedData.value],
+        backgroundColor: selectedStatus === "Total Tickets" ? "#3B82F6" : 
+                        selectedStatus === "Resolved" ? "#10B981" :
+                        selectedStatus === "Closed" ? "#059669" :
+                        selectedStatus === "Open" ? "#F59E0B" : "#EF4444",
+        borderRadius: 8,
+        barThickness: 35
+      }]
+    };
   };
+
+  const barChartData = getFilteredChartData();
 
 
 
@@ -168,39 +205,60 @@ export default function TicketSummary() {
     </div>
 
 
-      {}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      {} 
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
         {[{
         label: "Total Tickets",
         value: stats.totalTickets,
         icon: Briefcase,
         color: "bg-blue-100 text-blue-800",
+        selectedColor: "bg-blue-200 text-blue-900 border-blue-300",
         spark: sparklineMock(stats.totalTickets)
       }, {
         label: "Resolved",
         value: stats.resolved,
         icon: CheckCircle,
         color: "bg-green-100 text-green-800",
+        selectedColor: "bg-green-200 text-green-900 border-green-300",
         spark: sparklineMock(stats.resolved)
+      }, {
+        label: "Closed",
+        value: stats.closed,
+        icon: CheckCircle,
+        color: "bg-emerald-100 text-emerald-800",
+        selectedColor: "bg-emerald-200 text-emerald-900 border-emerald-300",
+        spark: sparklineMock(stats.closed)
       }, {
         label: "Open",
         value: stats.open,
         icon: Clock,
         color: "bg-yellow-100 text-yellow-800",
+        selectedColor: "bg-yellow-200 text-yellow-900 border-yellow-300",
         spark: sparklineMock(stats.open)
       }, {
         label: "Overdue",
         value: stats.overdue,
         icon: AlertTriangle,
         color: "bg-red-100 text-red-800",
+        selectedColor: "bg-red-200 text-red-900 border-red-300",
         spark: sparklineMock(stats.overdue)
       }].map(({
         label,
         value,
         icon: Icon,
         color,
+        selectedColor,
         spark
-      }) => <div key={label} className={`rounded-xl p-4 border shadow-sm ${color}`}>
+      }) => {
+        const isSelected = selectedStatus === label;
+        return (
+          <div 
+            key={label} 
+            className={`rounded-xl p-4 border shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 ${
+              isSelected ? selectedColor : color
+            } ${isSelected ? 'border-2' : 'border'}`}
+            onClick={() => setSelectedStatus(isSelected ? null : label)}
+          >
             <div className="flex items-center gap-3 mb-2">
               <Icon className="w-6 h-6" />
               <div>
@@ -214,12 +272,28 @@ export default function TicketSummary() {
             fill: "none"
           }} />
             </Sparklines>
-          </div>)}
+          </div>
+        );
+      })}
       </div>
 
       {}
       <div className="bg-white rounded-xl shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">Ticket Distribution</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-700">
+            Ticket Distribution {selectedStatus && `- ${selectedStatus}`}
+          </h3>
+          {selectedStatus && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setSelectedStatus(null)}
+              className="text-xs"
+            >
+              Show All
+            </Button>
+          )}
+        </div>
         <Bar data={barChartData} options={{
         responsive: true,
         plugins: {
