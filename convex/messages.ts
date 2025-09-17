@@ -187,81 +187,125 @@ export const markConversationAsRead = mutation({
 export const getMessageableUsers = query({
   args: { currentUserId: v.id("users") },
   handler: async (ctx, { currentUserId }) => {
-    const currentUser = await ctx.db.get(currentUserId);
-    if (!currentUser) return [];
+    try {
+      const currentUser = await ctx.db.get(currentUserId);
+      if (!currentUser) {
+        console.log("Current user not found:", currentUserId);
+        return [];
+      }
 
-    // Get all users based on role permissions
-    let users;
-    
-    // Admin can message everyone
-    if (currentUser.role === "admin" || currentUser.role === "staff") {
-      users = await ctx.db.query("users").collect();
-    }
-    // Other roles can only message staff
-    else {
-      users = await ctx.db
-        .query("users")
-        .filter((q) => q.eq(q.field("role"), "staff"))
-        .collect();
-    }
-
-    // Filter out the current user
-    const otherUsers = users.filter(user => user._id !== currentUserId);
-
-    // Get conversation data for each user
-    const usersWithConversationData = await Promise.all(
-      otherUsers.map(async (user) => {
-        // Find conversation between current user and this user
-        const allConversations = await ctx.db
-          .query("conversations")
-          .collect();
-        
-        const conversation = allConversations.find(conv => 
-          conv.participants.includes(currentUserId) && conv.participants.includes(user._id)
-        );
-
-        let lastMessage = undefined;
-        let lastMessageTime = undefined;
-        let unreadCount = 0;
-
-        if (conversation) {
-          // Get the last message in this conversation
-          const messages = await ctx.db
-            .query("messages")
-            .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
-            .order("desc")
-            .take(1);
-
-          if (messages.length > 0) {
-            const lastMsg = messages[0];
-            lastMessage = lastMsg.content;
-            lastMessageTime = lastMsg.createdAt;
-          }
-
-          // Count unread messages from this user
-          const unreadMessages = await ctx.db
-            .query("messages")
-            .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
-            .filter((q) => q.and(
-              q.eq(q.field("senderId"), user._id),
-              q.eq(q.field("isRead"), false)
-            ))
-            .collect();
-
-          unreadCount = unreadMessages.length;
+      // Get all users based on role permissions
+      let users = [];
+      
+      try {
+        // Admin can message everyone
+        if (currentUser.role === "admin" || currentUser.role === "staff") {
+          users = await ctx.db.query("users").collect();
         }
+        // Other roles can only message staff
+        else {
+          users = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("role"), "staff"))
+            .collect();
+        }
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        return [];
+      }
 
-        return {
-          ...user,
-          lastMessage,
-          lastMessageTime,
-          unreadCount,
-          isOnline: false // You can implement online status later
-        };
-      })
-    );
+      // Filter out the current user and ensure we have valid users
+      const otherUsers = users.filter(user => 
+        user && 
+        user._id && 
+        user._id !== currentUserId &&
+        typeof user._id === 'string'
+      );
 
-    return usersWithConversationData;
+      if (otherUsers.length === 0) {
+        return [];
+      }
+
+      // Get conversation data for each user
+      const usersWithConversationData = await Promise.all(
+        otherUsers.map(async (user) => {
+          try {
+            // Find conversation between current user and this user
+            const allConversations = await ctx.db
+              .query("conversations")
+              .collect();
+            
+            const conversation = allConversations.find(conv => 
+              conv && 
+              conv.participants && 
+              Array.isArray(conv.participants) &&
+              conv.participants.includes(currentUserId) && 
+              conv.participants.includes(user._id)
+            );
+
+            let lastMessage = undefined;
+            let lastMessageTime = undefined;
+            let unreadCount = 0;
+
+            if (conversation && conversation._id) {
+              try {
+                // Get the last message in this conversation
+                const messages = await ctx.db
+                  .query("messages")
+                  .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
+                  .order("desc")
+                  .take(1);
+
+                if (messages && messages.length > 0 && messages[0]) {
+                  const lastMsg = messages[0];
+                  lastMessage = lastMsg.content || undefined;
+                  lastMessageTime = lastMsg.createdAt || undefined;
+                }
+
+                // Count unread messages from this user
+                const unreadMessages = await ctx.db
+                  .query("messages")
+                  .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
+                  .filter((q) => q.and(
+                    q.eq(q.field("senderId"), user._id),
+                    q.eq(q.field("isRead"), false)
+                  ))
+                  .collect();
+
+                unreadCount = unreadMessages ? unreadMessages.length : 0;
+              } catch (messageError) {
+                console.error("Error fetching messages for conversation:", conversation._id, messageError);
+                // Continue with default values
+              }
+            }
+
+            return {
+              ...user,
+              lastMessage,
+              lastMessageTime,
+              unreadCount,
+              isOnline: false // You can implement online status later
+            };
+          } catch (userError) {
+            console.error("Error processing user:", user._id, userError);
+            // Return user with default values
+            return {
+              ...user,
+              lastMessage: undefined,
+              lastMessageTime: undefined,
+              unreadCount: 0,
+              isOnline: false
+            };
+          }
+        })
+      );
+
+      // Filter out any null/undefined results
+      return usersWithConversationData.filter(user => user && user._id);
+    } catch (error) {
+      console.error("Error in getMessageableUsers:", error);
+      return [];
+    }
   },
 });
 
