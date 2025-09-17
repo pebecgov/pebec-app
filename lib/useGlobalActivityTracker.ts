@@ -14,20 +14,19 @@ export function useGlobalActivityTracker() {
 
   // Track page views
   useEffect(() => {
-    if (pathname) {
-      const timer = setTimeout(() => {
-        trackActivity({
-          activityType: "page_view",
-          page: pathname,
-          metadata: {
-            userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
-            timestamp: Date.now()
-          }
-        });
-      }, 1000); // Wait 1 second to ensure user is actually viewing
+    if (!pathname) return;
+    
+    const timer = setTimeout(() => {
+      trackActivity({
+        activityType: "page_view",
+        page: pathname,
+        metadata: {
+          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
+        }
+      });
+    }, 1000); // Wait 1 second to ensure user is actually viewing
 
-      return () => clearTimeout(timer);
-    }
+    return () => clearTimeout(timer);
   }, [pathname, trackActivity]);
 
   // Track user actions (clicks, form submissions)
@@ -89,23 +88,8 @@ export function useGlobalActivityTracker() {
     };
   }, [pathname, trackActivity]);
 
-  // Track session end on page unload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const sessionDuration = Date.now() - sessionStartTime.current;
-      trackActivity({
-        activityType: "logout",
-        page: pathname,
-        metadata: {
-          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
-          sessionDuration
-        }
-      });
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [pathname, trackActivity]);
+  // Track session end on page unload (removed to prevent browser warnings)
+  // Note: Session tracking is now handled by the login event and page views
 
   // Track login when component mounts (for new sessions)
   useEffect(() => {

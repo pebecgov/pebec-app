@@ -1082,15 +1082,18 @@ export const getStaffUsageMetrics = query({
       v.literal("30d"),
       v.literal("90d"),
       v.literal("1y")
-    ))
+    )),
+    stream: v.optional(v.string()),
+    limit: v.optional(v.number())
   },
-  handler: async (ctx, { timeRange = "30d" }) => {
-    const currentUser = await getCurrentUserOrThrow(ctx);
-    
-    // Only admins and staff can view these metrics
-    if (!["admin", "staff"].includes(currentUser.role || "")) {
-      throw new Error("Unauthorized access to staff metrics");
-    }
+  handler: async (ctx, { timeRange = "30d", stream, limit }) => {
+    try {
+      const currentUser = await getCurrentUserOrThrow(ctx);
+      
+      // Only admins and staff can view these metrics
+      if (!["admin", "staff"].includes(currentUser.role || "")) {
+        throw new Error("Unauthorized access to staff metrics");
+      }
 
     const now = Date.now();
     const timeRanges = {
@@ -1102,11 +1105,17 @@ export const getStaffUsageMetrics = query({
     
     const startTime = now - timeRanges[timeRange];
     
-    // Get all staff users
-    const staffUsers = await ctx.db
+    // Get all staff users (filter by stream if provided)
+    let staffUsersQuery = ctx.db
       .query("users")
-      .withIndex("byRole", q => q.eq("role", "staff"))
-      .collect();
+      .withIndex("byRole", q => q.eq("role", "staff"));
+    
+    const staffUsers = await staffUsersQuery.collect();
+    
+    // Filter by stream if provided
+    const filteredStaffUsers = stream 
+      ? staffUsers.filter(user => user.staffStream === stream)
+      : staffUsers;
     
     // Get activity data for the time range
     const activities = await ctx.db
@@ -1133,7 +1142,7 @@ export const getStaffUsageMetrics = query({
     const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
     
     for (const stream of staffStreams) {
-      const streamUsers = staffUsers.filter(user => user.staffStream === stream);
+      const streamUsers = filteredStaffUsers.filter(user => user.staffStream === stream);
       const streamUserIds = streamUsers.map(user => user._id);
       const streamActivities = activities.filter(activity => 
         streamUserIds.includes(activity.userId)
@@ -1176,7 +1185,7 @@ export const getStaffUsageMetrics = query({
           };
         })
         .sort((a, b) => b.activityCount - a.activityCount)
-        .slice(0, 5);
+        .slice(0, limit || 5);
       
       streamMetrics[stream] = {
         totalUsers: streamUsers.length,
@@ -1189,13 +1198,17 @@ export const getStaffUsageMetrics = query({
       };
     }
     
-    return {
-      timeRange,
-      totalStaffUsers: staffUsers.length,
-      totalActiveStaff: new Set(activities.map(a => a.userId)).size,
-      streamMetrics,
-      generatedAt: now
-    };
+      return {
+        timeRange,
+        totalStaffUsers: staffUsers.length,
+        totalActiveStaff: new Set(activities.map(a => a.userId)).size,
+        streamMetrics,
+        generatedAt: now
+      };
+    } catch (error) {
+      console.error("Error in getStaffUsageMetrics:", error);
+      throw new Error("Failed to retrieve staff usage metrics");
+    }
   }
 });
 
@@ -1206,15 +1219,23 @@ export const getStaffUserActivity = query({
       v.literal("7d"),
       v.literal("30d"),
       v.literal("90d")
-    ))
+    )),
+    activityType: v.optional(v.union(
+      v.literal("login"),
+      v.literal("page_view"),
+      v.literal("action"),
+      v.literal("logout")
+    )),
+    limit: v.optional(v.number())
   },
-  handler: async (ctx, { userId, timeRange = "30d" }) => {
-    const currentUser = await getCurrentUserOrThrow(ctx);
-    
-    // Only admins and staff can view these metrics
-    if (!["admin", "staff"].includes(currentUser.role || "")) {
-      throw new Error("Unauthorized access to user activity");
-    }
+  handler: async (ctx, { userId, timeRange = "30d", activityType, limit }) => {
+    try {
+      const currentUser = await getCurrentUserOrThrow(ctx);
+      
+      // Only admins and staff can view these metrics
+      if (!["admin", "staff"].includes(currentUser.role || "")) {
+        throw new Error("Unauthorized access to user activity");
+      }
     
     const targetUserId = userId || currentUser._id;
     const now = Date.now();
@@ -1226,12 +1247,21 @@ export const getStaffUserActivity = query({
     
     const startTime = now - timeRanges[timeRange];
     
-    const activities = await ctx.db
+    let activitiesQuery = ctx.db
       .query("user_activity")
       .withIndex("byUser", q => q.eq("userId", targetUserId))
       .filter(q => q.gte(q.field("timestamp"), startTime))
-      .order("desc")
-      .collect();
+      .order("desc");
+    
+    // Filter by activity type if provided
+    if (activityType) {
+      activitiesQuery = activitiesQuery.filter(q => q.eq(q.field("activityType"), activityType));
+    }
+    
+    // Apply limit if provided
+    const activities = limit 
+      ? await activitiesQuery.take(limit)
+      : await activitiesQuery.collect();
     
     const user = await ctx.db.get(targetUserId);
     
@@ -1253,26 +1283,30 @@ export const getStaffUserActivity = query({
       }
     });
     
-    return {
-      user: {
-        id: user?._id,
-        name: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Unknown",
-        email: user?.email,
-        role: user?.role,
-        staffStream: user?.staffStream
-      },
-      timeRange,
-      totalActivities: activities.length,
-      dailyActivity,
-      pageViews,
-      actions,
-      recentActivities: activities.slice(0, 20).map(activity => ({
-        type: activity.activityType,
-        page: activity.page,
-        action: activity.action,
-        timestamp: activity.timestamp,
-        metadata: activity.metadata
-      }))
-    };
+      return {
+        user: {
+          id: user?._id,
+          name: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Unknown",
+          email: user?.email,
+          role: user?.role,
+          staffStream: user?.staffStream
+        },
+        timeRange,
+        totalActivities: activities.length,
+        dailyActivity,
+        pageViews,
+        actions,
+        recentActivities: activities.slice(0, limit || 20).map(activity => ({
+          type: activity.activityType,
+          page: activity.page,
+          action: activity.action,
+          timestamp: activity.timestamp,
+          metadata: activity.metadata
+        }))
+      };
+    } catch (error) {
+      console.error("Error in getStaffUserActivity:", error);
+      throw new Error("Failed to retrieve user activity data");
+    }
   }
 });

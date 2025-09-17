@@ -263,7 +263,7 @@ export default function StaffMetricsDashboard() {
                   {stream.charAt(0).toUpperCase() + stream.slice(1)}
                 </CardTitle>
                 <Badge className={getStreamColor(stream)}>
-                  {metrics.totalUsers} users
+                  {metrics.totalUsers} {metrics.totalUsers === 1 ? 'user' : 'users'}
                 </Badge>
               </div>
             </CardHeader>
