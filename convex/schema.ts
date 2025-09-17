@@ -640,5 +640,27 @@ export default defineSchema({
     messageId: v.id("messages"),
     userId: v.id("users"),
     readAt: v.number()
-  }).index("byMessage", ["messageId"]).index("byUser", ["userId"])
+  }).index("byMessage", ["messageId"]).index("byUser", ["userId"]),
+
+  user_activity: defineTable({
+    userId: v.id("users"),
+    activityType: v.union(
+      v.literal("login"),
+      v.literal("page_view"),
+      v.literal("action"),
+      v.literal("logout")
+    ),
+    page: v.optional(v.string()),
+    action: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      userAgent: v.optional(v.string()),
+      ipAddress: v.optional(v.string()),
+      sessionDuration: v.optional(v.number()),
+      staffStream: v.optional(v.string()),
+      elementType: v.optional(v.string()),
+      elementText: v.optional(v.string()),
+      formName: v.optional(v.string())
+    })),
+    timestamp: v.number()
+  }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
 });

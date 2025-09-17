@@ -1039,3 +1039,240 @@ export const getMDAById = query({
     return mda;
   }
 });
+
+// User Activity Tracking Functions
+export const trackUserActivity = mutation({
+  args: {
+    activityType: v.union(
+      v.literal("login"),
+      v.literal("page_view"),
+      v.literal("action"),
+      v.literal("logout")
+    ),
+    page: v.optional(v.string()),
+    action: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      userAgent: v.optional(v.string()),
+      ipAddress: v.optional(v.string()),
+      sessionDuration: v.optional(v.number()),
+      staffStream: v.optional(v.string()),
+      elementType: v.optional(v.string()),
+      elementText: v.optional(v.string()),
+      formName: v.optional(v.string())
+    }))
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    await ctx.db.insert("user_activity", {
+      userId: user._id,
+      activityType: args.activityType,
+      page: args.page,
+      action: args.action,
+      metadata: args.metadata,
+      timestamp: Date.now()
+    });
+  }
+});
+
+export const getStaffUsageMetrics = query({
+  args: {
+    timeRange: v.optional(v.union(
+      v.literal("7d"),
+      v.literal("30d"),
+      v.literal("90d"),
+      v.literal("1y")
+    ))
+  },
+  handler: async (ctx, { timeRange = "30d" }) => {
+    const currentUser = await getCurrentUserOrThrow(ctx);
+    
+    // Only admins and staff can view these metrics
+    if (!["admin", "staff"].includes(currentUser.role || "")) {
+      throw new Error("Unauthorized access to staff metrics");
+    }
+
+    const now = Date.now();
+    const timeRanges = {
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      "90d": 90 * 24 * 60 * 60 * 1000,
+      "1y": 365 * 24 * 60 * 60 * 1000
+    };
+    
+    const startTime = now - timeRanges[timeRange];
+    
+    // Get all staff users
+    const staffUsers = await ctx.db
+      .query("users")
+      .withIndex("byRole", q => q.eq("role", "staff"))
+      .collect();
+    
+    // Get activity data for the time range
+    const activities = await ctx.db
+      .query("user_activity")
+      .withIndex("byTimestamp", q => q.gte("timestamp", startTime))
+      .collect();
+    
+    // Process metrics by staff stream
+    const streamMetrics: Record<string, {
+      totalUsers: number;
+      activeUsers: number;
+      totalLogins: number;
+      totalPageViews: number;
+      totalActions: number;
+      averageSessionDuration: number;
+      mostActiveUsers: Array<{
+        userId: string;
+        name: string;
+        activityCount: number;
+        lastActive: number;
+      }>;
+    }> = {};
+    
+    const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
+    
+    for (const stream of staffStreams) {
+      const streamUsers = staffUsers.filter(user => user.staffStream === stream);
+      const streamUserIds = streamUsers.map(user => user._id);
+      const streamActivities = activities.filter(activity => 
+        streamUserIds.includes(activity.userId)
+      );
+      
+      // Calculate metrics
+      const loginActivities = streamActivities.filter(a => a.activityType === "login");
+      const pageViewActivities = streamActivities.filter(a => a.activityType === "page_view");
+      const actionActivities = streamActivities.filter(a => a.activityType === "action");
+      
+      // Get unique active users
+      const activeUserIds = new Set(streamActivities.map(a => a.userId));
+      
+      // Calculate average session duration
+      const sessionDurations = streamActivities
+        .filter(a => a.metadata?.sessionDuration)
+        .map(a => a.metadata!.sessionDuration!);
+      const avgSessionDuration = sessionDurations.length > 0 
+        ? sessionDurations.reduce((a, b) => a + b, 0) / sessionDurations.length 
+        : 0;
+      
+      // Get most active users
+      const userActivityCounts: Record<string, number> = {};
+      const userLastActive: Record<string, number> = {};
+      
+      streamActivities.forEach(activity => {
+        const userId = activity.userId;
+        userActivityCounts[userId] = (userActivityCounts[userId] || 0) + 1;
+        userLastActive[userId] = Math.max(userLastActive[userId] || 0, activity.timestamp);
+      });
+      
+      const mostActiveUsers = Object.entries(userActivityCounts)
+        .map(([userId, count]) => {
+          const user = streamUsers.find(u => u._id === userId);
+          return {
+            userId,
+            name: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Unknown",
+            activityCount: count,
+            lastActive: userLastActive[userId]
+          };
+        })
+        .sort((a, b) => b.activityCount - a.activityCount)
+        .slice(0, 5);
+      
+      streamMetrics[stream] = {
+        totalUsers: streamUsers.length,
+        activeUsers: activeUserIds.size,
+        totalLogins: loginActivities.length,
+        totalPageViews: pageViewActivities.length,
+        totalActions: actionActivities.length,
+        averageSessionDuration: Math.round(avgSessionDuration / 1000 / 60), // Convert to minutes
+        mostActiveUsers
+      };
+    }
+    
+    return {
+      timeRange,
+      totalStaffUsers: staffUsers.length,
+      totalActiveStaff: new Set(activities.map(a => a.userId)).size,
+      streamMetrics,
+      generatedAt: now
+    };
+  }
+});
+
+export const getStaffUserActivity = query({
+  args: {
+    userId: v.optional(v.id("users")),
+    timeRange: v.optional(v.union(
+      v.literal("7d"),
+      v.literal("30d"),
+      v.literal("90d")
+    ))
+  },
+  handler: async (ctx, { userId, timeRange = "30d" }) => {
+    const currentUser = await getCurrentUserOrThrow(ctx);
+    
+    // Only admins and staff can view these metrics
+    if (!["admin", "staff"].includes(currentUser.role || "")) {
+      throw new Error("Unauthorized access to user activity");
+    }
+    
+    const targetUserId = userId || currentUser._id;
+    const now = Date.now();
+    const timeRanges = {
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      "90d": 90 * 24 * 60 * 60 * 1000
+    };
+    
+    const startTime = now - timeRanges[timeRange];
+    
+    const activities = await ctx.db
+      .query("user_activity")
+      .withIndex("byUser", q => q.eq("userId", targetUserId))
+      .filter(q => q.gte(q.field("timestamp"), startTime))
+      .order("desc")
+      .collect();
+    
+    const user = await ctx.db.get(targetUserId);
+    
+    // Group activities by day
+    const dailyActivity: Record<string, number> = {};
+    const pageViews: Record<string, number> = {};
+    const actions: Record<string, number> = {};
+    
+    activities.forEach(activity => {
+      const date = new Date(activity.timestamp).toISOString().split('T')[0];
+      dailyActivity[date] = (dailyActivity[date] || 0) + 1;
+      
+      if (activity.activityType === "page_view" && activity.page) {
+        pageViews[activity.page] = (pageViews[activity.page] || 0) + 1;
+      }
+      
+      if (activity.activityType === "action" && activity.action) {
+        actions[activity.action] = (actions[activity.action] || 0) + 1;
+      }
+    });
+    
+    return {
+      user: {
+        id: user?._id,
+        name: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Unknown",
+        email: user?.email,
+        role: user?.role,
+        staffStream: user?.staffStream
+      },
+      timeRange,
+      totalActivities: activities.length,
+      dailyActivity,
+      pageViews,
+      actions,
+      recentActivities: activities.slice(0, 20).map(activity => ({
+        type: activity.activityType,
+        page: activity.page,
+        action: activity.action,
+        timestamp: activity.timestamp,
+        metadata: activity.metadata
+      }))
+    };
+  }
+});
