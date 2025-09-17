@@ -246,10 +246,13 @@ const UsefulLinks = () => {
     url: 'http://www.nihort.gov.ng/',
     description: 'Conducts research on horticultural crops.'
   }];
+  // Sort links alphabetically by name
+  const sortedLinks = [...links].sort((a, b) => a.name.localeCompare(b.name));
+
   return <div className="max-w-6xl mx-auto p-6 bg-white shadow-lg rounded-lg">
       <h4 className="text-2xl font-semibold text-gray-700 mb-6">Useful Links</h4>
       <ul className="space-y-4">
-        {links.map((link, index) => <li key={index} className="flex flex-col">
+        {sortedLinks.map((link, index) => <li key={index} className="flex flex-col">
             <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
               {link.name}
             </a>
