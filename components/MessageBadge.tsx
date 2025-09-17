@@ -117,11 +117,14 @@ export default function MessageBadge() {
 
   // Filter and sort users based on search query, role filter, and last message time
   const filteredUsers = (messageableUsers || [])
-    .filter(user => {
+    .filter((user: User) => {
+      // Add safety checks for user object
+      if (!user || !user._id) return false;
+      
       const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
       const matchesSearch = fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (user.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           user.email.toLowerCase().includes(searchQuery.toLowerCase());
+                           (user.email || '').toLowerCase().includes(searchQuery.toLowerCase());
       
       // Apply role filter
       let matchesRole = true;
@@ -302,18 +305,20 @@ export default function MessageBadge() {
   };
 
   const getUserDisplayName = (user: User) => {
+    if (!user) return 'Unknown User';
     const firstName = user.firstName || '';
     const lastName = user.lastName || '';
-    return `${firstName} ${lastName}`.trim() || user.email;
+    return `${firstName} ${lastName}`.trim() || user.email || 'Unknown User';
   };
 
   const getUserInitials = (user: User) => {
+    if (!user) return 'U';
     const firstName = user.firstName || '';
     const lastName = user.lastName || '';
     if (firstName && lastName) {
       return `${firstName[0]}${lastName[0]}`.toUpperCase();
     }
-    return user.email[0].toUpperCase();
+    return (user.email || 'U')[0].toUpperCase();
   };
 
   const getRoleColor = (role?: string) => {
@@ -590,7 +595,14 @@ export default function MessageBadge() {
 
               {/* Users List */}
               <div className="h-80 overflow-y-auto">
-                {filteredUsers.length === 0 ? (
+                {messageableUsers === undefined ? (
+                  <div className="p-4 text-center text-gray-500">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
+                      <span>Loading users...</span>
+                    </div>
+                  </div>
+                ) : filteredUsers.length === 0 ? (
                   <div className="p-4 text-center text-gray-500">
                     No users found
                   </div>
