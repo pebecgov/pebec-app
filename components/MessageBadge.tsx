@@ -45,6 +45,9 @@ interface User {
   lastMessageTime?: number;
   unreadCount?: number;
   isOnline?: boolean;
+  state?: string;
+  mdaName?: string;
+  staffStream?: string;
 }
 
 export default function MessageBadge() {
@@ -56,7 +59,7 @@ export default function MessageBadge() {
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [currentConversationId, setCurrentConversationId] = useState<Id<"conversations"> | null>(null);
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'staff' | 'reform_champion' | 'saber_agent' | 'mda' | 'federal' | 'deputies' | 'magistrates' | 'state_governor' | 'president' | 'vice_president' | 'world_bank' | 'ngf' | 'dmo' | 'user'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'staff' | 'reform_champion' | 'saber_agent' | 'mda'>('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [downloadingFileId, setDownloadingFileId] = useState<Id<"_storage"> | null>(null);
@@ -121,6 +124,12 @@ export default function MessageBadge() {
       // Add safety checks for user object
       if (!user || !user._id) return false;
       
+      // Exclude specific roles from being displayed
+      const excludedRoles = ['federal', 'deputies', 'magistrates', 'state_governor', 'president', 'vice_president', 'world_bank', 'ngf', 'dmo', 'user'];
+      if (excludedRoles.includes(user.role || '')) {
+        return false;
+      }
+      
       const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
       const matchesSearch = fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (user.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -139,27 +148,7 @@ export default function MessageBadge() {
           matchesRole = user.role === 'saber_agent';
         } else if (roleFilter === 'mda') {
           matchesRole = user.role === 'mda';
-        } else if (roleFilter === 'federal') {
-          matchesRole = user.role === 'federal';
-        } else if (roleFilter === 'deputies') {
-          matchesRole = user.role === 'deputies';
-        } else if (roleFilter === 'magistrates') {
-          matchesRole = user.role === 'magistrates';
-        } else if (roleFilter === 'state_governor') {
-          matchesRole = user.role === 'state_governor';
-        } else if (roleFilter === 'president') {
-          matchesRole = user.role === 'president';
-        } else if (roleFilter === 'vice_president') {
-          matchesRole = user.role === 'vice_president';
-        } else if (roleFilter === 'world_bank') {
-          matchesRole = user.role === 'world_bank';
-        } else if (roleFilter === 'ngf') {
-          matchesRole = user.role === 'ngf';
-        } else if (roleFilter === 'dmo') {
-          matchesRole = user.role === 'dmo';
-        } else if (roleFilter === 'user') {
-          matchesRole = user.role === 'user';
-        } 
+        }
         // 'all' shows all users for admin/staff
       } else {
         // Non-admin/staff users only see staff
@@ -321,6 +310,31 @@ export default function MessageBadge() {
     return (user.email || 'U')[0].toUpperCase();
   };
 
+  const getFormattedRole = (user: User) => {
+    if (!user.role) return 'Unknown';
+    
+    switch (user.role) {
+      case 'saber_agent':
+        return user.state || 'SABER Agent';
+      case 'mda':
+        if (user.mdaName) {
+          const mdaAcronym = user.mdaName.split(' - ')[0];
+          return mdaAcronym;
+        }
+        return 'MDA';
+      case 'reform_champion':
+        if (user.mdaName) {
+          const mdaAcronym = user.mdaName.split(' - ')[0];
+          return `RC_${mdaAcronym}`;
+        }
+        return 'Reform Champion';
+      case 'staff':
+        return user.staffStream || 'Staff';
+      default:
+        return user.role;
+    }
+  };
+
   const getRoleColor = (role?: string) => {
     switch (role) {
       // Green variants
@@ -334,30 +348,10 @@ export default function MessageBadge() {
       // Red variants
       case 'mda':
         return 'bg-red-600';
-      case 'federal':
-        return 'bg-red-500';
-      case 'deputies':
-        return 'bg-red-400';
-      case 'magistrates':
-        return 'bg-red-500';
-      case 'state_governor':
-        return 'bg-red-600';
-      case 'president':
-        return 'bg-red-700';
-      case 'vice_president':
-        return 'bg-red-600';
       
       // Blue variants
       case 'saber_agent':
         return 'bg-blue-600';
-      case 'world_bank':
-        return 'bg-blue-500';
-      case 'ngf':
-        return 'bg-blue-400';
-      case 'dmo':
-        return 'bg-blue-500';
-      case 'user':
-        return 'bg-blue-400';
       
       // Default fallback
       default:
@@ -489,106 +483,6 @@ export default function MessageBadge() {
                     >
                       ReportGov Agent
                     </button>
-                    <button
-                      onClick={() => setRoleFilter('federal')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'federal' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      Federal
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('deputies')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'deputies' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      Deputies
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('magistrates')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'magistrates' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      Magistrates
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('state_governor')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'state_governor' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      State Governor
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('president')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'president' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      President
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('vice_president')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'vice_president' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      Vice President
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('world_bank')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'world_bank' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      World Bank
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('ngf')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'ngf' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      NGF
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('dmo')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'dmo' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      DMO
-                    </button>
-                    <button
-                      onClick={() => setRoleFilter('user')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'user' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      Users
-                    </button>
                   </div>
                 )}
               </div>
@@ -631,7 +525,7 @@ export default function MessageBadge() {
                               <span className="font-medium text-gray-900">{getUserDisplayName(user)}</span>
                               {user.role && (
                                 <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                  {user.role}
+                                  {getFormattedRole(user)}
                                 </span>
                               )}
                             </div>
@@ -673,7 +567,7 @@ export default function MessageBadge() {
                     </div>
                     <div>
                       <div className="font-medium text-gray-900">{selectedUser && getUserDisplayName(selectedUser)}</div>
-                      <div className="text-xs text-gray-500">{selectedUser?.role}</div>
+                      <div className="text-xs text-gray-500">{selectedUser ? getFormattedRole(selectedUser) : ''}</div>
                     </div>
                   </div>
                 </div>
