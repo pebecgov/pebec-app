@@ -446,5 +446,18 @@ export default function ViewDLIPage() {
         </div>
       </div>}
 
+      {/* Advisory and Disclaimer */}
+      <div className="mt-12">
+        <div className="rounded-xl border border-yellow-400 bg-yellow-50 p-6 text-gray-800 shadow-sm">
+          <h2 className="text-lg font-semibold text-yellow-800 mb-2">Advisory and Disclaimer</h2>
+          <p className="mb-2">
+            The Presidential Enabling Business Environment Council (PEBEC), serving as a technical assistance partner under the World Bank (WB) funded SABER Program, has issued the foregoing advisory pursuant to its technical expertise in relation to the program’s Verification Protocol, reform obligations, and established international best practices. For the avoidance of doubt, the views and recommendations expressed herein shall not, whether in whole or in part, be construed as representing the position of the World Bank or the Independent Verification Agent (IVA). States are hereby enjoined to undertake an independent review of the Verification Protocols (VP) and to exercise the requisite due diligence as mandated under the program.
+          </p>
+          <p className="mb-0">
+            PEBEC hereby disclaims any liability, whether direct, indirect, consequential, or otherwise, arising from reliance on this advisory. The responsibility for compliance with the program’s requirements rests exclusively with the respective State.
+          </p>
+        </div>
+      </div>
+
     </div>;
 }
