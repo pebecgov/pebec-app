@@ -626,14 +626,15 @@ export default defineSchema({
   messages: defineTable({
     conversationId: v.id("conversations"),
     senderId: v.id("users"),
-    content: v.string(),
+    content: v.string(), // This will store the encrypted message
     messageType: v.union(v.literal("text"), v.literal("image"), v.literal("file")),
     fileId: v.optional(v.id("_storage")), // For file/image messages
     fileName: v.optional(v.string()), // Original filename for file messages
     fileSize: v.optional(v.number()), // File size in bytes
     isRead: v.boolean(),
     readAt: v.optional(v.number()),
-    createdAt: v.number()
+    createdAt: v.number(),
+    isEncrypted: v.optional(v.boolean()) // Flag to indicate if message is encrypted
   }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]),
 
   message_read_status: defineTable({
