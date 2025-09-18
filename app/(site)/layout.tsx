@@ -20,6 +20,7 @@ import { ConvexReactClient } from "convex/react";
 import ChatbaseScript from "@/components/ChatbaseScript";
 import { Toaster } from "sonner";
 import { usePathname } from "next/navigation";
+import ActivityTracker from "@/components/ActivityTracker";
 const inter = Inter({
   subsets: ["latin"]
 });
@@ -49,6 +50,7 @@ export default function RootLayout({
   return <ClerkProvider>
     
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <ActivityTracker />
         <html lang="en" suppressHydrationWarning>
           <body className={`dark:bg-white ${inter.className}`} suppressHydrationWarning>
             <ThemeProvider enableSystem={false} attribute="class" defaultTheme="light">
