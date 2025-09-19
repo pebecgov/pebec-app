@@ -13,15 +13,16 @@ import {
   Legend, 
   ResponsiveContainer
 } from 'recharts';
+import ScoringReportGenerator from './ScoringReportGenerator';
 
 
 
 export default function ScoringMetricsDashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics);
+  const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics, { year: selectedYear });
   const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores);
   const yearlyScoringData = useQuery(api.mda_scoring.getYearlyScoringData, { year: selectedYear });
-  const allMDAsWithScores = useQuery(api.mda_scoring.getAllMDAsLatestScores);
+  const allMDAsWithScores = useQuery(api.mda_scoring.getAllMDAsLatestScores, { year: selectedYear });
 
   if (!scoringAnalytics || !mdasWithScores || !yearlyScoringData || !allMDAsWithScores) {
     return <div className="text-center py-8">Loading scoring analytics...</div>;
@@ -51,7 +52,7 @@ export default function ScoringMetricsDashboard() {
     .map((mda, index) => ({
       name: mda.mdaName,
       score: mda.currentScore || 0,
-      rank: allMDAsWithScores.length - index,
+      rank: allMDAsWithScores.filter(m => m.currentScore > 0).length - index,
       isActive: mda.isActiveOnPlatform
     }));
 
@@ -78,7 +79,15 @@ export default function ScoringMetricsDashboard() {
         <h3 className="text-lg font-semibold text-blue-800 mb-2">📊 Understanding the Scoring System</h3>
         <div className="text-sm text-blue-700 space-y-1">
           <p><strong>Scoring Periods:</strong> 1st Half (Jan-Jun) and 2nd Half (Jul-Dec) of each year</p>
-          <p><strong>Year Average:</strong> (1st Half Score + 2nd Half Score) ÷ 2</p>
+          <p><strong>Ranking Logic:</strong> 
+            <span className="ml-1">
+              • If MDA has both 1st & 2nd half scores → Uses average of both
+              <br />
+              • If MDA has only one period score → Uses that single score
+              <br />
+              • All MDAs ranked by their available score (fair comparison)
+            </span>
+          </p>
           <p><strong>Grade A (90%+):</strong> Excellent performance - Meeting all standards</p>
           <p><strong>Grade B (80-89%):</strong> Good performance - Meeting most standards</p>
           <p><strong>Grade C (70-79%):</strong> Satisfactory performance - Meeting basic standards</p>
@@ -99,7 +108,7 @@ export default function ScoringMetricsDashboard() {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total MDAs</p>
+              <p className="text-sm font-medium text-gray-600">Total MDAs ({selectedYear})</p>
               <p className="text-2xl font-semibold text-gray-900">{scoringAnalytics.totalMDAs}</p>
             </div>
           </div>
@@ -127,7 +136,7 @@ export default function ScoringMetricsDashboard() {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Compliance Rate</p>
+              <p className="text-sm font-medium text-gray-600">Compliance Rate ({selectedYear})</p>
               <p className="text-2xl font-semibold text-gray-900">{scoringAnalytics.complianceRate.toFixed(1)}%</p>
             </div>
           </div>
@@ -141,7 +150,7 @@ export default function ScoringMetricsDashboard() {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Average Score</p>
+              <p className="text-sm font-medium text-gray-600">Average Score ({selectedYear})</p>
               <p className="text-2xl font-semibold text-gray-900">{scoringAnalytics.averageScore.toFixed(1)}%</p>
             </div>
           </div>
@@ -152,7 +161,7 @@ export default function ScoringMetricsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Performers Bar Chart */}
         <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Performers</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Performers ({selectedYear})</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={topPerformersData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -166,7 +175,7 @@ export default function ScoringMetricsDashboard() {
 
         {/* Grade Distribution Table */}
         <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Grade Distribution</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Grade Distribution ({selectedYear})</h3>
           <div className="space-y-3">
             {gradeData.map((grade) => (
               <div key={grade.grade} className="flex items-center justify-between">
@@ -196,8 +205,14 @@ export default function ScoringMetricsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Performers Table */}
         <div className="bg-white rounded-lg shadow-sm border">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Top 10 Performers</h3>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Top 10 Performers ({selectedYear})</h3>
+            <ScoringReportGenerator
+              reportType="top-performers"
+              data={topPerformersData}
+              year={selectedYear}
+              title="Top 10 Performers"
+            />
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -263,8 +278,14 @@ export default function ScoringMetricsDashboard() {
 
         {/* Bottom Performers Table */}
         <div className="bg-white rounded-lg shadow-sm border">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Bottom 10 Performers</h3>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Bottom 10 Performers ({selectedYear})</h3>
+            <ScoringReportGenerator
+              reportType="bottom-performers"
+              data={bottomPerformersData}
+              year={selectedYear}
+              title="Bottom 10 Performers"
+            />
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -331,8 +352,14 @@ export default function ScoringMetricsDashboard() {
 
       {/* Yearly Performance Overview */}
       <div className="bg-white rounded-lg shadow-sm border">
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">{selectedYear} Performance Overview</h3>
+          <ScoringReportGenerator
+            reportType="performance-overview"
+            data={yearlyScoringData}
+            year={selectedYear}
+            title={`${selectedYear} Performance Overview`}
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -419,8 +446,14 @@ export default function ScoringMetricsDashboard() {
 
       {/* All MDAs Performance */}
       <div className="bg-white rounded-lg shadow-sm border">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">All MDAs Performance</h3>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">All MDAs Performance ({selectedYear})</h3>
+          <ScoringReportGenerator
+            reportType="all-mdas"
+            data={allMDAsWithScores.sort((a, b) => b.currentScore - a.currentScore)}
+            year={selectedYear}
+            title="All MDAs Performance"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
