@@ -218,34 +218,98 @@ export const calculateAndSaveMDAScore = mutation({
 
 // Get scoring analytics and leaderboard
 export const getScoringAnalytics = query({
-  args: {},
-  handler: async (ctx) => {
-    // Get all MDAs
+  args: { year: v.optional(v.number()) },
+  handler: async (ctx, { year }) => {
+    const targetYear = year || new Date().getFullYear();
+    // Get all unique MDA names from scoring history (only scored MDAs)
+    const allScoringHistory = await ctx.db.query("mda_scoring_history").collect();
+    const uniqueMdaNames = [...new Set(allScoringHistory.map(score => score.mdaName))];
+    
+    // Get MDAs from mdas table
     const mdas = await ctx.db.query("mdas").collect();
+    const mdaNamesFromTable = mdas.map(mda => mda.name);
+    
+    // Combine all MDA names (from table + from scoring history)
+    const allMdaNames = [...new Set([...mdaNamesFromTable, ...uniqueMdaNames])];
     
     // Get latest scores for each MDA from scoring history
     const mdasWithLatestScores = await Promise.all(
-      mdas.map(async (mda) => {
-        const latestScore = await ctx.db.query("mda_scoring_history")
-          .withIndex("byMda", q => q.eq("mdaId", mda._id))
+      allMdaNames.map(async (mdaName) => {
+        // Find MDA in table if it exists
+        const mda = mdas.find(m => m.name === mdaName);
+        
+        // Get all scores for this MDA (by name, since mdaId might be null)
+        const allScores = await ctx.db.query("mda_scoring_history")
+          .withIndex("byMdaName", q => q.eq("mdaName", mdaName))
           .order("desc")
-          .first();
+          .collect();
+        
+        if (allScores.length === 0) {
+          return {
+            _id: mda?._id || null,
+            name: mdaName,
+            description: mda?.description,
+            email: mda?.email,
+            phoneNumber: mda?.phoneNumber,
+            assignedUsers: mda?.assignedUsers || [],
+            createdAt: mda?.createdAt || 0,
+            currentScore: 0,
+            latestScore: null,
+            isActiveOnPlatform: !!mda
+          };
+        }
+        
+        // Get target year scores
+        const targetYearScores = allScores.filter(score => {
+          const scoreYear = new Date(score.scoredAt).getFullYear();
+          return scoreYear === targetYear;
+        });
+        
+        let rankingScore = 0;
+        let latestScore = allScores[0]; // Most recent score for display
+        
+        if (targetYearScores.length > 0) {
+          // Check if we have both 1st and 2nd half scores for target year
+          const firstHalf = targetYearScores.find(s => s.scoringPeriod.includes('1st Half'));
+          const secondHalf = targetYearScores.find(s => s.scoringPeriod.includes('2nd Half'));
+          
+          if (firstHalf && secondHalf) {
+            // Both periods available - use average for ranking
+            rankingScore = (firstHalf.totalPercentage + secondHalf.totalPercentage) / 2;
+          } else {
+            // Only one period available - use that score for ranking
+            rankingScore = targetYearScores[0].totalPercentage;
+          }
+        } else {
+          // No target year scores, use latest score
+          rankingScore = latestScore.totalPercentage;
+        }
         
         return {
-          ...mda,
-          currentScore: latestScore?.totalPercentage || 0,
-          latestScore
+          _id: mda?._id || null,
+          name: mdaName,
+          description: mda?.description,
+          email: mda?.email,
+          phoneNumber: mda?.phoneNumber,
+          assignedUsers: mda?.assignedUsers || [],
+          createdAt: mda?.createdAt || 0,
+          currentScore: rankingScore,
+          latestScore,
+          isActiveOnPlatform: !!mda
         };
       })
     );
     
+    // Filter to only include MDAs that have been scored (currentScore > 0)
+    const scoredMdas = mdasWithLatestScores.filter(m => m.currentScore > 0);
+    
     // Sort by current score
-    const sortedMdas = mdasWithLatestScores.sort((a, b) => b.currentScore - a.currentScore);
+    const sortedMdas = scoredMdas.sort((a, b) => b.currentScore - a.currentScore);
     
     // Calculate statistics
     const totalMDAs = sortedMdas.length;
     const compliantMDAs = sortedMdas.filter(m => m.currentScore >= 70).length;
-    const averageScore = sortedMdas.reduce((sum, m) => sum + m.currentScore, 0) / totalMDAs;
+    const averageScore = totalMDAs > 0 ? sortedMdas.reduce((sum, m) => sum + m.currentScore, 0) / totalMDAs : 0;
     
     // Grade distribution
     const gradeDistribution = {
@@ -260,7 +324,7 @@ export const getScoringAnalytics = query({
       totalMDAs,
       compliantMDAs,
       nonCompliantMDAs: totalMDAs - compliantMDAs,
-      complianceRate: (compliantMDAs / totalMDAs) * 100,
+      complianceRate: totalMDAs > 0 ? (compliantMDAs / totalMDAs) * 100 : 0,
       averageScore,
       gradeDistribution,
       topPerformers: sortedMdas.slice(0, 10),
@@ -546,10 +610,21 @@ export const getYearlyScoringData = query({
     });
     
     // Calculate yearly average for each MDA
+    // For MDAs with both 1st and 2nd half: use average of both
+    // For MDAs with only one period: use that score
     mdaYearlyData.forEach(mdaData => {
       if (mdaData.periods.length > 0) {
-        const totalScore = mdaData.periods.reduce((sum: number, period: { score: number }) => sum + period.score, 0);
-        mdaData.yearlyAverage = totalScore / mdaData.periods.length;
+        // Check if we have both 1st and 2nd half scores
+        const firstHalf = mdaData.periods.find((p: any) => p.period.includes('1st Half'));
+        const secondHalf = mdaData.periods.find((p: any) => p.period.includes('2nd Half'));
+        
+        if (firstHalf && secondHalf) {
+          // Both periods available - use average
+          mdaData.yearlyAverage = (firstHalf.score + secondHalf.score) / 2;
+        } else {
+          // Only one period available - use that score
+          mdaData.yearlyAverage = mdaData.periods[0].score;
+        }
       }
     });
     
@@ -654,8 +729,9 @@ export const getPeriodTicketData = query({
 
 // Get latest scores for all MDAs from scoring history
 export const getAllMDAsLatestScores = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { year: v.optional(v.number()) },
+  handler: async (ctx, { year }) => {
+    const targetYear = year || new Date().getFullYear();
     // Get all unique MDA names from scoring history
     const allScoringHistory = await ctx.db.query("mda_scoring_history").collect();
     const uniqueMdaNames = [...new Set(allScoringHistory.map(score => score.mdaName))];
@@ -672,21 +748,72 @@ export const getAllMDAsLatestScores = query({
         // Find MDA in table if it exists
         const mda = mdas.find(m => m.name === mdaName);
         
-        // Get latest score for this MDA (by name, since mdaId might be null)
-        const latestScore = await ctx.db.query("mda_scoring_history")
+        // Get all scores for this MDA (by name, since mdaId might be null)
+        const allScores = await ctx.db.query("mda_scoring_history")
           .withIndex("byMdaName", q => q.eq("mdaName", mdaName))
           .order("desc")
-          .first();
+          .collect();
+        
+        if (allScores.length === 0) {
+          return {
+            mdaId: mda?._id || null,
+            mdaName: mdaName,
+            isActiveOnPlatform: !!mda,
+            currentScore: 0,
+            grade: "N/A",
+            status: "Not Scored",
+            lastScoredAt: null,
+            scoringPeriod: "N/A"
+          };
+        }
+        
+        // Get target year scores
+        const targetYearScores = allScores.filter(score => {
+          const scoreYear = new Date(score.scoredAt).getFullYear();
+          return scoreYear === targetYear;
+        });
+        
+        let rankingScore = 0;
+        let latestScore = allScores[0]; // Most recent score for display
+        let grade = latestScore.grade;
+        let status = latestScore.status;
+        let lastScoredAt = latestScore.scoredAt;
+        let scoringPeriod = latestScore.scoringPeriod;
+        
+        if (targetYearScores.length > 0) {
+          // Check if we have both 1st and 2nd half scores for target year
+          const firstHalf = targetYearScores.find(s => s.scoringPeriod.includes('1st Half'));
+          const secondHalf = targetYearScores.find(s => s.scoringPeriod.includes('2nd Half'));
+          
+          if (firstHalf && secondHalf) {
+            // Both periods available - use average for ranking
+            rankingScore = (firstHalf.totalPercentage + secondHalf.totalPercentage) / 2;
+            // Use the most recent score for grade/status display
+            grade = latestScore.grade;
+            status = latestScore.status;
+            scoringPeriod = `${firstHalf.scoringPeriod} & ${secondHalf.scoringPeriod}`;
+          } else {
+            // Only one period available - use that score for ranking
+            rankingScore = targetYearScores[0].totalPercentage;
+            grade = targetYearScores[0].grade;
+            status = targetYearScores[0].status;
+            lastScoredAt = targetYearScores[0].scoredAt;
+            scoringPeriod = targetYearScores[0].scoringPeriod;
+          }
+        } else {
+          // No target year scores, use latest score
+          rankingScore = latestScore.totalPercentage;
+        }
         
         return {
           mdaId: mda?._id || null,
           mdaName: mdaName,
           isActiveOnPlatform: !!mda,
-          currentScore: latestScore?.totalPercentage || 0,
-          grade: latestScore?.grade || "N/A",
-          status: latestScore?.status || "Not Scored",
-          lastScoredAt: latestScore?.scoredAt || null,
-          scoringPeriod: latestScore?.scoringPeriod || "N/A"
+          currentScore: rankingScore,
+          grade: grade,
+          status: status,
+          lastScoredAt: lastScoredAt,
+          scoringPeriod: scoringPeriod
         };
       })
     );
@@ -699,11 +826,75 @@ export const getAllMDAsLatestScores = query({
 // Get MDA leaderboard with latest scores
 export const getMDALeaderboard = query({
   args: {
-    limit: v.optional(v.number())
+    limit: v.optional(v.number()),
+    year: v.optional(v.number())
   },
-  handler: async (ctx, { limit = 10 }) => {
-    const mdasWithScores = await getAllMDAsLatestScores(ctx, {});
+  handler: async (ctx, { limit = 10, year }) => {
+    const mdasWithScores = await getAllMDAsLatestScores(ctx, { year });
     return mdasWithScores.slice(0, limit);
+  }
+});
+
+// Check if an MDA already has a score for a specific period
+export const checkMdaScoringStatus = query({
+  args: { 
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    // Check if this MDA already has a score for this specific period
+    const existingScore = await ctx.db.query("mda_scoring_history")
+      .withIndex("byMdaName", q => q.eq("mdaName", mdaName))
+      .filter(q => q.eq(q.field("scoringPeriod"), scoringPeriod))
+      .first();
+    
+    return {
+      hasScore: !!existingScore,
+      existingScore: existingScore ? {
+        totalPercentage: existingScore.totalPercentage,
+        grade: existingScore.grade,
+        status: existingScore.status,
+        scoredAt: existingScore.scoredAt
+      } : null
+    };
+  }
+});
+
+// Helper function to sanitize MDA names for use as object keys
+function sanitizeMdaName(mdaName: string): string {
+  return mdaName
+    .replace(/[–—]/g, '-') // Replace em dash and en dash with regular dash
+    .replace(/[^\w\s-]/g, '') // Remove all non-word characters except spaces and dashes
+    .replace(/\s+/g, '_') // Replace spaces with underscores
+    .replace(/-+/g, '_') // Replace multiple dashes with underscores
+    .toLowerCase();
+}
+
+// Get all MDA scoring statuses for a specific period
+export const getAllMdaScoringStatuses = query({
+  args: { 
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { scoringPeriod }) => {
+    // Get all scoring history for this specific period
+    const periodScores = await ctx.db.query("mda_scoring_history")
+      .withIndex("byPeriod", q => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+    
+    // Create an object of sanitized MDA names to their scores for this period
+    const mdaScoresObject: { [key: string]: any } = {};
+    periodScores.forEach(score => {
+      const sanitizedKey = sanitizeMdaName(score.mdaName);
+      mdaScoresObject[sanitizedKey] = {
+        originalName: score.mdaName, // Keep original name for reference
+        totalPercentage: score.totalPercentage,
+        grade: score.grade,
+        status: score.status,
+        scoredAt: score.scoredAt
+      };
+    });
+    
+    return mdaScoresObject;
   }
 });
 

@@ -129,6 +129,203 @@ export default function ScoringMetricsPage() {
   const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics);
   const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
   const mdaLeaderboard = useQuery(api.mda_scoring.getMDALeaderboard, { limit: 20 });
+  const mdaScoringStatus = useQuery(
+    api.mda_scoring.checkMdaScoringStatus, 
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const allMdaScoringStatuses = useQuery(
+    api.mda_scoring.getAllMdaScoringStatuses, 
+    { scoringPeriod }
+  );
+
+  // Helper function to sanitize MDA names (same as backend)
+  const sanitizeMdaName = (mdaName: string): string => {
+    return mdaName
+      .replace(/[–—]/g, '-') // Replace em dash and en dash with regular dash
+      .replace(/[^\w\s-]/g, '') // Remove all non-word characters except spaces and dashes
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .replace(/-+/g, '_') // Replace multiple dashes with underscores
+      .toLowerCase();
+  };
+  // Header matching functions (implemented locally for now)
+  const performHeaderMatching = (headers: string[]) => {
+    const mapping: { [key: string]: string | null } = {
+      DATE_OF_SUBMISSION: null,
+      DATE_OF_COMPLETION: null,
+      EXPECTED_TIMELINE: null
+    };
+    
+    headers.forEach(header => {
+      const upperHeader = header.toUpperCase();
+      
+      // Match submission date
+      if (!mapping.DATE_OF_SUBMISSION && 
+          (upperHeader.includes('SUBMISSION') || upperHeader.includes('START') || 
+           upperHeader.includes('SUBMITTED') || upperHeader.includes('DATE'))) {
+        mapping.DATE_OF_SUBMISSION = header;
+      }
+      
+      // Match completion date
+      if (!mapping.DATE_OF_COMPLETION && 
+          (upperHeader.includes('COMPLETION') || upperHeader.includes('END') || 
+           upperHeader.includes('COMPLETED') || upperHeader.includes('FINISH'))) {
+        mapping.DATE_OF_COMPLETION = header;
+      }
+      
+      // Match timeline
+      if (!mapping.EXPECTED_TIMELINE && 
+          (upperHeader.includes('TIMELINE') || upperHeader.includes('EXPECTED') || 
+           upperHeader.includes('DAYS') || upperHeader.includes('DEADLINE') || 
+           upperHeader.includes('TARGET') || upperHeader.includes('SLA'))) {
+        mapping.EXPECTED_TIMELINE = header;
+      }
+    });
+    
+    return {
+      headerMapping: mapping,
+      confidence: Object.fromEntries(
+        Object.entries(mapping).map(([key, value]) => [key, value ? 0.8 : 0])
+      ),
+      suggestions: ["Using intelligent header matching. AI features coming soon!"],
+      success: true
+    };
+  };
+
+  const processSlaData = (data: any[], headerMapping: any) => {
+    try {
+      const processedData = data.map((row: any) => {
+        const submissionDate = headerMapping.DATE_OF_SUBMISSION ? row[headerMapping.DATE_OF_SUBMISSION] : null;
+        const completionDate = headerMapping.DATE_OF_COMPLETION ? row[headerMapping.DATE_OF_COMPLETION] : null;
+        const timelineStr = headerMapping.EXPECTED_TIMELINE ? row[headerMapping.EXPECTED_TIMELINE] : null;
+        
+        // Calculate working days
+        const actualDays = calculateWorkingDays(submissionDate, completionDate);
+        
+        // Parse expected timeline
+        const expectedDays = parseTimeline(timelineStr);
+        
+        // Calculate performance percentage
+        const performancePercentage = calculatePerformance(actualDays, expectedDays);
+        
+        // Determine status
+        let status = 'Invalid Dates';
+        if (actualDays !== null && expectedDays !== null) {
+          status = actualDays <= expectedDays ? 'On Time' : 'Delayed';
+        }
+        
+        return {
+          ...row,
+          'DATE OF SUBMISSION': submissionDate,
+          'DATE OF COMPLETION': completionDate,
+          'EXPECTED TIMELINE': timelineStr,
+          'ACTUAL WORKING DAYS': actualDays,
+          'STATUS': status,
+          'DAYS OVER': actualDays !== null && expectedDays !== null
+            ? Math.max(0, actualDays - expectedDays)
+            : null,
+          'PERFORMANCE %': performancePercentage !== null
+            ? `${performancePercentage.toFixed(2)}%`
+            : 'N/A'
+        };
+      });
+      
+      // Calculate overall percentage
+      const validRows = processedData.filter(row => row['PERFORMANCE %'] !== 'N/A');
+      const totalPercentage = validRows.reduce((sum, row) => {
+        const percentage = parseFloat(row['PERFORMANCE %'].replace('%', ''));
+        return sum + percentage;
+      }, 0);
+      
+      const overallPercentage = validRows.length > 0 ? (totalPercentage / validRows.length) : null;
+      
+      return {
+        processedData,
+        overallPercentage,
+        totalRows: data.length,
+        validRows: validRows.length,
+        success: true
+      };
+      
+    } catch (error) {
+      console.error("Data processing error:", error);
+      return {
+        processedData: [],
+        overallPercentage: null,
+        totalRows: 0,
+        validRows: 0,
+        success: false,
+        error: (error as Error).message
+      };
+    }
+  };
+
+  // Helper functions
+  const calculateWorkingDays = (startDate: any, endDate: any): number | null => {
+    if (!startDate || !endDate || typeof startDate !== 'string' || typeof endDate !== 'string') {
+      return null;
+    }
+
+    try {
+      let start: Date;
+      let end: Date;
+      
+      if (startDate.includes('/') && startDate.split('/').length === 3) {
+        const [startDay, startMonth, startYear] = startDate.split('/').map(Number);
+        const [endDay, endMonth, endYear] = endDate.split('/').map(Number);
+        
+        start = new Date(startYear, startMonth - 1, startDay);
+        end = new Date(endYear, endMonth - 1, endDay);
+      } else {
+        start = new Date(startDate);
+        end = new Date(endDate);
+      }
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+        return null;
+      }
+
+      let count = 0;
+      const current = new Date(start);
+      current.setDate(current.getDate() + 1);
+
+      while (current <= end) {
+        const day = current.getDay();
+        if (day !== 0 && day !== 6) {
+          count++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      return count;
+    } catch (error) {
+      console.error("Date calculation error:", error);
+      return null;
+    }
+  };
+
+  const parseTimeline = (timelineStr: any): number | null => {
+    if (!timelineStr) return null;
+    
+    try {
+      const match = String(timelineStr).match(/\d+/);
+      return match ? parseInt(match[0], 10) : null;
+    } catch (error) {
+      console.error("Timeline parsing error:", error);
+      return null;
+    }
+  };
+
+  const calculatePerformance = (actualDays: number | null, expectedDays: number | null): number | null => {
+    if (actualDays === null || expectedDays === null) return null;
+
+    if (actualDays <= expectedDays) {
+      return 100;
+    } else {
+      const daysOver = actualDays - expectedDays;
+      const percentage = 100 - (daysOver * 0.5);
+      return Math.max(0, percentage);
+    }
+  };
   const realMonthlyReports = useQuery(api.mda_scoring.getRealMonthlyReports, 
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   ) as any[] | undefined;
@@ -451,38 +648,72 @@ export default function ScoringMetricsPage() {
 
   const finalScoreData = calculateTotalScore();
 
-  // Handle file upload for SLA scoring
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file upload for SLA scoring with AI helper
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
-      // Process the data and calculate performance
-      // This is a simplified version - you can enhance it based on your needs
-      let totalPercentage = 0;
-      let validRows = 0;
+        if (jsonData.length === 0) {
+          toast.error("No data found in the Excel file");
+          return;
+        }
 
-      const processed = jsonData.map((row: any) => {
-        // Add your processing logic here
-        const performancePercentage = Math.random() * 100; // Placeholder
-        totalPercentage += performancePercentage;
-        validRows++;
+        // Get headers from the first row
+        const headers = Object.keys(jsonData[0] as Record<string, any>);
         
-        return {
-          ...row,
-          'PERFORMANCE %': `${performancePercentage.toFixed(2)}%`
-        };
-      });
+        // Use intelligent header matching
+        toast.info("🤖 Analyzing your file headers...");
+        
+        const headerResult = performHeaderMatching(headers);
 
-      const overall = validRows > 0 ? (totalPercentage / validRows) : null;
-      setOverallPercentage(overall);
-      setResults(processed);
+        if (!headerResult.success) {
+          toast.warning("⚠️ Header matching failed, using fallback method");
+        }
+
+        // Check if we have the required headers
+        const requiredHeaders = ['DATE_OF_SUBMISSION', 'DATE_OF_COMPLETION', 'EXPECTED_TIMELINE'];
+        const missingHeaders = requiredHeaders.filter(header => 
+          !headerResult.headerMapping[header] || headerResult.confidence[header] < 0.5
+        );
+
+        if (missingHeaders.length > 0) {
+          toast.error(`Missing or unclear headers: ${missingHeaders.join(', ')}. Please check your file format.`);
+          return;
+        }
+
+        // Process the data with matched headers
+        toast.info("📊 Processing data with matched headers...");
+        
+        const processResult = processSlaData(jsonData, headerResult.headerMapping);
+
+        if (!processResult.success) {
+          toast.error("Failed to process data: " + processResult.error);
+          return;
+        }
+
+        // Set results
+        setOverallPercentage(processResult.overallPercentage);
+        setResults(processResult.processedData);
+        
+        // Show success message with insights
+        toast.success(`✅ Successfully processed ${processResult.validRows}/${processResult.totalRows} rows`);
+        
+        if (headerResult.suggestions && headerResult.suggestions.length > 0) {
+          toast.info(`💡 ${headerResult.suggestions.join(', ')}`);
+        }
+
+      } catch (error) {
+        console.error("File upload error:", error);
+        toast.error("Failed to process file: " + (error as Error).message);
+      }
     };
     reader.readAsArrayBuffer(file);
   };
@@ -712,9 +943,18 @@ export default function ScoringMetricsPage() {
                         mda.name.includes(m.name.replace(/^[^-]+ - /, ''))
                       );
                       
+                      // Check if this MDA already has a score for the current period
+                      const sanitizedKey = sanitizeMdaName(mda.name);
+                      const hasScoreForPeriod = allMdaScoringStatuses?.[sanitizedKey] ? true : false;
+                      const existingScore = allMdaScoringStatuses?.[sanitizedKey];
+                      
                       return (
-                        <MenuItem key={mda.name} value={mda.name}>
-                          {mda.name} {isActive ? '✅' : '⚠️'}
+                        <MenuItem 
+                          key={mda.name} 
+                          value={mda.name}
+                          disabled={hasScoreForPeriod}
+                        >
+                          {mda.name} {isActive ? '✅' : '⚠️'} {hasScoreForPeriod ? `📊 Already Scored (${existingScore?.grade || 'N/A'})` : ''}
                         </MenuItem>
                       );
                     })}
@@ -732,35 +972,56 @@ export default function ScoringMetricsPage() {
                     (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
                   );
                   
+                  // Check if this MDA already has a score for the current period
+                  const hasScoreForPeriod = mdaScoringStatus?.hasScore || false;
+                  const existingScore = mdaScoringStatus?.existingScore;
+                  
                   return (
                     <div className={`p-4 rounded-lg border ${
-                      isActive 
+                      hasScoreForPeriod
+                        ? 'bg-red-50 border-red-200'
+                        : isActive 
                         ? 'bg-green-50 border-green-200' 
                         : 'bg-yellow-50 border-yellow-200'
                     }`}>
                       <h3 className={`text-sm font-semibold mb-2 ${
-                        isActive 
+                        hasScoreForPeriod
+                          ? 'text-red-800'
+                          : isActive 
                           ? 'text-green-800' 
                           : 'text-yellow-800'
                       }`}>
-                        {isActive 
+                        {hasScoreForPeriod
+                          ? '🚫 MDA Already Scored for This Period'
+                          : isActive 
                           ? '✅ MDA Active on Platform' 
                           : '⚠️ MDA Not Active on Platform'
                         }
                       </h3>
                       <div className={`text-xs space-y-1 ${
-                        isActive 
+                        hasScoreForPeriod
+                          ? 'text-red-700'
+                          : isActive 
                           ? 'text-green-700' 
                           : 'text-yellow-700'
                       }`}>
                         <p>Selected MDA: {selectedMda}</p>
-                        {isActive && (
+                        {hasScoreForPeriod && existingScore && (
+                          <>
+                            <p>Existing Score: {existingScore.totalPercentage.toFixed(1)}%</p>
+                            <p>Grade: {existingScore.grade}</p>
+                            <p>Status: {existingScore.status}</p>
+                            <p>Scored on: {new Date(existingScore.scoredAt).toLocaleDateString()}</p>
+                          </>
+                        )}
+                        {!hasScoreForPeriod && isActive && (
                           <p>Database Name: {isActive.name}</p>
                         )}
-                        {isActive 
-                          ? <p>Live data available - automatic scoring enabled</p>
-                          : <p>Manual scoring only - no live ticket/report data available</p>
-                        }
+                        {!hasScoreForPeriod && (
+                          isActive 
+                            ? <p>Live data available - automatic scoring enabled</p>
+                            : <p>Manual scoring only - no live ticket/report data available</p>
+                        )}
                       </div>
                     </div>
                   );
@@ -834,7 +1095,8 @@ export default function ScoringMetricsPage() {
                     </div>
 
                     {slaMethod === 'file' ? (
-                      <div>
+                      <div className="space-y-3">
+                        
                         <input
                           type="file"
                           ref={fileInputRef}
@@ -842,6 +1104,9 @@ export default function ScoringMetricsPage() {
                           accept=".xlsx, .xls"
                           className="w-full"
                         />
+                        <div className="text-xs text-gray-500">
+                          Supported formats: Excel (.xlsx, .xls).
+                        </div>
                       </div>
                     ) : (
                       <Select
@@ -855,11 +1120,21 @@ export default function ScoringMetricsPage() {
                       </Select>
                     )}
 
-                    <div className="text-center">
-                      Score: {slaMethod === 'file' 
-                        ? (overallPercentage !== null ? `${overallPercentage.toFixed(1)}%` : 'N/A')
-                        : `${((slaRate / 10) * 30).toFixed(1)}/30`
-                      }
+                    <div className="text-center space-y-2">
+                      <div>
+                        Score: {slaMethod === 'file' 
+                          ? (overallPercentage !== null ? `${overallPercentage.toFixed(1)}%` : 'N/A')
+                          : `${((slaRate / 10) * 30).toFixed(1)}/30`
+                        }
+                      </div>
+                      {slaMethod === 'file' && results.length > 0 && (
+                        <button 
+                          onClick={() => setShowModel(true)} 
+                          className="bg-green-500 px-3 py-1.5 rounded-md text-white hover:bg-green-600 transition-colors duration-300 text-[14px] cursor-pointer"
+                        >
+                          View Results ({results.length} rows)
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1420,9 +1695,19 @@ export default function ScoringMetricsPage() {
               <div className="w-full flex justify-center mt-8">
                 <button
                   onClick={() => setShowFinalScore(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  disabled={!selectedMda || mdaScoringStatus?.hasScore}
+                  className={`font-bold py-4 px-8 rounded-lg text-lg shadow-lg transition-all duration-300 transform ${
+                    !selectedMda || mdaScoringStatus?.hasScore
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-xl hover:scale-105'
+                  }`}
                 >
-                  Calculate Final Score
+                  {!selectedMda 
+                    ? 'Select an MDA First'
+                    : mdaScoringStatus?.hasScore 
+                    ? 'MDA Already Scored for This Period'
+                    : 'Calculate Final Score'
+                  }
                 </button>
               </div>
             </div>
