@@ -125,8 +125,8 @@ export default function ScoringMetricsPage() {
   const [useManualTimeliness, setUseManualTimeliness] = useState(false);
 
   // Convex queries and mutations
-  const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores);
-  const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics);
+  const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores, {});
+  const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics, {});
   const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
   const mdaLeaderboard = useQuery(api.mda_scoring.getMDALeaderboard, { limit: 20 });
   const mdaScoringStatus = useQuery(
@@ -656,10 +656,10 @@ export default function ScoringMetricsPage() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
         if (jsonData.length === 0) {
           toast.error("No data found in the Excel file");
@@ -955,7 +955,7 @@ export default function ScoringMetricsPage() {
                           disabled={hasScoreForPeriod}
                         >
                           {mda.name} {isActive ? '✅' : '⚠️'} {hasScoreForPeriod ? `📊 Already Scored (${existingScore?.grade || 'N/A'})` : ''}
-                        </MenuItem>
+                      </MenuItem>
                       );
                     })}
                   </Select>
@@ -1026,7 +1026,7 @@ export default function ScoringMetricsPage() {
                     </div>
                   );
                 })()}
-
+                
                 {/* Past Scoring Data Display */}
                 {pastScoringData && (
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
@@ -1122,10 +1122,10 @@ export default function ScoringMetricsPage() {
 
                     <div className="text-center space-y-2">
                       <div>
-                        Score: {slaMethod === 'file' 
-                          ? (overallPercentage !== null ? `${overallPercentage.toFixed(1)}%` : 'N/A')
-                          : `${((slaRate / 10) * 30).toFixed(1)}/30`
-                        }
+                      Score: {slaMethod === 'file' 
+                        ? (overallPercentage !== null ? `${overallPercentage.toFixed(1)}%` : 'N/A')
+                        : `${((slaRate / 10) * 30).toFixed(1)}/30`
+                      }
                       </div>
                       {slaMethod === 'file' && results.length > 0 && (
                         <button 
@@ -1310,7 +1310,7 @@ export default function ScoringMetricsPage() {
                             );
                             return isActive 
                               ? (periodTicketData ? 
-                                  `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` : 
+                            `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` : 
                                   'No period data available')
                               : 'Use manual input below';
                           })()}
