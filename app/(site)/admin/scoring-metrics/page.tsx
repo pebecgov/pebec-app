@@ -125,8 +125,8 @@ export default function ScoringMetricsPage() {
   const [useManualTimeliness, setUseManualTimeliness] = useState(false);
 
   // Convex queries and mutations
-  const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores);
-  const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics);
+  const mdasWithScores = useQuery(api.mda_scoring.getMDAsWithScores, {});
+  const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics, {});
   const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
   const mdaLeaderboard = useQuery(api.mda_scoring.getMDALeaderboard, { limit: 20 });
   const mdaScoringStatus = useQuery(
