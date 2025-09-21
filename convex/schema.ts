@@ -664,4 +664,19 @@ export default defineSchema({
     })),
     timestamp: v.number()
   }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
+  ,
+  // UNGA Registrations and counters for auto-increment
+  counters: defineTable({
+    name: v.string(),
+    value: v.number()
+  }).index("byName", ["name"]),
+  unga_registrations: defineTable({
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    org: v.string(),
+    assignedNumber: v.number(),
+    createdAt: v.number(),
+    confirmedEntry: v.optional(v.boolean())
+  }).index("byEmail", ["email"]).index("byAssignedNumber", ["assignedNumber"]).index("byCreatedAt", ["createdAt"]) 
 });
