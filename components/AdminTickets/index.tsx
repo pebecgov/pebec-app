@@ -533,21 +533,38 @@ export default function AdminTicketsPage() {
             }} 
             className="cursor-pointer" 
           />
-          {Array.from({
-          length: totalPages
-        }, (_, index) => <PaginationItem key={index}>
-              <PaginationLink 
-                isActive={currentPage === index + 1} 
-                onClick={() => {
-                  const newPage = index + 1;
-                  setCurrentPage(newPage);
-                  updateURL({ page: newPage });
-                }} 
-                className="cursor-pointer"
-              >
-                {index + 1}
-              </PaginationLink>
-            </PaginationItem>)}
+          {(() => {
+            const maxVisiblePages = 10;
+            const halfVisible = Math.floor(maxVisiblePages / 2);
+            
+            let startPage = Math.max(1, currentPage - halfVisible);
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            // Adjust start page if we're near the end
+            if (endPage - startPage < maxVisiblePages - 1) {
+              startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            const pages: React.ReactElement[] = [];
+            for (let i = startPage; i <= endPage; i++) {
+              pages.push(
+                <PaginationItem key={i}>
+                  <PaginationLink 
+                    isActive={currentPage === i} 
+                    onClick={() => {
+                      setCurrentPage(i);
+                      updateURL({ page: i });
+                    }} 
+                    className="cursor-pointer"
+                  >
+                    {i}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            }
+            
+            return pages;
+          })()}
           <PaginationNext 
             onClick={() => {
               const newPage = Math.min(currentPage + 1, totalPages);
