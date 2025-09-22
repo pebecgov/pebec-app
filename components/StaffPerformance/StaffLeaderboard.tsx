@@ -69,6 +69,10 @@ export default function StaffLeaderboard() {
       }))
     )
     .sort((a, b) => b.activityCount - a.activityCount);
+
+  // Calculate actual active staff count from stream metrics (frontend filtering)
+  const actualActiveStaff = Object.values(staffMetrics?.streamMetrics || {})
+    .reduce((total, stream) => total + (stream?.activeUsers || 0), 0);
   
   const displayedStaff = showAllStaff ? allStaffMembers : allStaffMembers.slice(0, 1);
 
@@ -208,7 +212,7 @@ export default function StaffLeaderboard() {
             </div>
             <div>
               <div className="text-2xl font-bold text-green-600">
-                {staffMetrics?.totalActiveStaff || 0}
+                {actualActiveStaff}
               </div>
               <p className="text-xs text-muted-foreground">Active Staff</p>
             </div>
