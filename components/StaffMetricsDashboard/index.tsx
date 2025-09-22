@@ -37,6 +37,10 @@ export default function StaffMetricsDashboard() {
     ? staffMetrics.streamMetrics 
     : { [selectedStream]: staffMetrics.streamMetrics[selectedStream] };
 
+  // Calculate actual active staff count from stream metrics (frontend filtering)
+  const actualActiveStaff = Object.values(staffMetrics.streamMetrics)
+    .reduce((total, stream) => total + (stream?.activeUsers || 0), 0);
+
   // Prepare chart data
   const streamLabels = Object.keys(selectedStreamData);
   const activeUsersData = streamLabels.map(stream => 
@@ -166,7 +170,7 @@ export default function StaffMetricsDashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{staffMetrics.totalActiveStaff}</div>
+            <div className="text-2xl font-bold">{actualActiveStaff}</div>
             <p className="text-xs text-muted-foreground">
               In the last {timeRange}
             </p>
