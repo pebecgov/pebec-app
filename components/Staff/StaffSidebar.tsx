@@ -10,7 +10,7 @@ import { FileText } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import Image from "next/image";
-import { HomeIcon, NewspaperIcon, FolderOpenIcon, UsersIcon, ChartBarIcon, DocumentDuplicateIcon, CalendarDaysIcon, ClipboardDocumentIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EnvelopeIcon, BookOpenIcon, InboxArrowDownIcon, ExclamationTriangleIcon, EnvelopeOpenIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MapPinIcon, NewspaperIcon, FolderOpenIcon, UsersIcon, ChartBarIcon, DocumentDuplicateIcon, CalendarDaysIcon, ClipboardDocumentIcon, UserCircleIcon, ArrowRightOnRectangleIcon, EnvelopeIcon, BookOpenIcon, InboxArrowDownIcon, ExclamationTriangleIcon, EnvelopeOpenIcon } from "@heroicons/react/24/outline";
 import { FaEnvelopesBulk } from "react-icons/fa6";
 import { formatWorkstream } from "@/lib/formatters";
 
@@ -168,6 +168,10 @@ export default function Sidebar({
       name: "Send Letter",
       path: "/staff/send-letters"
     }]
+  }, {
+    name: "Absence Notice",
+    icon: <MapPinIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+    path: "/staff/holiday-whereabout"
   }, {
     name: "Profile",
     icon: <UserCircleIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,

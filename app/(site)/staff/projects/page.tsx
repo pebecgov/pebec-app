@@ -16,8 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search, Users, Eye, Shield, Calendar, Tag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import RoomAvailabilityCard from "@/components/RoomAvailabilityCard";
+import HolidayAnnouncementsDisplay from "@/components/HolidayWhereabout/HolidayAnnouncementsDisplay";
 import MyPerformance from "@/components/StaffPerformance/MyPerformance";
 import StaffLeaderboard from "@/components/StaffPerformance/StaffLeaderboard";
+
 
 
 const workstreams = [
@@ -25,7 +27,8 @@ const workstreams = [
   "investments", "receptionist", "account", "auditor", "sub_national"
 ];
 
-const formatWorkstream = (workstream: string) => {
+const formatWorkstream = (workstream: string | undefined) => {
+  if (!workstream) return "Unknown";
   return workstream.charAt(0).toUpperCase() + workstream.slice(1).replace("_", " ");
 };
 
@@ -212,6 +215,9 @@ export default function ProjectsPage() {
         </Link>
       </div>
 
+
+      
+ 
       {/* Performance Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <StaffLeaderboard />
@@ -220,6 +226,7 @@ export default function ProjectsPage() {
 
       {/* Today's Meeting Rooms availability for Investments staff */}
       <div className="grid grid-cols-1 gap-4 mb-6">
+
         <RoomAvailabilityCard 
           title="Staff Conference Room" 
           bookings={todayRoomStaff} 
@@ -227,6 +234,8 @@ export default function ProjectsPage() {
           room="staff_conference"
           showBookButton={true}
         />
+        {/* Holiday Announcements Display */}
+        <HolidayAnnouncementsDisplay />
       </div>
 
       {/* Search and Filters */}
@@ -288,7 +297,7 @@ export default function ProjectsPage() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="my">My Projects ({myProjects.length})</TabsTrigger>
           <TabsTrigger value="workstream">
-            {convexUser.staffStream} ({workstreamProjects.length})
+            {formatWorkstream(convexUser.staffStream)} ({workstreamProjects.length})
           </TabsTrigger>
           <TabsTrigger value="public">Public ({publicProjects.length})</TabsTrigger>
           <TabsTrigger value="search">Search Results ({searchResults.length})</TabsTrigger>

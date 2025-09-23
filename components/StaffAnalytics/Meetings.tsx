@@ -9,6 +9,7 @@ import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { CalendarDaysIcon, ClockIcon } from "@heroicons/react/24/solid";
 import RoomAvailabilityCardComponent from "@/components/RoomAvailabilityCard";
+import HolidayAnnouncementsDisplay from "@/components/HolidayWhereabout/HolidayAnnouncementsDisplay";
 export default function StaffAnalytics() {
   const { user } = useUser();
   const currentUser = useQuery(api.users.getCurrentUsers);
@@ -85,13 +86,14 @@ export default function StaffAnalytics() {
   };
   if (!currentUser) return <div className="p-6 text-center text-gray-400">Loading user info...</div>;
   return <div className="w-full max-w-6xl mx-auto px-4 py-10">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <RoomAvailabilityCardComponent
           title="Staff Conference Room"
           href="/staff/rooms"
           room="staff_conference"
           showBookButton={true}
         />
+        <HolidayAnnouncementsDisplay />
       </div>
       <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
         <span role="img" aria-label="chart">
