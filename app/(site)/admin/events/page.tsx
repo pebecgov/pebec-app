@@ -6,6 +6,8 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import UngaRegistrations from '@/components/Admin/UngaRegistrations';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,7 +51,22 @@ export default function ManageEventsPage() {
   };
 
   return <div className="max-w-7xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-green-700 mb-6">Manage Events</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-green-700">Manage Events</h1>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button className="bg-green-600 text-white hover:bg-green-700">UNGA registrations</Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-5xl w-[95vw] h-[85vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>UNGA Registrations</DialogTitle>
+            </DialogHeader>
+            <div className="h-[calc(85vh-80px)] overflow-auto pr-2">
+              <UngaRegistrations />
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {}
       <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -148,6 +165,7 @@ export default function ManageEventsPage() {
                       View details & attendees
                     </Button>
                   </Link>
+                
                 </TableCell>
               </TableRow>)}
           </TableBody>

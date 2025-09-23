@@ -644,19 +644,57 @@ export default defineSchema({
   messages: defineTable({
     conversationId: v.id("conversations"),
     senderId: v.id("users"),
-    content: v.string(),
+    content: v.string(), // This will store the encrypted message
     messageType: v.union(v.literal("text"), v.literal("image"), v.literal("file")),
     fileId: v.optional(v.id("_storage")), // For file/image messages
     fileName: v.optional(v.string()), // Original filename for file messages
     fileSize: v.optional(v.number()), // File size in bytes
     isRead: v.boolean(),
     readAt: v.optional(v.number()),
-    createdAt: v.number()
+    createdAt: v.number(),
+    isEncrypted: v.optional(v.boolean()) // Flag to indicate if message is encrypted
   }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]),
 
   message_read_status: defineTable({
     messageId: v.id("messages"),
     userId: v.id("users"),
     readAt: v.number()
-  }).index("byMessage", ["messageId"]).index("byUser", ["userId"])
+  }).index("byMessage", ["messageId"]).index("byUser", ["userId"]),
+
+  user_activity: defineTable({
+    userId: v.id("users"),
+    activityType: v.union(
+      v.literal("login"),
+      v.literal("page_view"),
+      v.literal("action"),
+      v.literal("logout")
+    ),
+    page: v.optional(v.string()),
+    action: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      userAgent: v.optional(v.string()),
+      ipAddress: v.optional(v.string()),
+      sessionDuration: v.optional(v.number()),
+      staffStream: v.optional(v.string()),
+      elementType: v.optional(v.string()),
+      elementText: v.optional(v.string()),
+      formName: v.optional(v.string())
+    })),
+    timestamp: v.number()
+  }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
+  ,
+  // UNGA Registrations and counters for auto-increment
+  counters: defineTable({
+    name: v.string(),
+    value: v.number()
+  }).index("byName", ["name"]),
+  unga_registrations: defineTable({
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    org: v.string(),
+    assignedNumber: v.number(),
+    createdAt: v.number(),
+    confirmedEntry: v.optional(v.boolean())
+  }).index("byEmail", ["email"]).index("byAssignedNumber", ["assignedNumber"]).index("byCreatedAt", ["createdAt"]) 
 });

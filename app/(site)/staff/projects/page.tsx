@@ -17,6 +17,9 @@ import { Plus, Search, Users, Eye, Shield, Calendar, Tag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import RoomAvailabilityCard from "@/components/RoomAvailabilityCard";
 import HolidayAnnouncementsDisplay from "@/components/HolidayWhereabout/HolidayAnnouncementsDisplay";
+import MyPerformance from "@/components/StaffPerformance/MyPerformance";
+import StaffLeaderboard from "@/components/StaffPerformance/StaffLeaderboard";
+
 
 
 const workstreams = [
@@ -212,10 +215,18 @@ export default function ProjectsPage() {
         </Link>
       </div>
 
-      {/* Holiday Announcements Display */}
+
       
+ 
+      {/* Performance Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <StaffLeaderboard />
+        <MyPerformance />
+      </div>
+
       {/* Today's Meeting Rooms availability for Investments staff */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 gap-4 mb-6">
+
         <RoomAvailabilityCard 
           title="Staff Conference Room" 
           bookings={todayRoomStaff} 
@@ -223,6 +234,7 @@ export default function ProjectsPage() {
           room="staff_conference"
           showBookButton={true}
         />
+        {/* Holiday Announcements Display */}
         <HolidayAnnouncementsDisplay />
       </div>
 

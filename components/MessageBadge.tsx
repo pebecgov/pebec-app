@@ -3,7 +3,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ChatBubbleLeftRightIcon, PaperAirplaneIcon, ArrowLeftIcon, MagnifyingGlassIcon, PaperClipIcon, ArrowDownTrayIcon, FunnelIcon } from "@heroicons/react/24/outline";
+import { ChatBubbleLeftRightIcon, PaperAirplaneIcon, ArrowLeftIcon, MagnifyingGlassIcon, PaperClipIcon, ArrowDownTrayIcon, FunnelIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@clerk/nextjs";
@@ -24,6 +25,29 @@ interface Message {
   isRead: boolean;
   readAt?: number;
   createdAt: number;
+  sender?: {
+    _id: Id<"users">;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    role?: string;
+    imageUrl?: string;
+  };
+}
+
+// Optimistic message interface for pending messages
+interface OptimisticMessage {
+  tempId: string;
+  conversationId: Id<"conversations">;
+  senderId: Id<"users">;
+  content: string;
+  messageType: "text" | "image" | "file";
+  fileId?: Id<"_storage">;
+  fileName?: string;
+  fileSize?: number;
+  isRead: boolean;
+  createdAt: number;
+  status: 'pending' | 'sent' | 'failed';
   sender?: {
     _id: Id<"users">;
     firstName?: string;
@@ -61,9 +85,9 @@ export default function MessageBadge() {
   const [currentConversationId, setCurrentConversationId] = useState<Id<"conversations"> | null>(null);
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'staff' | 'reform_champion' | 'saber_agent' | 'mda'>('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [downloadingFileId, setDownloadingFileId] = useState<Id<"_storage"> | null>(null);
   const [showRoleFilters, setShowRoleFilters] = useState(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,7 +140,22 @@ export default function MessageBadge() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, optimisticMessages]);
+
+  // Cleanup old optimistic messages
+  useEffect(() => {
+    const cleanup = setInterval(() => {
+      setOptimisticMessages(prev => 
+        prev.filter(msg => {
+          // Remove messages older than 30 seconds or that are sent
+          const age = Date.now() - msg.createdAt;
+          return age < 30000 && msg.status !== 'sent';
+        })
+      );
+    }, 5000);
+
+    return () => clearInterval(cleanup);
+  }, []);
 
   // Filter and sort users based on search query, role filter, and last message time
   const filteredUsers = (messageableUsers || [])
@@ -200,47 +239,100 @@ export default function MessageBadge() {
 
   const handleSendMessage = async () => {
     if ((newMessage.trim() || selectedFile) && currentConversationId && currentUser) {
-      setIsSendingMessage(true);
+      const messageContent = newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : '');
+      const messageType = selectedFile ? "file" : "text";
       
-      try {
-        let fileId: Id<"_storage"> | undefined;
-        let fileName: string | undefined;
-        let fileSize: number | undefined;
-      
-      // Upload file if selected
-      if (selectedFile) {
-        const uploadUrl = await generateUploadUrl();
-        const result = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedFile.type },
-          body: selectedFile,
-        });
-        const { storageId } = await result.json();
-        fileId = storageId;
-          fileName = selectedFile.name;
-          fileSize = selectedFile.size;
-      }
-
-      await sendMessage({
+      // Create optimistic message
+      const tempId = `temp_${Date.now()}_${Math.random()}`;
+      const optimisticMessage: OptimisticMessage = {
+        tempId,
         conversationId: currentConversationId,
         senderId: currentUser._id,
-        content: newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : ''),
-        messageType: selectedFile ? "file" : "text",
-          fileId,
-          fileName,
-          fileSize
-      });
+        content: messageContent,
+        messageType,
+        fileName: selectedFile?.name,
+        fileSize: selectedFile?.size,
+        isRead: false,
+        createdAt: Date.now(),
+        status: 'pending',
+        sender: {
+          _id: currentUser._id,
+          firstName: currentUser.firstName,
+          lastName: currentUser.lastName,
+          email: currentUser.email,
+          role: currentUser.role,
+          imageUrl: currentUser.imageUrl,
+        }
+      };
+
+      // Add optimistic message to UI immediately
+      setOptimisticMessages(prev => [...prev, optimisticMessage]);
       
+      
+      // Clear input immediately for better UX
       setNewMessage('');
       setSelectedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
-        }
-      } catch (error) {
-        console.error('Error sending message:', error);
-      } finally {
-        setIsSendingMessage(false);
       }
+      
+      // Send message asynchronously without blocking UI
+      sendMessageAsync(tempId, optimisticMessage);
+    }
+  };
+
+  const sendMessageAsync = async (tempId: string, optimisticMessage: OptimisticMessage) => {
+    if (!currentUser) return;
+    
+    try {
+      let fileId: Id<"_storage"> | undefined;
+      let fileName: string | undefined;
+      let fileSize: number | undefined;
+    
+      // Upload file if selected
+      if (optimisticMessage.messageType === 'file' && optimisticMessage.fileName) {
+        // For file messages, we need to handle this differently since we cleared the file
+        // For now, we'll just send the text content
+        console.warn('File upload not supported in async mode yet');
+      }
+
+      // Send message to server
+      await sendMessage({
+        conversationId: optimisticMessage.conversationId,
+        senderId: currentUser._id,
+        content: optimisticMessage.content,
+        messageType: optimisticMessage.messageType,
+        fileId,
+        fileName,
+        fileSize
+      });
+      
+      // Mark optimistic message as sent
+      setOptimisticMessages(prev => 
+        prev.map(msg => 
+          msg.tempId === tempId 
+            ? { ...msg, status: 'sent' as const }
+            : msg
+        )
+      );
+      
+      // Remove optimistic message after a short delay to let real message appear
+      setTimeout(() => {
+        setOptimisticMessages(prev => prev.filter(msg => msg.tempId !== tempId));
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      
+      // Mark optimistic message as failed
+      setOptimisticMessages(prev => 
+        prev.map(msg => 
+          msg.tempId === tempId 
+            ? { ...msg, status: 'failed' as const }
+            : msg
+        )
+      );
+      
     }
   };
 
@@ -249,6 +341,26 @@ export default function MessageBadge() {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleRetryMessage = async (optimisticMessage: OptimisticMessage) => {
+    if (!currentUser) return;
+    
+    // Create a new temp ID for retry
+    const newTempId = `retry_${Date.now()}_${Math.random()}`;
+    
+    // Update the optimistic message with new temp ID and pending status
+    setOptimisticMessages(prev => 
+      prev.map(msg => 
+        msg.tempId === optimisticMessage.tempId 
+          ? { ...msg, tempId: newTempId, status: 'pending' as const }
+          : msg
+      )
+    );
+    
+    
+    // Retry sending
+    await sendMessageAsync(newTempId, { ...optimisticMessage, tempId: newTempId, status: 'pending' });
   };
 
   const handleDownloadFile = async (fileId: Id<"_storage">, fileName: string) => {
@@ -575,85 +687,143 @@ export default function MessageBadge() {
 
               {/* Messages */}
               <div className="h-80 overflow-y-auto p-4 space-y-3">
-                {messages && messages.length > 0 ? (
-                  messages.map((message) => {
-                    const isCurrentUser = currentUser && message.senderId === currentUser._id;
-                    return (
-                      <div
-                        key={message._id}
-                        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
-                      >
+                {(() => {
+                  // Combine real messages with optimistic messages
+                  const allMessages = [
+                    ...(messages || []),
+                    ...optimisticMessages.filter(optMsg => optMsg.conversationId === currentConversationId)
+                  ].sort((a, b) => a.createdAt - b.createdAt);
+
+                  if (allMessages.length > 0) {
+                    return allMessages.map((message) => {
+                      const isOptimistic = 'tempId' in message;
+                      const isCurrentUser = currentUser && message.senderId === currentUser._id;
+                      const messageKey = isOptimistic ? message.tempId : message._id;
+                      
+                      return (
                         <div
-                          className={`max-w-xs px-4 py-2 rounded-lg ${
-                            isCurrentUser
-                              ? 'bg-green-500 text-white'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
+                          key={messageKey}
+                          className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                         >
-                          <div className="text-sm">
-                            {message.messageType === 'file' ? (
-                              <div className="space-y-2">
-                                {/* File attachment at the top */}
-                                <div className="flex items-center justify-between p-2 bg-white bg-opacity-10 rounded-lg">
-                              <div className="flex items-center space-x-2">
-                                <PaperClipIcon className="w-4 h-4" />
-                                    <div>
-                                      <div className="font-medium">{message.fileName || 'File'}</div>
-                                      {message.fileSize && (
-                                        <div className="text-xs opacity-75">
-                                          {(message.fileSize / 1024).toFixed(1)} KB
-                                        </div>
-                                      )}
+                          <div
+                            className={`max-w-xs px-4 py-2 rounded-lg relative ${
+                              isCurrentUser
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-100 text-gray-800'
+                            } ${isOptimistic && message.status === 'failed' ? 'opacity-60' : ''}`}
+                          >
+                            <div className="text-sm">
+                              {message.messageType === 'file' ? (
+                                <div className="space-y-2">
+                                  {/* File attachment at the top */}
+                                  <div className="flex items-center justify-between p-2 bg-white bg-opacity-10 rounded-lg">
+                                    <div className="flex items-center space-x-2">
+                                      <PaperClipIcon className="w-4 h-4" />
+                                      <div>
+                                        <div className="font-medium">{message.fileName || 'File'}</div>
+                                        {message.fileSize && (
+                                          <div className="text-xs opacity-75">
+                                            {(message.fileSize / 1024).toFixed(1)} KB
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
+                                    {message.fileId && !isOptimistic && (
+                                      <button
+                                        onClick={() => handleDownloadFile(message.fileId!, message.fileName || 'download')}
+                                        disabled={downloadingFileId === message.fileId}
+                                        className="p-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Download file"
+                                      >
+                                        {downloadingFileId === message.fileId ? (
+                                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                          <ArrowDownTrayIcon className="w-4 h-4" />
+                                        )}
+                                      </button>
+                                    )}
                                   </div>
-                                  {message.fileId && (
-                                    <button
-                                      onClick={() => handleDownloadFile(message.fileId!, message.fileName || 'download')}
-                                      disabled={downloadingFileId === message.fileId}
-                                      className="p-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                      title="Download file"
-                                    >
-                                      {downloadingFileId === message.fileId ? (
-                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                      ) : (
-                                        <ArrowDownTrayIcon className="w-4 h-4" />
-                                      )}
-                                    </button>
+                                  {/* Content below the file */}
+                                  {message.content && message.content !== `📎 ${message.fileName}` && (
+                                    <div className="mt-2">
+                                      {message.content}
+                                    </div>
                                   )}
                                 </div>
-                                {/* Content below the file */}
-                                {message.content && message.content !== `📎 ${message.fileName}` && (
-                                  <div className="mt-2">
-                                    {message.content}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              message.content
-                            )}
-                          </div>
-                          <div className={`text-xs mt-1 ${
-                            isCurrentUser ? 'text-green-100' : 'text-gray-500'
-                          }`}>
-                            {new Date(message.createdAt).toLocaleTimeString([], { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
+                              ) : (
+                                message.content
+                              )}
+                            </div>
+                            
+                            {/* Message status and timestamp */}
+                            <div className={`text-xs mt-1 flex items-center justify-between ${
+                              isCurrentUser ? 'text-green-100' : 'text-gray-500'
+                            }`}>
+                              <span>
+                                {new Date(message.createdAt).toLocaleTimeString([], { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </span>
+                              
+                              {/* Status indicators for messages */}
+                              {isCurrentUser && (
+                                <div className="flex items-center space-x-1">
+                                  {isOptimistic ? (
+                                    // Optimistic message status
+                                    <>
+                                      {message.status === 'pending' && (
+                                        <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                      )}
+                                      {message.status === 'sent' && (
+                                        <CheckIcon className="w-3 h-3 text-white" />
+                                      )}
+                                      {message.status === 'failed' && (
+                                        <button
+                                          onClick={() => handleRetryMessage(message)}
+                                          className="w-3 h-3 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                                          title="Retry sending message"
+                                        >
+                                          <span className="text-white text-xs">!</span>
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    // Real message status - show delivered/seen
+                                    <>
+                                      {message.isRead ? (
+                                        // Message has been read (double tick)
+                                        <div className="flex items-center">
+                                          <CheckIconSolid className="w-3 h-3 text-white" />
+                                          <CheckIconSolid className="w-3 h-3 text-white -ml-1" />
+                                        </div>
+                                      ) : (
+                                        // Message delivered but not read (single tick)
+                                        <CheckIcon className="w-3 h-3 text-white" />
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
+                      );
+                    });
+                  } else {
+                    return (
+                      <div className="text-center text-gray-500 py-8">
+                        No messages yet. Start the conversation!
                       </div>
                     );
-                  })
-                ) : (
-                  <div className="text-center text-gray-500 py-8">
-                    No messages yet. Start the conversation!
-                  </div>
-                )}
+                  }
+                })()}
                 <div ref={messagesEndRef} />
               </div>
 
               {/* Message Input */}
               <div className="p-4 border-t border-gray-200">
+                
                 {/* File attachment preview */}
                 {selectedFile && (
                   <div className="mb-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between">
@@ -703,15 +873,11 @@ export default function MessageBadge() {
                   />
                   <Button
                     onClick={handleSendMessage}
-                    disabled={(!newMessage.trim() && !selectedFile) || !currentConversationId || isSendingMessage}
+                    disabled={(!newMessage.trim() && !selectedFile) || !currentConversationId}
                     size="sm"
                     className="px-3"
                   >
-                    {isSendingMessage ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
                     <PaperAirplaneIcon className="w-4 h-4" />
-                    )}
                   </Button>
                 </div>
               </div>

@@ -129,6 +129,10 @@ export default function Sidebar({
       path: "/admin/newsletters"
     }]
   }, {
+    name: "Staff Metrics",
+    icon: <PresentationChartBarIcon className="w-5 h-5" />,
+    path: "/admin/staff-metrics"
+  }, {
     name: "Projects",
     icon: <ClipboardDocumentIcon className="w-5 h-5" />,
     path: "/admin/projects"

@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { encryptMessage, decryptMessage } from "../lib/encryption";
 
 // Get all conversations for a user
 export const getUserConversations = query({
@@ -59,12 +60,25 @@ export const getConversationMessages = query({
       .order("asc")
       .collect();
 
-    // Get sender details for each message
+    // Get sender details for each message and decrypt content
     const messagesWithSenders = await Promise.all(
       messages.map(async (message) => {
         const sender = await ctx.db.get(message.senderId);
+        
+        // Decrypt the message content if it's encrypted
+        let decryptedContent = message.content;
+        if (message.isEncrypted) {
+          try {
+            decryptedContent = decryptMessage(message.content);
+          } catch (error) {
+            console.error('Error decrypting message:', error);
+            decryptedContent = '[Message could not be decrypted]';
+          }
+        }
+        
         return {
           ...message,
+          content: decryptedContent,
           sender,
         };
       })
@@ -119,20 +133,24 @@ export const sendMessage = mutation({
     fileSize: v.optional(v.number()),
   },
   handler: async (ctx, { conversationId, senderId, content, messageType = "text", fileId, fileName, fileSize }) => {
-    // Create the message
+    // Encrypt the message content
+    const encryptedContent = encryptMessage(content);
+    
+    // Create the message with encrypted content
     const messageId = await ctx.db.insert("messages", {
       conversationId,
       senderId,
-      content,
+      content: encryptedContent, // Store encrypted content
       messageType,
       fileId,
       fileName,
       fileSize,
       isRead: false,
+      isEncrypted: true, // Mark as encrypted
       createdAt: Date.now(),
     });
 
-    // Update conversation with last message info
+    // Update conversation with last message info (use original content for preview)
     await ctx.db.patch(conversationId, {
       lastMessage: content.length > 50 ? content.substring(0, 50) + "..." : content,
       lastMessageAt: Date.now(),
@@ -258,7 +276,19 @@ export const getMessageableUsers = query({
 
                 if (messages && messages.length > 0 && messages[0]) {
                   const lastMsg = messages[0];
-                  lastMessage = lastMsg.content || undefined;
+                  
+                  // Decrypt the last message content if it's encrypted
+                  let decryptedLastMessage = lastMsg.content || undefined;
+                  if (lastMsg.isEncrypted && lastMsg.content) {
+                    try {
+                      decryptedLastMessage = decryptMessage(lastMsg.content);
+                    } catch (error) {
+                      console.error('Error decrypting last message:', error);
+                      decryptedLastMessage = '[Encrypted message]';
+                    }
+                  }
+                  
+                  lastMessage = decryptedLastMessage;
                   lastMessageTime = lastMsg.createdAt || undefined;
                 }
 
