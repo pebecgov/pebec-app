@@ -426,6 +426,24 @@ export default defineSchema({
     code: v.string(),
     generatedAt: v.number()
   }).index("byDate", ["generatedAt"]),
+  holidayAnnouncements: defineTable({
+    userId: v.id("users"),
+    userName: v.string(),
+    userRole: v.string(),
+    staffStream: v.optional(v.string()),
+    reason: v.union(v.literal("sick"), v.literal("official_assignment"), v.literal("leave")),
+    startDate: v.string(),
+    endDate: v.string(),
+    startTime: v.optional(v.string()), // HH:mm format
+    endTime: v.optional(v.string()), // HH:mm format
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  }).index("by_user", ["userId"])
+    .index("by_active", ["isActive"])
+    .index("by_date_range", ["startDate", "endDate"]),
+
   projects: defineTable({
     name: v.string(),
     description: v.string(),

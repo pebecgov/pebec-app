@@ -13,6 +13,7 @@ import AdminMonthlyTicketsReport from "@/components/AnalyticsCharts/MonthlyResol
 import LetterStatsDashboard from "@/components/AnalyticsCharts/AssignedLettersAnalytics";
 import TicketSummary from "@/components/TicketsStats";
 import EventAnalyticsDashboard from "@/components/EventsStats";
+import HolidayAnnouncementsDisplay from "@/components/HolidayWhereabout/HolidayAnnouncementsDisplay";
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("tickets");
   return <div className="mt-5">
@@ -43,6 +44,10 @@ export default function AdminDashboard() {
 
         <div className="mt-5 mb-5">
         <EventAnalyticsDashboard />
+        </div>
+
+        <div className="mt-5 mb-5">
+        <HolidayAnnouncementsDisplay />
         </div>
         
         </div>;
