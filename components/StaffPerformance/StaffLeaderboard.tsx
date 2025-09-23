@@ -131,15 +131,15 @@ export default function StaffLeaderboard() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {allStaffMembers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No activity data available yet</p>
-              <p className="text-sm">Start using the system to see performance metrics</p>
-            </div>
-          ) : (
-            <>
-              {displayedStaff.map((staff, index) => (
+            {allStaffMembers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No activity data available yet</p>
+                <p className="text-sm">Start using the system to see performance metrics</p>
+              </div>
+            ) : (
+              <>
+                {displayedStaff.map((staff, index) => (
               <div
                 key={`${staff.userId}-${staff.stream}`}
                 className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all hover:shadow-md ${
@@ -196,9 +196,9 @@ export default function StaffLeaderboard() {
                     </>
                   )}
                 </Button>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )}
         </div>
 
         {/* Summary Stats */}

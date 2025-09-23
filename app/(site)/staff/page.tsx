@@ -36,10 +36,9 @@ export default function StaffPage() {
   }
   return <div className="mt-5">
       {/* Performance Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      <StaffLeaderboard />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
+        <StaffLeaderboard />
         <MyPerformance />
-        
       </div>
       
       {/* Existing Analytics */}
