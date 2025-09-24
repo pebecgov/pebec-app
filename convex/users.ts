@@ -1062,9 +1062,15 @@ export const trackUserActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    
+    if (!user) {
+      // Silently handle unauthenticated users
+      console.log("Activity tracking skipped - user not authenticated");
+      return;
+    }
+    
     try {
-      const user = await getCurrentUserOrThrow(ctx);
-      
       await ctx.db.insert("user_activity", {
         userId: user._id,
         activityType: args.activityType,
@@ -1074,9 +1080,7 @@ export const trackUserActivity = mutation({
         timestamp: Date.now()
       });
     } catch (error) {
-      // Silently handle unauthenticated users
-      // We could log anonymous activity here if needed
-      console.log("Activity tracking skipped - user not authenticated");
+      console.error("Failed to track user activity:", error);
     }
   }
 });

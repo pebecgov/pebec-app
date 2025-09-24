@@ -12,12 +12,22 @@ export function useGlobalActivityTracker() {
   const sessionStartTime = useRef<number>(Date.now());
   const lastActivityTime = useRef<number>(Date.now());
 
+  // Safe activity tracking wrapper
+  const safeTrackActivity = async (activityData: any) => {
+    try {
+      await trackActivity(activityData);
+    } catch (error) {
+      // Silently handle tracking errors to prevent UI disruption
+      console.log("Activity tracking failed:", error);
+    }
+  };
+
   // Track page views
   useEffect(() => {
     if (!pathname) return;
     
     const timer = setTimeout(() => {
-      trackActivity({
+      safeTrackActivity({
         activityType: "page_view",
         page: pathname,
         metadata: {
@@ -27,7 +37,7 @@ export function useGlobalActivityTracker() {
     }, 1000); // Wait 1 second to ensure user is actually viewing
 
     return () => clearTimeout(timer);
-  }, [pathname, trackActivity]);
+  }, [pathname, safeTrackActivity]);
 
   // Track user actions (clicks, form submissions)
   useEffect(() => {
@@ -46,7 +56,7 @@ export function useGlobalActivityTracker() {
                           target.getAttribute('title') || 
                           'Unknown Action';
         
-        trackActivity({
+        safeTrackActivity({
           activityType: "action",
           action: `click_${buttonText.toLowerCase().replace(/\s+/g, '_')}`,
           page: pathname,
@@ -67,7 +77,7 @@ export function useGlobalActivityTracker() {
                       form.getAttribute('id') || 
                       'unknown_form';
       
-      trackActivity({
+      safeTrackActivity({
         activityType: "action",
         action: `submit_${formName}`,
         page: pathname,
@@ -86,7 +96,7 @@ export function useGlobalActivityTracker() {
       document.removeEventListener('click', handleClick);
       document.removeEventListener('submit', handleSubmit);
     };
-  }, [pathname, trackActivity]);
+  }, [pathname, safeTrackActivity]);
 
   // Track session end on page unload (removed to prevent browser warnings)
   // Note: Session tracking is now handled by the login event and page views
@@ -94,7 +104,7 @@ export function useGlobalActivityTracker() {
   // Track login when component mounts (for new sessions)
   useEffect(() => {
     sessionStartTime.current = Date.now();
-    trackActivity({
+    safeTrackActivity({
       activityType: "login",
       page: pathname,
       metadata: {
@@ -105,7 +115,7 @@ export function useGlobalActivityTracker() {
 
   // Helper functions for manual tracking
   const trackUserAction = (action: string, additionalData?: any) => {
-    trackActivity({
+    safeTrackActivity({
       activityType: "action",
       action,
       page: pathname,
@@ -119,7 +129,7 @@ export function useGlobalActivityTracker() {
 
   const trackLogin = () => {
     sessionStartTime.current = Date.now();
-    trackActivity({
+    safeTrackActivity({
       activityType: "login",
       page: pathname,
       metadata: {
@@ -130,7 +140,7 @@ export function useGlobalActivityTracker() {
 
   const trackLogout = () => {
     const sessionDuration = Date.now() - sessionStartTime.current;
-    trackActivity({
+    safeTrackActivity({
       activityType: "logout",
       page: pathname,
       metadata: {
