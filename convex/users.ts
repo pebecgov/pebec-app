@@ -1062,6 +1062,7 @@ export const trackDailyActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
+
     const user = await getCurrentUserOrThrow(ctx);
     
     // Only track activities for staff and admin users
@@ -1110,6 +1111,7 @@ export const trackDailyActivity = mutation({
     });
     
     return { tracked: true, reason: "New activity for today" };
+
   }
 });
 
