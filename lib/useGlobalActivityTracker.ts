@@ -1,65 +1,48 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 export function useGlobalActivityTracker() {
-  const trackActivity = useMutation(api.users.trackUserActivity);
+  const trackDailyActivity = useMutation(api.users.trackDailyActivity);
+  const currentUser = useQuery(api.users.current); // Get current user data
   const pathname = usePathname();
   const sessionStartTime = useRef<number>(Date.now());
   const lastActivityTime = useRef<number>(Date.now());
 
-  // Track page views
+  // Check if user is staff - only track activities for staff users
+  const isStaffUser = currentUser?.role === "staff" || currentUser?.role === "admin";
+
+  // Track page views - only for staff users, ONE page view per day regardless of which page
   useEffect(() => {
-    if (!pathname) return;
+    if (!pathname || !isStaffUser) return; // Exit if not staff
     
-    const timer = setTimeout(() => {
-      trackActivity({
-        activityType: "page_view",
-        page: pathname,
-        metadata: {
-          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
-        }
-      });
-    }, 1000); // Wait 1 second to ensure user is actually viewing
-
-    return () => clearTimeout(timer);
-  }, [pathname, trackActivity]);
-
-  // Track user actions (clicks, form submissions)
-  useEffect(() => {
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      
-      // Only track meaningful interactions
-      if (target.tagName === 'BUTTON' || 
-          target.tagName === 'A' || 
-          target.closest('button') || 
-          target.closest('a') ||
-          target.getAttribute('role') === 'button') {
-        
-        const buttonText = target.textContent?.trim() || 
-                          target.getAttribute('aria-label') || 
-                          target.getAttribute('title') || 
-                          'Unknown Action';
-        
-        trackActivity({
-          activityType: "action",
-          action: `click_${buttonText.toLowerCase().replace(/\s+/g, '_')}`,
+    // Only track page view if user has interacted with the page (not just refreshed)
+    const hasUserInteracted = sessionStorage.getItem(`interacted_${currentUser?._id}`);
+    
+    if (hasUserInteracted) {
+      const timer = setTimeout(() => {
+        trackDailyActivity({
+          activityType: "page_view",
           page: pathname,
+          action: "any_page_viewed", // Same action for all pages - counts as ONE per day
           metadata: {
-            elementType: target.tagName.toLowerCase(),
-            elementText: buttonText,
-            userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
+            userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
+            staffStream: currentUser?.staffStream
           }
         });
-        
-        lastActivityTime.current = Date.now();
-      }
-    };
+      }, 1000); // Wait 1 second to ensure user is actually viewing
+
+      return () => clearTimeout(timer);
+    }
+  }, [pathname, trackDailyActivity, isStaffUser, currentUser?.staffStream, currentUser?._id]);
+
+  // Track only meaningful form submissions - letters, announcements, etc.
+  useEffect(() => {
+    if (!isStaffUser) return; // Exit if not staff
 
     const handleSubmit = (event: SubmitEvent) => {
       const form = event.target as HTMLFormElement;
@@ -67,75 +50,101 @@ export function useGlobalActivityTracker() {
                       form.getAttribute('id') || 
                       'unknown_form';
       
-      trackActivity({
+      // Mark that user has interacted with the page
+      sessionStorage.setItem(`interacted_${currentUser?._id}`, 'true');
+      
+      // Only track meaningful form submissions
+      trackDailyActivity({
         activityType: "action",
-        action: `submit_${formName}`,
+        action: `form_submitted_${formName}`,
         page: pathname,
         metadata: {
           formName,
-          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
+          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
+          staffStream: currentUser?.staffStream
         }
       });
     };
 
-    // Add global event listeners
-    document.addEventListener('click', handleClick);
+    // Only listen for form submissions
     document.addEventListener('submit', handleSubmit);
     
     return () => {
-      document.removeEventListener('click', handleClick);
       document.removeEventListener('submit', handleSubmit);
     };
-  }, [pathname, trackActivity]);
+  }, [pathname, trackDailyActivity, isStaffUser, currentUser?.staffStream]);
 
   // Track session end on page unload (removed to prevent browser warnings)
   // Note: Session tracking is now handled by the login event and page views
 
-  // Track login when component mounts (for new sessions)
+  // Track login only once per session, not on every page refresh
   useEffect(() => {
-    sessionStartTime.current = Date.now();
-    trackActivity({
-      activityType: "login",
-      page: pathname,
-      metadata: {
-        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
-      }
-    });
-  }, []); // Only run once on mount
+    if (!isStaffUser) return; // Exit if not staff
 
-  // Helper functions for manual tracking
+    // Only track login if this is a new session (not a page refresh)
+    const sessionKey = `session_${currentUser?._id}`;
+    const hasTrackedLogin = sessionStorage.getItem(sessionKey);
+    
+    if (!hasTrackedLogin) {
+      sessionStartTime.current = Date.now();
+      sessionStorage.setItem(sessionKey, 'true');
+      
+      trackDailyActivity({
+        activityType: "login",
+        page: pathname,
+        action: "daily_login",
+        metadata: {
+          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
+          staffStream: currentUser?.staffStream
+        }
+      });
+    }
+  }, [isStaffUser, currentUser?._id, pathname, trackDailyActivity, currentUser?.staffStream]);
+
+  // Helper functions for manual tracking - only for staff users
   const trackUserAction = (action: string, additionalData?: any) => {
-    trackActivity({
+    if (!isStaffUser) return; // Exit if not staff
+
+    trackDailyActivity({
       activityType: "action",
       action,
       page: pathname,
       metadata: {
         ...additionalData,
-        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
+        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
+        staffStream: currentUser?.staffStream
       }
     });
     lastActivityTime.current = Date.now();
   };
 
   const trackLogin = () => {
+    if (!isStaffUser) return; // Exit if not staff
+
     sessionStartTime.current = Date.now();
-    trackActivity({
+    trackDailyActivity({
       activityType: "login",
       page: pathname,
+      action: "manual_login",
       metadata: {
-        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
+        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
+        staffStream: currentUser?.staffStream
       }
     });
   };
 
   const trackLogout = () => {
+    if (!isStaffUser) return; // Exit if not staff
+
     const sessionDuration = Date.now() - sessionStartTime.current;
-    trackActivity({
+    trackDailyActivity({
       activityType: "logout",
       page: pathname,
+      action: "user_logout",
       metadata: {
         userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
-        sessionDuration
+        sessionDuration,
+        staffStream: currentUser?.staffStream
       }
     });
   };
@@ -143,6 +152,7 @@ export function useGlobalActivityTracker() {
   return {
     trackUserAction,
     trackLogin,
-    trackLogout
+    trackLogout,
+    isStaffUser // Export this so components can check if tracking is active
   };
 }

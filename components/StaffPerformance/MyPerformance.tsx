@@ -18,6 +18,7 @@ export default function MyPerformance() {
   
   const myActivity = useQuery(api.users.getStaffUserActivity, { timeRange: "30d" });
   const staffMetrics = useQuery(api.users.getStaffUsageMetrics, { timeRange: "30d" });
+  const currentUser = useQuery(api.users.current);
 
   // Handle loading state
   if (myActivity === undefined || staffMetrics === undefined) {
@@ -117,7 +118,7 @@ export default function MyPerformance() {
           My Performance
         </CardTitle>
         <CardDescription>
-          Your activity and performance metrics,
+          Your activity and performance metrics
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

@@ -1040,8 +1040,8 @@ export const getMDAById = query({
   }
 });
 
-// User Activity Tracking Functions
-export const trackUserActivity = mutation({
+// Daily Activity Tracking - Only for staff users, once per day per activity type
+export const trackDailyActivity = mutation({
   args: {
     activityType: v.union(
       v.literal("login"),
@@ -1062,22 +1062,56 @@ export const trackUserActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
-    try {
-      const user = await getCurrentUserOrThrow(ctx);
-      
-      await ctx.db.insert("user_activity", {
-        userId: user._id,
-        activityType: args.activityType,
-        page: args.page,
-        action: args.action,
-        metadata: args.metadata,
-        timestamp: Date.now()
-      });
-    } catch (error) {
-      // Silently handle unauthenticated users
-      // We could log anonymous activity here if needed
-      console.log("Activity tracking skipped - user not authenticated");
+
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    // Only track activities for staff and admin users
+    if (user.role !== "staff" && user.role !== "admin") {
+      return { tracked: false, reason: "User is not staff - tracking disabled" };
     }
+    
+    const now = Date.now();
+    
+    // Get start of today (00:00:00)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfDay = today.getTime();
+    
+    // Get end of today (23:59:59)
+    const endOfDay = startOfDay + (24 * 60 * 60 * 1000) - 1;
+    
+    // Check if this activity already exists today
+    const existingActivity = await ctx.db
+      .query("user_activity")
+      .withIndex("byUser", q => q.eq("userId", user._id))
+      .filter(q => q.and(
+        q.eq(q.field("activityType"), args.activityType),
+        q.eq(q.field("action"), args.action),
+        q.gte(q.field("timestamp"), startOfDay),
+        q.lte(q.field("timestamp"), endOfDay)
+      ))
+      .first();
+    
+    // If activity already exists today, don't track it again
+    if (existingActivity) {
+      return { tracked: false, reason: "Already tracked today" };
+    }
+    
+    // Track the activity
+    await ctx.db.insert("user_activity", {
+      userId: user._id,
+      activityType: args.activityType,
+      page: args.page,
+      action: args.action,
+      metadata: {
+        ...args.metadata,
+        staffStream: user.staffStream // Include staff stream in metadata
+      },
+      timestamp: now
+    });
+    
+    return { tracked: true, reason: "New activity for today" };
+
   }
 });
 
