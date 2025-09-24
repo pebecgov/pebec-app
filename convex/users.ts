@@ -1040,8 +1040,8 @@ export const getMDAById = query({
   }
 });
 
-// User Activity Tracking Functions
-export const trackUserActivity = mutation({
+// Daily Activity Tracking - Only for staff users, once per day per activity type
+export const trackDailyActivity = mutation({
   args: {
     activityType: v.union(
       v.literal("login"),
@@ -1062,6 +1062,7 @@ export const trackUserActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
+
     const user = await getCurrentUser(ctx);
     
     if (!user) {
@@ -1081,7 +1082,51 @@ export const trackUserActivity = mutation({
       });
     } catch (error) {
       console.error("Failed to track user activity:", error);
+
     }
+    
+    const now = Date.now();
+    
+    // Get start of today (00:00:00)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfDay = today.getTime();
+    
+    // Get end of today (23:59:59)
+    const endOfDay = startOfDay + (24 * 60 * 60 * 1000) - 1;
+    
+    // Check if this activity already exists today
+    const existingActivity = await ctx.db
+      .query("user_activity")
+      .withIndex("byUser", q => q.eq("userId", user._id))
+      .filter(q => q.and(
+        q.eq(q.field("activityType"), args.activityType),
+        q.eq(q.field("action"), args.action),
+        q.gte(q.field("timestamp"), startOfDay),
+        q.lte(q.field("timestamp"), endOfDay)
+      ))
+      .first();
+    
+    // If activity already exists today, don't track it again
+    if (existingActivity) {
+      return { tracked: false, reason: "Already tracked today" };
+    }
+    
+    // Track the activity
+    await ctx.db.insert("user_activity", {
+      userId: user._id,
+      activityType: args.activityType,
+      page: args.page,
+      action: args.action,
+      metadata: {
+        ...args.metadata,
+        staffStream: user.staffStream // Include staff stream in metadata
+      },
+      timestamp: now
+    });
+    
+    return { tracked: true, reason: "New activity for today" };
+
   }
 });
 
