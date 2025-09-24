@@ -13,68 +13,36 @@ export function useGlobalActivityTracker() {
   const sessionStartTime = useRef<number>(Date.now());
   const lastActivityTime = useRef<number>(Date.now());
 
+  // Check if user is staff
+  const isStaffUser = currentUser?.role === "staff";
 
   // Safe activity tracking wrapper
   const safeTrackActivity = async (activityData: any) => {
     try {
-      await trackActivity(activityData);
+      await trackDailyActivity(activityData);
     } catch (error) {
       // Silently handle tracking errors to prevent UI disruption
       console.log("Activity tracking failed:", error);
     }
   };
 
-  // Track page views
+  // Track page views - only for staff users, ONE page view per day regardless of which page
   useEffect(() => {
-    if (!pathname) return;
-    
+    if (!isStaffUser || !pathname) return; // Exit if not staff or no pathname
+
     const timer = setTimeout(() => {
       safeTrackActivity({
         activityType: "page_view",
         page: pathname,
+        action: "any_page_viewed", // Same action for all pages - counts as ONE per day
         metadata: {
-          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
+          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
+          staffStream: currentUser?.staffStream
         }
       });
     }, 1000); // Wait 1 second to ensure user is actually viewing
 
     return () => clearTimeout(timer);
-  }, [pathname, safeTrackActivity]);
-
-
-  // Track page views - only for staff users, ONE page view per day regardless of which page
-  useEffect(() => {
-
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      
-      // Only track meaningful interactions
-      if (target.tagName === 'BUTTON' || 
-          target.tagName === 'A' || 
-          target.closest('button') || 
-          target.closest('a') ||
-          target.getAttribute('role') === 'button') {
-        
-        const buttonText = target.textContent?.trim() || 
-                          target.getAttribute('aria-label') || 
-                          target.getAttribute('title') || 
-                          'Unknown Action';
-        
-        safeTrackActivity({
-          activityType: "action",
-          action: `click_${buttonText.toLowerCase().replace(/\s+/g, '_')}`,
-
-          page: pathname,
-          action: "any_page_viewed", // Same action for all pages - counts as ONE per day
-          metadata: {
-            userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
-            staffStream: currentUser?.staffStream
-          }
-        });
-      }, 1000); // Wait 1 second to ensure user is actually viewing
-
-      return () => clearTimeout(timer);
-    }
   }, [pathname, trackDailyActivity, isStaffUser, currentUser?.staffStream, currentUser?._id]);
 
   // Track only meaningful form submissions - letters, announcements, etc.
@@ -87,9 +55,7 @@ export function useGlobalActivityTracker() {
                       form.getAttribute('id') || 
                       'unknown_form';
       
-
       safeTrackActivity({
-
         activityType: "action",
         action: `form_submitted_${formName}`,
         page: pathname,
@@ -107,29 +73,14 @@ export function useGlobalActivityTracker() {
     return () => {
       document.removeEventListener('submit', handleSubmit);
     };
-
-  }, [pathname, safeTrackActivity]);
-
-
-  // Track session end on page unload (removed to prevent browser warnings)
-  // Note: Session tracking is now handled by the login event and page views
+  }, [pathname, safeTrackActivity, isStaffUser, currentUser?.staffStream]);
 
   // Track login only once per session, not on every page refresh
   useEffect(() => {
-
-    sessionStartTime.current = Date.now();
-    safeTrackActivity({
-      activityType: "login",
-      page: pathname,
-      metadata: {
-        userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined
-      }
-    });
-  }, []); // Only run once on mount
-
+    if (!isStaffUser || !currentUser?._id) return; // Exit if not staff or no user ID
 
     // Only track login if this is a new session (not a page refresh)
-    const sessionKey = `session_${currentUser?._id}`;
+    const sessionKey = `session_${currentUser._id}`;
     const hasTrackedLogin = sessionStorage.getItem(sessionKey);
     
     if (!hasTrackedLogin) {
@@ -150,9 +101,9 @@ export function useGlobalActivityTracker() {
 
   // Helper functions for manual tracking - only for staff users
   const trackUserAction = (action: string, additionalData?: any) => {
+    if (!isStaffUser) return; // Exit if not staff
 
     safeTrackActivity({
-
       activityType: "action",
       action,
       page: pathname,
@@ -171,7 +122,6 @@ export function useGlobalActivityTracker() {
     sessionStartTime.current = Date.now();
 
     safeTrackActivity({
-
       activityType: "login",
       page: pathname,
       action: "manual_login",
@@ -188,7 +138,6 @@ export function useGlobalActivityTracker() {
     const sessionDuration = Date.now() - sessionStartTime.current;
 
     safeTrackActivity({
-
       activityType: "logout",
       page: pathname,
       action: "user_logout",

@@ -1062,27 +1062,17 @@ export const trackDailyActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
-
     const user = await getCurrentUser(ctx);
     
     if (!user) {
       // Silently handle unauthenticated users
       console.log("Activity tracking skipped - user not authenticated");
-      return;
+      return { tracked: false, reason: "User not authenticated" };
     }
     
-    try {
-      await ctx.db.insert("user_activity", {
-        userId: user._id,
-        activityType: args.activityType,
-        page: args.page,
-        action: args.action,
-        metadata: args.metadata,
-        timestamp: Date.now()
-      });
-    } catch (error) {
-      console.error("Failed to track user activity:", error);
-
+    // Only track for staff users
+    if (user.role !== "staff") {
+      return { tracked: false, reason: "Only staff users are tracked" };
     }
     
     const now = Date.now();
@@ -1112,21 +1102,25 @@ export const trackDailyActivity = mutation({
       return { tracked: false, reason: "Already tracked today" };
     }
     
-    // Track the activity
-    await ctx.db.insert("user_activity", {
-      userId: user._id,
-      activityType: args.activityType,
-      page: args.page,
-      action: args.action,
-      metadata: {
-        ...args.metadata,
-        staffStream: user.staffStream // Include staff stream in metadata
-      },
-      timestamp: now
-    });
-    
-    return { tracked: true, reason: "New activity for today" };
-
+    try {
+      // Track the activity
+      await ctx.db.insert("user_activity", {
+        userId: user._id,
+        activityType: args.activityType,
+        page: args.page,
+        action: args.action,
+        metadata: {
+          ...args.metadata,
+          staffStream: user.staffStream // Include staff stream in metadata
+        },
+        timestamp: now
+      });
+      
+      return { tracked: true, reason: "New activity for today" };
+    } catch (error) {
+      console.error("Failed to track user activity:", error);
+      return { tracked: false, reason: "Database error" };
+    }
   }
 });
 
