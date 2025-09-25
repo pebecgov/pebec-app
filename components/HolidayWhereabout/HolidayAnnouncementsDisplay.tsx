@@ -22,7 +22,7 @@ export default function HolidayAnnouncementsDisplay() {
       judiciary: "Judiciary",
       communications: "Strategic Communications",
       investments: "High-Impact Investments",
-      receptionist: "Admin",
+      receptionist: "Admin/Operations",
       account: "Account",
       auditor: "Audit"
     };

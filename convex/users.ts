@@ -547,8 +547,8 @@ export const updateUserRoleInConvex = mutation({
         judiciary: ["/staff", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
         communications: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
         investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        receptionist: ["/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        account: ["/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        receptionist: ["/staff", "/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        account: ["/staff", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
         auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
       };
       
@@ -1040,8 +1040,8 @@ export const getMDAById = query({
   }
 });
 
-// Daily Activity Tracking - Only for staff users, once per day per activity type
-export const trackDailyActivity = mutation({
+// User Activity Tracking Functions
+export const trackUserActivity = mutation({
   args: {
     activityType: v.union(
       v.literal("login"),
@@ -1062,65 +1062,16 @@ export const trackDailyActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
+    const user = await getCurrentUserOrThrow(ctx);
     
-    if (!user) {
-      // Silently handle unauthenticated users
-      console.log("Activity tracking skipped - user not authenticated");
-      return { tracked: false, reason: "User not authenticated" };
-    }
-    
-    // Only track for staff users
-    if (user.role !== "staff") {
-      return { tracked: false, reason: "Only staff users are tracked" };
-    }
-    
-    const now = Date.now();
-    
-    // Get start of today (00:00:00)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfDay = today.getTime();
-    
-    // Get end of today (23:59:59)
-    const endOfDay = startOfDay + (24 * 60 * 60 * 1000) - 1;
-    
-    // Check if this activity already exists today
-    const existingActivity = await ctx.db
-      .query("user_activity")
-      .withIndex("byUser", q => q.eq("userId", user._id))
-      .filter(q => q.and(
-        q.eq(q.field("activityType"), args.activityType),
-        q.eq(q.field("action"), args.action),
-        q.gte(q.field("timestamp"), startOfDay),
-        q.lte(q.field("timestamp"), endOfDay)
-      ))
-      .first();
-    
-    // If activity already exists today, don't track it again
-    if (existingActivity) {
-      return { tracked: false, reason: "Already tracked today" };
-    }
-    
-    try {
-      // Track the activity
-      await ctx.db.insert("user_activity", {
-        userId: user._id,
-        activityType: args.activityType,
-        page: args.page,
-        action: args.action,
-        metadata: {
-          ...args.metadata,
-          staffStream: user.staffStream // Include staff stream in metadata
-        },
-        timestamp: now
-      });
-      
-      return { tracked: true, reason: "New activity for today" };
-    } catch (error) {
-      console.error("Failed to track user activity:", error);
-      return { tracked: false, reason: "Database error" };
-    }
+    await ctx.db.insert("user_activity", {
+      userId: user._id,
+      activityType: args.activityType,
+      page: args.page,
+      action: args.action,
+      metadata: args.metadata,
+      timestamp: Date.now()
+    });
   }
 });
 
