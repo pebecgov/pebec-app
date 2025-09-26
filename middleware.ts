@@ -40,14 +40,6 @@ export default clerkMiddleware(async (auth, req) => {
     const url = new URL("/staff/projects", req.url);
     return NextResponse.redirect(url);
   }
-  if (role === "staff" && staffStream === "receptionist" && req.nextUrl.pathname === "/staff") {
-    const url = new URL("/staff/letters", req.url);
-    return NextResponse.redirect(url);
-  }
-  if (role === "staff" && staffStream === "account" && req.nextUrl.pathname === "/staff") {
-    const url = new URL("/staff/send-letters", req.url);
-    return NextResponse.redirect(url);
-  }
   if (role === "staff" && staffStream === "auditor" && req.nextUrl.pathname === "/staff") {
     const url = new URL("/staff/received-letters", req.url);
     return NextResponse.redirect(url);

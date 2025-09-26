@@ -42,7 +42,8 @@ export function formatWorkstream(workstream: string): string {
   // Special mappings for workstreams
   const workstreamMappings: Record<string, string> = {
     "investments": "High Impact",
-    "innovation": "Innovation & Technology"
+    "innovation": "Innovation & Technology",
+    "receptionist": "Admin/Operations"
   };
   
   // Check if we have a special mapping

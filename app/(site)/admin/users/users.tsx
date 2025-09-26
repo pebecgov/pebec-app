@@ -81,8 +81,8 @@ export default function Admin() {
               judiciary: ["/staff", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
               communications: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
               investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              receptionist: ["/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              account: ["/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+              receptionist: ["/staff", "/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+              account: ["/staff", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
               auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
             };
             

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Trophy, Medal, Award, TrendingUp, Users, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
+import { formatWorkstream } from "@/lib/formatters";
 
 export default function StaffLeaderboard() {
   const [showAllStaff, setShowAllStaff] = useState(false);
@@ -155,7 +156,7 @@ export default function StaffLeaderboard() {
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="font-semibold text-gray-900">{staff.name}</h4>
                       <Badge className={`text-xs ${getStreamColor(staff.stream)}`}>
-                        {staff.stream}
+                        {formatWorkstream(staff.stream)}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
