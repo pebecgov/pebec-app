@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { SignOutButton } from "@clerk/nextjs";
 import { FaChevronDown, FaChevronUp, FaAngleDoubleLeft, FaAngleDoubleRight, FaFileArchive, FaRegFileArchive } from "react-icons/fa";
 import { ChartAreaIcon, LogOut, NotebookPenIcon, ChartBarIcon } from "lucide-react";
-import { ChevronDownIcon, ChevronUpIcon, ArrowLeftCircleIcon, ArrowRightCircleIcon, HomeIcon, ClipboardDocumentIcon, PresentationChartBarIcon, UserGroupIcon, DocumentIcon, EnvelopeIcon, PuzzlePieceIcon, BookOpenIcon, UserCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronUpIcon, ArrowLeftCircleIcon, ArrowRightCircleIcon, HomeIcon, ClipboardDocumentIcon, PresentationChartBarIcon, UserGroupIcon, DocumentIcon, EnvelopeIcon, PuzzlePieceIcon, BookOpenIcon, UserCircleIcon, ExclamationTriangleIcon, CalendarDaysIcon, MapPinIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
