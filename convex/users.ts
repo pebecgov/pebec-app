@@ -547,8 +547,8 @@ export const updateUserRoleInConvex = mutation({
         judiciary: ["/staff", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
         communications: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
         investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        receptionist: ["/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        account: ["/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        receptionist: ["/staff", "/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        account: ["/staff", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
         auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
       };
       
@@ -1040,8 +1040,8 @@ export const getMDAById = query({
   }
 });
 
-// Daily Activity Tracking - Only for staff users, once per day per activity type
-export const trackDailyActivity = mutation({
+// User Activity Tracking Functions
+export const trackUserActivity = mutation({
   args: {
     activityType: v.union(
       v.literal("login"),
@@ -1062,6 +1062,7 @@ export const trackDailyActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
+
     console.log("🎯 trackDailyActivity called with args:", {
       activityType: args.activityType,
       page: args.page,
@@ -1187,6 +1188,7 @@ export const trackDailyActivity = mutation({
       });
       return { tracked: false, reason: "Database error" };
     }
+
   }
 });
 
