@@ -292,17 +292,21 @@ export const getMessageableUsers = query({
                   lastMessageTime = lastMsg.createdAt || undefined;
                 }
 
-                // Count unread messages from this user
+                // Count unread messages from this user TO the current user
                 const unreadMessages = await ctx.db
                   .query("messages")
                   .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
                   .filter((q) => q.and(
-                    q.eq(q.field("senderId"), user._id),
-                    q.eq(q.field("isRead"), false)
+                    q.eq(q.field("senderId"), user._id), // Messages FROM this user
+                    q.eq(q.field("isRead"), false) // That are unread by current user
                   ))
                   .collect();
 
                 unreadCount = unreadMessages ? unreadMessages.length : 0;
+                
+                // Debug logging
+                console.log(`User ${user.email}: unreadCount = ${unreadCount}, lastMessageTime = ${lastMessageTime}`);
+
               } catch (messageError) {
                 console.error("Error fetching messages for conversation:", conversation._id, messageError);
                 // Continue with default values
@@ -330,8 +334,30 @@ export const getMessageableUsers = query({
         })
       );
 
-      // Filter out any null/undefined results
-      return usersWithConversationData.filter(user => user && user._id);
+      // Filter out any null/undefined results and sort by lastMessageTime
+      const filteredUsers = usersWithConversationData.filter(user => user && user._id);
+
+      // Sort by lastMessageTime (most recent first), then by unread count, then by name
+      return filteredUsers.sort((a, b) => {
+        // First, sort by lastMessageTime (most recent first)
+        const aTime = a.lastMessageTime || 0;
+        const bTime = b.lastMessageTime || 0;
+        if (bTime !== aTime) {
+          return bTime - aTime;
+        }
+        
+        // If same time, sort by unread count (unread first)
+        const aUnread = a.unreadCount || 0;
+        const bUnread = b.unreadCount || 0;
+        if (bUnread !== aUnread) {
+          return bUnread - aUnread;
+        }
+        
+        // Finally, sort alphabetically by name
+        const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email || '';
+        const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
+        return aName.localeCompare(bName);
+      });
     } catch (error) {
       console.error("Error in getMessageableUsers:", error);
       return [];
