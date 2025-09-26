@@ -653,7 +653,7 @@ export default defineSchema({
     readAt: v.optional(v.number()),
     createdAt: v.number(),
     isEncrypted: v.optional(v.boolean()) // Flag to indicate if message is encrypted
-  }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]),
+  }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]).index("byConversationAndRead", ["conversationId", "isRead"]).index("byConversationAndSender", ["conversationId", "senderId"]),
 
   message_read_status: defineTable({
     messageId: v.id("messages"),
