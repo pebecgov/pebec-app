@@ -1040,7 +1040,7 @@ export const getMDAById = query({
   }
 });
 
-// User Activity Tracking Functions
+// User Activity Tracking Functions - Only one per day per activity type
 export const trackUserActivity = mutation({
   args: {
     activityType: v.union(
@@ -1064,14 +1064,51 @@ export const trackUserActivity = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
     
+    // Only track for staff users
+    if (user.role !== "staff") {
+      return { tracked: false, reason: "Only staff users are tracked" };
+    }
+    
+    const now = Date.now();
+    
+    // Get start of today (00:00:00)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfDay = today.getTime();
+    
+    // Get end of today (23:59:59)
+    const endOfDay = startOfDay + (24 * 60 * 60 * 1000) - 1;
+    
+    // Check if this activity already exists today
+    const existingActivity = await ctx.db
+      .query("user_activity")
+      .withIndex("byUser", q => q.eq("userId", user._id))
+      .filter(q => q.and(
+        q.eq(q.field("activityType"), args.activityType),
+        q.gte(q.field("timestamp"), startOfDay),
+        q.lte(q.field("timestamp"), endOfDay)
+      ))
+      .first();
+    
+    // If activity already exists today, don't track it again
+    if (existingActivity) {
+      return { tracked: false, reason: "Already tracked today" };
+    }
+    
+    // Track the activity
     await ctx.db.insert("user_activity", {
       userId: user._id,
       activityType: args.activityType,
       page: args.page,
       action: args.action,
-      metadata: args.metadata,
-      timestamp: Date.now()
+      metadata: {
+        ...args.metadata,
+        staffStream: user.staffStream
+      },
+      timestamp: now
     });
+    
+    return { tracked: true, reason: "New activity for today" };
   }
 });
 

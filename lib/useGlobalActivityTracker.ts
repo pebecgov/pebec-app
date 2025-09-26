@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 export function useGlobalActivityTracker() {
-  const trackDailyActivity = useMutation(api.users.trackDailyActivity);
+  const trackDailyActivity = useMutation(api.users.trackUserActivity);
   const currentUser = useQuery(api.users.current); // Get current user data
   const pathname = usePathname();
   const sessionStartTime = useRef<number>(Date.now());
@@ -33,8 +33,8 @@ export function useGlobalActivityTracker() {
     const timer = setTimeout(() => {
       safeTrackActivity({
         activityType: "page_view",
-        page: pathname,
-        action: "any_page_viewed", // Same action for all pages - counts as ONE per day
+        page: "daily_page_view", // Same page for all views - counts as ONE per day
+        action: "daily_page_view", // Same action for all pages - counts as ONE per day
         metadata: {
           userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
           staffStream: currentUser?.staffStream
@@ -45,7 +45,7 @@ export function useGlobalActivityTracker() {
     return () => clearTimeout(timer);
   }, [pathname, trackDailyActivity, isStaffUser, currentUser?.staffStream, currentUser?._id]);
 
-  // Track only meaningful form submissions - letters, announcements, etc.
+  // Track only letter submissions - ONE per day
   useEffect(() => {
     if (!isStaffUser) return; // Exit if not staff
 
@@ -55,16 +55,23 @@ export function useGlobalActivityTracker() {
                       form.getAttribute('id') || 
                       'unknown_form';
       
-      safeTrackActivity({
-        activityType: "action",
-        action: `form_submitted_${formName}`,
-        page: pathname,
-        metadata: {
-          formName,
-          userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
-          staffStream: currentUser?.staffStream
-        }
-      });
+      // Only track letter submissions, not all forms
+      if (formName.toLowerCase().includes('letter') || 
+          formName.toLowerCase().includes('send') ||
+          pathname?.includes('/send-letters') ||
+          pathname?.includes('/letters')) {
+        
+        safeTrackActivity({
+          activityType: "action",
+          action: "daily_letter_submission", // Same action for all letters - counts as ONE per day
+          page: "daily_letter_submission", // Same page for all letters - counts as ONE per day
+          metadata: {
+            formName,
+            userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
+            staffStream: currentUser?.staffStream
+          }
+        });
+      }
     };
 
     // Only listen for form submissions
