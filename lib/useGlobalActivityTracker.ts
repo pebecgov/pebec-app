@@ -19,10 +19,29 @@ export function useGlobalActivityTracker() {
   // Safe activity tracking wrapper
   const safeTrackActivity = async (activityData: any) => {
     try {
+      // Validate activity data before sending
+      console.log("🔍 Validating activity data:", {
+        activityType: activityData.activityType,
+        action: activityData.action,
+        actionType: typeof activityData.action,
+        actionLength: activityData.action?.length,
+        page: activityData.page,
+        metadata: activityData.metadata
+      });
+
+      // Clean up invalid action values
+      if (activityData.action === undefined || activityData.action === null || activityData.action === '') {
+        console.warn("⚠️ Invalid action detected, setting to null:", activityData.action);
+        activityData.action = null;
+      }
+
       await trackDailyActivity(activityData);
     } catch (error) {
       // Silently handle tracking errors to prevent UI disruption
-      console.log("Activity tracking failed:", error);
+      console.error("❌ Activity tracking failed:", {
+        error: error,
+        activityData: activityData
+      });
     }
   };
 
@@ -103,9 +122,23 @@ export function useGlobalActivityTracker() {
   const trackUserAction = (action: string, additionalData?: any) => {
     if (!isStaffUser) return; // Exit if not staff
 
+    console.log("🎯 trackUserAction called:", {
+      action,
+      actionType: typeof action,
+      actionLength: action?.length,
+      additionalData,
+      pathname
+    });
+
+    // Validate action parameter
+    if (!action || typeof action !== 'string' || action.trim() === '') {
+      console.error("❌ Invalid action provided to trackUserAction:", action);
+      return;
+    }
+
     safeTrackActivity({
       activityType: "action",
-      action,
+      action: action.trim(),
       page: pathname,
       metadata: {
         ...additionalData,

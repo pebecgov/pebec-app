@@ -1062,16 +1062,43 @@ export const trackDailyActivity = mutation({
     }))
   },
   handler: async (ctx, args) => {
+    console.log("🎯 trackDailyActivity called with args:", {
+      activityType: args.activityType,
+      page: args.page,
+      action: args.action,
+      actionType: typeof args.action,
+      actionLength: args.action?.length,
+      metadata: args.metadata,
+      timestamp: new Date().toISOString()
+    });
+
+    // Validate action parameter to help identify client-side issues
+    if (args.action !== undefined && args.action !== null) {
+      if (typeof args.action !== 'string') {
+        console.warn("⚠️ Invalid action type received:", typeof args.action, args.action);
+      } else if (args.action.trim() === '') {
+        console.warn("⚠️ Empty action string received");
+      }
+    }
+
     const user = await getCurrentUser(ctx);
+    
+    console.log("👤 Current user:", {
+      userId: user?._id,
+      role: user?.role,
+      staffStream: user?.staffStream,
+      email: user?.email
+    });
     
     if (!user) {
       // Silently handle unauthenticated users
-      console.log("Activity tracking skipped - user not authenticated");
+      console.log("❌ Activity tracking skipped - user not authenticated");
       return { tracked: false, reason: "User not authenticated" };
     }
     
     // Only track for staff users
     if (user.role !== "staff") {
+      console.log("❌ Activity tracking skipped - user is not staff:", user.role);
       return { tracked: false, reason: "Only staff users are tracked" };
     }
     
@@ -1086,25 +1113,45 @@ export const trackDailyActivity = mutation({
     const endOfDay = startOfDay + (24 * 60 * 60 * 1000) - 1;
     
     // Check if this activity already exists today
-    const existingActivity = await ctx.db
+    console.log("🔍 Checking for existing activity:", {
+      userId: user._id,
+      activityType: args.activityType,
+      action: args.action,
+      startOfDay: new Date(startOfDay).toISOString(),
+      endOfDay: new Date(endOfDay).toISOString()
+    });
+
+    // Build query with conditional action filter to prevent crashes
+    let query = ctx.db
       .query("user_activity")
       .withIndex("byUser", q => q.eq("userId", user._id))
       .filter(q => q.and(
         q.eq(q.field("activityType"), args.activityType),
-        q.eq(q.field("action"), args.action),
         q.gte(q.field("timestamp"), startOfDay),
         q.lte(q.field("timestamp"), endOfDay)
-      ))
-      .first();
+      ));
+
+    // Conditionally add the action filter only if action is provided and valid
+    if (args.action && args.action.trim() !== '') {
+      query = query.filter(q => q.eq(q.field("action"), args.action));
+    }
+
+    const existingActivity = await query.first();
+    
+    console.log("🔍 Existing activity found:", existingActivity);
     
     // If activity already exists today, don't track it again
     if (existingActivity) {
+      console.log("⏭️ Activity already exists today, skipping:", {
+        existingActivityId: existingActivity._id,
+        existingTimestamp: new Date(existingActivity.timestamp).toISOString()
+      });
       return { tracked: false, reason: "Already tracked today" };
     }
     
     try {
       // Track the activity
-      await ctx.db.insert("user_activity", {
+      const activityData = {
         userId: user._id,
         activityType: args.activityType,
         page: args.page,
@@ -1114,11 +1161,30 @@ export const trackDailyActivity = mutation({
           staffStream: user.staffStream // Include staff stream in metadata
         },
         timestamp: now
+      };
+
+      console.log("💾 Inserting new activity:", {
+        activityData,
+        timestamp: new Date(now).toISOString()
+      });
+
+      const activityId = await ctx.db.insert("user_activity", activityData);
+      
+      console.log("✅ Activity successfully tracked:", {
+        activityId,
+        activityType: args.activityType,
+        action: args.action,
+        timestamp: new Date(now).toISOString()
       });
       
       return { tracked: true, reason: "New activity for today" };
     } catch (error) {
-      console.error("Failed to track user activity:", error);
+      console.error("❌ Failed to track user activity:", {
+        error: error,
+        activityType: args.activityType,
+        action: args.action,
+        userId: user._id
+      });
       return { tracked: false, reason: "Database error" };
     }
   }
