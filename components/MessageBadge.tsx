@@ -163,44 +163,64 @@ export default function MessageBadge() {
       // Add safety checks for user object
       if (!user || !user._id) return false;
       
+      // Add null checks for user properties
+      const userRole = user.role || '';
+      const userEmail = user.email || '';
+      const userFirstName = user.firstName || '';
+      const userLastName = user.lastName || '';
+      
       // Exclude specific roles from being displayed
       const excludedRoles = ['federal', 'deputies', 'magistrates', 'state_governor', 'president', 'vice_president', 'world_bank', 'ngf', 'dmo', 'user'];
-      if (excludedRoles.includes(user.role || '')) {
+      if (excludedRoles.includes(userRole)) {
         return false;
       }
       
-      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+      const fullName = `${userFirstName} ${userLastName}`.trim();
       const matchesSearch = fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           (user.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           (user.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+                           userRole.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           userEmail.toLowerCase().includes(searchQuery.toLowerCase());
       
       // Apply role filter
       let matchesRole = true;
       if (currentUser?.role === 'admin' || currentUser?.role === 'staff') {
         if (roleFilter === 'admin') {
-          matchesRole = user.role === 'admin';
+          matchesRole = userRole === 'admin';
         } else if (roleFilter === 'staff') {
-          matchesRole = user.role === 'staff';
+          matchesRole = userRole === 'staff';
         } else if (roleFilter === 'reform_champion') {
-          matchesRole = user.role === 'reform_champion';
+          matchesRole = userRole === 'reform_champion';
         } else if (roleFilter === 'saber_agent') {
-          matchesRole = user.role === 'saber_agent';
+          matchesRole = userRole === 'saber_agent';
         } else if (roleFilter === 'mda') {
-          matchesRole = user.role === 'mda';
+          matchesRole = userRole === 'mda';
         }
         // 'all' shows all users for admin/staff
       } else {
         // Non-admin/staff users only see staff
-        matchesRole = user.role === 'staff';
+        matchesRole = userRole === 'staff';
       }
       
       return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
-      // Sort by last message time (most recent first)
+      // Add null safety for sorting
       const aTime = a.lastMessageTime || 0;
       const bTime = b.lastMessageTime || 0;
-      return bTime - aTime;
+      const aUnread = a.unreadCount || 0;
+      const bUnread = b.unreadCount || 0;
+      
+      // Users with messages first, then by unread count, then by time
+      const aHasMessage = aTime > 0 ? 1 : 0;
+      const bHasMessage = bTime > 0 ? 1 : 0;
+      
+      if (bHasMessage !== aHasMessage) return bHasMessage - aHasMessage;
+      if (bUnread !== aUnread) return bUnread - aUnread;
+      if (bTime !== aTime) return bTime - aTime;
+      
+      // Finally, sort alphabetically by name
+      const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email || '';
+      const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
+      return aName.localeCompare(bName);
     });
 
   const handleUserClick = async (selectedUser: User) => {
