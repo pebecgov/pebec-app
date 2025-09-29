@@ -42,12 +42,13 @@ import type * as sendEmail from "../sendEmail.js";
 import type * as sendTicketemail from "../sendTicketemail.js";
 import type * as staff_projects from "../staff_projects.js";
 import type * as tasks from "../tasks.js";
-import type * as tickets from "../tickets.js";
 import type * as ticket_comments from "../ticket_comments.js";
+import type * as tickets from "../tickets.js";
 import type * as unga from "../unga.js";
 import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
+import type * as utils_appResult from "../utils/appResult.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -87,12 +88,13 @@ declare const fullApi: ApiFromModules<{
   sendTicketemail: typeof sendTicketemail;
   staff_projects: typeof staff_projects;
   tasks: typeof tasks;
-  tickets: typeof tickets;
   ticket_comments: typeof ticket_comments;
+  tickets: typeof tickets;
   unga: typeof unga;
   upload: typeof upload;
   uploadTicketsPdf: typeof uploadTicketsPdf;
   users: typeof users;
+  "utils/appResult": typeof utils_appResult;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

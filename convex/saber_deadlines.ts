@@ -1325,3 +1325,112 @@ export const testAdminCCLogic = mutation({
     };
   }
 });
+
+// Get list of people who have received reminders for a specific deadline
+export const getDeadlineReminderRecipients = query({
+  args: {
+    deadlineId: v.id("saber_deadlines")
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin") {
+      throw new Error("Only admins can view reminder recipients");
+    }
+
+    // Get all reminders for this deadline that have been sent
+    const sentReminders = await ctx.db.query("deadline_reminders")
+      .withIndex("byDeadline", q => q.eq("deadlineId", args.deadlineId))
+      .filter(q => q.neq(q.field("sentAt"), undefined))
+      .collect();
+
+    // Get user details for each reminder
+    const recipients = await Promise.all(
+      sentReminders.map(async (reminder) => {
+        const user = await ctx.db.get(reminder.userId);
+        return {
+          reminderId: reminder._id,
+          userId: reminder.userId,
+          userEmail: user?.email || "Unknown",
+          userName: user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email : "Unknown",
+          state: reminder.state,
+          reminderType: reminder.reminderType,
+          sentAt: reminder.sentAt,
+          emailSent: reminder.emailSent,
+          notificationSent: reminder.notificationSent,
+          scheduledFor: reminder.scheduledFor
+        };
+      })
+    );
+
+    // Sort by sent date (most recent first)
+    recipients.sort((a, b) => (b.sentAt || 0) - (a.sentAt || 0));
+
+    return {
+      deadlineId: args.deadlineId,
+      totalRecipients: recipients.length,
+      recipients: recipients
+    };
+  }
+});
+
+// Get reminder statistics for a specific deadline
+export const getDeadlineReminderStats = query({
+  args: {
+    deadlineId: v.id("saber_deadlines")
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin") {
+      throw new Error("Only admins can view reminder statistics");
+    }
+
+    // Get all reminders for this deadline
+    const allReminders = await ctx.db.query("deadline_reminders")
+      .withIndex("byDeadline", q => q.eq("deadlineId", args.deadlineId))
+      .collect();
+
+    const sentReminders = allReminders.filter(r => r.sentAt);
+    const pendingReminders = allReminders.filter(r => !r.sentAt && r.scheduledFor <= Date.now());
+    const futureReminders = allReminders.filter(r => !r.sentAt && r.scheduledFor > Date.now());
+
+    // Group by reminder type
+    const byType = {
+      "30_days": allReminders.filter(r => r.reminderType === "30_days"),
+      "14_days": allReminders.filter(r => r.reminderType === "14_days"),
+      "7_days": allReminders.filter(r => r.reminderType === "7_days"),
+      "3_days": allReminders.filter(r => r.reminderType === "3_days")
+    };
+
+    // Group by state
+    const byState = allReminders.reduce((acc, reminder) => {
+      const state = reminder.state;
+      if (!acc[state]) {
+        acc[state] = { total: 0, sent: 0, pending: 0, future: 0 };
+      }
+      acc[state].total++;
+      if (reminder.sentAt) {
+        acc[state].sent++;
+      } else if (reminder.scheduledFor <= Date.now()) {
+        acc[state].pending++;
+      } else {
+        acc[state].future++;
+      }
+      return acc;
+    }, {} as Record<string, { total: number; sent: number; pending: number; future: number }>);
+
+    return {
+      deadlineId: args.deadlineId,
+      totalReminders: allReminders.length,
+      sentReminders: sentReminders.length,
+      pendingReminders: pendingReminders.length,
+      futureReminders: futureReminders.length,
+      byType: {
+        "30_days": { total: byType["30_days"].length, sent: byType["30_days"].filter(r => r.sentAt).length },
+        "14_days": { total: byType["14_days"].length, sent: byType["14_days"].filter(r => r.sentAt).length },
+        "7_days": { total: byType["7_days"].length, sent: byType["7_days"].filter(r => r.sentAt).length },
+        "3_days": { total: byType["3_days"].length, sent: byType["3_days"].filter(r => r.sentAt).length }
+      },
+      byState: byState
+    };
+  }
+});
