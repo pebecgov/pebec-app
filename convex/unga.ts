@@ -73,4 +73,43 @@ export const toggleConfirmed = mutation({
   }
 });
 
+// Export UNGA registrations as Excel data
+export const exportRegistrations = query({
+  args: {},
+  handler: async (ctx) => {
+    const registrations = await ctx.db.query("unga_registrations")
+      .withIndex("byCreatedAt")
+      .order("desc")
+      .collect();
+
+    // Format data for Excel export
+    const excelData = registrations.map((reg, index) => ({
+      "S/N": index + 1,
+      "Registration Number": reg.assignedNumber,
+      "Name": reg.name,
+      "Email": reg.email,
+      "Phone": reg.phone,
+      "Organization": reg.org,
+      "Registration Date": new Date(reg.createdAt).toLocaleDateString("en-NG", {
+        timeZone: "Africa/Lagos",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      }),
+      "Confirmed Entry": reg.confirmedEntry ? "Yes" : "No",
+      "Status": reg.confirmedEntry ? "Checked-in" : "Not checked-in"
+    }));
+
+    return {
+      data: excelData,
+      totalRegistrations: registrations.length,
+      confirmedCount: registrations.filter(r => r.confirmedEntry).length,
+      pendingCount: registrations.filter(r => !r.confirmedEntry).length,
+      exportDate: new Date().toISOString()
+    };
+  }
+});
+
 

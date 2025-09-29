@@ -10,9 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, Send, Users, AlertCircle, CheckCircle, Info, Mail } from "lucide-react";
+import { Calendar, Clock, Send, Users, AlertCircle, CheckCircle, Info, Mail, Eye, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Deadline {
   _id: string;
@@ -37,10 +39,19 @@ const SaberDeadlineManager = () => {
   const [customMessage, setCustomMessage] = useState<string>("");
   const [triggerDate, setTriggerDate] = useState<string>("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [selectedDeadlineForRecipients, setSelectedDeadlineForRecipients] = useState<string>("");
 
   // Queries
   const deadlines = useQuery(api.saber_deadlines.getAllDeadlinesForAdmin) as Deadline[] | undefined;
   const reminderStats = useQuery(api.saber_deadlines.getReminderStatistics);
+  const reminderRecipients = useQuery(
+    api.saber_deadlines.getDeadlineReminderRecipients,
+    selectedDeadlineForRecipients ? { deadlineId: selectedDeadlineForRecipients as any } : "skip"
+  );
+  const reminderStatsForDeadline = useQuery(
+    api.saber_deadlines.getDeadlineReminderStats,
+    selectedDeadlineForRecipients ? { deadlineId: selectedDeadlineForRecipients as any } : "skip"
+  );
 
   // Mutations
   const triggerCustomReminder = useMutation(api.saber_deadlines.triggerCustomReminder);
@@ -361,6 +372,141 @@ const SaberDeadlineManager = () => {
                             <AlertCircle className="w-4 h-4 text-orange-600" />
                             {deadline.stats.pendingReminders} pending
                           </span>
+                        )}
+                        
+                        {deadline.stats.sentReminders > 0 && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedDeadlineForRecipients(deadline._id)}
+                                className="flex items-center gap-1"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View Recipients
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <UserCheck className="w-5 h-5" />
+                                  Reminder Recipients
+                                </DialogTitle>
+                                <DialogDescription>
+                                  List of people who have received reminders for: {deadline.indicator}
+                                </DialogDescription>
+                              </DialogHeader>
+                              
+                              {reminderRecipients && (
+                                <div className="space-y-4">
+                                  <div className="flex gap-4 text-sm">
+                                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                                      Total Recipients: {reminderRecipients.totalRecipients}
+                                    </div>
+                                    {reminderStatsForDeadline && (
+                                      <>
+                                        <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+                                          Emails Sent: {reminderStatsForDeadline.sentReminders}
+                                        </div>
+                                        <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full">
+                                          Pending: {reminderStatsForDeadline.pendingReminders}
+                                        </div>
+                                        <div className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full">
+                                          Future: {reminderStatsForDeadline.futureReminders}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                  
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>State</TableHead>
+                                        <TableHead>Reminder Type</TableHead>
+                                        <TableHead>Sent Date</TableHead>
+                                        <TableHead>Status</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {reminderRecipients.recipients.map((recipient) => (
+                                        <TableRow key={recipient.reminderId}>
+                                          <TableCell className="font-medium">
+                                            {recipient.userName}
+                                          </TableCell>
+                                          <TableCell>{recipient.userEmail}</TableCell>
+                                          <TableCell>
+                                            <Badge variant="outline">{recipient.state}</Badge>
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge 
+                                              variant={
+                                                recipient.reminderType === "3_days" ? "destructive" :
+                                                recipient.reminderType === "7_days" ? "destructive" :
+                                                recipient.reminderType === "14_days" ? "secondary" :
+                                                "default"
+                                              }
+                                            >
+                                              {recipient.reminderType.replace("_", " ")}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell>
+                                            {recipient.sentAt ? format(new Date(recipient.sentAt), "MMM dd, yyyy HH:mm") : "Not sent"}
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex gap-2">
+                                              {recipient.emailSent && (
+                                                <Badge variant="outline" className="text-green-600">
+                                                  <Mail className="w-3 h-3 mr-1" />
+                                                  Email
+                                                </Badge>
+                                              )}
+                                              {recipient.notificationSent && (
+                                                <Badge variant="outline" className="text-blue-600">
+                                                  <Info className="w-3 h-3 mr-1" />
+                                                  Notification
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                  
+                                  {reminderStatsForDeadline && (
+                                    <div className="mt-6 space-y-4">
+                                      <h4 className="font-semibold">Statistics by Reminder Type</h4>
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {Object.entries(reminderStatsForDeadline.byType).map(([type, stats]) => (
+                                          <div key={type} className="bg-gray-50 p-3 rounded-lg">
+                                            <div className="text-sm font-medium">{type.replace("_", " ")}</div>
+                                            <div className="text-xs text-gray-600">
+                                              {stats.sent} sent / {stats.total} total
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      
+                                      <h4 className="font-semibold">Statistics by State</h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                                        {Object.entries(reminderStatsForDeadline.byState).map(([state, stats]) => (
+                                          <div key={state} className="bg-gray-50 p-2 rounded text-sm">
+                                            <div className="font-medium">{state}</div>
+                                            <div className="text-xs text-gray-600">
+                                              {stats.sent} sent, {stats.pending} pending, {stats.future} future
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </DialogContent>
+                          </Dialog>
                         )}
                       </div>
                     </div>
