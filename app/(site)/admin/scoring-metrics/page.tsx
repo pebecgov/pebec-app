@@ -90,20 +90,11 @@ export default function ScoringMetricsPage() {
   const [results, setResults] = useState<any[]>([]);
   const [overallPercentage, setOverallPercentage] = useState<number | null>(null);
   const [showModel, setShowModel] = useState(false);
-  const [showSlaModal, setShowSlaModal] = useState(false);
   const [mysteryRate, setMysteryRate] = useState(0);
   const [collaborationRate, setCollaborationRate] = useState(0);
   const [stakeholderRate, setStakeholderRate] = useState(0);
-  
-  // Monthly SLA data
-  const [monthlySlaData, setMonthlySlaData] = useState<{[key: string]: {
-    method: 'file' | 'rating';
-    file: File | null;
-    rating: number;
-    score: number;
-    results: any[];
-    overallPercentage: number | null;
-  }}>({});
+  const [slaRate, setSlaRate] = useState(0);
+  const [slaMethod, setSlaMethod] = useState('file');
   const [checkboxItems, setCheckboxItems] = useState({
     activeWebsite: false,
     activeUsers: false,
@@ -123,6 +114,7 @@ export default function ScoringMetricsPage() {
   const currentYear = new Date().getFullYear();
   const [notes, setNotes] = useState('');
   const [recommendations, setRecommendations] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Manual monthly report overrides
   const [manualMonthlyReports, setManualMonthlyReports] = useState<{[key: string]: boolean}>({});
@@ -333,34 +325,6 @@ export default function ScoringMetricsPage() {
       const percentage = 100 - (daysOver * 0.5);
       return Math.max(0, percentage);
     }
-  };
-
-  // Calculate monthly SLA score
-  const calculateMonthlySlaScore = () => {
-    const periodMonths = getMonthsForPeriod(scoringPeriod);
-    let totalScore = 0;
-    let monthsWithData = 0;
-
-    periodMonths.forEach(periodMonth => {
-      const monthKey = `${periodMonth.year}-${periodMonth.month}`;
-      const monthData = monthlySlaData[monthKey];
-      
-      if (monthData) {
-        if (monthData.method === 'file' && monthData.overallPercentage !== null) {
-          totalScore += (monthData.overallPercentage / 100) * 5; // 5 points per month
-        } else if (monthData.method === 'rating') {
-          totalScore += (monthData.rating / 10) * 5; // 5 points per month
-        }
-        monthsWithData++;
-      }
-    });
-
-    return {
-      totalScore,
-      monthsWithData,
-      totalMonths: periodMonths.length,
-      percentage: monthsWithData > 0 ? (totalScore / (monthsWithData * 5)) * 100 : 0
-    };
   };
   const realMonthlyReports = useQuery(api.mda_scoring.getRealMonthlyReports, 
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
@@ -651,11 +615,10 @@ export default function ScoringMetricsPage() {
       (Object.values(manualTimeliness).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 2 : 
       deadlineData.score;
 
-    // Use monthly SLA data
-    const monthlySlaScore = calculateMonthlySlaScore();
-    
     const baseScores = {
-      serviceLevelAgreement: monthlySlaScore.totalScore,
+      serviceLevelAgreement: slaMethod === 'file' 
+        ? (overallPercentage !== null ? (overallPercentage / 100) * 30 : 0)
+        : (slaRate / 10) * 30,
       mysteryShopping: (mysteryRate / 10) * 20,
       interMdaCollaboration: (collaborationRate / 10) * 15,
       stakeholderEngagement: (stakeholderRate / 10) * 10,
@@ -685,6 +648,75 @@ export default function ScoringMetricsPage() {
 
   const finalScoreData = calculateTotalScore();
 
+  // Handle file upload for SLA scoring with AI helper
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+        if (jsonData.length === 0) {
+          toast.error("No data found in the Excel file");
+          return;
+        }
+
+        // Get headers from the first row
+        const headers = Object.keys(jsonData[0] as Record<string, any>);
+        
+        // Use intelligent header matching
+        toast.info("🤖 Analyzing your file headers...");
+        
+        const headerResult = performHeaderMatching(headers);
+
+        if (!headerResult.success) {
+          toast.warning("⚠️ Header matching failed, using fallback method");
+        }
+
+        // Check if we have the required headers
+        const requiredHeaders = ['DATE_OF_SUBMISSION', 'DATE_OF_COMPLETION', 'EXPECTED_TIMELINE'];
+        const missingHeaders = requiredHeaders.filter(header => 
+          !headerResult.headerMapping[header] || headerResult.confidence[header] < 0.5
+        );
+
+        if (missingHeaders.length > 0) {
+          toast.error(`Missing or unclear headers: ${missingHeaders.join(', ')}. Please check your file format.`);
+          return;
+        }
+
+        // Process the data with matched headers
+        toast.info("📊 Processing data with matched headers...");
+        
+        const processResult = processSlaData(jsonData, headerResult.headerMapping);
+
+        if (!processResult.success) {
+          toast.error("Failed to process data: " + processResult.error);
+          return;
+        }
+
+        // Set results
+        setOverallPercentage(processResult.overallPercentage);
+        setResults(processResult.processedData);
+        
+        // Show success message with insights
+        toast.success(`✅ Successfully processed ${processResult.validRows}/${processResult.totalRows} rows`);
+        
+        if (headerResult.suggestions && headerResult.suggestions.length > 0) {
+          toast.info(`💡 ${headerResult.suggestions.join(', ')}`);
+        }
+
+      } catch (error) {
+        console.error("File upload error:", error);
+        toast.error("Failed to process file: " + (error as Error).message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   // Save the final score
   const handleSaveScore = async () => {
@@ -1036,85 +1068,74 @@ export default function ScoringMetricsPage() {
                     </span>
                   </div>
                   
-                  {/* Monthly SLA Button */}
-                  <div className="mb-4">
-                    <button
-                      onClick={() => setShowSlaModal(true)}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors duration-300"
-                    >
-                      📅 Monthly SLA Scoring ({scoringPeriod})
-                    </button>
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      Upload files or rate each month (5 points per month)
-                    </p>
-                  </div>
-                  
-                  {/* Monthly SLA Results Display */}
                   <div className="space-y-3">
-                    {(() => {
-                      const monthlySlaScore = calculateMonthlySlaScore();
-                      const periodMonths = getMonthsForPeriod(scoringPeriod);
-                      
-                      return (
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-semibold text-gray-800">Monthly Progress</h3>
-                            <div className="text-sm text-gray-600">
-                              {monthlySlaScore.monthsWithData}/{monthlySlaScore.totalMonths} months completed
-                            </div>
-                          </div>
-                          
-                          {/* Monthly Progress Grid */}
-                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-                            {periodMonths.map((periodMonth, index) => {
-                              const monthName = new Date(periodMonth.year, periodMonth.month, 1)
-                                .toLocaleString('default', { month: 'short' });
-                              const monthKey = `${periodMonth.year}-${periodMonth.month}`;
-                              const monthData = monthlySlaData[monthKey];
-                              const hasData = monthData && (monthData.method === 'file' ? monthData.overallPercentage !== null : monthData.rating > 0);
-                              
-                              return (
-                                <div key={index} className={`p-2 rounded text-center text-xs ${
-                                  hasData 
-                                    ? 'bg-green-100 text-green-800 border border-green-200' 
-                                    : 'bg-gray-100 text-gray-500 border border-gray-200'
-                                }`}>
-                                  <div className="font-medium">{monthName}</div>
-                                  <div className="text-xs">
-                                    {hasData ? '✓' : '○'}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          
-                          {/* Score Summary */}
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="text-center">
-                              <div className="text-xs text-gray-500">Total Score</div>
-                              <div className="font-bold text-lg text-blue-600">
-                                {monthlySlaScore.totalScore.toFixed(1)}/30
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-xs text-gray-500">Percentage</div>
-                              <div className={`font-bold text-lg ${
-                                monthlySlaScore.percentage >= 80 ? 'text-green-600' : 
-                                monthlySlaScore.percentage >= 60 ? 'text-yellow-600' : 'text-red-600'
-                              }`}>
-                                {monthlySlaScore.percentage.toFixed(1)}%
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {monthlySlaScore.monthsWithData === 0 && (
-                            <div className="text-center text-gray-500 text-sm mt-2">
-                              Click the button above to start monthly SLA scoring
-                            </div>
-                          )}
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="sla-method"
+                          value="file"
+                          checked={slaMethod === 'file'}
+                          onChange={(e) => setSlaMethod(e.target.value)}
+                          className="mr-2"
+                        />
+                        File Upload
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="sla-method"
+                          value="rating"
+                          checked={slaMethod === 'rating'}
+                          onChange={(e) => setSlaMethod(e.target.value)}
+                          className="mr-2"
+                        />
+                        Rating
+                      </label>
+                    </div>
+
+                    {slaMethod === 'file' ? (
+                      <div className="space-y-3">
+                        
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileUpload}
+                          accept=".xlsx, .xls"
+                          className="w-full"
+                        />
+                        <div className="text-xs text-gray-500">
+                          Supported formats: Excel (.xlsx, .xls).
                         </div>
-                      );
-                    })()}
+                      </div>
+                    ) : (
+                      <Select
+                        value={slaRate}
+                        onChange={(e) => setSlaRate(Number(e.target.value))}
+                        className="w-full"
+                      >
+                        {[...Array(11)].map((_, i) => (
+                          <MenuItem key={i} value={i}>{i}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+
+                    <div className="text-center space-y-2">
+                      <div>
+                      Score: {slaMethod === 'file' 
+                        ? (overallPercentage !== null ? `${overallPercentage.toFixed(1)}%` : 'N/A')
+                        : `${((slaRate / 10) * 30).toFixed(1)}/30`
+                      }
+                      </div>
+                      {slaMethod === 'file' && results.length > 0 && (
+                        <button 
+                          onClick={() => setShowModel(true)} 
+                          className="bg-green-500 px-3 py-1.5 rounded-md text-white hover:bg-green-600 transition-colors duration-300 text-[14px] cursor-pointer"
+                        >
+                          View Results ({results.length} rows)
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1834,254 +1855,6 @@ export default function ScoringMetricsPage() {
               results={results}
               overallPercentage={overallPercentage}
             />
-          </div>
-        </div>
-      )}
-
-      {/* Monthly SLA Modal */}
-      {showSlaModal && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="relative w-full max-w-6xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
-            <button
-              onClick={() => setShowSlaModal(false)}
-              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
-            >
-              &times;
-            </button>
-            
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">Monthly SLA Scoring</h1>
-                <p className="text-gray-600">{scoringPeriod} - 5 points per month</p>
-              </div>
-              
-              {/* Monthly SLA Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
-                  const monthName = new Date(periodMonth.year, periodMonth.month, 1)
-                    .toLocaleString('default', { month: 'long' });
-                  const monthKey = `${periodMonth.year}-${periodMonth.month}`;
-                  const monthData = monthlySlaData[monthKey] || {
-                    method: 'file' as 'file' | 'rating',
-                    file: null,
-                    rating: 0,
-                    score: 0,
-                    results: [],
-                    overallPercentage: null
-                  };
-                  
-                  return (
-                    <div key={index} className="bg-gray-50 p-4 rounded-lg border">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="font-semibold text-lg">{monthName}</h3>
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                          5 Points
-                        </span>
-                      </div>
-                      
-                      {/* Method Selection */}
-                      <div className="flex gap-2 mb-3">
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            name={`sla-method-${monthKey}`}
-                            value="file"
-                            checked={monthData.method === 'file'}
-                            onChange={(e) => {
-                              setMonthlySlaData(prev => ({
-                                ...prev,
-                                [monthKey]: {
-                                  ...prev[monthKey],
-                                  method: 'file' as 'file' | 'rating',
-                                  rating: 0
-                                }
-                              }));
-                            }}
-                            className="mr-1"
-                          />
-                          File
-                        </label>
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            name={`sla-method-${monthKey}`}
-                            value="rating"
-                            checked={monthData.method === 'rating'}
-                            onChange={(e) => {
-                              setMonthlySlaData(prev => ({
-                                ...prev,
-                                [monthKey]: {
-                                  ...prev[monthKey],
-                                  method: 'rating' as 'file' | 'rating',
-                                  file: null,
-                                  results: [],
-                                  overallPercentage: null
-                                }
-                              }));
-                            }}
-                            className="mr-1"
-                          />
-                          Rating
-                        </label>
-                      </div>
-                      
-                      {monthData.method === 'file' ? (
-                        <div className="space-y-2">
-                          <input
-                            type="file"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                // Process file similar to main SLA
-                                const reader = new FileReader();
-                                reader.onload = async (event) => {
-                                  try {
-                                    const data = new Uint8Array(event.target?.result as ArrayBuffer);
-                                    const workbook = XLSX.read(data, { type: 'array' });
-                                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-                                    
-                                    if (jsonData.length === 0) {
-                                      toast.error("No data found in the Excel file");
-                                      return;
-                                    }
-                                    
-                                    const headers = Object.keys(jsonData[0] as Record<string, any>);
-                                    const headerResult = performHeaderMatching(headers);
-                                    
-                                    if (!headerResult.success) {
-                                      toast.warning("⚠️ Header matching failed for this file");
-                                    }
-                                    
-                                    const processResult = processSlaData(jsonData, headerResult.headerMapping);
-                                    
-                                    if (processResult.success) {
-                                      setMonthlySlaData(prev => ({
-                                        ...prev,
-                                        [monthKey]: {
-                                          ...prev[monthKey],
-                                          file: file,
-                                          overallPercentage: processResult.overallPercentage,
-                                          results: processResult.processedData,
-                                          score: processResult.overallPercentage ? (processResult.overallPercentage / 100) * 5 : 0
-                                        }
-                                      }));
-                                      toast.success(`✅ ${monthName} file processed successfully`);
-                                    } else {
-                                      toast.error(`Failed to process ${monthName} file: ${processResult.error}`);
-                                    }
-                                  } catch (error) {
-                                    console.error("File processing error:", error);
-                                    toast.error(`Failed to process ${monthName} file: ${(error as Error).message}`);
-                                  }
-                                };
-                                reader.readAsArrayBuffer(file);
-                              }
-                            }}
-                            accept=".xlsx, .xls"
-                            className="w-full text-sm"
-                          />
-                          <div className="text-xs text-gray-500">
-                            Excel files only
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <Select
-                            value={monthData.rating}
-                            onChange={(e) => {
-                              const rating = Number(e.target.value);
-                              setMonthlySlaData(prev => ({
-                                ...prev,
-                                [monthKey]: {
-                                  ...prev[monthKey],
-                                  rating: rating,
-                                  score: (rating / 10) * 5
-                                }
-                              }));
-                            }}
-                            className="w-full"
-                          >
-                            {[...Array(11)].map((_, i) => (
-                              <MenuItem key={i} value={i}>{i}</MenuItem>
-                            ))}
-                          </Select>
-                        </div>
-                      )}
-                      
-                      {/* Score Display */}
-                      <div className="mt-3 p-2 bg-gray-100 rounded text-center">
-                        <div className="text-sm font-medium">
-                          Score: {monthData.method === 'file' 
-                            ? (monthData.overallPercentage !== null ? `${monthData.overallPercentage.toFixed(1)}%` : 'N/A')
-                            : `${((monthData.rating / 10) * 5).toFixed(1)}/5`
-                          }
-                        </div>
-                        {monthData.method === 'file' && monthData.results.length > 0 && (
-                          <div className="text-xs text-gray-600 mt-1">
-                            {monthData.results.length} rows processed
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {/* Overall Score Summary */}
-              <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                <h3 className="font-semibold text-blue-800 mb-2">Overall SLA Score Summary</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Total Score:</span>
-                    <div className="text-lg font-bold text-blue-600">
-                      {calculateMonthlySlaScore().totalScore.toFixed(1)}/30
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium">Months Completed:</span>
-                    <div className="text-lg font-bold text-blue-600">
-                      {calculateMonthlySlaScore().monthsWithData}/{calculateMonthlySlaScore().totalMonths}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium">Percentage:</span>
-                    <div className="text-lg font-bold text-blue-600">
-                      {calculateMonthlySlaScore().percentage.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium">Status:</span>
-                    <div className={`text-lg font-bold ${
-                      calculateMonthlySlaScore().percentage >= 80 ? 'text-green-600' : 
-                      calculateMonthlySlaScore().percentage >= 60 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {calculateMonthlySlaScore().percentage >= 80 ? 'Excellent' : 
-                       calculateMonthlySlaScore().percentage >= 60 ? 'Good' : 'Needs Improvement'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex justify-center gap-4">
-                <button
-                  onClick={() => setShowSlaModal(false)}
-                  className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    setShowSlaModal(false);
-                    toast.success("Monthly SLA data saved successfully!");
-                  }}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg"
-                >
-                  Save Monthly Data
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
