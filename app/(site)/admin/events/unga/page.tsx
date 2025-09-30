@@ -1,6 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 import UngaRegistrations from "@/components/Admin/UngaRegistrations";
+
 export default function UngaRegistrationsAdminPage() {
   return (
     <div className="max-w-7xl mx-auto p-6">
