@@ -2,6 +2,7 @@
 import { action, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
+import { getCurrentUserOrThrow } from "./users";
 
 // Send thank you email to a single UNGA participant
 export const sendThankYouEmail = action({
