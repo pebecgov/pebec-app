@@ -297,6 +297,16 @@ export default function EmailPreview() {
             Your engagement and contributions made the discussions richer and more impactful. We are confident that the connections built and insights shared will continue to fuel stronger collaborations for Nigeria's economic growth and global competitiveness.
           </div>
 
+          <div class="paragraph">
+            Thank you once again for joining us. We look forward to building on this momentum together.
+          </div>
+
+          <div class="signature">
+            <div class="signature-name">Princess Zahrah Mustapha Audu</div>
+            <div class="signature-title">Director-General</div>
+            <div class="signature-title">Presidential Enabling Business Environment Council (PEBEC)</div>
+          </div>
+
           <!-- Hero Image Section -->
           <div class="hero-image-section">
             <img src="/images/hero/IMG_2364.jpg" alt="UNGA Event Highlights" class="hero-image">
@@ -328,16 +338,6 @@ export default function EmailPreview() {
                 LinkedIn
               </a>
             </div>
-          </div>
-
-          <div class="paragraph">
-            Thank you once again for joining us. We look forward to building on this momentum together.
-          </div>
-
-          <div class="signature">
-            <div class="signature-name">Princess Zahrah Mustapha Audu</div>
-            <div class="signature-title">Director-General</div>
-            <div class="signature-title">Presidential Enabling Business Environment Council (PEBEC)</div>
           </div>
         </div>
 
