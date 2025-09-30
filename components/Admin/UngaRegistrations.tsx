@@ -7,17 +7,21 @@ import { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, FileSpreadsheet, Mail, Send } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Download, FileSpreadsheet, Mail, Send, Eye, UserCheck } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export default function UngaRegistrations() {
   const regs = useQuery(api.unga.listRegistrations);
   const exportData = useQuery(api.unga.exportRegistrations);
   const toggle = useMutation(api.unga.toggleConfirmed);
   const sendThankYouEmails = useAction(api.ungaThankYouEmail.sendThankYouEmailsToAll);
+  const emailRecipients = useQuery(api.ungaThankYouEmail.getUngaEmailRecipients);
   const [search, setSearch] = useState("");
   const [isSendingEmails, setIsSendingEmails] = useState(false);
+  const [showRecipients, setShowRecipients] = useState(false);
 
   const filtered = useMemo(() => {
     if (!regs) return [];
@@ -142,6 +146,79 @@ export default function UngaRegistrations() {
               </>
             )}
           </Button>
+          
+          {emailRecipients && emailRecipients.totalRecipients > 0 && (
+            <Dialog open={showRecipients} onOpenChange={setShowRecipients}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRecipients(true)}
+                  className="flex items-center gap-1"
+                >
+                  <Eye className="w-4 h-4" />
+                  View Recipients ({emailRecipients.totalRecipients})
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <UserCheck className="w-5 h-5" />
+                    Thank You Email Recipients
+                  </DialogTitle>
+                  <DialogDescription>
+                    List of people who have received thank you emails for the UNGA event
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600">
+                    Total Recipients: {emailRecipients.totalRecipients}
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Organization</TableHead>
+                          <TableHead>Sent At</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {emailRecipients.recipients.map((recipient) => (
+                          <TableRow key={recipient.logId}>
+                            <TableCell className="font-medium">{recipient.name}</TableCell>
+                            <TableCell>{recipient.email}</TableCell>
+                            <TableCell>{recipient.organization}</TableCell>
+                            <TableCell>
+                              {recipient.sentAt ? format(new Date(recipient.sentAt), "PPP p") : "N/A"}
+                            </TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                recipient.status === 'sent' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {recipient.status}
+                              </span>
+                              {recipient.error && (
+                                <div className="text-xs text-red-600 mt-1">
+                                  {recipient.error}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           
           <Button 
             onClick={handleExportExcel}

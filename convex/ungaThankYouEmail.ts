@@ -10,6 +10,7 @@ export const sendThankYouEmail = action({
     firstName: v.string(),
   },
   handler: async (ctx, { to, firstName }): Promise<{ success: boolean; error?: string }> => {
+    const sentAt = Date.now();
     const emailTemplate = `
       <!DOCTYPE html>
       <html lang="en">
@@ -340,11 +341,53 @@ export const sendThankYouEmail = action({
         html: emailTemplate
       });
       
+      // Log successful email
+      await ctx.runMutation(api.ungaThankYouEmail.logEmail, {
+        type: "unga_thank_you",
+        recipientEmail: to,
+        subject: "Thank You for Joining Us at the PEBEC UNGA 80 Side Event",
+        sentAt,
+        status: "sent"
+      });
+      
       return { success: true };
     } catch (error) {
       console.error("Failed to send thank you email:", error);
+      
+      // Log failed email
+      await ctx.runMutation(api.ungaThankYouEmail.logEmail, {
+        type: "unga_thank_you",
+        recipientEmail: to,
+        subject: "Thank You for Joining Us at the PEBEC UNGA 80 Side Event",
+        sentAt,
+        status: "failed",
+        error: error instanceof Error ? error.message : String(error)
+      });
+      
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
+  }
+});
+
+// Log email to database
+export const logEmail = mutation({
+  args: {
+    type: v.string(),
+    recipientEmail: v.string(),
+    subject: v.string(),
+    sentAt: v.number(),
+    status: v.string(),
+    error: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("email_logs", {
+      type: args.type,
+      recipientEmail: args.recipientEmail,
+      subject: args.subject,
+      sentAt: args.sentAt,
+      status: args.status,
+      error: args.error
+    });
   }
 });
 
@@ -459,6 +502,50 @@ export const getEmailStatus = query({
     return {
       totalRegistrations: registrations?.length || 0,
       lastChecked: new Date().toISOString()
+    };
+  }
+});
+
+// Get list of UNGA thank you email recipients
+export const getUngaEmailRecipients = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin") {
+      throw new Error("Only admins can view email recipients");
+    }
+
+    // Get all sent emails for UNGA thank you
+    const emailLogs = await ctx.db.query("email_logs")
+      .withIndex("byType", q => q.eq("type", "unga_thank_you"))
+      .collect();
+
+    // Get recipient details
+    const recipients = await Promise.all(
+      emailLogs.map(async (log) => {
+        // Try to find the registration
+        const registration = await ctx.db.query("unga_registrations")
+          .filter(q => q.eq(q.field("email"), log.recipientEmail))
+          .first();
+
+        return {
+          logId: log._id,
+          email: log.recipientEmail,
+          name: registration?.name || "Unknown",
+          organization: registration?.org || "Unknown",
+          sentAt: log.sentAt,
+          status: log.status,
+          error: log.error || null
+        };
+      })
+    );
+
+    // Sort by sent date (most recent first)
+    recipients.sort((a, b) => (b.sentAt || 0) - (a.sentAt || 0));
+
+    return {
+      totalRecipients: recipients.length,
+      recipients: recipients
     };
   }
 });
