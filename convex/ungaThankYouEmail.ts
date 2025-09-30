@@ -35,7 +35,7 @@ export const sendThankYouEmail = action({
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
           }
           .header {
-            background: linear-gradient(135deg, #0047AB 0%, #0066CC 100%);
+            background: linear-gradient(135deg, #21C55E 0%, #16A34A 100%);
             padding: 20px;
             text-align: center;
             color: white;
@@ -57,22 +57,41 @@ export const sendThankYouEmail = action({
           .banner-section {
             position: relative;
             text-align: center;
-            padding: 40px 20px;
+            padding: 0;
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
           }
-          .banner-title {
-            font-size: 28px;
-            font-weight: bold;
-            color: #0047AB;
-            margin-bottom: 20px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+          .banner-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: block;
           }
-          .banner-line {
-            width: 60px;
-            height: 3px;
-            background-color: #0047AB;
-            margin: 0 auto 20px auto;
+          .banner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(33, 197, 94, 0.8) 0%, rgba(22, 163, 74, 0.8) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+          }
+          .banner-title {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+          }
+          .banner-subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
           }
           .content {
             padding: 30px 20px;
@@ -82,7 +101,7 @@ export const sendThankYouEmail = action({
           .greeting {
             font-size: 18px;
             margin-bottom: 20px;
-            color: #0047AB;
+            color: #21C55E;
           }
           .paragraph {
             margin-bottom: 20px;
@@ -96,8 +115,8 @@ export const sendThankYouEmail = action({
           .hero-image {
             width: 100%;
             max-width: 500px;
-            height: 300px;
-            object-fit: cover;
+            height: auto;
+            object-fit: contain;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
           }
@@ -106,7 +125,7 @@ export const sendThankYouEmail = action({
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 71, 171, 0.9);
+            background: rgba(33, 197, 94, 0.9);
             color: white;
             padding: 20px;
             border-radius: 8px;
@@ -129,7 +148,7 @@ export const sendThankYouEmail = action({
           }
           .cta-button {
             display: inline-block;
-            background: linear-gradient(135deg, #0047AB 0%, #0066CC 100%);
+            background: linear-gradient(135deg, #21C55E 0%, #16A34A 100%);
             color: white;
             padding: 15px 30px;
             text-decoration: none;
@@ -150,7 +169,7 @@ export const sendThankYouEmail = action({
           .social-title {
             font-size: 20px;
             font-weight: bold;
-            color: #0047AB;
+            color: #21C55E;
             margin-bottom: 20px;
           }
           .social-links {
@@ -160,8 +179,10 @@ export const sendThankYouEmail = action({
             flex-wrap: wrap;
           }
           .social-link {
-            display: inline-block;
-            background-color: #0047AB;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #21C55E;
             color: white;
             padding: 10px 20px;
             text-decoration: none;
@@ -170,10 +191,15 @@ export const sendThankYouEmail = action({
             transition: background-color 0.2s;
           }
           .social-link:hover {
-            background-color: #0066CC;
+            background-color: #16A34A;
+          }
+          .social-icon {
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
           }
           .footer {
-            background-color: #0047AB;
+            background-color: #21C55E;
             color: white;
             padding: 20px;
             text-align: center;
@@ -186,7 +212,7 @@ export const sendThankYouEmail = action({
           }
           .signature-name {
             font-weight: bold;
-            color: #0047AB;
+            color: #21C55E;
             font-size: 18px;
           }
           .signature-title {
@@ -205,12 +231,20 @@ export const sendThankYouEmail = action({
             padding: 15px;
             background-color: #f8f9fa;
             border-radius: 8px;
-            border-left: 4px solid #0047AB;
+            border-left: 4px solid #21C55E;
+          }
+          @media (max-width: 600px) {
+            .banner-image {
+              height: 150px;
+            }
+            .banner-title {
+              font-size: 24px;
+            }
           }
           .highlight-number {
             font-size: 24px;
             font-weight: bold;
-            color: #0047AB;
+            color: #21C55E;
           }
           .highlight-text {
             font-size: 12px;
@@ -241,22 +275,15 @@ export const sendThankYouEmail = action({
       <body>
         <div class="email-container">
           <!-- Header -->
-          <div class="header">
-            <img src="https://pebecgov.com/images/logo/logo_pebec1.PNG" alt="PEBEC Logo" class="logo">
-            <div class="company-name">PEBEC</div>
-            <div class="tagline">Presidential Enabling Business Environment Council</div>
-          </div>
+          
 
-          <!-- Banner Section -->
           <div class="banner-section">
-            <div class="banner-line"></div>
-            <div class="banner-title">Thank You for Joining Us</div>
-            <div class="banner-line"></div>
+            <img src="https://image2url.com/images/1759244584457-bdae15c4-830f-471c-ae3c-c8fbaeedfd8a.png" alt="UNGA Event Banner" class="banner-image">
           </div>
 
           <!-- Main Content -->
           <div class="content">
-            <div class="greeting">Dear ${firstName},</div>
+            <div>Dear ${firstName},</div>
             
             <div class="paragraph">
               On behalf of the Presidential Enabling Business Environment Council (PEBEC), in collaboration with the American Business Council and the U.S. Chamber of Commerce, I extend our heartfelt appreciation for your participation in our side event at the 80th United Nations General Assembly in New York.
@@ -266,34 +293,26 @@ export const sendThankYouEmail = action({
               With the theme "A New Era of Economic Opportunities: Ease of Doing Business in Nigeria," the event created a unique platform for dialogue, networking, and exploration of new opportunities. Together, we showcased Nigeria's reform journey, highlighted the emerging investment landscape, and underscored the critical role of partnerships in unlocking the nation's vast business potential.
             </div>
 
-            <!-- Event Highlights -->
-            <div class="event-highlights">
-              <div class="highlight-item">
-                <div class="highlight-number">80th</div>
-                <div class="highlight-text">UN General Assembly</div>
-              </div>
-              <div class="highlight-item">
-                <div class="highlight-number">NYC</div>
-                <div class="highlight-text">New York Event</div>
-              </div>
-              <div class="highlight-item">
-                <div class="highlight-number">2024</div>
-                <div class="highlight-text">Successful Year</div>
-              </div>
-            </div>
+            
 
             <div class="paragraph">
               Your engagement and contributions made the discussions richer and more impactful. We are confident that the connections built and insights shared will continue to fuel stronger collaborations for Nigeria's economic growth and global competitiveness.
             </div>
 
+            <div class="paragraph">
+              Thank you once again for joining us. We look forward to building on this momentum together.
+            </div>
+
+            <div class="signature">
+              <div class="signature-name">Princess Zahrah Mustapha Audu</div>
+              <div class="signature-title">Director-General</div>
+              <div class="signature-title">Presidential Enabling Business Environment Council (PEBEC)</div>
+            </div>
+
             <!-- Hero Image Section -->
             <div class="hero-image-section">
-              <img src="https://images.unsplash.com/photo-1511578314322-379afb476865?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" alt="UNGA Event Highlights" class="hero-image">
-              <div class="image-overlay">
-                <div class="overlay-title">EVENT HIGHLIGHTS</div>
-                <div class="overlay-main">UNGA 80</div>
-                <div class="overlay-subtitle">New York 2024</div>
-              </div>
+              <img src="https://image2url.com/images/1759244628102-230b4c8e-513f-491b-8275-0a9bbd22aed5.jpg" alt="UNGA Event Highlights" class="hero-image">
+            
             </div>
 
             <!-- Call to Action -->
@@ -308,20 +327,19 @@ export const sendThankYouEmail = action({
               <div class="social-title">Stay Connected with PEBEC</div>
               <p style="margin-bottom: 20px; color: #666;">Follow us for updates on ongoing reforms and upcoming engagements:</p>
               <div class="social-links">
-                <a href="https://instagram.com/businessmadeeasy" class="social-link" target="_blank">📷 Instagram</a>
-                <a href="https://twitter.com/pebecgovng" class="social-link" target="_blank">🐦 X (Twitter)</a>
-                <a href="https://linkedin.com/company/pebecgovng" class="social-link" target="_blank">💼 LinkedIn</a>
+                <a href="https://instagram.com/businessmadeeasy" class="social-link" target="_blank">
+                  <img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" class="social-icon">
+                  Instagram
+                </a>
+                <a href="https://twitter.com/pebecgovng" class="social-link" target="_blank">
+                  <img src="https://cdn-icons-png.flaticon.com/512/3256/3256013.png" alt="X (Twitter)" class="social-icon">
+                  X (Twitter)
+                </a>
+                <a href="https://linkedin.com/company/pebecgovng" class="social-link" target="_blank">
+                  <img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" alt="LinkedIn" class="social-icon">
+                  LinkedIn
+                </a>
               </div>
-            </div>
-
-            <div class="paragraph">
-              Thank you once again for joining us. We look forward to building on this momentum together.
-            </div>
-
-            <div class="signature">
-              <div class="signature-name">Princess Zahrah Mustapha Audu</div>
-              <div class="signature-title">Director-General</div>
-              <div class="signature-title">Presidential Enabling Business Environment Council (PEBEC)</div>
             </div>
           </div>
 
