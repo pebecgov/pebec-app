@@ -1,21 +1,27 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, FileSpreadsheet } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Download, FileSpreadsheet, Mail, Send, Eye, UserCheck } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export default function UngaRegistrations() {
   const regs = useQuery(api.unga.listRegistrations);
   const exportData = useQuery(api.unga.exportRegistrations);
   const toggle = useMutation(api.unga.toggleConfirmed);
+  const sendThankYouEmails = useAction(api.ungaThankYouEmail.sendThankYouEmailsToAll);
+  const emailRecipients = useQuery(api.ungaThankYouEmail.getUngaEmailRecipients);
   const [search, setSearch] = useState("");
+  const [isSendingEmails, setIsSendingEmails] = useState(false);
+  const [showRecipients, setShowRecipients] = useState(false);
 
   const filtered = useMemo(() => {
     if (!regs) return [];
@@ -73,6 +79,42 @@ export default function UngaRegistrations() {
     }
   };
 
+  const handleSendThankYouEmails = async () => {
+    if (!regs || regs.length === 0) {
+      toast.error("No registrations found to send emails to");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to send thank you emails to all ${regs.length} UNGA participants? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setIsSendingEmails(true);
+    
+    try {
+      const result = await sendThankYouEmails();
+      
+      if (result.success) {
+        toast.success(
+          `Thank you emails sent successfully! ${result.totalSent} sent, ${result.totalFailed} failed.`
+        );
+        
+        if (result.totalFailed > 0) {
+          console.warn("Some emails failed to send:", result.results.filter(r => r.status === 'failed'));
+        }
+      } else {
+        toast.error(`Failed to send emails: ${result.error}`);
+      }
+    } catch (error) {
+      console.error("Error sending thank you emails:", error);
+      toast.error("Failed to send thank you emails. Please try again.");
+    } finally {
+      setIsSendingEmails(false);
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-4">
@@ -85,6 +127,97 @@ export default function UngaRegistrations() {
               Confirmed: {exportData.confirmedCount} | 
               Pending: {exportData.pendingCount}
             </div>
+          )}
+          
+          <Button 
+            onClick={handleSendThankYouEmails}
+            disabled={!regs || regs.length === 0 || isSendingEmails}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+          >
+            {isSendingEmails ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Mail className="w-4 h-4" />
+                Send Thank You Emails
+              </>
+            )}
+          </Button>
+          
+          {emailRecipients && emailRecipients.totalRecipients > 0 && (
+            <Dialog open={showRecipients} onOpenChange={setShowRecipients}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRecipients(true)}
+                  className="flex items-center gap-1"
+                >
+                  <Eye className="w-4 h-4" />
+                  View Recipients ({emailRecipients.totalRecipients})
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <UserCheck className="w-5 h-5" />
+                    Thank You Email Recipients
+                  </DialogTitle>
+                  <DialogDescription>
+                    List of people who have received thank you emails for the UNGA event
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600">
+                    Total Recipients: {emailRecipients.totalRecipients}
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Organization</TableHead>
+                          <TableHead>Sent At</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {emailRecipients.recipients.map((recipient) => (
+                          <TableRow key={recipient.logId}>
+                            <TableCell className="font-medium">{recipient.name}</TableCell>
+                            <TableCell>{recipient.email}</TableCell>
+                            <TableCell>{recipient.organization}</TableCell>
+                            <TableCell>
+                              {recipient.sentAt ? format(new Date(recipient.sentAt), "PPP p") : "N/A"}
+                            </TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                recipient.status === 'sent' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {recipient.status}
+                              </span>
+                              {recipient.error && (
+                                <div className="text-xs text-red-600 mt-1">
+                                  {recipient.error}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
           
           <Button 

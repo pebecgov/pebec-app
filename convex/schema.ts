@@ -696,5 +696,14 @@ export default defineSchema({
     assignedNumber: v.number(),
     createdAt: v.number(),
     confirmedEntry: v.optional(v.boolean())
-  }).index("byEmail", ["email"]).index("byAssignedNumber", ["assignedNumber"]).index("byCreatedAt", ["createdAt"]) 
+  }).index("byEmail", ["email"]).index("byAssignedNumber", ["assignedNumber"]).index("byCreatedAt", ["createdAt"]),
+  
+  email_logs: defineTable({
+    type: v.string(),
+    recipientEmail: v.string(),
+    subject: v.string(),
+    sentAt: v.number(),
+    status: v.string(),
+    error: v.optional(v.string())
+  }).index("byType", ["type"]).index("byRecipient", ["recipientEmail"]).index("bySentAt", ["sentAt"])
 });
