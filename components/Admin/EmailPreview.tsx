@@ -98,12 +98,14 @@ export default function EmailPreview() {
         }
         .greeting {
           font-size: 18px;
-          margin-bottom: 20px;
+          margin: 30px 0 25px 0;
           color: #21C55E;
+          font-weight: 600;
         }
         .paragraph {
-          margin-bottom: 20px;
+          margin-bottom: 25px;
           font-size: 16px;
+          line-height: 1.7;
         }
         .hero-image-section {
           position: relative;
@@ -179,21 +181,21 @@ export default function EmailPreview() {
         .social-link {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           background-color: #21C55E;
           color: white;
-          padding: 10px 20px;
+          padding: 8px 16px;
           text-decoration: none;
           border-radius: 20px;
-          font-size: 14px;
+          font-size: 13px;
           transition: background-color 0.2s;
         }
         .social-link:hover {
           background-color: #16A34A;
         }
         .social-icon {
-          width: 20px;
-          height: 20px;
+          width: 16px;
+          height: 16px;
           object-fit: contain;
         }
         .footer {
@@ -281,7 +283,7 @@ export default function EmailPreview() {
 
         <!-- Main Content -->
         <div class="content">
-          <div>Dear ${firstName},</div>
+          <div class="greeting">Dear ${firstName},</div>
           
           <div class="paragraph">
             On behalf of the Presidential Enabling Business Environment Council (PEBEC), in collaboration with the American Business Council and the U.S. Chamber of Commerce, I extend our heartfelt appreciation for your participation in our side event at the 80th United Nations General Assembly in New York.
