@@ -94,6 +94,9 @@ export default function ScoringMetricsPage() {
   const [mysteryRate, setMysteryRate] = useState(0);
   const [collaborationRate, setCollaborationRate] = useState(0);
   const [stakeholderRate, setStakeholderRate] = useState(0);
+  const [slaRate, setSlaRate] = useState(0);
+  const [slaMethod, setSlaMethod] = useState<'file' | 'rating'>('file');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Monthly SLA data
   const [monthlySlaData, setMonthlySlaData] = useState<{[key: string]: {
@@ -1113,7 +1116,7 @@ export default function ScoringMetricsPage() {
                           name="sla-method"
                           value="file"
                           checked={slaMethod === 'file'}
-                          onChange={(e) => setSlaMethod(e.target.value)}
+                          onChange={(e) => setSlaMethod(e.target.value as 'file' | 'rating')}
                           className="mr-2"
                         />
                         File Upload
@@ -1124,7 +1127,7 @@ export default function ScoringMetricsPage() {
                           name="sla-method"
                           value="rating"
                           checked={slaMethod === 'rating'}
-                          onChange={(e) => setSlaMethod(e.target.value)}
+                          onChange={(e) => setSlaMethod(e.target.value as 'file' | 'rating')}
                           className="mr-2"
                         />
                         Rating
