@@ -22,6 +22,7 @@ import type * as dli from "../dli.js";
 import type * as email from "../email.js";
 import type * as events from "../events.js";
 import type * as excel from "../excel.js";
+import type * as holidayAnnouncements from "../holidayAnnouncements.js";
 import type * as http from "../http.js";
 import type * as images from "../images.js";
 import type * as internal_notes from "../internal_notes.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   email: typeof email;
   events: typeof events;
   excel: typeof excel;
+  holidayAnnouncements: typeof holidayAnnouncements;
   http: typeof http;
   images: typeof images;
   internal_notes: typeof internal_notes;
