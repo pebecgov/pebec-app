@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useUserRole } from "@/lib/useUserRole";
@@ -126,6 +126,7 @@ export default function ScoringMetricsPage() {
   const currentYear = new Date().getFullYear();
   const [notes, setNotes] = useState('');
   const [recommendations, setRecommendations] = useState('');
+  const [processingMonthlyFiles, setProcessingMonthlyFiles] = useState<{[key: string]: boolean}>({});
   
   // Manual monthly report overrides
   const [manualMonthlyReports, setManualMonthlyReports] = useState<{[key: string]: boolean}>({});
@@ -140,6 +141,8 @@ export default function ScoringMetricsPage() {
   const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics, {});
   const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
   const mdaLeaderboard = useQuery(api.mda_scoring.getMDALeaderboard, { limit: 20 });
+  const matchHeaders = useAction(api.ai_helper_scoring.matchHeaders);
+  const processSlaData = useAction(api.ai_helper_scoring.processSlaData);
   const mdaScoringStatus = useQuery(
     api.mda_scoring.checkMdaScoringStatus, 
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
@@ -202,73 +205,6 @@ export default function ScoringMetricsPage() {
     };
   };
 
-  const processSlaData = (data: any[], headerMapping: any) => {
-    try {
-      const processedData = data.map((row: any) => {
-        const submissionDate = headerMapping.DATE_OF_SUBMISSION ? row[headerMapping.DATE_OF_SUBMISSION] : null;
-        const completionDate = headerMapping.DATE_OF_COMPLETION ? row[headerMapping.DATE_OF_COMPLETION] : null;
-        const timelineStr = headerMapping.EXPECTED_TIMELINE ? row[headerMapping.EXPECTED_TIMELINE] : null;
-        
-        // Calculate working days
-        const actualDays = calculateWorkingDays(submissionDate, completionDate);
-        
-        // Parse expected timeline
-        const expectedDays = parseTimeline(timelineStr);
-        
-        // Calculate performance percentage
-        const performancePercentage = calculatePerformance(actualDays, expectedDays);
-        
-        // Determine status
-        let status = 'Invalid Dates';
-        if (actualDays !== null && expectedDays !== null) {
-          status = actualDays <= expectedDays ? 'On Time' : 'Delayed';
-        }
-        
-        return {
-          ...row,
-          'DATE OF SUBMISSION': submissionDate,
-          'DATE OF COMPLETION': completionDate,
-          'EXPECTED TIMELINE': timelineStr,
-          'ACTUAL WORKING DAYS': actualDays,
-          'STATUS': status,
-          'DAYS OVER': actualDays !== null && expectedDays !== null
-            ? Math.max(0, actualDays - expectedDays)
-            : null,
-          'PERFORMANCE %': performancePercentage !== null
-            ? `${performancePercentage.toFixed(2)}%`
-            : 'N/A'
-        };
-      });
-      
-      // Calculate overall percentage
-      const validRows = processedData.filter(row => row['PERFORMANCE %'] !== 'N/A');
-      const totalPercentage = validRows.reduce((sum, row) => {
-        const percentage = parseFloat(row['PERFORMANCE %'].replace('%', ''));
-        return sum + percentage;
-      }, 0);
-      
-      const overallPercentage = validRows.length > 0 ? (totalPercentage / validRows.length) : null;
-      
-      return {
-        processedData,
-        overallPercentage,
-        totalRows: data.length,
-        validRows: validRows.length,
-        success: true
-      };
-      
-    } catch (error) {
-      console.error("Data processing error:", error);
-      return {
-        processedData: [],
-        overallPercentage: null,
-        totalRows: 0,
-        validRows: 0,
-        success: false,
-        error: (error as Error).message
-      };
-    }
-  };
 
   // Helper functions
   const calculateWorkingDays = (startDate: any, endDate: any): number | null => {
@@ -696,10 +632,10 @@ export default function ScoringMetricsPage() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
 
         if (jsonData.length === 0) {
           toast.error("No data found in the Excel file");
@@ -709,13 +645,16 @@ export default function ScoringMetricsPage() {
         // Get headers from the first row
         const headers = Object.keys(jsonData[0] as Record<string, any>);
         
-        // Use intelligent header matching
-        toast.info("🤖 Analyzing your file headers...");
+        // Use AI helper for header matching
+        toast.info("🤖 Analyzing your file headers with AI...");
         
-        const headerResult = performHeaderMatching(headers);
+        const headerResult = await matchHeaders({
+          headers: headers,
+          data: jsonData
+        });
 
         if (!headerResult.success) {
-          toast.warning("⚠️ Header matching failed, using fallback method");
+          toast.warning("⚠️ AI header matching failed, using fallback method");
         }
 
         // Check if we have the required headers
@@ -729,10 +668,17 @@ export default function ScoringMetricsPage() {
           return;
         }
 
-        // Process the data with matched headers
-        toast.info("📊 Processing data with matched headers...");
+        // Process the data with matched headers using AI helper
+        toast.info("📊 Processing data with AI-matched headers...");
         
-        const processResult = processSlaData(jsonData, headerResult.headerMapping);
+        const processResult = await processSlaData({
+          data: jsonData,
+          headerMapping: headerResult.headerMapping as {
+            DATE_OF_SUBMISSION: string | null;
+            DATE_OF_COMPLETION: string | null;
+            EXPECTED_TIMELINE: string | null;
+          }
+        });
 
         if (!processResult.success) {
           toast.error("Failed to process data: " + processResult.error);
@@ -1109,72 +1055,49 @@ export default function ScoringMetricsPage() {
                   </div>
                   
                   <div className="space-y-3">
-                    <div className="flex gap-4">
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="sla-method"
-                          value="file"
-                          checked={slaMethod === 'file'}
-                          onChange={(e) => setSlaMethod(e.target.value as 'file' | 'rating')}
-                          className="mr-2"
-                        />
-                        File Upload
-                      </label>
-                      <label className="flex items-center">
-                        <input
-                          type="radio"
-                          name="sla-method"
-                          value="rating"
-                          checked={slaMethod === 'rating'}
-                          onChange={(e) => setSlaMethod(e.target.value as 'file' | 'rating')}
-                          className="mr-2"
-                        />
-                        Rating
-                      </label>
-                    </div>
-
-                    {slaMethod === 'file' ? (
-                      <div className="space-y-3">
-                        
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={handleFileUpload}
-                          accept=".xlsx, .xls"
-                          className="w-full"
-                        />
-                        <div className="text-xs text-gray-500">
-                          Supported formats: Excel (.xlsx, .xls).
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600 mb-4">
+                        📅 {scoringPeriod.includes("1st Half") ? `Jan-Jun ${scoringPeriod.match(/\d{4}/)?.[0] || currentYear}` : 
+                             scoringPeriod.includes("2nd Half") ? `Jul-Dec ${scoringPeriod.match(/\d{4}/)?.[0] || currentYear}` : "All Periods"}
+                      </p>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs mb-4">
+                        {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
+                          const monthName = new Date(periodMonth.year, periodMonth.month, 1)
+                            .toLocaleString('default', { month: 'short' });
+                          const monthKey = `${periodMonth.year}-${periodMonth.month}`;
+                          const monthData = monthlySlaData[monthKey];
+                          const hasData = monthData && (monthData.method === 'file' ? monthData.overallPercentage !== null : monthData.rating > 0);
+                          
+                          return (
+                            <div key={index} className={`p-2 rounded-md text-center border ${
+                              hasData 
+                                ? 'bg-green-100 text-green-800 border-green-300' 
+                                : 'bg-gray-100 text-gray-600 border-gray-300'
+                            }`}>
+                              <div className="font-medium">{monthName}</div>
+                              <div className="text-xs">
+                                {hasData ? '✓ 5pts' : '0pts'}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="text-center space-y-2">
+                        <div className="text-lg font-semibold">
+                          Score: {calculateMonthlySlaScore().totalScore.toFixed(1)}/30
                         </div>
-                      </div>
-                    ) : (
-                      <Select
-                        value={slaRate}
-                        onChange={(e) => setSlaRate(Number(e.target.value))}
-                        className="w-full"
-                      >
-                        {[...Array(11)].map((_, i) => (
-                          <MenuItem key={i} value={i}>{i}</MenuItem>
-                        ))}
-                      </Select>
-                    )}
-
-                    <div className="text-center space-y-2">
-                      <div>
-                      Score: {slaMethod === 'file' 
-                        ? (overallPercentage !== null ? `${overallPercentage.toFixed(1)}%` : 'N/A')
-                        : `${((slaRate / 10) * 30).toFixed(1)}/30`
-                      }
-                      </div>
-                      {slaMethod === 'file' && results.length > 0 && (
+                        <div className="text-sm text-gray-600">
+                          {calculateMonthlySlaScore().monthsWithData}/{calculateMonthlySlaScore().totalMonths} months completed
+                        </div>
                         <button 
-                          onClick={() => setShowModel(true)} 
-                          className="bg-green-500 px-3 py-1.5 rounded-md text-white hover:bg-green-600 transition-colors duration-300 text-[14px] cursor-pointer"
+                          onClick={() => setShowSlaModal(true)} 
+                          className="bg-blue-500 px-4 py-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-300 text-sm font-medium"
                         >
-                          View Results ({results.length} rows)
+                          Configure Monthly SLA
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1189,7 +1112,7 @@ export default function ScoringMetricsPage() {
                   </div>
                   
                   <Select
-                    value={mysteryRate}
+                    value={mysteryRate || 0}
                     onChange={(e) => setMysteryRate(Number(e.target.value))}
                     className="w-full mb-3"
                   >
@@ -1213,7 +1136,7 @@ export default function ScoringMetricsPage() {
                   </div>
                   
                   <Select
-                    value={collaborationRate}
+                    value={collaborationRate || 0}
                     onChange={(e) => setCollaborationRate(Number(e.target.value))}
                     className="w-full mb-3"
                   >
@@ -1237,7 +1160,7 @@ export default function ScoringMetricsPage() {
                   </div>
                   
                   <Select
-                    value={stakeholderRate}
+                    value={stakeholderRate || 0}
                     onChange={(e) => setStakeholderRate(Number(e.target.value))}
                     className="w-full mb-3"
                   >
@@ -1883,11 +1806,11 @@ export default function ScoringMetricsPage() {
 
       {/* Results Modal */}
       {showModel && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-[9999] bg-black bg-opacity-40 flex items-center justify-center px-4">
           <div className="relative w-full max-w-6xl max-h-screen overflow-y-auto bg-white p-6 rounded-lg shadow-xl">
             <button
               onClick={() => setShowModel(false)}
-              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold"
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
             >
               &times;
             </button>
@@ -1940,51 +1863,53 @@ export default function ScoringMetricsPage() {
                         </span>
                       </div>
                       
-                      {/* Method Selection */}
-                      <div className="flex gap-2 mb-3">
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            name={`sla-method-${monthKey}`}
-                            value="file"
-                            checked={monthData.method === 'file'}
-                            onChange={(e) => {
-                              setMonthlySlaData(prev => ({
-                                ...prev,
-                                [monthKey]: {
-                                  ...prev[monthKey],
-                                  method: 'file' as 'file' | 'rating',
-                                  rating: 0
-                                }
-                              }));
-                            }}
-                            className="mr-1"
-                          />
-                          File
-                        </label>
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            name={`sla-method-${monthKey}`}
-                            value="rating"
-                            checked={monthData.method === 'rating'}
-                            onChange={(e) => {
-                              setMonthlySlaData(prev => ({
-                                ...prev,
-                                [monthKey]: {
-                                  ...prev[monthKey],
-                                  method: 'rating' as 'file' | 'rating',
-                                  file: null,
-                                  results: [],
-                                  overallPercentage: null
-                                }
-                              }));
-                            }}
-                            className="mr-1"
-                          />
-                          Rating
-                        </label>
-                      </div>
+                      {/* Method Selection - Hide during processing */}
+                      {!processingMonthlyFiles[monthKey] && (
+                        <div className="flex gap-2 mb-3">
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`sla-method-${monthKey}`}
+                              value="file"
+                              checked={monthData.method === 'file'}
+                              onChange={(e) => {
+                                setMonthlySlaData(prev => ({
+                                  ...prev,
+                                  [monthKey]: {
+                                    ...prev[monthKey],
+                                    method: 'file' as 'file' | 'rating',
+                                    rating: 0
+                                  }
+                                }));
+                              }}
+                              className="mr-1"
+                            />
+                            File
+                          </label>
+                          <label className="flex items-center">
+                            <input
+                              type="radio"
+                              name={`sla-method-${monthKey}`}
+                              value="rating"
+                              checked={monthData.method === 'rating'}
+                              onChange={(e) => {
+                                setMonthlySlaData(prev => ({
+                                  ...prev,
+                                  [monthKey]: {
+                                    ...prev[monthKey],
+                                    method: 'rating' as 'file' | 'rating',
+                                    file: null,
+                                    results: [],
+                                    overallPercentage: null
+                                  }
+                                }));
+                              }}
+                              className="mr-1"
+                            />
+                            Rating
+                          </label>
+                        </div>
+                      )}
                       
                       {monthData.method === 'file' ? (
                         <div className="space-y-2">
@@ -1993,6 +1918,10 @@ export default function ScoringMetricsPage() {
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (file) {
+                                setProcessingMonthlyFiles(prev => ({
+                                  ...prev,
+                                  [monthKey]: true
+                                }));
                                 // Process file similar to main SLA
                                 const reader = new FileReader();
                                 reader.onload = async (event) => {
@@ -2004,24 +1933,42 @@ export default function ScoringMetricsPage() {
                                     
                                     if (jsonData.length === 0) {
                                       toast.error("No data found in the Excel file");
+                                      setProcessingMonthlyFiles(prev => ({
+                                        ...prev,
+                                        [monthKey]: false
+                                      }));
                                       return;
                                     }
                                     
                                     const headers = Object.keys(jsonData[0] as Record<string, any>);
-                                    const headerResult = performHeaderMatching(headers);
+                                    
+                                    // Use AI helper for header matching
+                                    const headerResult = await matchHeaders({
+                                      headers: headers,
+                                      data: jsonData
+                                    });
                                     
                                     if (!headerResult.success) {
-                                      toast.warning("⚠️ Header matching failed for this file");
+                                      toast.warning("⚠️ AI header matching failed for this file");
                                     }
                                     
-                                    const processResult = processSlaData(jsonData, headerResult.headerMapping);
+                                    // Process data using AI helper
+                                    const processResult = await processSlaData({
+                                      data: jsonData,
+                                      headerMapping: headerResult.headerMapping as {
+                                        DATE_OF_SUBMISSION: string | null;
+                                        DATE_OF_COMPLETION: string | null;
+                                        EXPECTED_TIMELINE: string | null;
+                                      }
+                                    });
                                     
                                     if (processResult.success) {
                                       setMonthlySlaData(prev => ({
                                         ...prev,
                                         [monthKey]: {
-                                          ...prev[monthKey],
+                                          method: 'file' as 'file' | 'rating',
                                           file: file,
+                                          rating: 0,
                                           overallPercentage: processResult.overallPercentage,
                                           results: processResult.processedData,
                                           score: processResult.overallPercentage ? (processResult.overallPercentage / 100) * 5 : 0
@@ -2031,9 +1978,17 @@ export default function ScoringMetricsPage() {
                                     } else {
                                       toast.error(`Failed to process ${monthName} file: ${processResult.error}`);
                                     }
+                                    setProcessingMonthlyFiles(prev => ({
+                                      ...prev,
+                                      [monthKey]: false
+                                    }));
                                   } catch (error) {
                                     console.error("File processing error:", error);
                                     toast.error(`Failed to process ${monthName} file: ${(error as Error).message}`);
+                                    setProcessingMonthlyFiles(prev => ({
+                                      ...prev,
+                                      [monthKey]: false
+                                    }));
                                   }
                                 };
                                 reader.readAsArrayBuffer(file);
@@ -2048,9 +2003,9 @@ export default function ScoringMetricsPage() {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <Select
-                            value={monthData.rating}
-                            onChange={(e) => {
+                            <Select
+                              value={monthData.rating || 0}
+                              onChange={(e) => {
                               const rating = Number(e.target.value);
                               setMonthlySlaData(prev => ({
                                 ...prev,
@@ -2072,16 +2027,37 @@ export default function ScoringMetricsPage() {
                       
                       {/* Score Display */}
                       <div className="mt-3 p-2 bg-gray-100 rounded text-center">
-                        <div className="text-sm font-medium">
-                          Score: {monthData.method === 'file' 
-                            ? (monthData.overallPercentage !== null ? `${monthData.overallPercentage.toFixed(1)}%` : 'N/A')
-                            : `${((monthData.rating / 10) * 5).toFixed(1)}/5`
-                          }
-                        </div>
-                        {monthData.method === 'file' && monthData.results.length > 0 && (
-                          <div className="text-xs text-gray-600 mt-1">
-                            {monthData.results.length} rows processed
+                        {processingMonthlyFiles[monthKey] ? (
+                          <div className="flex flex-col items-center space-y-2">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                            <div className="text-xs text-gray-600">Processing file with AI...</div>
                           </div>
+                        ) : (
+                          <>
+                            <div className="text-sm font-medium">
+                              Score: {monthData.method === 'file' 
+                                ? (monthData.overallPercentage !== null ? `${monthData.overallPercentage.toFixed(1)}%` : 'N/A')
+                                : `${((monthData.rating / 10) * 5).toFixed(1)}/5`
+                              }
+                            </div>
+                            {monthData.method === 'file' && monthData.results.length > 0 && (
+                              <div className="text-xs text-gray-600 mt-1">
+                                {monthData.results.length} rows processed
+                              </div>
+                            )}
+                            {monthData.method === 'file' && monthData.results.length > 0 && (
+                              <button 
+                                onClick={() => {
+                                  setResults(monthData.results);
+                                  setOverallPercentage(monthData.overallPercentage);
+                                  setShowModel(true);
+                                }} 
+                                className="mt-2 bg-green-500 px-2 py-1 rounded text-white hover:bg-green-600 transition-colors duration-300 text-xs"
+                              >
+                                View Results
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
