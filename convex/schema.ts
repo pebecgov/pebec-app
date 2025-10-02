@@ -58,6 +58,55 @@ export default defineSchema({
     assignedUsers: v.array(v.id("users")),
     createdAt: v.number()
   }).index("byName", ["name"]),
+  
+  // New table for scoring history
+  mda_scoring_history: defineTable({
+    mdaId: v.optional(v.id("mdas")),
+    mdaName: v.string(),
+    scoringPeriod: v.string(), // e.g., "Q1 2025", "Monthly"
+    scoredBy: v.id("users"), // Admin who did the scoring
+    scoredAt: v.number(),
+    // Individual metric scores
+    serviceLevelAgreementScore: v.number(),
+    mysteryShoppingScore: v.number(),
+    interMdaCollaborationScore: v.number(),
+    stakeholderEngagementScore: v.number(),
+    reportGovernanceScore: v.number(),
+    reportGovernanceResolutionScore: v.number(),
+    monthlyReportSubmissionScore: v.number(),
+    timelinessInSubmittingScore: v.number(),
+    // Total scores
+    totalScore: v.number(),
+    totalPercentage: v.number(),
+    grade: v.string(), // A, B, C, D, F
+    status: v.string(), // Compliant, Non-Compliant
+    // Performance data at time of scoring
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    averageResponseTime: v.number(),
+    averageResolutionTime: v.number(),
+    resolutionRate: v.number(),
+    // Notes and comments
+    notes: v.optional(v.string()),
+    recommendations: v.optional(v.string())
+  }).index("byMda", ["mdaId"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]).index("byDate", ["scoredAt"]),
+  
+  // New table for monthly report tracking
+  mda_monthly_reports: defineTable({
+    mdaId: v.id("mdas"),
+    mdaName: v.string(),
+    month: v.string(), // e.g., "January 2025"
+    year: v.number(),
+    deadline: v.number(), // timestamp
+    submittedDate: v.optional(v.number()), // timestamp when submitted
+    submitted: v.boolean(),
+    onTime: v.boolean(),
+    reportFileId: v.optional(v.id("_storage")),
+    reportFileName: v.optional(v.string()),
+    submittedBy: v.optional(v.id("users")),
+    status: v.union(v.literal("pending"), v.literal("submitted"), v.literal("late"), v.literal("overdue")),
+    notes: v.optional(v.string())
+  }).index("byMda", ["mdaId"]).index("byMonth", ["month", "year"]).index("byStatus", ["status"]),
   tickets: defineTable({
     title: v.string(),
     description: v.string(),
