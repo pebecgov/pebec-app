@@ -10,11 +10,15 @@ import { Id } from "@/convex/_generated/dataModel";
 import Letters from "@/components/Letters";
 import { Download, Eye, FileText } from "lucide-react";
 import LetterViewModal from "@/components/Letters/LetterViewModal";
+import { useGlobalActivityTracker } from "@/lib/useGlobalActivityTracker";
 
 export default function ViewLettersPage() {
   const allLetters = useQuery(api.letters.getUserLetters) || [];
   const allUsers = useQuery(api.users.getUsers) || [];
   const getFileUrl = useMutation(api.letters.getLetterFileUrl);
+  
+  // Initialize activity tracking
+  useGlobalActivityTracker();
   const [fileUrls, setFileUrls] = useState<Record<string, {
     url: string;
     fileName: string;

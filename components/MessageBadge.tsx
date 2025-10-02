@@ -12,6 +12,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useConvex } from "convex/react";
+import { useGlobalActivityTracker } from "@/lib/useGlobalActivityTracker";
 
 interface Message {
   _id: Id<"messages">;
@@ -90,6 +91,9 @@ export default function MessageBadge() {
   const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Activity tracking for messages
+  const { trackUserAction } = useGlobalActivityTracker();
 
   // Get current user from Convex
   const currentUser = useQuery(api.users.current);
@@ -315,6 +319,12 @@ export default function MessageBadge() {
         // For now, we'll just send the text content
         console.warn('File upload not supported in async mode yet');
       }
+
+      // Track message activity (only once per day)
+      trackUserAction("daily_message", {
+        messageType: optimisticMessage.messageType,
+        hasFile: optimisticMessage.messageType === 'file'
+      });
 
       // Send message to server
       await sendMessage({

@@ -78,14 +78,12 @@ export default function MyPerformance() {
   const myRank = allStaffMembers.findIndex(staff => staff.userId === myActivity?.user?.id) + 1;
   const totalStaff = allStaffMembers.length;
 
-  // Calculate my performance vs stream average (with error handling)
+  // Calculate my rank within my workstream
   const myStream = myActivity?.user?.staffStream;
   const streamMetrics = staffMetrics?.streamMetrics?.[myStream || ""];
-  const streamAverage = streamMetrics && streamMetrics.totalUsers > 0 
-    ? streamMetrics.totalActions / streamMetrics.totalUsers 
-    : 0;
-  const myPerformance = myActivity?.totalActivities || 0;
-  const performanceRatio = streamAverage > 0 ? (myPerformance / streamAverage) * 100 : 0;
+  const streamStaffMembers = streamMetrics?.mostActiveUsers || [];
+  const myStreamRank = streamStaffMembers.findIndex(staff => staff.userId === myActivity?.user?.id) + 1;
+  const totalStreamStaff = streamStaffMembers.length;
 
   // Get most visited pages (with error handling)
   const allPages = Object.entries(myActivity?.pageViews || {})
@@ -133,10 +131,13 @@ export default function MyPerformance() {
             <p className="text-xs text-muted-foreground">Overall Rank</p>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {Math.round(performanceRatio)}%
-            </div>
-            <p className="text-xs text-muted-foreground">vs Stream Avg</p>
+            <div className="text-2xl font-bold text-purple-600">#{myStreamRank || "N/A"}</div>
+            <p className="text-xs text-muted-foreground">
+              Rank in {myStream ? myStream.charAt(0).toUpperCase() + myStream.slice(1) : "Workstream"}
+            </p>
+            <p className="text-xs text-gray-400">
+              ({totalStreamStaff} total in stream)
+            </p>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600">
@@ -146,26 +147,7 @@ export default function MyPerformance() {
           </div>
         </div>
 
-        {/* Performance vs Stream Average */}
-        {streamMetrics && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Performance vs Stream Average</span>
-              <span className="text-sm text-muted-foreground">
-                {myPerformance} / {Math.round(streamAverage)} avg
-              </span>
-            </div>
-            <Progress 
-              value={Math.min(performanceRatio, 200)} 
-              className="h-2"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>0%</span>
-              <span>100%</span>
-              <span>200%</span>
-            </div>
-          </div>
-        )}
+       
 
         {/* Activity Trend */}
         <div className="flex items-center gap-2">
