@@ -46,6 +46,8 @@ import type * as staff_projects from "../staff_projects.js";
 import type * as tasks from "../tasks.js";
 import type * as tickets from "../tickets.js";
 import type * as ticket_comments from "../ticket_comments.js";
+import type * as unga from "../unga.js";
+import type * as ungaThankYouEmail from "../ungaThankYouEmail.js";
 import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
@@ -93,6 +95,8 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   tickets: typeof tickets;
   ticket_comments: typeof ticket_comments;
+  unga: typeof unga;
+  ungaThankYouEmail: typeof ungaThankYouEmail;
   upload: typeof upload;
   uploadTicketsPdf: typeof uploadTicketsPdf;
   users: typeof users;
