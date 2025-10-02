@@ -678,7 +678,10 @@ export default defineSchema({
       staffStream: v.optional(v.string()),
       elementType: v.optional(v.string()),
       elementText: v.optional(v.string()),
-      formName: v.optional(v.string())
+      formName: v.optional(v.string()),
+      messageType: v.optional(v.string()),
+      hasFile: v.optional(v.boolean()),
+      letterName: v.optional(v.string())
     })),
     timestamp: v.number()
   }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
