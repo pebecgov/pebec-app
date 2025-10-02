@@ -58,8 +58,6 @@ export default defineSchema({
     assignedUsers: v.array(v.id("users")),
     createdAt: v.number()
   }).index("byName", ["name"]),
-  
-  // New table for scoring history
   mda_scoring_history: defineTable({
     mdaId: v.optional(v.id("mdas")),
     mdaName: v.string(),
@@ -107,6 +105,7 @@ export default defineSchema({
     status: v.union(v.literal("pending"), v.literal("submitted"), v.literal("late"), v.literal("overdue")),
     notes: v.optional(v.string())
   }).index("byMda", ["mdaId"]).index("byMonth", ["month", "year"]).index("byStatus", ["status"]),
+ 
   tickets: defineTable({
     title: v.string(),
     description: v.string(),
