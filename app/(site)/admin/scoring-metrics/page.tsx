@@ -685,6 +685,75 @@ export default function ScoringMetricsPage() {
 
   const finalScoreData = calculateTotalScore();
 
+  // Handle file upload for SLA scoring with AI helper
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+        if (jsonData.length === 0) {
+          toast.error("No data found in the Excel file");
+          return;
+        }
+
+        // Get headers from the first row
+        const headers = Object.keys(jsonData[0] as Record<string, any>);
+        
+        // Use intelligent header matching
+        toast.info("🤖 Analyzing your file headers...");
+        
+        const headerResult = performHeaderMatching(headers);
+
+        if (!headerResult.success) {
+          toast.warning("⚠️ Header matching failed, using fallback method");
+        }
+
+        // Check if we have the required headers
+        const requiredHeaders = ['DATE_OF_SUBMISSION', 'DATE_OF_COMPLETION', 'EXPECTED_TIMELINE'];
+        const missingHeaders = requiredHeaders.filter(header => 
+          !headerResult.headerMapping[header] || headerResult.confidence[header] < 0.5
+        );
+
+        if (missingHeaders.length > 0) {
+          toast.error(`Missing or unclear headers: ${missingHeaders.join(', ')}. Please check your file format.`);
+          return;
+        }
+
+        // Process the data with matched headers
+        toast.info("📊 Processing data with matched headers...");
+        
+        const processResult = processSlaData(jsonData, headerResult.headerMapping);
+
+        if (!processResult.success) {
+          toast.error("Failed to process data: " + processResult.error);
+          return;
+        }
+
+        // Set results
+        setOverallPercentage(processResult.overallPercentage);
+        setResults(processResult.processedData);
+        
+        // Show success message with insights
+        toast.success(`✅ Successfully processed ${processResult.validRows}/${processResult.totalRows} rows`);
+        
+        if (headerResult.suggestions && headerResult.suggestions.length > 0) {
+          toast.info(`💡 ${headerResult.suggestions.join(', ')}`);
+        }
+
+      } catch (error) {
+        console.error("File upload error:", error);
+        toast.error("Failed to process file: " + (error as Error).message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   // Save the final score
   const handleSaveScore = async () => {
@@ -1036,85 +1105,74 @@ export default function ScoringMetricsPage() {
                     </span>
                   </div>
                   
-                  {/* Monthly SLA Button */}
-                  <div className="mb-4">
-                    <button
-                      onClick={() => setShowSlaModal(true)}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors duration-300"
-                    >
-                      📅 Monthly SLA Scoring ({scoringPeriod})
-                    </button>
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      Upload files or rate each month (5 points per month)
-                    </p>
-                  </div>
-                  
-                  {/* Monthly SLA Results Display */}
                   <div className="space-y-3">
-                    {(() => {
-                      const monthlySlaScore = calculateMonthlySlaScore();
-                      const periodMonths = getMonthsForPeriod(scoringPeriod);
-                      
-                      return (
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-semibold text-gray-800">Monthly Progress</h3>
-                            <div className="text-sm text-gray-600">
-                              {monthlySlaScore.monthsWithData}/{monthlySlaScore.totalMonths} months completed
-                            </div>
-                          </div>
-                          
-                          {/* Monthly Progress Grid */}
-                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-                            {periodMonths.map((periodMonth, index) => {
-                              const monthName = new Date(periodMonth.year, periodMonth.month, 1)
-                                .toLocaleString('default', { month: 'short' });
-                              const monthKey = `${periodMonth.year}-${periodMonth.month}`;
-                              const monthData = monthlySlaData[monthKey];
-                              const hasData = monthData && (monthData.method === 'file' ? monthData.overallPercentage !== null : monthData.rating > 0);
-                              
-                              return (
-                                <div key={index} className={`p-2 rounded text-center text-xs ${
-                                  hasData 
-                                    ? 'bg-green-100 text-green-800 border border-green-200' 
-                                    : 'bg-gray-100 text-gray-500 border border-gray-200'
-                                }`}>
-                                  <div className="font-medium">{monthName}</div>
-                                  <div className="text-xs">
-                                    {hasData ? '✓' : '○'}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          
-                          {/* Score Summary */}
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="text-center">
-                              <div className="text-xs text-gray-500">Total Score</div>
-                              <div className="font-bold text-lg text-blue-600">
-                                {monthlySlaScore.totalScore.toFixed(1)}/30
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-xs text-gray-500">Percentage</div>
-                              <div className={`font-bold text-lg ${
-                                monthlySlaScore.percentage >= 80 ? 'text-green-600' : 
-                                monthlySlaScore.percentage >= 60 ? 'text-yellow-600' : 'text-red-600'
-                              }`}>
-                                {monthlySlaScore.percentage.toFixed(1)}%
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {monthlySlaScore.monthsWithData === 0 && (
-                            <div className="text-center text-gray-500 text-sm mt-2">
-                              Click the button above to start monthly SLA scoring
-                            </div>
-                          )}
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="sla-method"
+                          value="file"
+                          checked={slaMethod === 'file'}
+                          onChange={(e) => setSlaMethod(e.target.value)}
+                          className="mr-2"
+                        />
+                        File Upload
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="sla-method"
+                          value="rating"
+                          checked={slaMethod === 'rating'}
+                          onChange={(e) => setSlaMethod(e.target.value)}
+                          className="mr-2"
+                        />
+                        Rating
+                      </label>
+                    </div>
+
+                    {slaMethod === 'file' ? (
+                      <div className="space-y-3">
+                        
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileUpload}
+                          accept=".xlsx, .xls"
+                          className="w-full"
+                        />
+                        <div className="text-xs text-gray-500">
+                          Supported formats: Excel (.xlsx, .xls).
                         </div>
-                      );
-                    })()}
+                      </div>
+                    ) : (
+                      <Select
+                        value={slaRate}
+                        onChange={(e) => setSlaRate(Number(e.target.value))}
+                        className="w-full"
+                      >
+                        {[...Array(11)].map((_, i) => (
+                          <MenuItem key={i} value={i}>{i}</MenuItem>
+                        ))}
+                      </Select>
+                    )}
+
+                    <div className="text-center space-y-2">
+                      <div>
+                      Score: {slaMethod === 'file' 
+                        ? (overallPercentage !== null ? `${overallPercentage.toFixed(1)}%` : 'N/A')
+                        : `${((slaRate / 10) * 30).toFixed(1)}/30`
+                      }
+                      </div>
+                      {slaMethod === 'file' && results.length > 0 && (
+                        <button 
+                          onClick={() => setShowModel(true)} 
+                          className="bg-green-500 px-3 py-1.5 rounded-md text-white hover:bg-green-600 transition-colors duration-300 text-[14px] cursor-pointer"
+                        >
+                          View Results ({results.length} rows)
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
