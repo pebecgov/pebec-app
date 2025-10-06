@@ -142,7 +142,10 @@ export const calculateAndSaveMDAScore = mutation({
     hasActiveUsers: v.boolean(),
     // Additional fields
     notes: v.optional(v.string()),
-    recommendations: v.optional(v.string())
+    recommendations: v.optional(v.string()),
+    // Scoring method fields
+    maxPossiblePoints: v.optional(v.number()),
+    scoringMethod: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -163,7 +166,9 @@ export const calculateAndSaveMDAScore = mutation({
       args.monthlyReportSubmissionScore +
       args.timelinessInSubmittingScore;
     
-    const totalPercentage = (totalScore / 100) * 100;
+    // Use provided maxPossiblePoints or default to 100
+    const maxPossiblePoints = args.maxPossiblePoints || 100;
+    const totalPercentage = (totalScore / maxPossiblePoints) * 100;
     
     // Determine grade
     let grade = "F";
@@ -192,6 +197,8 @@ export const calculateAndSaveMDAScore = mutation({
       timelinessInSubmittingScore: args.timelinessInSubmittingScore,
       totalScore,
       totalPercentage,
+      maxPossiblePoints: maxPossiblePoints,
+      scoringMethod: args.scoringMethod || "standard",
       grade,
       status,
       totalTickets: args.totalTickets,
@@ -813,7 +820,9 @@ export const getAllMDAsLatestScores = query({
           grade: grade,
           status: status,
           lastScoredAt: lastScoredAt,
-          scoringPeriod: scoringPeriod
+          scoringPeriod: scoringPeriod,
+          maxPossiblePoints: latestScore?.maxPossiblePoints ?? 100,
+          scoringMethod: latestScore?.scoringMethod ?? "standard"
         };
       })
     );
@@ -895,6 +904,41 @@ export const getAllMdaScoringStatuses = query({
     });
     
     return mdaScoresObject;
+  }
+});
+
+// Migration function to update existing records with default values
+export const migrateScoringHistory = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    // Only admins can run migrations
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized: Only admins can run migrations");
+    }
+    
+    // Get all scoring history records
+    const allRecords = await ctx.db.query("mda_scoring_history").collect();
+    
+    let updatedCount = 0;
+    
+    for (const record of allRecords) {
+      // Check if record needs migration
+      if (record.maxPossiblePoints === undefined || record.scoringMethod === undefined) {
+        await ctx.db.patch(record._id, {
+          maxPossiblePoints: record.maxPossiblePoints ?? 100,
+          scoringMethod: record.scoringMethod ?? "standard"
+        });
+        updatedCount++;
+      }
+    }
+    
+    return {
+      success: true,
+      updatedRecords: updatedCount,
+      totalRecords: allRecords.length
+    };
   }
 });
 
