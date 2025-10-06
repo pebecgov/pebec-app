@@ -78,6 +78,8 @@ export default defineSchema({
     // Total scores
     totalScore: v.number(),
     totalPercentage: v.number(),
+    maxPossiblePoints: v.optional(v.number()), // 100 or 85 (when Report Gov Resolution is skipped)
+    scoringMethod: v.optional(v.string()), // "standard" or "skip_reportgov"
     grade: v.string(), // A, B, C, D, F
     status: v.string(), // Compliant, Non-Compliant
     // Performance data at time of scoring
@@ -197,6 +199,84 @@ export default defineSchema({
     guestName: v.optional(v.string()),
     createdAt: v.number()
   }).index("byPost", ["postId"]),
+  // Messaging System Tables
+  conversations: defineTable({
+    participants: v.array(v.id("users")), // Array of user IDs in the conversation
+    lastMessageAt: v.number(), // Timestamp of the last message
+    lastMessage: v.optional(v.string()), // Preview of the last message
+    lastMessageSender: v.optional(v.id("users")), // Who sent the last message
+    createdAt: v.number(),
+    updatedAt: v.number()
+  }).index("byParticipant", ["participants"]).index("byLastMessageAt", ["lastMessageAt"]),
+
+  messages: defineTable({
+    conversationId: v.id("conversations"),
+    senderId: v.id("users"),
+    content: v.string(), // This will store the encrypted message
+    messageType: v.union(v.literal("text"), v.literal("image"), v.literal("file")),
+    fileId: v.optional(v.id("_storage")), // For file/image messages
+    fileName: v.optional(v.string()), // Original filename for file messages
+    fileSize: v.optional(v.number()), // File size in bytes
+    isRead: v.boolean(),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+    isEncrypted: v.optional(v.boolean()) // Flag to indicate if message is encrypted
+  }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]).index("byConversationAndRead", ["conversationId", "isRead"]).index("byConversationAndSender", ["conversationId", "senderId"]),
+
+  message_read_status: defineTable({
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    readAt: v.number()
+  }).index("byMessage", ["messageId"]).index("byUser", ["userId"]),
+
+  user_activity: defineTable({
+    userId: v.id("users"),
+    activityType: v.union(
+      v.literal("login"),
+      v.literal("page_view"),
+      v.literal("action"),
+      v.literal("logout")
+    ),
+    page: v.optional(v.string()),
+    action: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      userAgent: v.optional(v.string()),
+      ipAddress: v.optional(v.string()),
+      sessionDuration: v.optional(v.number()),
+      staffStream: v.optional(v.string()),
+      elementType: v.optional(v.string()),
+      elementText: v.optional(v.string()),
+      formName: v.optional(v.string()),
+      messageType: v.optional(v.string()),
+      hasFile: v.optional(v.boolean()),
+      letterName: v.optional(v.string())
+    })),
+    timestamp: v.number()
+  }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
+  ,
+  // UNGA Registrations and counters for auto-increment
+  counters: defineTable({
+    name: v.string(),
+    value: v.number()
+  }).index("byName", ["name"]),
+  unga_registrations: defineTable({
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    org: v.string(),
+    assignedNumber: v.number(),
+    createdAt: v.number(),
+    confirmedEntry: v.optional(v.boolean())
+  }).index("byEmail", ["email"]).index("byAssignedNumber", ["assignedNumber"]).index("byCreatedAt", ["createdAt"]),
+
+  email_logs: defineTable({
+    type: v.string(),
+    recipientEmail: v.string(),
+    subject: v.string(),
+    sentAt: v.number(),
+    status: v.string(),
+    error: v.optional(v.string())
+  }).index("byType", ["type"]).index("byRecipient", ["recipientEmail"]).index("bySentAt", ["sentAt"]),
   events: defineTable({
     title: v.string(),
     description: v.string(),

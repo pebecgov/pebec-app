@@ -95,6 +95,13 @@ export default function ScoringMetricsDashboard() {
           <p><strong>Grade F (Below 60%):</strong> Poor performance - Requires immediate attention</p>
           <p><strong>Meeting Standards (70%+):</strong> MDAs performing at acceptable level or better</p>
           <p><strong>Below Standards (Below 70%):</strong> MDAs that need improvement to meet requirements</p>
+          <p><strong>Scoring Methods:</strong> 
+            <span className="ml-1">
+              • <span className="font-semibold text-blue-600">100-Point Scale:</span> Standard scoring with all metrics included
+              <br />
+              • <span className="font-semibold text-orange-600">85-Point Scale:</span> Report Gov Resolution skipped (fair comparison)
+            </span>
+          </p>
         </div>
       </div>
 
@@ -480,6 +487,9 @@ export default function ScoringMetricsDashboard() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Platform Status
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Scoring Method
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -538,6 +548,15 @@ export default function ScoringMetricsDashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {mda.isActiveOnPlatform ? 'Live Data' : 'Manual Only'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        (mda as any).scoringMethod === 'skip_reportgov' 
+                          ? 'bg-orange-100 text-orange-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {(mda as any).scoringMethod === 'skip_reportgov' ? '85-Point Scale' : '100-Point Scale'}
+                      </span>
                     </td>
                   </tr>
                 ))}

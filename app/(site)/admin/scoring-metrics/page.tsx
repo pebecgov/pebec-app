@@ -115,6 +115,7 @@ export default function ScoringMetricsPage() {
   const [reportgovRate, setReportgovRate] = useState(0);
   const [manualReportGovRate, setManualReportGovRate] = useState(0);
   const [useManualReportGov, setUseManualReportGov] = useState(false);
+  const [skipReportGov, setSkipReportGov] = useState(false);
   
   // Manual Report Gov Resolution inputs
   const [manualTotalTickets, setManualTotalTickets] = useState(0);
@@ -567,12 +568,21 @@ export default function ScoringMetricsPage() {
     
     const basePercentage = 100;
     const finalPercentage = Math.max(0, basePercentage - totalPenalty);
-    const score = (finalPercentage / 100) * 2; // 2 points max
+    
+    // FIXED: Scale the score based on number of reports submitted vs total expected
+    const totalExpectedReports = expectedMonths.length;
+    const submittedCount = submittedReports.length;
+    const scaleFactor = submittedCount / totalExpectedReports;
+    
+    const score = (finalPercentage / 100) * 2 * scaleFactor; // Scale the 2 points based on report count
     
     return {
       percentage: finalPercentage,
       score: score,
-      penalty: totalPenalty
+      penalty: totalPenalty,
+      scaleFactor: scaleFactor,
+      submittedCount: submittedCount,
+      totalExpected: totalExpectedReports
     };
   };
 
@@ -582,10 +592,12 @@ export default function ScoringMetricsPage() {
   // Calculate total score
   const calculateTotalScore = () => {
     // Use manual overrides if enabled, otherwise use automatic calculations
-    const reportGovScore = useManualReportGov ? manualReportGovRate : reportgovRate;
+    const reportGovScore = skipReportGov ? 0 : (useManualReportGov ? manualReportGovRate : reportgovRate);
     const monthlyReportScore = useManualMonthlyReports ? 
       (Object.values(manualMonthlyReports).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 3 : 
       monthlyReportData.score;
+    
+    // Fix timeliness calculation to scale properly
     const timelinessScore = useManualTimeliness ? 
       (Object.values(manualTimeliness).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 2 : 
       deadlineData.score;
@@ -611,15 +623,18 @@ export default function ScoringMetricsPage() {
       interMdaCollaboration: calculateAverageWithPastData(baseScores.interMdaCollaboration, 'interMdaCollaboration'),
       stakeholderEngagement: calculateAverageWithPastData(baseScores.stakeholderEngagement, 'stakeholderEngagement'),
       reportGovernance: calculateAverageWithPastData(baseScores.reportGovernance, 'reportGovernance'),
-      reportGovernanceResolution: calculateAverageWithPastData(baseScores.reportGovernanceResolution, 'reportGovernanceResolution'),
+      reportGovernanceResolution: skipReportGov ? 0 : calculateAverageWithPastData(baseScores.reportGovernanceResolution, 'reportGovernanceResolution'),
       monthlyReportSubmission: calculateAverageWithPastData(baseScores.monthlyReportSubmission, 'monthlyReportSubmission'),
       timelinessInSubmitting: calculateAverageWithPastData(baseScores.timelinessInSubmitting, 'timelinessInSubmitting')
     };
 
+    // Calculate total possible points (excluding skipped metrics)
+    const maxPossiblePoints = skipReportGov ? 85 : 100; // 100 - 15 (Report Gov Resolution points)
+    
     const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
-    const totalPercentage = (totalScore / 100) * 100;
+    const totalPercentage = (totalScore / maxPossiblePoints) * 100;
 
-    return { scores, totalScore, totalPercentage, baseScores };
+    return { scores, totalScore, totalPercentage, baseScores, maxPossiblePoints };
   };
 
   const finalScoreData = calculateTotalScore();
@@ -744,8 +759,10 @@ export default function ScoringMetricsPage() {
         hasReportGovLink: checkboxItems.reportGovLink,
         hasActiveUsers: checkboxItems.activeUsers,
         notes: notes,
-        recommendations: recommendations
-      });
+        recommendations: recommendations,
+        maxPossiblePoints: finalScoreData.maxPossiblePoints || 100,
+        scoringMethod: skipReportGov ? "skip_reportgov" : "standard"
+      } as any);
 
       if (result.success) {
         toast.success(`Score saved successfully! Grade: ${result.grade}, Status: ${result.status}`);
@@ -1214,14 +1231,17 @@ export default function ScoringMetricsPage() {
                     </span>
                   </div>
                   
-                  {/* Toggle between automatic and manual */}
+                  {/* Toggle between automatic, manual, and skip */}
                   <div className="flex gap-4 mb-3">
                     <label className="flex items-center">
                       <input
                         type="radio"
                         name="reportgov-mode"
-                        checked={!useManualReportGov}
-                        onChange={() => setUseManualReportGov(false)}
+                        checked={!useManualReportGov && !skipReportGov}
+                        onChange={() => {
+                          setUseManualReportGov(false);
+                          setSkipReportGov(false);
+                        }}
                         className="mr-2"
                       />
                       Automatic
@@ -1230,11 +1250,27 @@ export default function ScoringMetricsPage() {
                       <input
                         type="radio"
                         name="reportgov-mode"
-                        checked={useManualReportGov}
-                        onChange={() => setUseManualReportGov(true)}
+                        checked={useManualReportGov && !skipReportGov}
+                        onChange={() => {
+                          setUseManualReportGov(true);
+                          setSkipReportGov(false);
+                        }}
                         className="mr-2"
                       />
                       Manual
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="reportgov-mode"
+                        checked={skipReportGov}
+                        onChange={() => {
+                          setSkipReportGov(true);
+                          setUseManualReportGov(false);
+                        }}
+                        className="mr-2"
+                      />
+                      Skip (0 points)
                     </label>
                   </div>
 
@@ -1716,10 +1752,21 @@ export default function ScoringMetricsPage() {
                     <div>Inter MDA Collaboration: {finalScoreData.scores.interMdaCollaboration.toFixed(1)}/15</div>
                     <div>Stakeholder Engagement: {finalScoreData.scores.stakeholderEngagement.toFixed(1)}/10</div>
                     <div>Report Governance: {finalScoreData.scores.reportGovernance.toFixed(1)}/5</div>
-                    <div>Report Gov Resolution: {finalScoreData.scores.reportGovernanceResolution.toFixed(1)}/15</div>
+                    <div className={skipReportGov ? "text-gray-500 line-through" : ""}>
+                      Report Gov Resolution: {finalScoreData.scores.reportGovernanceResolution.toFixed(1)}/15
+                      {skipReportGov && " (Skipped)"}
+                    </div>
                     <div>Monthly Report Submission: {finalScoreData.scores.monthlyReportSubmission.toFixed(1)}/3</div>
                     <div>Timeliness in Submitting: {finalScoreData.scores.timelinessInSubmitting.toFixed(1)}/2</div>
                   </div>
+                  
+                  {skipReportGov && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-xs text-blue-600">
+                        ⚠️ Report Gov Resolution skipped - calculated out of 85 points instead of 100
+                      </p>
+                    </div>
+                  )}
                   
                   {/* Show averaging info if past data exists */}
                   {pastScoringData && (
@@ -1734,13 +1781,18 @@ export default function ScoringMetricsPage() {
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h3 className="font-semibold mb-2">Performance Summary</h3>
                   <div className="space-y-2 text-sm">
-                    <div>Total Score: {finalScoreData.totalScore.toFixed(1)}/100</div>
+                    <div>Total Score: {finalScoreData.totalScore.toFixed(1)}/{finalScoreData.maxPossiblePoints || 100}</div>
                     <div>Percentage: {finalScoreData.totalPercentage.toFixed(1)}%</div>
                     <div>Grade: {finalScoreData.totalPercentage >= 90 ? 'A' : 
                       finalScoreData.totalPercentage >= 80 ? 'B' : 
                       finalScoreData.totalPercentage >= 70 ? 'C' : 
                       finalScoreData.totalPercentage >= 60 ? 'D' : 'F'}</div>
                     <div>Status: {finalScoreData.totalPercentage >= 70 ? 'Compliant' : 'Non-Compliant'}</div>
+                    {skipReportGov && (
+                      <div className="text-xs text-blue-600">
+                        📊 Adjusted calculation: {finalScoreData.maxPossiblePoints} points maximum
+                      </div>
+                    )}
                   </div>
                   
                   {/* Show base vs averaged comparison */}
@@ -1749,10 +1801,10 @@ export default function ScoringMetricsPage() {
                       <p className="text-xs text-gray-600">
                         Base Score: {finalScoreData.baseScores ? 
                           Object.values(finalScoreData.baseScores).reduce((sum, score) => sum + score, 0).toFixed(1) : 
-                          finalScoreData.totalScore.toFixed(1)}/100
+                          finalScoreData.totalScore.toFixed(1)}/{finalScoreData.maxPossiblePoints || 100}
                       </p>
                       <p className="text-xs text-blue-600">
-                        With Averaging: {finalScoreData.totalScore.toFixed(1)}/100
+                        With Averaging: {finalScoreData.totalScore.toFixed(1)}/{finalScoreData.maxPossiblePoints || 100}
                       </p>
                     </div>
                   )}
