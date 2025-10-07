@@ -254,29 +254,6 @@ export default defineSchema({
     timestamp: v.number()
   }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
   ,
-  // UNGA Registrations and counters for auto-increment
-  counters: defineTable({
-    name: v.string(),
-    value: v.number()
-  }).index("byName", ["name"]),
-  unga_registrations: defineTable({
-    name: v.string(),
-    email: v.string(),
-    phone: v.string(),
-    org: v.string(),
-    assignedNumber: v.number(),
-    createdAt: v.number(),
-    confirmedEntry: v.optional(v.boolean())
-  }).index("byEmail", ["email"]).index("byAssignedNumber", ["assignedNumber"]).index("byCreatedAt", ["createdAt"]),
-
-  email_logs: defineTable({
-    type: v.string(),
-    recipientEmail: v.string(),
-    subject: v.string(),
-    sentAt: v.number(),
-    status: v.string(),
-    error: v.optional(v.string())
-  }).index("byType", ["type"]).index("byRecipient", ["recipientEmail"]).index("bySentAt", ["sentAt"]),
   events: defineTable({
     title: v.string(),
     description: v.string(),
@@ -312,6 +289,26 @@ export default defineSchema({
     email: v.optional(v.string()),
     isVip: v.optional(v.boolean())
   }).index("byEvent", ["eventId"]).index("byUser", ["userId"]).index("byTicketNumber", ["ticketNumber"]),
+  
+  // Workshop registrations for Strategic Engagement event
+  workshop_registrations: defineTable({
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    organization: v.string(),
+    designation: v.string(),
+    sector: v.union(
+      v.literal("Health"),
+      v.literal("IT/FinTech/Artificial Intelligence"),
+      v.literal("Agriculture"),
+      v.literal("Shipping"),
+      v.literal("Aviation"),
+      v.literal("Renewable Energy")
+    ),
+    registrationNumber: v.string(),
+    createdAt: v.number(),
+    confirmedEntry: v.optional(v.boolean())
+  }).index("byEmail", ["email"]).index("byRegistrationNumber", ["registrationNumber"]).index("byCreatedAt", ["createdAt"]).index("bySector", ["sector"]),
   event_questions: defineTable({
     eventId: v.id("events"),
     questionText: v.string(),
