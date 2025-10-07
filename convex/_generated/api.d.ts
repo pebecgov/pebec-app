@@ -13,8 +13,8 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import type * as ai_helpers from "../ai_helpers.js";
 import type * as ai_helper_scoring from "../ai_helper_scoring.js";
+import type * as ai_helpers from "../ai_helpers.js";
 import type * as business_letters from "../business_letters.js";
 import type * as chat from "../chat.js";
 import type * as cleanup from "../cleanup.js";
@@ -46,10 +46,8 @@ import type * as sendEmail from "../sendEmail.js";
 import type * as sendTicketemail from "../sendTicketemail.js";
 import type * as staff_projects from "../staff_projects.js";
 import type * as tasks from "../tasks.js";
-import type * as tickets from "../tickets.js";
 import type * as ticket_comments from "../ticket_comments.js";
-import type * as unga from "../unga.js";
-import type * as ungaThankYouEmail from "../ungaThankYouEmail.js";
+import type * as tickets from "../tickets.js";
 import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
@@ -64,8 +62,8 @@ import type * as utils_appResult from "../utils/appResult.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  ai_helpers: typeof ai_helpers;
   ai_helper_scoring: typeof ai_helper_scoring;
+  ai_helpers: typeof ai_helpers;
   business_letters: typeof business_letters;
   chat: typeof chat;
   cleanup: typeof cleanup;
@@ -97,10 +95,8 @@ declare const fullApi: ApiFromModules<{
   sendTicketemail: typeof sendTicketemail;
   staff_projects: typeof staff_projects;
   tasks: typeof tasks;
-  tickets: typeof tickets;
   ticket_comments: typeof ticket_comments;
-  unga: typeof unga;
-  ungaThankYouEmail: typeof ungaThankYouEmail;
+  tickets: typeof tickets;
   upload: typeof upload;
   uploadTicketsPdf: typeof uploadTicketsPdf;
   users: typeof users;

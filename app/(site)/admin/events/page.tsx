@@ -7,8 +7,8 @@ import { api } from '@/convex/_generated/api';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import UngaRegistrations from '@/components/Admin/UngaRegistrations';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import WorkshopRegistrations from '@/components/Admin/WorkshopRegistrations';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -55,14 +55,14 @@ export default function ManageEventsPage() {
         <h1 className="text-3xl font-bold text-green-700">Manage Events</h1>
         <Dialog>
           <DialogTrigger asChild>
-            <Button className="bg-green-600 text-white hover:bg-green-700">UNGA registrations</Button>
+            <Button className="bg-blue-600 text-white hover:bg-blue-700">Workshop registrations</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-5xl w-[95vw] h-[85vh] overflow-hidden">
+          <DialogContent className="max-w-6xl w-[95vw] h-[85vh] overflow-hidden">
             <DialogHeader>
-              <DialogTitle>UNGA Registrations</DialogTitle>
+              <DialogTitle>Strategic Engagement Workshop Registrations</DialogTitle>
             </DialogHeader>
             <div className="h-[calc(85vh-80px)] overflow-auto pr-2">
-              <UngaRegistrations />
+              <WorkshopRegistrations />
             </div>
           </DialogContent>
         </Dialog>
