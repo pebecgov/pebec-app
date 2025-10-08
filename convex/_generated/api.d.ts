@@ -52,6 +52,7 @@ import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
 import type * as utils_appResult from "../utils/appResult.js";
+import type * as workshop from "../workshop.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -101,6 +102,7 @@ declare const fullApi: ApiFromModules<{
   uploadTicketsPdf: typeof uploadTicketsPdf;
   users: typeof users;
   "utils/appResult": typeof utils_appResult;
+  workshop: typeof workshop;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,
