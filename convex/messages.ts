@@ -357,23 +357,70 @@ export const getUnreadMessageCount = query({
   },
 });
 
-// Delete a message (only by sender)
+// Delete a message (only by sender, only if not read by others, only within 15 minutes)
 export const deleteMessage = mutation({
   args: { 
-    messageId: v.id("messages"), 
-    userId: v.id("users") 
+    messageId: v.id("messages")
   },
-  handler: async (ctx, { messageId, userId }) => {
+  handler: async (ctx, { messageId }) => {
     const message = await ctx.db.get(messageId);
     if (!message) {
       throw new Error("Message not found");
     }
 
-    if (message.senderId !== userId) {
-      throw new Error("You can only delete your own messages");
+    // Check if message is read by another user
+    if (message.isRead) {
+      throw new Error("Cannot delete message that has been read by others");
+    }
+
+    // Check if message is less than 15 minutes old
+    const messageAge = Date.now() - message.createdAt;
+    const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
+    
+    if (messageAge >= fifteenMinutes) {
+      throw new Error("Cannot delete message older than 15 minutes");
     }
 
     await ctx.db.delete(messageId);
+  },
+});
+
+// Edit a message (only by sender, only if not read by others, only within 15 minutes)
+export const editMessage = mutation({
+  args: { 
+    messageId: v.id("messages"), 
+    newContent: v.string()
+  },
+  handler: async (ctx, { messageId, newContent }) => {
+    const message = await ctx.db.get(messageId);
+    if (!message) {
+      throw new Error("Message not found");
+    }
+
+    // Check if message is less than 15 minutes old (only time-based restriction for editing)
+    const messageAge = Date.now() - message.createdAt;
+    const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
+    
+    if (messageAge >= fifteenMinutes) {
+      throw new Error("Cannot edit message older than 15 minutes");
+    }
+
+    // Encrypt the new content
+    const encryptedContent = encryptMessage(newContent);
+
+    // Update the message
+    await ctx.db.patch(messageId, {
+      content: encryptedContent,
+      isEncrypted: true,
+      updatedAt: Date.now()
+    });
+
+    // Update conversation with new last message info
+    await ctx.db.patch(message.conversationId, {
+      lastMessage: newContent.length > 50 ? newContent.substring(0, 50) + "..." : newContent,
+      lastMessageAt: Date.now(),
+      updatedAt: Date.now(),
+    });
   },
 });
 
