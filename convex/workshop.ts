@@ -29,22 +29,13 @@ export const registerWorkshop = mutation({
       throw new Error("Email already registered for this workshop");
     }
 
-    // Get or create counter for workshop registrations
-    let counter = await ctx.db
-      .query("counters")
-      .withIndex("byName", q => q.eq("name", "workshop_registrations"))
-      .first();
-
-    if (!counter) {
-      const id = await ctx.db.insert("counters", { name: "workshop_registrations", value: 0 });
-      counter = await ctx.db.get(id);
-    }
-
-    // Increment counter and generate registration number
-    const newValue = (counter?.value || 0) + 1;
-    await ctx.db.patch(counter!._id, { value: newValue });
+    // Get existing registrations to generate next number
+    const existingRegistrations = await ctx.db
+      .query("workshop_registrations")
+      .collect();
     
-    const registrationNumber = `PEBEC-WS-${String(newValue).padStart(3, "0")}`;
+    const nextNumber = existingRegistrations.length + 1;
+    const registrationNumber = `PEBEC-WS-${String(nextNumber).padStart(3, "0")}`;
 
     // Create registration
     const registrationId = await ctx.db.insert("workshop_registrations", {
