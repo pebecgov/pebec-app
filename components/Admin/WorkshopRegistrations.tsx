@@ -116,7 +116,7 @@ export default function WorkshopRegistrations() {
             <SelectItem value="IT/FinTech/Artificial Intelligence">IT/FinTech/AI</SelectItem>
             <SelectItem value="Agriculture">Agriculture</SelectItem>
             <SelectItem value="Shipping">Shipping</SelectItem>
-            <SelectItem value="Aviation">Aviation</SelectItem>
+            <SelectItem value="Infrastructure and Real Estate Development">Infrastructure and Real Estate Development</SelectItem>
             <SelectItem value="Renewable Energy">Renewable Energy</SelectItem>
           </SelectContent>
         </Select>

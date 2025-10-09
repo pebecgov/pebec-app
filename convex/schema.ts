@@ -302,7 +302,7 @@ export default defineSchema({
       v.literal("IT/FinTech/Artificial Intelligence"),
       v.literal("Agriculture"),
       v.literal("Shipping"),
-      v.literal("Aviation"),
+      v.literal("Infrastructure and Real Estate Development"),
       v.literal("Renewable Energy")
     ),
     registrationNumber: v.string(),
