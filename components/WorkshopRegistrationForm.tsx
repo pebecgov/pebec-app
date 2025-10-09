@@ -93,12 +93,23 @@ export default function WorkshopRegistrationForm() {
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center space-y-4">
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-green-600 mb-2">Your Registration Number:</p>
-            <p className="text-xl font-mono font-bold text-green-800">{registrationNumber}</p>
+          <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+            <h3 className="text-lg font-semibold text-blue-800 mb-3">🔗 Join the Workshop</h3>
+            <p className="text-sm text-blue-600 mb-4">Click the button below to join the Microsoft Teams meeting:</p>
+            <a 
+              href="https://events.teams.microsoft.com/event/cb1f5d0e-9c58-4cf4-864c-2a349c757217@34d3adab-44ff-4c3a-823e-719232c37595"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+            >
+              Join Workshop on Teams
+            </a>
+            <p className="text-xs text-blue-500 mt-3">
+              Event: Tuesday, October 14th at 11:00 AM
+            </p>
           </div>
           <p className="text-sm text-gray-600">
-            Please keep this registration number for your records. You will receive a confirmation email shortly with the link to join the virtual workshop on Microsoft Teams.
+            Thank you for registering! You will receive a confirmation email shortly with a link to complete your registration for the PEBEC-UAE Strategic Engagement on Business Facilitation & Investment Access virtual workshop. Please keep this link so you can use it on the meeting day.
           </p>
           <Button 
             onClick={() => {
