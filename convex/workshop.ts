@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { api } from "./_generated/api";
 
 // Register for the Strategic Engagement workshop
 export const registerWorkshop = mutation({
@@ -14,7 +15,7 @@ export const registerWorkshop = mutation({
       v.literal("IT/FinTech/Artificial Intelligence"),
       v.literal("Agriculture"),
       v.literal("Shipping"),
-      v.literal("Aviation"),
+      v.literal("Infrastructure and Real Estate Development"),
       v.literal("Renewable Energy")
     )
   },
@@ -49,6 +50,29 @@ export const registerWorkshop = mutation({
       createdAt: Date.now(),
       confirmedEntry: false
     });
+
+    // Send confirmation email with Teams link
+    try {
+      const teamsLink = "https://events.teams.microsoft.com/event/cb1f5d0e-9c58-4cf4-864c-2a349c757217@34d3adab-44ff-4c3a-823e-719232c37595";
+      const htmlContent = `
+        <h2>Workshop Registration Confirmed!</h2>
+        <p>Dear ${args.name},</p>
+        <p>Thank you for registering for the Strategic Engagement on Business Facilitation & Investment Access workshop!</p>
+        <p><strong>Registration Number:</strong> ${registrationNumber}</p>
+        <p><strong>Date:</strong> Tuesday, October 14th at 11:00 AM</p>
+        <p><strong>Join the workshop:</strong> <a href="${teamsLink}">Click here to join on Microsoft Teams</a></p>
+        <p>Best regards,<br>PEBEC Team</p>
+      `;
+      
+      await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+        to: args.email,
+        subject: "Workshop Registration Confirmed - Strategic Engagement Workshop",
+        html: htmlContent
+      });
+    } catch (error) {
+      console.error("Failed to schedule confirmation email:", error);
+      // Don't fail the registration if email fails
+    }
 
     return { registrationId, registrationNumber };
   }

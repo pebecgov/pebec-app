@@ -16,7 +16,7 @@ const SECTORS = [
   "IT/FinTech/Artificial Intelligence", 
   "Agriculture",
   "Shipping",
-  "Aviation",
+  "Infrastructure and Real Estate Development",
   "Renewable Energy"
 ] as const;
 
