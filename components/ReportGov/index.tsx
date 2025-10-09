@@ -90,24 +90,25 @@ export default function ReportGovPage() {
           </div>
 
       {}
-      <div className="grid grid-cols-2 gap-6 text-white">
+      <div className="grid grid-cols-1 gap-3 text-white">
         <div className="flex flex-col items-center">
-        <button onClick={handleFeedbackClick} disabled={!!user && user.publicMetadata?.role !== "user"} className={`w-[140px] h-[140px] bg-green-800 rounded-[140px_10px_10px_10px] shadow-xl flex items-center justify-center transition-all ${!!user && user.publicMetadata?.role !== "user" ? "opacity-50 cursor-not-allowed" : "hover:scale-105 hover:bg-green-700"}`}>
+       
+        <button onClick={handleFeedbackClick} disabled={!!user && user.publicMetadata?.role !== "user"} className={`w-[320px] h-[140px] bg-green-800 rounded-[140px_140px_10px_10px] shadow-xl flex items-center justify-center transition-all ${!!user && user.publicMetadata?.role !== "user" ? "opacity-50 cursor-not-allowed" : "hover:scale-105 hover:bg-green-700"}`}>
 
-            <FaRegCommentDots className="text-white text-5xl" />
+            <FaRegCommentDots className="text-white text-8xl" />
           </button>
           <span className="mt-2 text-green-900 font-semibold text-sm">Share Feedback</span>
         </div>
-
+{/* 
         <div className="flex flex-col items-center">
         <button onClick={handleGuestClick} disabled={!!user && user.publicMetadata?.role !== "user"} className={`w-[140px] h-[140px] bg-green-800 rounded-[10px_140px_10px_10px] shadow-xl flex items-center justify-center transition-all ${!!user && user.publicMetadata?.role !== "user" ? "opacity-50 cursor-not-allowed" : "hover:scale-105 hover:bg-green-700"}`}>
 
             <FaUserAlt className="text-white text-5xl" />
           </button>
           <span className="mt-2 text-green-900 font-semibold text-sm">Complain as Guest</span>
-        </div>
-
-        <div className="flex flex-col items-center">
+        </div> */}
+<div className="grid grid-cols-2 gap-6 text-white">
+<div className="flex flex-col items-center">
           <button onClick={handleStatusCheckClick} className="w-[140px] h-[140px] bg-green-800 rounded-[10px_10px_10px_140px] shadow-xl hover:scale-105 hover:bg-green-700 transition-all flex items-center justify-center">
             <FaCheckDouble className="text-white text-5xl" />
           </button>
@@ -138,6 +139,8 @@ export default function ReportGovPage() {
     {isSignedIn ? "My Dashboard" : "Sign In"}
   </span>
           </div>
+</div>
+        
       </div>
         </div>
       </section>
