@@ -98,7 +98,7 @@ export default function WorkshopRegistrationForm() {
             <p className="text-xl font-mono font-bold text-green-800">{registrationNumber}</p>
           </div>
           <p className="text-sm text-gray-600">
-            Please keep this registration number for your records. You will receive a confirmation email shortly.
+            Please keep this registration number for your records. You will receive a confirmation email shortly with the link to join the virtual workshop on Microsoft Teams.
           </p>
           <Button 
             onClick={() => {
