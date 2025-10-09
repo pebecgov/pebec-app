@@ -220,6 +220,7 @@ export default defineSchema({
     isRead: v.boolean(),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()), // Timestamp when message was last updated
     isEncrypted: v.optional(v.boolean()) // Flag to indicate if message is encrypted
   }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]).index("byConversationAndRead", ["conversationId", "isRead"]).index("byConversationAndSender", ["conversationId", "senderId"]),
 
