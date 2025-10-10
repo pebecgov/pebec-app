@@ -46,12 +46,15 @@ export default function EventsPage() {
               <Spinner size="lg" />
             </div> : <ul className="grid gap-6 md:grid-cols-2">
             {/* Workshop Event Card */}
-            <li className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden min-h-[420px]">
-              <div className="relative w-full h-40 bg-gradient-to-br from-green-600 to-blue-600 flex items-center justify-center">
-                <div className="text-white text-center">
-                  <h3 className="text-xl font-bold">Strategic Engagement</h3>
-                  <p className="text-sm opacity-90">PEBEC-UAE Workshop</p>
-                </div>
+            <li className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden">
+              <div className="relative w-full bg-white">
+                <Image 
+                  src="/images/workshop-banner.png" 
+                  alt="Strategic Engagement Workshop" 
+                  width={800}
+                  height={600}
+                  className="w-full h-auto object-contain" 
+                />
               </div>
               
               <div className="p-4 flex flex-col flex-grow justify-between space-y-3">
