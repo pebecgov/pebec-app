@@ -44,9 +44,49 @@ export default function EventsPage() {
 
           {!events ? <div className="flex h-40 items-center justify-center">
               <Spinner size="lg" />
-            </div> : upcomingEvents.length === 0 ? <p className="text-center text-gray-600 text-lg">
-              No upcoming events.
-            </p> : <ul className="grid gap-6 md:grid-cols-2">
+            </div> : <ul className="grid gap-6 md:grid-cols-2">
+            {/* Workshop Event Card */}
+            <li className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden min-h-[420px]">
+              <div className="relative w-full h-40 bg-gradient-to-br from-green-600 to-blue-600 flex items-center justify-center">
+                <div className="text-white text-center">
+                  <h3 className="text-xl font-bold">Strategic Engagement</h3>
+                  <p className="text-sm opacity-90">PEBEC-UAE Workshop</p>
+                </div>
+              </div>
+              
+              <div className="p-4 flex flex-col flex-grow justify-between space-y-3">
+                <div>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Strategic Engagement on Business Facilitation & Investment Access</h3>
+                      <p className="text-sm text-gray-600">
+                        Hosted by PEBEC & Embassy of the United Arab Emirates, Abuja
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge className="text-xs bg-green-600 text-white px-2 py-1">
+                        Oct 14, 2024
+                      </Badge>
+                    </div>
+                  </div>
+          
+                  <p className="text-sm text-gray-500 mt-1">Presenting Strategic Investment opportunities in the UAE and Highlighting Nigeria's Business and Investment Climate</p>
+          
+                  <div className="flex items-center text-sm text-gray-600 gap-2 mt-1">
+                    <Clock className="w-4 h-4" />
+                    11:00 AM
+                  </div>
+                </div>
+          
+                <Link href="/workshop">
+                  <Button className="w-full bg-green-600 hover:bg-green-700 text-white mt-3">
+                    Register Now
+                  </Button>
+                </Link>
+              </div>
+            </li>
+            
+            {/* Regular Events */}
             {upcomingEvents.map(event => <li key={event._id} className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden min-h-[420px]">
                 {}
                 <div className="relative w-full h-40 bg-white">
