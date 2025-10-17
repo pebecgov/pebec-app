@@ -193,7 +193,8 @@ export default function Admin() {
       "Email": user.email ?? "—",
       "Phone": user.phoneNumber ?? "—",
       "Role": user.role ? formatRole(user.role) : "—",
-      "Stream / MDA": user.role === "staff" ? (user.staffStream ? formatWorkstream(user.staffStream) : "—") : (user.mdaName ?? "—")
+      "Stream / MDA": user.role === "staff" ? (user.staffStream ? formatWorkstream(user.staffStream) : "—") : (user.mdaName ?? "—"),
+      ...(selectedRoleFilter === "saber_agent" ? { "State": user.state ?? "—" } : {})
     }));
   
     // Create worksheet and workbook
