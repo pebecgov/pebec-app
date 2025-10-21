@@ -784,5 +784,37 @@ export default defineSchema({
     // state: v.optional(v.string()),
     // businessName: v.optional(v.string()),
     // industry: v.optional(v.string()),
-  }).index("byBatchId", ["batchId"]).index("byProcessedAt", ["processedAt"]).index("byTemplateId", ["templateId"])
+  }).index("byBatchId", ["batchId"]).index("byProcessedAt", ["processedAt"]).index("byTemplateId", ["templateId"]),
+
+  // SLA Data Storage
+  mda_sla_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    monthlySlaData: v.any(), // The monthly SLA data object
+    totalScore: v.number(),
+    monthsWithData: v.number(),
+    totalMonths: v.number(),
+    percentage: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Report Governance Data Storage
+  mda_reportgov_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    averageResponseTime: v.number(),
+    averageResolutionTime: v.number(),
+    resolutionRate: v.number(),
+    score: v.number(),
+    isManual: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"])
 });

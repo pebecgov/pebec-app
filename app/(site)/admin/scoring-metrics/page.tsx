@@ -152,6 +152,24 @@ export default function ScoringMetricsPage() {
     api.mda_scoring.getAllMdaScoringStatuses, 
     { scoringPeriod }
   );
+  
+  // New queries for saved data
+  const savedSLAData = useQuery(
+    api.mda_scoring.getSLAData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const savedReportGovData = useQuery(
+    api.mda_scoring.getReportGovData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  
+  // Loading states for saved data
+  const isLoadingSLAData = selectedMda && savedSLAData === undefined;
+  const isLoadingReportGovData = selectedMda && savedReportGovData === undefined;
+  
+  // New mutations for saving data
+  const saveSLAData = useMutation(api.mda_scoring.saveSLAData);
+  const saveReportGovData = useMutation(api.mda_scoring.saveReportGovData);
 
   // Helper function to sanitize MDA names (same as backend)
   const sanitizeMdaName = (mdaName: string): string => {
@@ -324,6 +342,56 @@ export default function ScoringMetricsPage() {
     setSelectedMda('');
   }, [scoringPeriod]);
 
+  // Reset state when MDA changes
+  useEffect(() => {
+    if (selectedMda) {
+      // Reset SLA data
+      setMonthlySlaData({});
+      
+      // Reset Report Gov data
+      setUseManualReportGov(false);
+      setManualTotalTickets(0);
+      setManualResolvedTickets(0);
+      setManualAverageResponseTime(0);
+      setManualAverageResolutionTime(0);
+      setManualReportGovRate(0);
+      setReportgovRate(0);
+    }
+  }, [selectedMda]);
+
+  // Ensure resolved tickets never exceed total tickets
+  useEffect(() => {
+    if (manualResolvedTickets > manualTotalTickets) {
+      setManualResolvedTickets(manualTotalTickets);
+    }
+  }, [manualTotalTickets, manualResolvedTickets]);
+
+  // Load saved SLA data when available
+  useEffect(() => {
+    if (!isLoadingSLAData && savedSLAData && selectedMda) {
+      setMonthlySlaData(savedSLAData.monthlySlaData || {});
+      toast.success(`📊 Loaded saved SLA data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedSLAData, selectedMda, scoringPeriod, isLoadingSLAData]);
+
+  // Load saved Report Gov data when available
+  useEffect(() => {
+    if (!isLoadingReportGovData && savedReportGovData && selectedMda) {
+      if (savedReportGovData.isManual) {
+        setUseManualReportGov(true);
+        setManualTotalTickets(savedReportGovData.totalTickets);
+        setManualResolvedTickets(savedReportGovData.resolvedTickets);
+        setManualAverageResponseTime(savedReportGovData.averageResponseTime);
+        setManualAverageResolutionTime(savedReportGovData.averageResolutionTime);
+        setManualReportGovRate(savedReportGovData.score);
+      } else {
+        setUseManualReportGov(false);
+        setReportgovRate(savedReportGovData.score);
+      }
+      toast.success(`📊 Loaded saved Report Gov data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedReportGovData, selectedMda, scoringPeriod, isLoadingReportGovData]);
+
   if (isLoading || !isLoaded) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
@@ -365,17 +433,24 @@ export default function ScoringMetricsPage() {
     const averageResponseTime = periodTicketData?.averageResponseTime || 0;
     const averageResolutionTime = periodTicketData?.averageResolutionTime || 0;
 
-    // Scoring logic: Resolution rate (9 points), Response time (3 points), Resolution time (3 points)
-    let resolutionRateScore = (resolutionRate / 100) * 9;
+    // NEW SCORING LOGIC: Resolution rate (7 points), Response time (3 points), Resolution time (5 points)
+    let resolutionRateScore = 0;
+    if (totalTickets === 0) {
+      resolutionRateScore = 0; // If no tickets, resolution score is 0
+    } else {
+      resolutionRateScore = (resolutionRate / 100) * 7; // 7 points for resolution rate
+    }
+    
     let responseTimeScore = 3;
     if (averageResponseTime > 24) {
       const penalty = (averageResponseTime - 24) * 0.06;
       responseTimeScore = Math.max(0, 3 - penalty);
     }
-    let resolutionTimeScore = 3;
+    
+    let resolutionTimeScore = 5;
     if (averageResolutionTime > 72) {
-      const penalty = (averageResolutionTime - 72) * 0.03;
-      resolutionTimeScore = Math.max(0, 3 - penalty);
+      const penalty = (averageResolutionTime - 72) * 0.05; // Adjusted penalty for 5 points
+      resolutionTimeScore = Math.max(0, 5 - penalty);
     }
 
     const totalScore = resolutionRateScore + responseTimeScore + resolutionTimeScore;
@@ -440,17 +515,17 @@ export default function ScoringMetricsPage() {
     
     const resolutionRate = (manualResolvedTickets / manualTotalTickets) * 100;
     
-    // Scoring logic: Resolution rate (9 points), Response time (3 points), Resolution time (3 points)
-    let resolutionRateScore = (resolutionRate / 100) * 9;
+    // NEW SCORING LOGIC: Resolution rate (7 points), Response time (3 points), Resolution time (5 points)
+    let resolutionRateScore = (resolutionRate / 100) * 7; // 7 points for resolution rate
     let responseTimeScore = 3;
     if (manualAverageResponseTime > 24) {
       const penalty = (manualAverageResponseTime - 24) * 0.06;
       responseTimeScore = Math.max(0, 3 - penalty);
     }
-    let resolutionTimeScore = 3;
+    let resolutionTimeScore = 5;
     if (manualAverageResolutionTime > 72) {
-      const penalty = (manualAverageResolutionTime - 72) * 0.03;
-      resolutionTimeScore = Math.max(0, 3 - penalty);
+      const penalty = (manualAverageResolutionTime - 72) * 0.05; // Adjusted penalty for 5 points
+      resolutionTimeScore = Math.max(0, 5 - penalty);
     }
 
     return resolutionRateScore + responseTimeScore + resolutionTimeScore;
@@ -717,6 +792,60 @@ export default function ScoringMetricsPage() {
       }
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  // Save SLA data
+  const handleSaveSLAData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      const monthlySlaScore = calculateMonthlySlaScore();
+      await saveSLAData({
+        mdaName: selectedMda,
+        scoringPeriod: scoringPeriod,
+        monthlySlaData: monthlySlaData,
+        totalScore: monthlySlaScore.totalScore,
+        monthsWithData: monthlySlaScore.monthsWithData,
+        totalMonths: monthlySlaScore.totalMonths,
+        percentage: monthlySlaScore.percentage
+      });
+      toast.success("✅ SLA data saved successfully!");
+    } catch (error) {
+      toast.error("Failed to save SLA data");
+      console.error(error);
+    }
+  };
+
+  // Save Report Gov data
+  const handleSaveReportGovData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      const isManual = useManualReportGov;
+      const score = isManual ? manualReportGovRate : reportgovRate;
+      
+      await saveReportGovData({
+        mdaName: selectedMda,
+        scoringPeriod: scoringPeriod,
+        totalTickets: isManual ? manualTotalTickets : ticketResolutionData.totalTickets,
+        resolvedTickets: isManual ? manualResolvedTickets : ticketResolutionData.resolvedTickets,
+        averageResponseTime: isManual ? manualAverageResponseTime : ticketResolutionData.averageResponseTime,
+        averageResolutionTime: isManual ? manualAverageResolutionTime : ticketResolutionData.averageResolutionTime,
+        resolutionRate: isManual ? (manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0) : ticketResolutionData.resolutionRate,
+        score: score,
+        isManual: isManual
+      });
+      toast.success("✅ Report Governance data saved successfully!");
+    } catch (error) {
+      toast.error("Failed to save Report Governance data");
+      console.error(error);
+    }
   };
 
   // Save the final score
@@ -1065,7 +1194,19 @@ export default function ScoringMetricsPage() {
                 {/* Service Level Agreement */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">Service Level Agreement</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Service Level Agreement</h2>
+                      {isLoadingSLAData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingSLAData && savedSLAData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                       30 Points
                     </span>
@@ -1108,12 +1249,25 @@ export default function ScoringMetricsPage() {
                         <div className="text-sm text-gray-600">
                           {calculateMonthlySlaScore().monthsWithData}/{calculateMonthlySlaScore().totalMonths} months completed
                         </div>
-                        <button 
-                          onClick={() => setShowSlaModal(true)} 
-                          className="bg-blue-500 px-4 py-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-300 text-sm font-medium"
-                        >
-                          Configure Monthly SLA
-                        </button>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => setShowSlaModal(true)} 
+                            className="bg-blue-500 px-4 py-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-300 text-sm font-medium"
+                          >
+                            Configure Monthly SLA
+                          </button>
+                          <button 
+                            onClick={handleSaveSLAData}
+                            disabled={!selectedMda}
+                            className={`px-4 py-2 rounded-md text-white text-sm font-medium transition-colors duration-300 ${
+                              !selectedMda 
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : 'bg-green-500 hover:bg-green-600'
+                            }`}
+                          >
+                            💾 Save SLA Data
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1225,7 +1379,19 @@ export default function ScoringMetricsPage() {
                 {/* Report Governance Resolution */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">Report Gov Resolution</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Report Gov Resolution</h2>
+                      {isLoadingReportGovData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingReportGovData && savedReportGovData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                       15 Points
                     </span>
@@ -1316,14 +1482,30 @@ export default function ScoringMetricsPage() {
                         </p>
                         <p>Avg Response Time: {ticketResolutionData.averageResponseTime.toFixed(1)} hours</p>
                         <p>Avg Resolution Time: {ticketResolutionData.averageResolutionTime.toFixed(1)} hours</p>
+                        <p className="text-xs text-gray-500">
+                          Scoring: Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts)
+                        </p>
                       </div>
 
-                      <button
-                        onClick={() => setReportgovRate(ticketResolutionData.score)}
-                        className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
-                      >
-                        Calculate Score
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setReportgovRate(ticketResolutionData.score)}
+                          className="flex-1 bg-green-500 text-white py-2 rounded hover:bg-green-600"
+                        >
+                          Calculate Score
+                        </button>
+                        <button
+                          onClick={handleSaveReportGovData}
+                          disabled={!selectedMda}
+                          className={`px-4 py-2 rounded text-white text-sm font-medium transition-colors duration-300 ${
+                            !selectedMda 
+                              ? 'bg-gray-400 cursor-not-allowed' 
+                              : 'bg-blue-500 hover:bg-blue-600'
+                          }`}
+                        >
+                          💾 Save
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <div className="space-y-3">
@@ -1352,7 +1534,15 @@ export default function ScoringMetricsPage() {
                             min="0"
                             max={manualTotalTickets}
                             value={manualResolvedTickets}
-                            onChange={(e) => setManualResolvedTickets(Number(e.target.value))}
+                            onChange={(e) => {
+                              const value = Number(e.target.value);
+                              // Ensure resolved tickets never exceed total tickets
+                              if (value > manualTotalTickets) {
+                                setManualResolvedTickets(manualTotalTickets);
+                              } else {
+                                setManualResolvedTickets(value);
+                              }
+                            }}
                             className="w-full border rounded px-3 py-2"
                           />
                         </div>
@@ -1382,15 +1572,28 @@ export default function ScoringMetricsPage() {
                       
                       <div className="text-xs text-gray-500 space-y-1">
                         <p>Resolution Rate: {manualTotalTickets > 0 ? ((manualResolvedTickets / manualTotalTickets) * 100).toFixed(1) : 0}%</p>
-                        <p>Scoring: Resolution Rate (9pts) + Response Time (3pts) + Resolution Time (3pts)</p>
+                        <p>Scoring: Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts)</p>
                       </div>
 
-                      <button
-                        onClick={() => setManualReportGovRate(calculateManualReportGovScore())}
-                        className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600"
-                      >
-                        Calculate Manual Score
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setManualReportGovRate(calculateManualReportGovScore())}
+                          className="flex-1 bg-green-500 text-white py-2 rounded hover:bg-green-600"
+                        >
+                          Calculate Manual Score
+                        </button>
+                        <button
+                          onClick={handleSaveReportGovData}
+                          disabled={!selectedMda}
+                          className={`px-4 py-2 rounded text-white text-sm font-medium transition-colors duration-300 ${
+                            !selectedMda 
+                              ? 'bg-gray-400 cursor-not-allowed' 
+                              : 'bg-blue-500 hover:bg-blue-600'
+                          }`}
+                        >
+                          💾 Save
+                        </button>
+                      </div>
                     </div>
                   )}
 
