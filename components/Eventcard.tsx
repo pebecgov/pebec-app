@@ -22,7 +22,7 @@ export default function EventItem({
   const isEventInTheFuture = new Date(event.eventDate) >= new Date();
   if (!isEventInTheFuture) return null;
   return <li className="max-w-lg mx-auto bg-white rounded-lg shadow-md overflow-hidden sm:max-w-2xl m-3 relative transition-transform hover:scale-[1.02]">
-      <Link href={`/events/${event._id}`} className="block">
+      <Link href={`/events/${event.customUrl || event._id}`} className="block">
         <div className="flex flex-col sm:flex-row">
           {}
           <div className="absolute top-3 right-3 bg-green-600 text-white text-xs px-3 py-1 rounded-lg">

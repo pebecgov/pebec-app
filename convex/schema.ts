@@ -272,8 +272,9 @@ export default defineSchema({
     generalTicketLimit: v.optional(v.number()),
     signUpsDisabled: v.optional(v.boolean()),
     isVip: v.optional(v.boolean()),
-    isSaberEvent: v.optional(v.boolean())
-  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]),
+    isSaberEvent: v.optional(v.boolean()),
+    customUrl: v.optional(v.string())
+  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]),
   event_registrations: defineTable({
     eventId: v.id("events"),
     userId: v.optional(v.id("users")),

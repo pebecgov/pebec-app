@@ -124,7 +124,7 @@ export default function EventsPage() {
                     {}
                   </div>
           
-                  <Link href={`/events/${event._id}`}>
+                  <Link href={`/events/${event.customUrl || event._id}`}>
                     <Button className="w-full bg-green-600 hover:bg-green-700 text-white mt-3">
                       View Details
                     </Button>
@@ -142,7 +142,7 @@ export default function EventsPage() {
             </h2>
 
             {pastEvents.length === 0 ? <p className="text-gray-500 text-sm">No past events.</p> : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                {pastEvents.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 4).map(event => <Link key={event._id} href={`/events/${event._id}`} className="block rounded-lg overflow-hidden border bg-white shadow-sm hover:shadow-md transition">
+                {pastEvents.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 4).map(event => <Link key={event._id} href={`/events/${event.customUrl || event._id}`} className="block rounded-lg overflow-hidden border bg-white shadow-sm hover:shadow-md transition">
       <div className="relative h-28 w-full">
         <Image src={event.coverImageUrl || '/placeholder.jpg'} alt={event.title} fill className="object-cover object-center" />
       </div>

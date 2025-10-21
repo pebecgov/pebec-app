@@ -22,10 +22,27 @@ export const createEvent = mutation({
     ticketLimit: v.optional(v.number()),
     vipTicketLimit: v.optional(v.number()),
     generalTicketLimit: v.optional(v.number()),
-    isSaberEvent: v.optional(v.boolean())
+    isSaberEvent: v.optional(v.boolean()),
+    customUrl: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
+    
+    // Validate custom URL if provided
+    if (args.customUrl) {
+      // Check if custom URL is URL-safe (only alphanumeric, hyphens, underscores)
+      const urlSafePattern = /^[a-zA-Z0-9-_]+$/;
+      if (!urlSafePattern.test(args.customUrl)) {
+        throw new Error("Custom URL can only contain letters, numbers, hyphens, and underscores");
+      }
+      
+      // Check if custom URL is already taken
+      const existingEvent = await ctx.db.query("events").withIndex("byCustomUrl", q => q.eq("customUrl", args.customUrl)).first();
+      if (existingEvent) {
+        throw new Error("Custom URL is already taken. Please choose a different one.");
+      }
+    }
+    
     const createdAt = Date.now();
     const event = await ctx.db.insert("events", {
       title: args.title,
@@ -42,7 +59,8 @@ export const createEvent = mutation({
       ticketLimit: args.ticketLimit,
       vipTicketLimit: args.vipTicketLimit,
       generalTicketLimit: args.generalTicketLimit,
-      isSaberEvent: args.isSaberEvent || false
+      isSaberEvent: args.isSaberEvent || false,
+      customUrl: args.customUrl
     });
     return event;
   }
@@ -253,6 +271,45 @@ export const getEventById = query({
     const event = await ctx.db.get(eventId);
     if (!event) throw new Error("Event not found");
     return event;
+  }
+});
+
+export const getEventByCustomUrl = query({
+  args: {
+    customUrl: v.string()
+  },
+  handler: async (ctx, {
+    customUrl
+  }) => {
+    const event = await ctx.db.query("events").withIndex("byCustomUrl", q => q.eq("customUrl", customUrl)).first();
+    if (!event) {
+      return null;
+    }
+    const createdBy = await ctx.db.get(event.createdBy);
+    const registrations = await ctx.db.query("event_registrations").withIndex("byEvent", q => q.eq("eventId", event._id)).collect();
+    const vipTicketsSold = registrations.filter(r => r.isVip).length;
+    const generalTicketsSold = registrations.filter(r => !r.isVip).length;
+    return {
+      ...event,
+      createdBy,
+      vipTicketsSold,
+      generalTicketsSold,
+      ...(event.coverImageId ? {
+        coverImageUrl: (await ctx.storage.getUrl(event.coverImageId)) ?? ""
+      } : {})
+    };
+  }
+});
+
+export const checkCustomUrlAvailability = query({
+  args: {
+    customUrl: v.string()
+  },
+  handler: async (ctx, {
+    customUrl
+  }) => {
+    const existingEvent = await ctx.db.query("events").withIndex("byCustomUrl", q => q.eq("customUrl", customUrl)).first();
+    return !existingEvent;
   }
 });
 export const getAllEvents = query({
