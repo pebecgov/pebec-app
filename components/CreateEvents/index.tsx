@@ -167,7 +167,7 @@ export default function CreateEventPage() {
                 setCustomUrlError("");
               }} 
               placeholder="e.g., cop30, climate-summit-2024"
-              pattern="[a-zA-Z0-9-_]+"
+              pattern="[a-zA-Z0-9\-_]+"
               title="Only letters, numbers, hyphens, and underscores allowed"
             />
             {customUrlError && <p className="text-xs text-red-500 mt-1">{customUrlError}</p>}
