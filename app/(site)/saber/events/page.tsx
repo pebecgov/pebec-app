@@ -115,7 +115,7 @@ export default function SaberEventsPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Link href={`/events/${event._id}`}>
+                          <Link href={`/events/${event.customUrl || event._id}`}>
                             <Button className="flex-1" variant="outline">
                               <ExternalLink className="h-4 w-4 mr-2" />
                               View Details
@@ -175,7 +175,7 @@ export default function SaberEventsPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Link href={`/events/${event._id}`}>
+                          <Link href={`/events/${event.customUrl || event._id}`}>
                             <Button className="flex-1" variant="outline">
                               <ExternalLink className="h-4 w-4 mr-2" />
                               View Details

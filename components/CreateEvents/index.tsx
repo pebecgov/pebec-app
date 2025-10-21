@@ -39,8 +39,17 @@ export default function CreateEventPage() {
   const [vipLimit, setVipLimit] = useState<number | "">("");
   const [generalLimit, setGeneralLimit] = useState<number | "">("");
   const [ticketLimit, setTicketLimit] = useState<number | "">("");
+  const [customUrl, setCustomUrl] = useState("");
+  const [customUrlError, setCustomUrlError] = useState("");
   const handleCreateEvent = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    
+    // Validate custom URL format
+    if (customUrl && !/^[a-zA-Z0-9-_]+$/.test(customUrl)) {
+      setCustomUrlError("Custom URL can only contain letters, numbers, hyphens, and underscores");
+      return;
+    }
+    
     try {
       const createdEventId = await createEventMutation({
         title,
@@ -53,7 +62,8 @@ export default function CreateEventPage() {
         vipAccessCode: vipAccessCode || undefined,
         ticketLimit: eventType === "vip_and_general" ? undefined : ticketLimit === "" ? undefined : ticketLimit,
         vipTicketLimit: eventType === "vip_and_general" && vipLimit !== "" ? vipLimit : undefined,
-        generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined
+        generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined,
+        customUrl: customUrl.trim() || undefined
       });
       await Promise.all(questions.map(question => createEventQuestionMutation({
         eventId: createdEventId,
@@ -65,6 +75,8 @@ export default function CreateEventPage() {
       setEventDate("");
       setLocation("");
       setHost("");
+      setCustomUrl("");
+      setCustomUrlError("");
       setCoverImageId(undefined);
       setQuestions([]);
       setQuestionText("");
@@ -80,9 +92,16 @@ export default function CreateEventPage() {
       });
     } catch (error) {
       console.error("Error creating event:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to create event. Try again!";
+      
+      // Handle custom URL validation errors
+      if (errorMessage.includes("Custom URL")) {
+        setCustomUrlError(errorMessage);
+      }
+      
       toast({
         title: "Error!",
-        description: "Failed to create event. Try again!",
+        description: errorMessage,
         variant: "destructive"
       });
     }
@@ -137,6 +156,24 @@ export default function CreateEventPage() {
           <div>
             <Label>Host Name</Label>
             <Input value={host} onChange={e => setHost(e.target.value)} required />
+          </div>
+
+          <div>
+            <Label>Custom URL (optional)</Label>
+            <Input 
+              value={customUrl} 
+              onChange={e => {
+                setCustomUrl(e.target.value);
+                setCustomUrlError("");
+              }} 
+              placeholder="e.g., cop30, climate-summit-2024"
+              pattern="[a-zA-Z0-9-_]+"
+              title="Only letters, numbers, hyphens, and underscores allowed"
+            />
+            {customUrlError && <p className="text-xs text-red-500 mt-1">{customUrlError}</p>}
+            <p className="text-xs text-gray-500 mt-1">
+              Custom URL will be: pebec.gov.ng/events/{customUrl || '[auto-generated]'}
+            </p>
           </div>
 
           <div>
