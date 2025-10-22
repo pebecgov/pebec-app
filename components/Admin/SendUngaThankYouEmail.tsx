@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Mail, Send, CheckCircle, AlertCircle } from "lucide-react";
 
 export default function SendUngaThankYouEmail() {
   const { toast } = useToast();
-  const sendThankYouEmail = useMutation(api.ungaThankYouEmail.sendThankYouEmail);
+  const sendThankYouEmail = useAction(api.ungaThankYouEmail.sendThankYouEmail);
   
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
