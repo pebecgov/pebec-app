@@ -58,6 +58,57 @@ export default defineSchema({
     assignedUsers: v.array(v.id("users")),
     createdAt: v.number()
   }).index("byName", ["name"]),
+  
+  // New table for scoring history
+  mda_scoring_history: defineTable({
+    mdaId: v.optional(v.id("mdas")),
+    mdaName: v.string(),
+    scoringPeriod: v.string(), // e.g., "Q1 2025", "Monthly"
+    scoredBy: v.id("users"), // Admin who did the scoring
+    scoredAt: v.number(),
+    // Individual metric scores
+    serviceLevelAgreementScore: v.number(),
+    mysteryShoppingScore: v.number(),
+    interMdaCollaborationScore: v.number(),
+    stakeholderEngagementScore: v.number(),
+    reportGovernanceScore: v.number(),
+    reportGovernanceResolutionScore: v.number(),
+    monthlyReportSubmissionScore: v.number(),
+    timelinessInSubmittingScore: v.number(),
+    // Total scores
+    totalScore: v.number(),
+    totalPercentage: v.number(),
+    maxPossiblePoints: v.optional(v.number()), // 100 or 85 (when Report Gov Resolution is skipped)
+    scoringMethod: v.optional(v.string()), // "standard" or "skip_reportgov"
+    grade: v.string(), // A, B, C, D, F
+    status: v.string(), // Compliant, Non-Compliant
+    // Performance data at time of scoring
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    averageResponseTime: v.number(),
+    averageResolutionTime: v.number(),
+    resolutionRate: v.number(),
+    // Notes and comments
+    notes: v.optional(v.string()),
+    recommendations: v.optional(v.string())
+  }).index("byMda", ["mdaId"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]).index("byDate", ["scoredAt"]),
+  
+  // New table for monthly report tracking
+  mda_monthly_reports: defineTable({
+    mdaId: v.id("mdas"),
+    mdaName: v.string(),
+    month: v.string(), // e.g., "January 2025"
+    year: v.number(),
+    deadline: v.number(), // timestamp
+    submittedDate: v.optional(v.number()), // timestamp when submitted
+    submitted: v.boolean(),
+    onTime: v.boolean(),
+    reportFileId: v.optional(v.id("_storage")),
+    reportFileName: v.optional(v.string()),
+    submittedBy: v.optional(v.id("users")),
+    status: v.union(v.literal("pending"), v.literal("submitted"), v.literal("late"), v.literal("overdue")),
+    notes: v.optional(v.string())
+  }).index("byMda", ["mdaId"]).index("byMonth", ["month", "year"]).index("byStatus", ["status"]),
   tickets: defineTable({
     title: v.string(),
     description: v.string(),
@@ -148,6 +199,62 @@ export default defineSchema({
     guestName: v.optional(v.string()),
     createdAt: v.number()
   }).index("byPost", ["postId"]),
+  // Messaging System Tables
+  conversations: defineTable({
+    participants: v.array(v.id("users")), // Array of user IDs in the conversation
+    lastMessageAt: v.number(), // Timestamp of the last message
+    lastMessage: v.optional(v.string()), // Preview of the last message
+    lastMessageSender: v.optional(v.id("users")), // Who sent the last message
+    createdAt: v.number(),
+    updatedAt: v.number()
+  }).index("byParticipant", ["participants"]).index("byLastMessageAt", ["lastMessageAt"]),
+
+  messages: defineTable({
+    conversationId: v.id("conversations"),
+    senderId: v.id("users"),
+    content: v.string(), // This will store the encrypted message
+    messageType: v.union(v.literal("text"), v.literal("image"), v.literal("file")),
+    fileId: v.optional(v.id("_storage")), // For file/image messages
+    fileName: v.optional(v.string()), // Original filename for file messages
+    fileSize: v.optional(v.number()), // File size in bytes
+    isRead: v.boolean(),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()), // Timestamp when message was last updated
+    isEncrypted: v.optional(v.boolean()) // Flag to indicate if message is encrypted
+  }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]).index("byConversationAndRead", ["conversationId", "isRead"]).index("byConversationAndSender", ["conversationId", "senderId"]),
+
+  message_read_status: defineTable({
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    readAt: v.number()
+  }).index("byMessage", ["messageId"]).index("byUser", ["userId"]),
+
+  user_activity: defineTable({
+    userId: v.id("users"),
+    activityType: v.union(
+      v.literal("login"),
+      v.literal("page_view"),
+      v.literal("action"),
+      v.literal("logout")
+    ),
+    page: v.optional(v.string()),
+    action: v.optional(v.string()),
+    metadata: v.optional(v.object({
+      userAgent: v.optional(v.string()),
+      ipAddress: v.optional(v.string()),
+      sessionDuration: v.optional(v.number()),
+      staffStream: v.optional(v.string()),
+      elementType: v.optional(v.string()),
+      elementText: v.optional(v.string()),
+      formName: v.optional(v.string()),
+      messageType: v.optional(v.string()),
+      hasFile: v.optional(v.boolean()),
+      letterName: v.optional(v.string())
+    })),
+    timestamp: v.number()
+  }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
+  ,
   events: defineTable({
     title: v.string(),
     description: v.string(),
@@ -165,8 +272,9 @@ export default defineSchema({
     generalTicketLimit: v.optional(v.number()),
     signUpsDisabled: v.optional(v.boolean()),
     isVip: v.optional(v.boolean()),
-    isSaberEvent: v.optional(v.boolean())
-  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]),
+    isSaberEvent: v.optional(v.boolean()),
+    customUrl: v.optional(v.string())
+  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]),
   event_registrations: defineTable({
     eventId: v.id("events"),
     userId: v.optional(v.id("users")),
@@ -183,6 +291,26 @@ export default defineSchema({
     email: v.optional(v.string()),
     isVip: v.optional(v.boolean())
   }).index("byEvent", ["eventId"]).index("byUser", ["userId"]).index("byTicketNumber", ["ticketNumber"]),
+  
+  // Workshop registrations for Strategic Engagement event
+  workshop_registrations: defineTable({
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    organization: v.string(),
+    designation: v.string(),
+    sector: v.union(
+      v.literal("Health"),
+      v.literal("IT/FinTech/Artificial Intelligence"),
+      v.literal("Agriculture"),
+      v.literal("Shipping"),
+      v.literal("Infrastructure and Real Estate Development"),
+      v.literal("Renewable Energy")
+    ),
+    registrationNumber: v.string(),
+    createdAt: v.number(),
+    confirmedEntry: v.optional(v.boolean())
+  }).index("byEmail", ["email"]).index("byRegistrationNumber", ["registrationNumber"]).index("byCreatedAt", ["createdAt"]).index("bySector", ["sector"]),
   event_questions: defineTable({
     eventId: v.id("events"),
     questionText: v.string(),
@@ -267,6 +395,7 @@ export default defineSchema({
     reportName: v.optional(v.string()),
     mdaName: v.optional(v.string()),
     fileSize: v.optional(v.number()),
+    totalRows: v.optional(v.number()),
     isDraft: v.optional(v.boolean()),
     updatedAt: v.optional(v.number())
   }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]),
@@ -630,80 +759,63 @@ export default defineSchema({
     notificationSent: v.boolean(), // Whether in-app notification was sent
     createdAt: v.number()
   }).index("byDeadline", ["deadlineId"]).index("byUser", ["userId"]).index("byScheduled", ["scheduledFor"]).index("byState", ["state"]),
-
-  // Messaging System Tables
-  conversations: defineTable({
-    participants: v.array(v.id("users")), // Array of user IDs in the conversation
-    lastMessageAt: v.number(), // Timestamp of the last message
-    lastMessage: v.optional(v.string()), // Preview of the last message
-    lastMessageSender: v.optional(v.id("users")), // Who sent the last message
-    createdAt: v.number(),
-    updatedAt: v.number()
-  }).index("byParticipant", ["participants"]).index("byLastMessageAt", ["lastMessageAt"]),
-
-  messages: defineTable({
-    conversationId: v.id("conversations"),
-    senderId: v.id("users"),
-    content: v.string(), // This will store the encrypted message
-    messageType: v.union(v.literal("text"), v.literal("image"), v.literal("file")),
-    fileId: v.optional(v.id("_storage")), // For file/image messages
-    fileName: v.optional(v.string()), // Original filename for file messages
-    fileSize: v.optional(v.number()), // File size in bytes
-    isRead: v.boolean(),
-    readAt: v.optional(v.number()),
-    createdAt: v.number(),
-    isEncrypted: v.optional(v.boolean()) // Flag to indicate if message is encrypted
-  }).index("byConversation", ["conversationId"]).index("bySender", ["senderId"]).index("byCreatedAt", ["createdAt"]).index("byConversationAndRead", ["conversationId", "isRead"]).index("byConversationAndSender", ["conversationId", "senderId"]),
-
-  message_read_status: defineTable({
-    messageId: v.id("messages"),
-    userId: v.id("users"),
-    readAt: v.number()
-  }).index("byMessage", ["messageId"]).index("byUser", ["userId"]),
-
-  user_activity: defineTable({
-    userId: v.id("users"),
-    activityType: v.union(
-      v.literal("login"),
-      v.literal("page_view"),
-      v.literal("action"),
-      v.literal("logout")
-    ),
-    page: v.optional(v.string()),
-    action: v.optional(v.string()),
-    metadata: v.optional(v.object({
-      userAgent: v.optional(v.string()),
-      ipAddress: v.optional(v.string()),
-      sessionDuration: v.optional(v.number()),
-      staffStream: v.optional(v.string()),
-      elementType: v.optional(v.string()),
-      elementText: v.optional(v.string()),
-      formName: v.optional(v.string())
-    })),
-    timestamp: v.number()
-  }).index("byUser", ["userId"]).index("byActivityType", ["activityType"]).index("byTimestamp", ["timestamp"])
-  ,
-  // UNGA Registrations and counters for auto-increment
-  counters: defineTable({
-    name: v.string(),
-    value: v.number()
-  }).index("byName", ["name"]),
-  unga_registrations: defineTable({
-    name: v.string(),
-    email: v.string(),
-    phone: v.string(),
-    org: v.string(),
-    assignedNumber: v.number(),
-    createdAt: v.number(),
-    confirmedEntry: v.optional(v.boolean())
-  }).index("byEmail", ["email"]).index("byAssignedNumber", ["assignedNumber"]).index("byCreatedAt", ["createdAt"]),
   
-  email_logs: defineTable({
-    type: v.string(),
-    recipientEmail: v.string(),
-    subject: v.string(),
-    sentAt: v.number(),
-    status: v.string(),
-    error: v.optional(v.string())
-  }).index("byType", ["type"]).index("byRecipient", ["recipientEmail"]).index("bySentAt", ["sentAt"])
+  // Excel Upload Tables
+  excelData: defineTable({
+    data: v.any(), // Raw Excel row data
+    headers: v.array(v.string()), // Column headers from Excel
+    chunkIndex: v.number(), // Which chunk this data belongs to
+    batchId: v.string(), // Unique identifier for the upload batch
+    templateId: v.optional(v.id("report_templates")), // Reference to report template
+    uploadedAt: v.number(), // When this chunk was uploaded
+    processed: v.boolean(), // Whether this data has been processed
+  }).index("byBatchId", ["batchId"]).index("byProcessed", ["processed"]).index("byUploadedAt", ["uploadedAt"]).index("byTemplateId", ["templateId"]),
+  
+  processedExcelData: defineTable({
+    originalData: v.any(), // Original Excel data
+    processedAt: v.number(), // When this data was processed
+    batchId: v.string(), // Reference to the original batch
+    templateId: v.optional(v.id("report_templates")), // Reference to report template
+    // Add specific fields based on your Excel structure
+    // Example fields (uncomment and modify as needed):
+    // name: v.optional(v.string()),
+    // email: v.optional(v.string()),
+    // phone: v.optional(v.string()),
+    // address: v.optional(v.string()),
+    // state: v.optional(v.string()),
+    // businessName: v.optional(v.string()),
+    // industry: v.optional(v.string()),
+  }).index("byBatchId", ["batchId"]).index("byProcessedAt", ["processedAt"]).index("byTemplateId", ["templateId"]),
+
+  // SLA Data Storage
+  mda_sla_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    monthlySlaData: v.any(), // The monthly SLA data object
+    totalScore: v.number(),
+    monthsWithData: v.number(),
+    totalMonths: v.number(),
+    percentage: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Report Governance Data Storage
+  mda_reportgov_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    averageResponseTime: v.number(),
+    averageResolutionTime: v.number(),
+    resolutionRate: v.number(),
+    score: v.number(),
+    isManual: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"])
 });

@@ -320,7 +320,7 @@ export default function AdminTicketsPage() {
         </SelectTrigger>
         <SelectContent className="bg-zinc-800 text-white">
           <SelectItem value="all">All MDAs</SelectItem>
-          {mdaList.filter(mda => mda.name && mda.name.trim() !== "").map(mda => <SelectItem key={mda._id} value={mda.name}>
+          {mdaList.filter(mda => mda.name && mda.name.trim() !== "").sort((a, b) => a.name.localeCompare(b.name)).map(mda => <SelectItem key={mda._id} value={mda.name}>
       {mda.name}
     </SelectItem>)}
 
@@ -626,7 +626,7 @@ export default function AdminTicketsPage() {
               <SelectValue placeholder="Select an MDA" />
             </SelectTrigger>
             <SelectContent>
-            {mdaList.filter(mda => mda.name && mda.name.trim() !== "").map(mda => <SelectItem key={mda._id} value={mda.name}>
+            {mdaList.filter(mda => mda.name && mda.name.trim() !== "").sort((a, b) => a.name.localeCompare(b.name)).map(mda => <SelectItem key={mda._id} value={mda.name}>
       {mda.name}
     </SelectItem>)}
 

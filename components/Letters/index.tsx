@@ -12,6 +12,7 @@ import { X, Paperclip, FileText, Upload, Trash2, Loader2 } from "lucide-react";
 import UserAvatar from "@/components/UserAvater";
 import { toast } from "sonner";
 import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
+import { useGlobalActivityTracker } from "@/lib/useGlobalActivityTracker";
 
 export default function SubmitLetterForm({
   onClose
@@ -24,6 +25,9 @@ export default function SubmitLetterForm({
   const users = useQuery(api.users.getAllAdminsAndStaff) || [];
   const availableRecipients = useQuery(api.letters.getAvailableRecipients) || [];
   const currentUser = useQuery(api.users.getCurrentUsers);
+  
+  // Activity tracking for letters
+  const { trackUserAction } = useGlobalActivityTracker();
   const [letterName, setLetterName] = useState("");
   const [description, setDescription] = useState("");
   const [fileId, setFileId] = useState<Id<"_storage"> | null>(null);
@@ -131,6 +135,12 @@ export default function SubmitLetterForm({
     
     setIsSubmitting(true);
     try {
+      // Track letter submission activity
+      trackUserAction("letter_submission", {
+        hasFile: !!fileId,
+        letterName: letterName.trim()
+      });
+      
       await submitLetter({
         letterName,
         description,

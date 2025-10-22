@@ -19,14 +19,16 @@ export function useGlobalActivityTracker() {
   // Safe activity tracking wrapper
   const safeTrackActivity = async (activityData: any) => {
     try {
-      await trackDailyActivity(activityData);
+      console.log("Tracking activity:", activityData);
+      const result = await trackDailyActivity(activityData);
+      console.log("Activity tracking result:", result);
     } catch (error) {
       // Silently handle tracking errors to prevent UI disruption
       console.log("Activity tracking failed:", error);
     }
   };
 
-  // Track page views - only for staff users, ONE page view per day regardless of which page
+  // Track page views - only for staff users, ONE page view per day
   useEffect(() => {
     if (!isStaffUser || !pathname) return; // Exit if not staff or no pathname
 
@@ -45,7 +47,7 @@ export function useGlobalActivityTracker() {
     return () => clearTimeout(timer);
   }, [pathname, trackDailyActivity, isStaffUser, currentUser?.staffStream, currentUser?._id]);
 
-  // Track only letter submissions - ONE per day
+  // Track letter submissions - count every letter submission
   useEffect(() => {
     if (!isStaffUser) return; // Exit if not staff
 
@@ -63,8 +65,8 @@ export function useGlobalActivityTracker() {
         
         safeTrackActivity({
           activityType: "action",
-          action: "daily_letter_submission", // Same action for all letters - counts as ONE per day
-          page: "daily_letter_submission", // Same page for all letters - counts as ONE per day
+          action: "letter_submission", // Track actual letter submission
+          page: pathname, // Track actual page where letter was submitted
           metadata: {
             formName,
             userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : undefined,
