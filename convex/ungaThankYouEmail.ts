@@ -9,8 +9,9 @@ export const sendThankYouEmail = action({
   args: {
     to: v.string(),
     firstName: v.string(),
+    googleDriveLink: v.optional(v.string()),
   },
-  handler: async (ctx, { to, firstName }): Promise<{ success: boolean; error?: string }> => {
+  handler: async (ctx, { to, firstName, googleDriveLink }): Promise<{ success: boolean; error?: string }> => {
     const sentAt = Date.now();
     const emailTemplate = `
       <!DOCTYPE html>
@@ -322,6 +323,13 @@ export const sendThankYouEmail = action({
               <a href="https://bit.ly/PEBEC-UNGA80-Photos" class="cta-button" target="_blank">
                 📸 View Event Photos & Highlights
               </a>
+              ${googleDriveLink ? `
+              <div style="margin-top: 15px;">
+                <a href="${googleDriveLink}" class="cta-button" target="_blank" style="background: linear-gradient(135deg, #4285F4 0%, #1a73e8 100%);">
+                  📄 View Full Report
+                </a>
+              </div>
+              ` : ''}
             </div>
 
             <!-- Social Media Section -->
