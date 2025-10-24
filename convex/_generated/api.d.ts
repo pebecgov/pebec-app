@@ -42,6 +42,7 @@ import type * as saber from "../saber.js";
 import type * as saber_deadlines from "../saber_deadlines.js";
 import type * as saber_materials from "../saber_materials.js";
 import type * as saber_reports from "../saber_reports.js";
+import type * as saveStateScore from "../saveStateScore.js";
 import type * as sendEmail from "../sendEmail.js";
 import type * as sendTicketemail from "../sendTicketemail.js";
 import type * as staff_projects from "../staff_projects.js";
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   saber_deadlines: typeof saber_deadlines;
   saber_materials: typeof saber_materials;
   saber_reports: typeof saber_reports;
+  saveStateScore: typeof saveStateScore;
   sendEmail: typeof sendEmail;
   sendTicketemail: typeof sendTicketemail;
   staff_projects: typeof staff_projects;
