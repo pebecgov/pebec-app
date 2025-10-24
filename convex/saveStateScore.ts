@@ -219,17 +219,34 @@ export const saveStateScore = mutation({
     // Get the numeric score from the mapping
     const score = scoreMappings[value] || 0;
     
-    // Save to the database
-    const scoreId = await ctx.db.insert("state_scores", {
-      state,
-      indicator,
-      subIndicator,
-      value,
-      score,
-      createdAt: Date.now()
-    });
+    // Check if a record already exists for this combination
+    const existingRecord = await ctx.db
+      .query("state_scores")
+      .withIndex("byStateIndicatorSubIndicator", (q) => 
+        q.eq("state", state).eq("indicator", indicator).eq("subIndicator", subIndicator)
+      )
+      .first();
     
-    return scoreId;
+    if (existingRecord) {
+      // Update existing record
+      await ctx.db.patch(existingRecord._id, {
+        value,
+        score,
+        createdAt: Date.now()
+      });
+      return existingRecord._id;
+    } else {
+      // Create new record
+      const scoreId = await ctx.db.insert("state_scores", {
+        state,
+        indicator,
+        subIndicator,
+        value,
+        score,
+        createdAt: Date.now()
+      });
+      return scoreId;
+    }
   }
 });
 

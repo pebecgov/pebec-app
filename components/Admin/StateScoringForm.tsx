@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, memo } from "react";
+import { useState, useMemo, useCallback, memo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -470,12 +470,14 @@ const StateForm = memo(({
   state, 
   indicator, 
   stateData, 
-  onUpdate 
+  onUpdate,
+  onSaveComplete
 }: { 
   state: string; 
   indicator: string; 
   stateData: StateScoreData; 
-  onUpdate: (subIndicator: string, value: string) => void; 
+  onUpdate: (subIndicator: string, value: string) => void;
+  onSaveComplete?: () => void;
 }) => {
   const saveStateScore = useMutation(api.saveStateScore.saveStateScore);
   const [isSaving, setIsSaving] = useState(false);
@@ -499,16 +501,23 @@ const StateForm = memo(({
       }
 
       toast.success(`Scores saved for ${state}`);
+      // Call the callback to refresh data
+      onSaveComplete?.();
     } catch (error) {
       console.error('Save error:', error);
       toast.error("Failed to save scores");
     } finally {
       setIsSaving(false);
     }
-  }, [state, indicator, stateData, saveStateScore]);
+  }, [state, indicator, stateData, saveStateScore, onSaveComplete]);
 
   const indicatorConfig = indicators[indicator as keyof typeof indicators];
   if (!indicatorConfig) return null;
+
+  // Determine if this state is completed
+  const isCompleted = Object.values(stateData).some(value => value !== "");
+  const statusVariant = isCompleted ? "default" : "secondary";
+  const statusText = isCompleted ? "Completed" : "In Progress";
 
   return (
     <div className="space-y-6">
@@ -517,7 +526,7 @@ const StateForm = memo(({
           <h3 className="text-lg font-semibold">{state}</h3>
           <p className="text-sm text-gray-600">{indicatorConfig.name}</p>
         </div>
-        <Badge variant="secondary">In Progress</Badge>
+        <Badge variant={statusVariant}>{statusText}</Badge>
       </div>
 
       <Separator />
@@ -570,6 +579,26 @@ export default function StateScoringForm() {
       ? { state: selectedState, indicator: selectedIndicator }
       : "skip"
   );
+
+  // Sync existing scores with local state
+  useEffect(() => {
+    if (existingScores && selectedState) {
+      const updatedStateData: StateScoreData = {};
+      existingScores.forEach(score => {
+        updatedStateData[score.subIndicator] = score.value;
+      });
+      setStateScores(prev => ({
+        ...prev,
+        [selectedState]: updatedStateData
+      }));
+    }
+  }, [existingScores, selectedState]);
+
+  // Refresh data after save
+  const handleSaveComplete = useCallback(() => {
+    // The query will automatically refetch due to Convex reactivity
+    // The useEffect above will handle updating the local state
+  }, []);
 
   // Memoized progress calculation
   const progressData = useMemo(() => {
@@ -703,6 +732,7 @@ export default function StateScoringForm() {
                       indicator={selectedIndicator}
                       stateData={getCurrentStateData(selectedState)}
                       onUpdate={(subIndicator, value) => updateStateData(selectedState, subIndicator, value)}
+                      onSaveComplete={handleSaveComplete}
                     />
                   </CardContent>
                 </Card>
