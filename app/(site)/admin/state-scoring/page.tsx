@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import StateScoringForm from "@/components/Admin/StateScoringForm";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 // Grade calculation function
 const calculateGrade = (totalScore: number, maxPossibleScore: number = 100): { grade: string; description: string } => {
@@ -17,6 +19,350 @@ const calculateGrade = (totalScore: number, maxPossibleScore: number = 100): { g
   if (percentage >= 70) return { grade: "C", description: "Satisfactory" };
   if (percentage >= 60) return { grade: "D", description: "Below Average" };
   return { grade: "F", description: "Poor" };
+};
+
+// Analytics calculation function
+const calculateAnalytics = (allScores: any[]) => {
+  if (!allScores || allScores.length === 0) {
+    return {
+      activeStates: 0,
+      topPerformers: 0,
+      midPerformers: 0,
+      lowPerformers: 0,
+      nationalAverage: 0,
+      highestScoringState: null,
+      lowestScoringState: null,
+      lastUpdated: null,
+      gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 },
+      indicatorPerformance: {}
+    };
+  }
+
+  // Group by state and calculate totals
+  const stateTotals: Record<string, number> = {};
+  const stateTimestamps: Record<string, number> = {};
+  const indicatorTotals: Record<string, number> = {};
+  const indicatorCounts: Record<string, number> = {};
+
+  allScores.forEach(score => {
+    // State totals
+    if (!stateTotals[score.state]) {
+      stateTotals[score.state] = 0;
+    }
+    stateTotals[score.state] += score.score;
+
+    // Track latest timestamp per state
+    if (!stateTimestamps[score.state] || score.createdAt > stateTimestamps[score.state]) {
+      stateTimestamps[score.state] = score.createdAt;
+    }
+
+    // Indicator performance
+    if (!indicatorTotals[score.indicator]) {
+      indicatorTotals[score.indicator] = 0;
+      indicatorCounts[score.indicator] = 0;
+    }
+    indicatorTotals[score.indicator] += score.score;
+    indicatorCounts[score.indicator]++;
+  });
+
+  const states = Object.keys(stateTotals);
+  const scores = Object.values(stateTotals);
+  const nationalAverage = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+
+  // Performance categories
+  const topPerformers = scores.filter(score => score >= 70).length;
+  const midPerformers = scores.filter(score => score >= 50 && score < 70).length;
+  const lowPerformers = scores.filter(score => score < 50).length;
+
+  // Highest and lowest scoring states
+  const sortedStates = states.sort((a, b) => stateTotals[b] - stateTotals[a]);
+  const highestScoringState = sortedStates[0] ? {
+    state: sortedStates[0],
+    score: stateTotals[sortedStates[0]]
+  } : null;
+  const lowestScoringState = sortedStates[sortedStates.length - 1] ? {
+    state: sortedStates[sortedStates.length - 1],
+    score: stateTotals[sortedStates[sortedStates.length - 1]]
+  } : null;
+
+  // Last updated
+  const lastUpdated = Math.max(...Object.values(stateTimestamps));
+
+  // Grade distribution (using new scale: A: 85-100, B: 70-84, C: 55-69, D: 40-54, F: <40)
+  const gradeDistribution = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+  scores.forEach(score => {
+    if (score >= 85) gradeDistribution.A++;
+    else if (score >= 70) gradeDistribution.B++;
+    else if (score >= 55) gradeDistribution.C++;
+    else if (score >= 40) gradeDistribution.D++;
+    else gradeDistribution.F++;
+  });
+
+  // Indicator performance averages
+  const indicatorPerformance: Record<string, number> = {};
+  Object.keys(indicatorTotals).forEach(indicator => {
+    indicatorPerformance[indicator] = indicatorTotals[indicator] / indicatorCounts[indicator];
+  });
+
+  return {
+    activeStates: states.length,
+    topPerformers,
+    midPerformers,
+    lowPerformers,
+    nationalAverage,
+    highestScoringState,
+    lowestScoringState,
+    lastUpdated,
+    gradeDistribution,
+    indicatorPerformance
+  };
+};
+
+// Analytics Dashboard Component
+const AnalyticsDashboard = () => {
+  const allScores = useQuery(api.saveStateScore.getStateScores, {});
+  
+  const analytics = useMemo(() => {
+    if (!allScores) return null;
+    return calculateAnalytics(allScores);
+  }, [allScores]);
+
+  if (!analytics) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="rounded-2xl shadow-sm">
+            <CardContent className="p-6">
+              <div className="animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  const {
+    activeStates,
+    topPerformers,
+    midPerformers,
+    lowPerformers,
+    nationalAverage,
+    highestScoringState,
+    lowestScoringState,
+    lastUpdated,
+    gradeDistribution,
+    indicatorPerformance
+  } = analytics;
+
+  return (
+  <div className="py-3 bg-white">
+  <div className="space-y-8">
+    {/* Explanation Section */}
+    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h3 className="text-lg font-semibold text-blue-800 mb-2">📊 Understanding the State Scoring System</h3>
+        <div className="text-sm text-blue-700 space-y-1">
+          <p><strong>Ranking Logic:</strong> 
+            <span className="ml-1">
+              • All States ranked by their available score (fair comparison)
+            </span>
+          </p>
+          <p><strong>Grade A (90%+):</strong> Excellent performance - Meeting all standards</p>
+          <p><strong>Grade B (80-89%):</strong> Good performance - Meeting most standards</p>
+          <p><strong>Grade C (70-79%):</strong> Satisfactory performance - Meeting basic standards</p>
+          <p><strong>Grade D (60-69%):</strong> Below average - Needs improvement</p>
+          <p><strong>Grade F (Below 60%):</strong> Poor performance - Requires immediate attention</p>
+          <p><strong>Meeting Standards (70%+):</strong> States performing at acceptable level or better</p>
+          <p><strong>Below Standards (Below 70%):</strong> States that need improvement to meet requirements</p>
+          <p><strong>Scoring Methods:</strong> 
+            <span className="ml-1">
+              • <span className="font-semibold text-blue-600">100-Point Scale:</span> Standard scoring with all metrics included
+              
+             </span>
+          </p>
+        </div>
+      </div>
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardContent className="p-6">
+            <div className="text-lg font-semibold text-gray-700 mb-2">Active States</div>
+            <div className="text-3xl font-bold text-blue-600">{activeStates}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-green-50 to-green-100">
+          <CardContent className="p-6">
+            <div className="text-lg font-semibold text-gray-700 mb-2">Top Performers</div>
+            <div className="text-3xl font-bold text-green-600">{topPerformers}</div>
+            <div className="text-sm text-gray-600">Score ≥ 70</div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-yellow-50 to-yellow-100">
+          <CardContent className="p-6">
+            <div className="text-lg font-semibold text-gray-700 mb-2">National Average</div>
+            <div className="text-3xl font-bold text-yellow-600">{nationalAverage.toFixed(1)}</div>
+            <div className="text-sm text-gray-600">Overall Score</div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
+          <CardContent className="p-6">
+            <div className="text-lg font-semibold text-gray-700 mb-2">Last Updated</div>
+            <div className="text-sm font-medium text-purple-600">
+              {lastUpdated ? new Date(lastUpdated).toLocaleDateString() : 'N/A'}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Performance Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-gray-700">Performance Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={[
+                { name: 'Top (≥70)', value: topPerformers, fill: '#10b981' },
+                { name: 'Mid (50-69)', value: midPerformers, fill: '#f59e0b' },
+                { name: 'Low (<50)', value: lowPerformers, fill: '#ef4444' }
+              ]}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-gray-700">Grade Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={Object.entries(gradeDistribution).map(([grade, count]) => ({
+                    name: `Grade ${grade}`,
+                    value: count,
+                    fill: grade === 'A' ? '#10b981' : grade === 'B' ? '#3b82f6' : grade === 'C' ? '#f59e0b' : grade === 'D' ? '#f97316' : '#ef4444'
+                  }))}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, value }) => `${name}: ${value}`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {Object.entries(gradeDistribution).map(([grade, count], index) => (
+                    <Cell key={`cell-${index}`} fill={
+                      grade === 'A' ? '#10b981' : 
+                      grade === 'B' ? '#3b82f6' : 
+                      grade === 'C' ? '#f59e0b' : 
+                      grade === 'D' ? '#f97316' : '#ef4444'
+                    } />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top and Bottom Performers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {highestScoringState && (
+          <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-green-50 to-green-100">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-gray-700">🏆 Top Performer</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{highestScoringState.state}</div>
+              <div className="text-lg text-gray-600">Score: {highestScoringState.score.toFixed(1)}</div>
+            </CardContent>
+          </Card>
+        )}
+
+        {lowestScoringState && (
+          <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-orange-50 to-orange-100">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-gray-700">📈 Needs Improvement</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{lowestScoringState.state}</div>
+              <div className="text-lg text-gray-600">Score: {lowestScoringState.score.toFixed(1)}</div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Indicator Performance */}
+      {Object.keys(indicatorPerformance).length > 0 && (
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-gray-700">Indicator Performance Averages</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart 
+                data={Object.entries(indicatorPerformance)
+                  .sort(([,a], [,b]) => b - a)
+                  .map(([indicator, average]) => ({
+                    name: indicator.replace(/([A-Z])/g, ' $1').trim(),
+                    value: average,
+                    fill: '#3b82f6'
+                  }))}
+                layout="horizontal"
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={120} />
+                <Tooltip formatter={(value) => [typeof value === 'number' ? value.toFixed(1) : value, 'Average Score']} />
+                <Bar dataKey="value" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Score Trend Chart */}
+      <Card className="rounded-2xl shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold text-gray-700">Score Distribution Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart 
+              data={[
+                { range: '0-20', count: analytics?.gradeDistribution.F || 0, fill: '#ef4444' },
+                { range: '20-40', count: 0, fill: '#f97316' },
+                { range: '40-55', count: analytics?.gradeDistribution.D || 0, fill: '#f97316' },
+                { range: '55-70', count: analytics?.gradeDistribution.C || 0, fill: '#f59e0b' },
+                { range: '70-85', count: analytics?.gradeDistribution.B || 0, fill: '#3b82f6' },
+                { range: '85-100', count: analytics?.gradeDistribution.A || 0, fill: '#10b981' }
+              ]}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="range" />
+              <YAxis />
+              <Tooltip formatter={(value) => [value, 'States']} />
+              <Bar dataKey="count" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div></div>
+  );
 };
 
 // Rankings Table Component
@@ -45,7 +391,9 @@ const RankingsTable = () => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="py-3 bg-white">
+      
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden py-3">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -107,6 +455,7 @@ const RankingsTable = () => {
         </table>
       </div>
       
+      
       {rankings.length > 0 && (
         <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
           <p className="text-sm text-gray-600 text-center">
@@ -114,6 +463,7 @@ const RankingsTable = () => {
           </p>
         </div>
       )}
+    </div>
     </div>
   );
 };
@@ -188,8 +538,16 @@ export default function StateScoringPage() {
 
         {activeTab === "rankings" && (
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">State Rankings</h2>
-            <RankingsTable />
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">State Rankings & Analytics</h2>
+            
+            {/* Analytics Dashboard */}
+            <AnalyticsDashboard />
+            
+            {/* Rankings Table */}
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-gray-700 mb-4">Detailed Rankings</h3>
+              <RankingsTable />
+            </div>
           </div>
         )}
       </div>
