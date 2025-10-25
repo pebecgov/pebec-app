@@ -13,10 +13,9 @@ import { jsPDF } from "jspdf";
 import Ticket from "@/components/Ticket";
 import html2canvas from "html2canvas";
 import ReactDOMServer from "react-dom/server";
+
 export default function EventPage() {
-  const {
-    eventId
-  } = useParams();
+  const { slug } = useParams();
   const [ticketData, setTicketData] = useState<any>(null);
   const [isTicketReady, setIsTicketReady] = useState(false);
   const [answers, setAnswers] = useState<{
@@ -35,11 +34,20 @@ export default function EventPage() {
   const [vipCode, setVipCode] = useState("");
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
   const [isClient, setIsClient] = useState(false);
-  const event = useQuery(api.events.getEventById, isClient ? {
-    eventId: eventId as Id<"events">
+  
+  // Try to get event by custom URL first, then by ID
+  const eventByCustomUrl = useQuery(api.events.getEventByCustomUrl, isClient ? {
+    customUrl: slug as string
   } : "skip");
-  const questions = useQuery(api.events.getEventQuestions, isClient ? {
-    eventId: eventId as Id<"events">
+  
+  const eventById = useQuery(api.events.getEventById, isClient && !eventByCustomUrl ? {
+    eventId: slug as Id<"events">
+  } : "skip");
+  
+  const event = eventByCustomUrl || eventById;
+  
+  const questions = useQuery(api.events.getEventQuestions, isClient && event ? {
+    eventId: event._id
   } : "skip");
   const currentUser = useQuery(api.users.getCurrentUsers) || null;
   const [vipCodeError, setVipCodeError] = useState<string | null>(null);
@@ -61,9 +69,10 @@ export default function EventPage() {
     vip: null,
     general: null
   });
-  const registrations = useQuery(api.events.getEventRegistrations, isClient ? {
-    eventId: eventId as Id<"events">
+  const registrations = useQuery(api.events.getEventRegistrations, isClient && event ? {
+    eventId: event._id
   } : "skip");
+  
   useEffect(() => {
     if (currentUser) {
       setFirstName(currentUser.firstName || "");
@@ -72,6 +81,7 @@ export default function EventPage() {
       setPhone((currentUser as any)?.phoneNumber || "");
     }
   }, [currentUser]);
+  
   useEffect(() => {
     if (event && registrations) {
       const vipCount = registrations.filter(r => r.isVip).length;
@@ -82,15 +92,23 @@ export default function EventPage() {
       });
     }
   }, [event, registrations]);
+  
   useEffect(() => {
     setIsClient(true);
   }, []);
+  
   if (!isClient) {
     return <p className="text-center text-gray-500">Loading...</p>;
   }
-  if (!eventId || typeof eventId !== "string") {
-    return <p className="text-red-500">Invalid Event ID</p>;
+  
+  if (!slug || typeof slug !== "string") {
+    return <p className="text-red-500">Invalid Event ID or URL</p>;
   }
+  
+  if (!event) {
+    return <p className="text-red-500">Event not found</p>;
+  }
+
   const generateStyledPdfBlobFromTicket = async ticketObject => {
     console.log("🎟️ Generating Professional Ticket PDF...");
     const pdf = new jsPDF({
@@ -184,6 +202,7 @@ export default function EventPage() {
     console.log("✅ Professionally Styled Ticket PDF generated.");
     return pdf.output("blob");
   };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event || !questions) {
@@ -215,7 +234,7 @@ export default function EventPage() {
     }
     if (!currentUser) {
       const existing = await convex.query(api.events.getRegistrationByEmail, {
-        eventId: eventId as Id<"events">,
+        eventId: event._id,
         email: email.trim().toLowerCase()
       });
       if (existing) {
@@ -235,8 +254,13 @@ export default function EventPage() {
       const year = now.getFullYear();
       const index = String(count + 1).padStart(3, "0");
       const ticketNumber = `PEBEC-EV-${day}${month}${year}-${index}`;
-      const qrValue = `https://www.pebec.gov.ng/events/${eventId}`;
-      const qrCodeUrl = await QRCode.toDataURL(qrValue);
+      
+      // Use custom URL if available, otherwise use event ID
+      const eventUrl = event.customUrl 
+        ? `https://www.pebec.gov.ng/events/${event.customUrl}`
+        : `https://www.pebec.gov.ng/events/${event._id}`;
+      
+      const qrCodeUrl = await QRCode.toDataURL(eventUrl);
       const ticketOwner = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : `${firstName} ${lastName}`;
       const userAnswers = answers.map(a => ({
         questionText: questions.find(q => q._id === a.questionId)?.questionText || "Unknown Question",
@@ -284,7 +308,7 @@ export default function EventPage() {
         storageId
       } = await response.json();
       await rsvpEventMutation({
-        eventId: eventId as Id<"events">,
+        eventId: event._id,
         answers,
         userId: currentUser?._id ?? undefined,
         email: !currentUser ? email : undefined,
@@ -308,6 +332,7 @@ export default function EventPage() {
       setLoading(false);
     }
   };
+  
   const handleChange = (questionId: Id<"event_questions">, value: string) => {
     setAnswers(prevAnswers => {
       const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
@@ -321,6 +346,7 @@ export default function EventPage() {
       }];
     });
   };
+  
   const generatePdfFromTicket = async () => {
     const ticketElement = document.getElementById("ticket-container");
     if (!ticketElement) {
@@ -359,10 +385,11 @@ export default function EventPage() {
       setTicketData(null);
     }
   };
+  
   const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim()) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
+  
   return <div className="relative mx-auto w-full bg-white pt-12 mt-30 px-10 md:px-30 lg:px-30 md:mb-20  ">
       <div className="flex flex-col md:flex-row gap-8">
-
 
         {}
         <div className="md:w-1/2 w-full">

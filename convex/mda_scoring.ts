@@ -1054,3 +1054,141 @@ export const submitMonthlyReport = mutation({
     return { success: true, isOnTime, status };
   }
 });
+
+// Save SLA data for a specific MDA and period
+export const saveSLAData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    monthlySlaData: v.any(), // The monthly SLA data object
+    totalScore: v.number(),
+    monthsWithData: v.number(),
+    totalMonths: v.number(),
+    percentage: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, monthlySlaData, totalScore, monthsWithData, totalMonths, percentage }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    // Check if SLA data already exists for this MDA and period
+    const existingSla = await ctx.db.query("mda_sla_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    if (existingSla) {
+      // Update existing record
+      await ctx.db.patch(existingSla._id, {
+        monthlySlaData,
+        totalScore,
+        monthsWithData,
+        totalMonths,
+        percentage,
+        updatedAt: Date.now(),
+        updatedBy: user._id
+      });
+    } else {
+      // Create new record
+      await ctx.db.insert("mda_sla_data", {
+        mdaName,
+        scoringPeriod,
+        monthlySlaData,
+        totalScore,
+        monthsWithData,
+        totalMonths,
+        percentage,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: user._id,
+        updatedBy: user._id
+      });
+    }
+    
+    return { success: true, message: "SLA data saved successfully" };
+  }
+});
+
+// Get SLA data for a specific MDA and period
+export const getSLAData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    const slaData = await ctx.db.query("mda_sla_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    return slaData;
+  }
+});
+
+// Save Report Governance Resolution data for a specific MDA and period
+export const saveReportGovData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    averageResponseTime: v.number(),
+    averageResolutionTime: v.number(),
+    resolutionRate: v.number(),
+    score: v.number(),
+    isManual: v.boolean()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, totalTickets, resolvedTickets, averageResponseTime, averageResolutionTime, resolutionRate, score, isManual }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    // Check if Report Gov data already exists for this MDA and period
+    const existingReportGov = await ctx.db.query("mda_reportgov_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    if (existingReportGov) {
+      // Update existing record
+      await ctx.db.patch(existingReportGov._id, {
+        totalTickets,
+        resolvedTickets,
+        averageResponseTime,
+        averageResolutionTime,
+        resolutionRate,
+        score,
+        isManual,
+        updatedAt: Date.now(),
+        updatedBy: user._id
+      });
+    } else {
+      // Create new record
+      await ctx.db.insert("mda_reportgov_data", {
+        mdaName,
+        scoringPeriod,
+        totalTickets,
+        resolvedTickets,
+        averageResponseTime,
+        averageResolutionTime,
+        resolutionRate,
+        score,
+        isManual,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: user._id,
+        updatedBy: user._id
+      });
+    }
+    
+    return { success: true, message: "Report Governance data saved successfully" };
+  }
+});
+
+// Get Report Governance Resolution data for a specific MDA and period
+export const getReportGovData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    const reportGovData = await ctx.db.query("mda_reportgov_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    return reportGovData;
+  }
+});

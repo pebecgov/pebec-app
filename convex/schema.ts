@@ -272,8 +272,9 @@ export default defineSchema({
     generalTicketLimit: v.optional(v.number()),
     signUpsDisabled: v.optional(v.boolean()),
     isVip: v.optional(v.boolean()),
-    isSaberEvent: v.optional(v.boolean())
-  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]),
+    isSaberEvent: v.optional(v.boolean()),
+    customUrl: v.optional(v.string())
+  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]),
   event_registrations: defineTable({
     eventId: v.id("events"),
     userId: v.optional(v.id("users")),
@@ -794,5 +795,36 @@ export default defineSchema({
     value: v.string(), // descriptive string selected from form
     score: v.float64(), // numeric score derived from value mapping
     createdAt: v.number()
-  }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byCreatedAt", ["createdAt"])
+  }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byCreatedAt", ["createdAt"]),
+  // SLA Data Storage
+  mda_sla_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    monthlySlaData: v.any(), // The monthly SLA data object
+    totalScore: v.number(),
+    monthsWithData: v.number(),
+    totalMonths: v.number(),
+    percentage: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Report Governance Data Storage
+  mda_reportgov_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    averageResponseTime: v.number(),
+    averageResolutionTime: v.number(),
+    resolutionRate: v.number(),
+    score: v.number(),
+    isManual: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"])
 });
