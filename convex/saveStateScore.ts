@@ -205,7 +205,43 @@ const scoreMappings: Record<string, number> = {
   // Customer treatment
   "treatment-excellent": 1,
   "treatment-good": 0.5,
-  "treatment-poor": 0
+  "treatment-poor": 0,
+  
+  // Updated Land Registration mappings
+  "automated": 1,
+  "manual": 0,
+  "over-60-days": 0,
+  "publicly-available-online": 1,
+  "functional-gis-available": 1,
+  "no-functional-gis": 0,
+  
+  // Paying Taxes mappings
+  "digital-hybrid-e-payment": 2,
+  "manual-cash-limited-transparency": 0,
+  "automated-consolidated": 1,
+  "manual-repetitive-high-burden": 0,
+  "transparent-accessible-programs": 1,
+  "unclear-opaque-framework": 0,
+  
+  // Grievance Redress Mechanisms mappings
+  "functional-grm-available": 1,
+  "no-functional-grm": 0,
+  "centralized-grm-available": 1,
+  "no-centralized-grm": 0,
+  "easily-accessible-multiple-channels": 1,
+  "difficult-to-find-access": 0,
+  
+  // Access to Skilled Labour mappings
+  "significant-investment": 1.5,
+  "moderate-investment": 1,
+  "minimal-unverified-activity": 0.5,
+  "no-evidence-data-unavailable": 0,
+  "3-tertiary-2-technical": 1.5,
+  "2-tertiary-1-technical": 1,
+  "1-tertiary-institution": 0.5,
+  "top-10-jamb-60-percent-success": 1,
+  "ranks-11-20-40-59-percent-success": 0.5,
+  "below-40-percent-no-data": 0
 };
 
 export const saveStateScore = mutation({

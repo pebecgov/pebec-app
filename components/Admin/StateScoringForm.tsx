@@ -163,39 +163,33 @@ const indicators = {
   "land_registration": {
     name: "Land Registration",
     subIndicators: {
-      "process_clarity": {
-        label: "Is the process for Land Registration clear?",
+      "process_automation": {
+        label: "Is the land registration process automated in the state?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
+          { value: "automated", label: "Automated", score: 1 },
+          { value: "manual", label: "Manual", score: 0 }
         ]
       },
-      "registration_time": {
-        label: "Average registration time",
+      "certificate_time": {
+        label: "How long does it take to obtain a Certificate of Occupancy (C of O) or Right of Occupancy (R of O) in the state?",
         options: [
-          { value: "1-30-days", label: "Completed within 1–30 working days", score: 1 },
-          { value: "exceeds-30-days", label: "Exceeds 30 working days", score: 0 }
+          { value: "1-30-days", label: "1–30 days", score: 2 },
+          { value: "31-60-days", label: "31–60 days", score: 1 },
+          { value: "over-60-days", label: ">60 days", score: 0 }
         ]
       },
-      "cost_threshold": {
-        label: "Does average registration cost exceed 5%?",
+      "procedures_availability": {
+        label: "Are land registration procedures and fees publicly available and accessible?",
         options: [
-          { value: "no", label: "No (under 5%)", score: 1 },
-          { value: "yes", label: "Yes (over 5%)", score: 0 }
+          { value: "publicly-available-online", label: "Publicly available online", score: 1 },
+          { value: "not-publicly-available", label: "Not publicly available", score: 0 }
         ]
       },
-      "public_availability": {
-        label: "Are fees and procedures publicly available?",
+      "gis_functionality": {
+        label: "Does the state have a functional and accessible Geographic Information System (GIS) for land records?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "online_records": {
-        label: "Can records be accessed quickly online?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
+          { value: "functional-gis-available", label: "Functional GIS available", score: 1 },
+          { value: "no-functional-gis", label: "No functional GIS", score: 0 }
         ]
       }
     }
@@ -419,6 +413,89 @@ const indicators = {
         options: [
           { value: "yes", label: "Yes", score: 0.5 },
           { value: "no", label: "No", score: 0 }
+        ]
+      }
+    }
+  },
+  "paying_taxes": {
+    name: "Paying Taxes",
+    subIndicators: {
+      "tax_payment_transparency": {
+        label: "How does the state facilitate tax payment collection and provide transaction transparency to taxpayers?",
+        options: [
+          { value: "digital-hybrid-e-payment", label: "Digital/hybrid with e-payment and automatic receipts", score: 2 },
+          { value: "manual-cash-limited-transparency", label: "Manual/cash-based with limited transparency", score: 0 }
+        ]
+      },
+      "tax_filing_burden": {
+        label: "How burdensome is the tax filing process for taxpayers in the state?",
+        options: [
+          { value: "automated-consolidated", label: "Automated or consolidated filing that reduces compliance effort", score: 1 },
+          { value: "manual-repetitive-high-burden", label: "Manual, repetitive filing with high administrative burden", score: 0 }
+        ]
+      },
+      "tax_incentive_transparency": {
+        label: "How transparent and accessible is the state's tax incentive and exemption framework?",
+        options: [
+          { value: "transparent-accessible-programs", label: "Transparent, publicly accessible tax incentive programs", score: 1 },
+          { value: "unclear-opaque-framework", label: "Unclear or opaque tax incentive framework", score: 0 }
+        ]
+      }
+    }
+  },
+  "grievance_redress_mechanisms": {
+    name: "Grievance Redress Mechanisms",
+    subIndicators: {
+      "functional_grm": {
+        label: "Does the state have a functional Grievance Redress Mechanism (GRM)?",
+        options: [
+          { value: "functional-grm-available", label: "Functional GRM available", score: 1 },
+          { value: "no-functional-grm", label: "No functional GRM", score: 0 }
+        ]
+      },
+      "centralized_grm": {
+        label: "Does the state have a centralized Grievance Redress Mechanism?",
+        options: [
+          { value: "centralized-grm-available", label: "Centralized GRM available", score: 1 },
+          { value: "no-centralized-grm", label: "No centralized GRM", score: 0 }
+        ]
+      },
+      "grm_accessibility": {
+        label: "How accessible is the state's Grievance Redress Mechanism?",
+        options: [
+          { value: "easily-accessible-multiple-channels", label: "Easily accessible via multiple channels", score: 1 },
+          { value: "difficult-to-find-access", label: "Difficult to find or access", score: 0 }
+        ]
+      }
+    }
+  },
+  "access_to_skilled_labour": {
+    name: "Access to Skilled Labour",
+    subIndicators: {
+      "education_investment": {
+        label: "What is the level of state government investment in education infrastructure and programs?",
+        options: [
+          { value: "significant-investment", label: "Significant investment", score: 1.5 },
+          { value: "moderate-investment", label: "Moderate investment", score: 1 },
+          { value: "minimal-unverified-activity", label: "Minimal or unverified activity", score: 0.5 },
+          { value: "no-evidence-data-unavailable", label: "No evidence or data unavailable", score: 0 }
+        ]
+      },
+      "accredited_institutions": {
+        label: "How many accredited tertiary and technical institutions are available in the state?",
+        options: [
+          { value: "3-tertiary-2-technical", label: "≥3 tertiary + ≥2 technical", score: 1.5 },
+          { value: "2-tertiary-1-technical", label: "2 tertiary + 1 technical", score: 1 },
+          { value: "1-tertiary-institution", label: "1 tertiary institution", score: 0.5 },
+          { value: "none", label: "None", score: 0 }
+        ]
+      },
+      "jamb_performance": {
+        label: "What is the state's performance in JAMB admissions and success rate?",
+        options: [
+          { value: "top-10-jamb-60-percent-success", label: "Ranks Top 10 for JAMB admission or ≥60% success", score: 1 },
+          { value: "ranks-11-20-40-59-percent-success", label: "Ranks 11–20 or 40–59% success", score: 0.5 },
+          { value: "below-40-percent-no-data", label: "<40% success or no data", score: 0 }
         ]
       }
     }

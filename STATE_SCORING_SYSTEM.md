@@ -59,7 +59,7 @@ const scoreMappings = {
 - Access to Electricity
 - Infrastructure
 - Digital Connectivity
-- Land Registration
+- Land Registration (Updated)
 - Small Claims Courts
 - Investor Aftercare Service
 - Workforce Development
@@ -69,6 +69,9 @@ const scoreMappings = {
 - Getting Credit
 - Export-Import Facilitation
 - Interstate Trade
+- Paying Taxes (New)
+- Grievance Redress Mechanisms (New)
+- Access to Skilled Labour (New)
 
 ## 🚀 Usage
 
