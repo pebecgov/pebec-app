@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 export interface StateRanking {
   state: string;
   totalScore: number;
+  percentageScore: number;
   rank: number;
 }
 

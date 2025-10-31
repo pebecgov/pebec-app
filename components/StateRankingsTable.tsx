@@ -67,7 +67,7 @@ export function StateRankingsTable() {
               <TableRow>
                 <TableHead className="w-[80px]">Rank</TableHead>
                 <TableHead>State</TableHead>
-                <TableHead className="text-right">Total Score</TableHead>
+                <TableHead className="text-right">Score & Percentage</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -85,7 +85,12 @@ export function StateRankingsTable() {
                     {ranking.state}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    {ranking.totalScore.toFixed(2)}
+                    <div className="text-right">
+                      <div className="font-semibold">{ranking.totalScore.toFixed(1)}/79</div>
+                      <div className="text-xs text-muted-foreground">
+                        {ranking.percentageScore ? ranking.percentageScore.toFixed(1) : ((ranking.totalScore / 79) * 100).toFixed(1)}%
+                      </div>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

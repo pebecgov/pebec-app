@@ -302,11 +302,18 @@ const indicators = {
   "contract_enforcement": {
     name: "Contract Enforcement and Commercial Dispute Resolution",
     subIndicators: {
-      "alternative_dispute_resolution": {
-        label: "Does the state have Alternative Dispute Resolution (ADR)?",
+      "commercial_court": {
+        label: "Does the state have a commercial court?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
+          { value: "yes-commercial-court", label: "Yes", score: 2.5 },
+          { value: "no-commercial-court", label: "No", score: 0 }
+        ]
+      },
+      "alternative_dispute_resolution": {
+        label: "Does the state have ADR?",
+        options: [
+          { value: "yes-adr", label: "Yes", score: 2.5 },
+          { value: "no-adr", label: "No", score: 0 }
         ]
       }
     }
@@ -493,8 +500,8 @@ const indicators = {
       "jamb_performance": {
         label: "What is the state's performance in JAMB admissions and success rate?",
         options: [
-          { value: "top-10-jamb-60-percent-success", label: "Ranks Top 10 for JAMB admission or ≥60% success", score: 1 },
-          { value: "ranks-11-20-40-59-percent-success", label: "Ranks 11–20 or 40–59% success", score: 0.5 },
+          { value: "top-10-jamb-60-percent-success", label: "Ranks Top 10 for JAMB admission or ≥60% success", score: 2 },
+          { value: "ranks-11-20-40-59-percent-success", label: "Ranks 11–20 or 40–59% success", score: 1 },
           { value: "below-40-percent-no-data", label: "<40% success or no data", score: 0 }
         ]
       }

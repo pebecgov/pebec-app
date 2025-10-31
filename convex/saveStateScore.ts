@@ -7,6 +7,12 @@ const scoreMappings: Record<string, number> = {
   "yes": 1,
   "no": 0,
   
+  // Contract Enforcement specific mappings
+  "yes-commercial-court": 2.5,
+  "no-commercial-court": 0,
+  "yes-adr": 2.5,
+  "no-adr": 0,
+  
   // Time ranges
   "1-10": 1,
   "11-20": 2,
@@ -239,8 +245,8 @@ const scoreMappings: Record<string, number> = {
   "3-tertiary-2-technical": 1.5,
   "2-tertiary-1-technical": 1,
   "1-tertiary-institution": 0.5,
-  "top-10-jamb-60-percent-success": 1,
-  "ranks-11-20-40-59-percent-success": 0.5,
+  "top-10-jamb-60-percent-success": 2,
+  "ranks-11-20-40-59-percent-success": 1,
   "below-40-percent-no-data": 0
 };
 
@@ -319,6 +325,9 @@ export const getStateRankings = query({
   handler: async (ctx, { indicator }) => {
     const scores = await ctx.db.query("state_scores").collect();
     
+    // Total possible points across all indicators
+    const TOTAL_POSSIBLE_POINTS = 79;
+    
     // Group by state and calculate totals
     const stateTotals: Record<string, number> = {};
     
@@ -331,9 +340,13 @@ export const getStateRankings = query({
       }
     });
     
-    // Sort by total score
+    // Calculate percentage scores and sort by percentage
     return Object.entries(stateTotals)
-      .map(([state, totalScore]) => ({ state, totalScore }))
-      .sort((a, b) => b.totalScore - a.totalScore);
+      .map(([state, totalScore]) => ({ 
+        state, 
+        totalScore,
+        percentageScore: (totalScore / TOTAL_POSSIBLE_POINTS) * 100
+      }))
+      .sort((a, b) => b.percentageScore - a.percentageScore);
   }
 });

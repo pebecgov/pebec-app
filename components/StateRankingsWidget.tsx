@@ -59,9 +59,14 @@ export function StateRankingsWidget({ limit = 5, showTop = true }: StateRankings
                 <Badge variant="outline">#{ranking.rank}</Badge>
                 <span className="font-medium">{ranking.state}</span>
               </div>
-              <span className="text-sm text-muted-foreground font-mono">
-                {ranking.totalScore.toFixed(2)}
-              </span>
+              <div className="text-right">
+                <div className="text-sm font-semibold font-mono">
+                  {ranking.totalScore.toFixed(1)}/79
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {ranking.percentageScore ? ranking.percentageScore.toFixed(1) : ((ranking.totalScore / 79) * 100).toFixed(1)}%
+                </div>
+              </div>
             </div>
           ))}
         </div>

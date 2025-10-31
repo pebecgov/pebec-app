@@ -11,13 +11,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 // Grade calculation function
-const calculateGrade = (totalScore: number, maxPossibleScore: number = 100): { grade: string; description: string } => {
+const calculateGrade = (totalScore: number, maxPossibleScore: number = 79): { grade: string; description: string } => {
   const percentage = (totalScore / maxPossibleScore) * 100;
   
-  if (percentage >= 90) return { grade: "A", description: "Excellent" };
-  if (percentage >= 80) return { grade: "B", description: "Good" };
-  if (percentage >= 70) return { grade: "C", description: "Satisfactory" };
-  if (percentage >= 60) return { grade: "D", description: "Below Average" };
+  if (percentage >= 85) return { grade: "A", description: "Excellent" };
+  if (percentage >= 70) return { grade: "B", description: "Good" };
+  if (percentage >= 55) return { grade: "C", description: "Satisfactory" };
+  if (percentage >= 40) return { grade: "D", description: "Below Average" };
   return { grade: "F", description: "Poor" };
 };
 
@@ -30,13 +30,18 @@ const calculateAnalytics = (allScores: any[]) => {
       midPerformers: 0,
       lowPerformers: 0,
       nationalAverage: 0,
+      nationalAveragePercentage: 0,
       highestScoringState: null,
       lowestScoringState: null,
       lastUpdated: null,
       gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 },
-      indicatorPerformance: {}
+      indicatorPerformance: {},
+      totalPossiblePoints: 79
     };
   }
+
+  // Total possible points across all indicators
+  const TOTAL_POSSIBLE_POINTS = 79;
 
   // Group by state and calculate totals
   const stateTotals: Record<string, number> = {};
@@ -68,33 +73,40 @@ const calculateAnalytics = (allScores: any[]) => {
   const states = Object.keys(stateTotals);
   const scores = Object.values(stateTotals);
   const nationalAverage = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  const nationalAveragePercentage = (nationalAverage / TOTAL_POSSIBLE_POINTS) * 100;
 
-  // Performance categories
-  const topPerformers = scores.filter(score => score >= 70).length;
-  const midPerformers = scores.filter(score => score >= 50 && score < 70).length;
-  const lowPerformers = scores.filter(score => score < 50).length;
+  // Performance categories based on percentage scores
+  const topPerformers = scores.filter(score => (score / TOTAL_POSSIBLE_POINTS) * 100 >= 70).length;
+  const midPerformers = scores.filter(score => {
+    const percentage = (score / TOTAL_POSSIBLE_POINTS) * 100;
+    return percentage >= 50 && percentage < 70;
+  }).length;
+  const lowPerformers = scores.filter(score => (score / TOTAL_POSSIBLE_POINTS) * 100 < 50).length;
 
   // Highest and lowest scoring states
   const sortedStates = states.sort((a, b) => stateTotals[b] - stateTotals[a]);
   const highestScoringState = sortedStates[0] ? {
     state: sortedStates[0],
-    score: stateTotals[sortedStates[0]]
+    score: stateTotals[sortedStates[0]],
+    percentage: (stateTotals[sortedStates[0]] / TOTAL_POSSIBLE_POINTS) * 100
   } : null;
   const lowestScoringState = sortedStates[sortedStates.length - 1] ? {
     state: sortedStates[sortedStates.length - 1],
-    score: stateTotals[sortedStates[sortedStates.length - 1]]
+    score: stateTotals[sortedStates[sortedStates.length - 1]],
+    percentage: (stateTotals[sortedStates[sortedStates.length - 1]] / TOTAL_POSSIBLE_POINTS) * 100
   } : null;
 
   // Last updated
   const lastUpdated = Math.max(...Object.values(stateTimestamps));
 
-  // Grade distribution (using new scale: A: 85-100, B: 70-84, C: 55-69, D: 40-54, F: <40)
+  // Grade distribution based on percentage scores (A: 85-100%, B: 70-84%, C: 55-69%, D: 40-54%, F: <40%)
   const gradeDistribution = { A: 0, B: 0, C: 0, D: 0, F: 0 };
   scores.forEach(score => {
-    if (score >= 85) gradeDistribution.A++;
-    else if (score >= 70) gradeDistribution.B++;
-    else if (score >= 55) gradeDistribution.C++;
-    else if (score >= 40) gradeDistribution.D++;
+    const percentage = (score / TOTAL_POSSIBLE_POINTS) * 100;
+    if (percentage >= 85) gradeDistribution.A++;
+    else if (percentage >= 70) gradeDistribution.B++;
+    else if (percentage >= 55) gradeDistribution.C++;
+    else if (percentage >= 40) gradeDistribution.D++;
     else gradeDistribution.F++;
   });
 
@@ -110,11 +122,13 @@ const calculateAnalytics = (allScores: any[]) => {
     midPerformers,
     lowPerformers,
     nationalAverage,
+    nationalAveragePercentage,
     highestScoringState,
     lowestScoringState,
     lastUpdated,
     gradeDistribution,
-    indicatorPerformance
+    indicatorPerformance,
+    totalPossiblePoints: TOTAL_POSSIBLE_POINTS
   };
 };
 
@@ -169,16 +183,16 @@ const AnalyticsDashboard = () => {
               • All States ranked by their available score (fair comparison)
             </span>
           </p>
-          <p><strong>Grade A (90%+):</strong> Excellent performance - Meeting all standards</p>
-          <p><strong>Grade B (80-89%):</strong> Good performance - Meeting most standards</p>
-          <p><strong>Grade C (70-79%):</strong> Satisfactory performance - Meeting basic standards</p>
-          <p><strong>Grade D (60-69%):</strong> Below average - Needs improvement</p>
-          <p><strong>Grade F (Below 60%):</strong> Poor performance - Requires immediate attention</p>
+          <p><strong>Grade A (85%+):</strong> Excellent performance - Meeting all standards</p>
+          <p><strong>Grade B (70-84%):</strong> Good performance - Meeting most standards</p>
+          <p><strong>Grade C (55-69%):</strong> Satisfactory performance - Meeting basic standards</p>
+          <p><strong>Grade D (40-54%):</strong> Below average - Needs improvement</p>
+          <p><strong>Grade F (Below 40%):</strong> Poor performance - Requires immediate attention</p>
           <p><strong>Meeting Standards (70%+):</strong> States performing at acceptable level or better</p>
           <p><strong>Below Standards (Below 70%):</strong> States that need improvement to meet requirements</p>
           <p><strong>Scoring Methods:</strong> 
             <span className="ml-1">
-              • <span className="font-semibold text-blue-600">100-Point Scale:</span> Standard scoring with all metrics included
+              • <span className="font-semibold text-blue-600">79-Point Scale:</span> Standard scoring with all metrics included
               
              </span>
           </p>
@@ -197,15 +211,15 @@ const AnalyticsDashboard = () => {
           <CardContent className="p-6">
             <div className="text-lg font-semibold text-gray-700 mb-2">Top Performers</div>
             <div className="text-3xl font-bold text-green-600">{topPerformers}</div>
-            <div className="text-sm text-gray-600">Score ≥ 70</div>
+            <div className="text-sm text-gray-600">Score ≥ 70%</div>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-yellow-50 to-yellow-100">
           <CardContent className="p-6">
             <div className="text-lg font-semibold text-gray-700 mb-2">National Average</div>
-            <div className="text-3xl font-bold text-yellow-600">{nationalAverage.toFixed(1)}</div>
-            <div className="text-sm text-gray-600">Overall Score</div>
+            <div className="text-3xl font-bold text-yellow-600">{analytics.nationalAveragePercentage.toFixed(1)}%</div>
+            <div className="text-sm text-gray-600">{nationalAverage.toFixed(1)}/79 points</div>
           </CardContent>
         </Card>
 
@@ -228,9 +242,9 @@ const AnalyticsDashboard = () => {
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={[
-                { name: 'Top (≥70)', value: topPerformers, fill: '#10b981' },
-                { name: 'Mid (50-69)', value: midPerformers, fill: '#f59e0b' },
-                { name: 'Low (<50)', value: lowPerformers, fill: '#ef4444' }
+                { name: 'Top (≥70%)', value: topPerformers, fill: '#10b981' },
+                { name: 'Mid (50-69%)', value: midPerformers, fill: '#f59e0b' },
+                { name: 'Low (<50%)', value: lowPerformers, fill: '#ef4444' }
               ]}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
@@ -405,7 +419,7 @@ const RankingsTable = () => {
                 State
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total Score
+                Score & Percentage
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Grade
@@ -414,7 +428,7 @@ const RankingsTable = () => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {rankings.map((ranking, index) => {
-              const { grade, description } = calculateGrade(ranking.totalScore);
+              const { grade, description } = calculateGrade(ranking.totalScore, 79);
               const isTopThree = index < 3;
               
               return (
@@ -435,7 +449,12 @@ const RankingsTable = () => {
                     {ranking.state}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 font-mono">
-                    {ranking.totalScore.toFixed(2)}
+                    <div className="text-right">
+                      <div className="font-semibold">{ranking.totalScore.toFixed(1)}/79</div>
+                      <div className="text-xs text-gray-500">
+                        {ranking.percentageScore ? ranking.percentageScore.toFixed(1) : ((ranking.totalScore / 79) * 100).toFixed(1)}%
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
