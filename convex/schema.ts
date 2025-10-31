@@ -817,5 +817,20 @@ export default defineSchema({
     updatedAt: v.number(),
     createdBy: v.id("users"),
     updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Mystery Shopping Data Storage
+  mda_mystery_shopping_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    mysteryType: v.string(), // 'hasReportGov' or 'noReportGov'
+    ratings: v.any(), // Object containing all question ratings
+    totalScore: v.number(),
+    maxPossibleScore: v.number(),
+    percentage: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
   }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"])
 });
