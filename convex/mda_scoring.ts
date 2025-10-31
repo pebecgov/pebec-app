@@ -490,16 +490,41 @@ export const getRealMonthlyReports = query({
       }
     }
     
+    // Track which reports have been assigned to a month by name (to avoid duplicates)
+    const reportsAssignedByName = new Set<string>();
+    
     // Process each month in the scoring period
     for (const { month, year } of monthsToCheck) {
       const checkDate = new Date(year, month, 1);
       const monthName = checkDate.toLocaleString('default', { month: 'long' });
+      const monthNameShort = checkDate.toLocaleString('default', { month: 'short' });
       
-      // Find reports for this month/year
+      // Helper function to check if report name contains month name
+      const reportNameContainsMonth = (reportName: string | undefined): boolean => {
+        if (!reportName) return false;
+        const nameLower = reportName.toLowerCase();
+        return nameLower.includes(monthName.toLowerCase()) || 
+               nameLower.includes(monthNameShort.toLowerCase());
+      };
+      
+      // Find reports for this month/year - prioritize name matching over date
       const monthReports = filteredReports.filter(report => {
+        const reportId = report._id;
         const reportDate = new Date(report.submittedAt);
-        return reportDate.getMonth() === month && 
-               reportDate.getFullYear() === year;
+        
+        // First check by report name (higher priority) - if report name contains this month
+        const matchesByName = reportNameContainsMonth(report.reportName);
+        if (matchesByName && !reportsAssignedByName.has(reportId)) {
+          reportsAssignedByName.add(reportId);
+          return true;
+        }
+        
+        // If not matched by name, check by submission date (and not already assigned by name to another month)
+        const matchesByDate = !reportsAssignedByName.has(reportId) &&
+                             reportDate.getMonth() === month && 
+                             reportDate.getFullYear() === year;
+        
+        return matchesByDate;
       });
       
       // Debug: Log reports found for this month
@@ -1190,5 +1215,71 @@ export const getReportGovData = query({
       .first();
     
     return reportGovData;
+  }
+});
+
+// Save Mystery Shopping data for a specific MDA and period
+export const saveMysteryShoppingData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    mysteryType: v.string(),
+    ratings: v.any(),
+    totalScore: v.number(),
+    maxPossibleScore: v.number(),
+    percentage: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, mysteryType, ratings, totalScore, maxPossibleScore, percentage }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    // Check if Mystery Shopping data already exists for this MDA and period
+    const existingMysteryData = await ctx.db.query("mda_mystery_shopping_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    if (existingMysteryData) {
+      // Update existing record
+      await ctx.db.patch(existingMysteryData._id, {
+        mysteryType,
+        ratings,
+        totalScore,
+        maxPossibleScore,
+        percentage,
+        updatedAt: Date.now(),
+        updatedBy: user._id
+      });
+    } else {
+      // Create new record
+      await ctx.db.insert("mda_mystery_shopping_data", {
+        mdaName,
+        scoringPeriod,
+        mysteryType,
+        ratings,
+        totalScore,
+        maxPossibleScore,
+        percentage,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: user._id,
+        updatedBy: user._id
+      });
+    }
+    
+    return { success: true, message: "Mystery Shopping data saved successfully" };
+  }
+});
+
+// Get Mystery Shopping data for a specific MDA and period
+export const getMysteryShoppingData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    const mysteryData = await ctx.db.query("mda_mystery_shopping_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    return mysteryData;
   }
 });

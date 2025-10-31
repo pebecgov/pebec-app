@@ -98,6 +98,96 @@ export default function ScoringMetricsPage() {
   const [slaMethod, setSlaMethod] = useState<'file' | 'rating'>('file');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Mystery Shopping Modal States
+  const [showMysteryModal, setShowMysteryModal] = useState(false);
+  const [mysteryType, setMysteryType] = useState<'hasReportGov' | 'noReportGov'>('hasReportGov');
+  const [mysteryRatings, setMysteryRatings] = useState<{[key: string]: number}>({});
+
+  // Mystery Shopping Rating Options
+  const ratingOptions = [
+    { value: 0, label: 'No Response' },
+    { value: 1, label: 'POOR' },
+    { value: 2, label: 'FAIR' },
+    { value: 3, label: 'AVERAGE' },
+    { value: 4, label: 'GOOD' },
+    { value: 5, label: 'EXCELLENT' }
+  ];
+
+  const yesNoOptions = [
+    { value: 0, label: 'No' },
+    { value: 1, label: 'Yes' }
+  ];
+
+  // Questions for different mystery shopping types
+  const hasReportGovQuestions = [
+    { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
+    { key: 'emailResponse', label: 'EMAIL RESPOND RATING', type: 'rating' },
+    { key: 'functionalWebsite', label: 'FUNCTIONAL WEBSITE', type: 'yesno' },
+    { key: 'csEmails', label: 'CUSTOMER SERVICES (CS) EMAILS LISTED', type: 'yesno' },
+    { key: 'csPhone', label: 'CUSTOMER SERVICES (CS) PHONE NUMBER LISTED', type: 'yesno' },
+    { key: 'faqAvailable', label: 'FAQ AVAILABLE', type: 'yesno' },
+    { key: 'requirementsClear', label: 'REQUIREMENTS/ELIGIBILITY FOR SERVICES CLEARLY OUTLINED', type: 'yesno' },
+    { key: 'timelinesClear', label: 'TIMELINES FOR SERVICE DELIVERY CLEARLY INDICATED FOR EACH SERVICE', type: 'yesno' },
+    { key: 'costsClear', label: 'COSTS FOR EACH SERVICE CLEARLY INDICATED WITH NO HIDDEN CHARGES', type: 'yesno' },
+    { key: 'reportGovDesktop', label: 'REPORTGOV DESKTOP AGENT ONBOARD', type: 'yesno' },
+    { key: 'onlineApplication', label: 'AVAILABILITY OF ONLINE APPLICATION/PROCESS', type: 'yesno' },
+    { key: 'onlineApproval', label: 'APPROVAL/FACILITY GRANTED ONLINE', type: 'yesno' },
+    { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' },
+    { key: 'satisfaction', label: 'SATISFACTION OF SERVICE THAT IS BEEN TESTED', type: 'rating' }
+  ];
+
+  const noReportGovQuestions = [
+    { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
+    { key: 'emailResponse', label: 'EMAIL RESPOND RATING', type: 'rating' },
+    { key: 'functionalWebsite', label: 'FUNCTIONAL WEBSITE', type: 'yesno' },
+    { key: 'csEmails', label: 'CUSTOMER SERVICES (CS) EMAILS LISTED', type: 'yesno' },
+    { key: 'csPhone', label: 'CUSTOMER SERVICES (CS) PHONE NUMBER LISTED', type: 'yesno' },
+    { key: 'faqAvailable', label: 'FAQ AVAILABLE', type: 'yesno' },
+    { key: 'onlineApplication', label: 'AVAILABILITY OF ONLINE APPLICATION/PROCESS', type: 'yesno' },
+    { key: 'onlineApproval', label: 'APPROVAL/FACILITY GRANTED ONLINE', type: 'yesno' },
+    { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' }
+  ];
+
+  // Calculate mystery shopping score
+  const calculateMysteryScore = () => {
+    const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
+    
+    let totalScore = 0;
+    let maxPossibleScore = 0;
+    
+    questions.forEach(question => {
+      const rating = mysteryRatings[question.key] || 0;
+      
+      if (question.type === 'rating') {
+        // Rating questions: scale 0-5 to 0-1 point each
+        totalScore += (rating / 5) * 1;
+        maxPossibleScore += 1;
+      } else {
+        // Yes/No questions: 1 point for Yes, 0 for No
+        totalScore += rating;
+        maxPossibleScore += 1;
+      }
+    });
+    
+    // Scale to 20 points total
+    const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
+    return Math.min(scaledScore, 20); // Cap at 20
+  };
+
+  // Handle mystery rating change
+  const handleMysteryRatingChange = (questionKey: string, rating: number) => {
+    setMysteryRatings(prev => ({
+      ...prev,
+      [questionKey]: rating
+    }));
+  };
+
+  // Reset mystery ratings when type changes
+  const handleMysteryTypeChange = (type: 'hasReportGov' | 'noReportGov') => {
+    setMysteryType(type);
+    setMysteryRatings({});
+  };
+  
   // Monthly SLA data
   const [monthlySlaData, setMonthlySlaData] = useState<{[key: string]: {
     method: 'file' | 'rating';
@@ -162,14 +252,20 @@ export default function ScoringMetricsPage() {
     api.mda_scoring.getReportGovData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
+  const savedMysteryShoppingData = useQuery(
+    api.mda_scoring.getMysteryShoppingData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
   
   // Loading states for saved data
   const isLoadingSLAData = selectedMda && savedSLAData === undefined;
   const isLoadingReportGovData = selectedMda && savedReportGovData === undefined;
+  const isLoadingMysteryShoppingData = selectedMda && savedMysteryShoppingData === undefined;
   
   // New mutations for saving data
   const saveSLAData = useMutation(api.mda_scoring.saveSLAData);
   const saveReportGovData = useMutation(api.mda_scoring.saveReportGovData);
+  const saveMysteryShoppingData = useMutation(api.mda_scoring.saveMysteryShoppingData);
 
   // Helper function to sanitize MDA names (same as backend)
   const sanitizeMdaName = (mdaName: string): string => {
@@ -340,6 +436,10 @@ export default function ScoringMetricsPage() {
   // Reset selected MDA when scoring period changes to avoid stale data
   useEffect(() => {
     setSelectedMda('');
+    // Also reset mystery shopping data when period changes
+    setMysteryType('hasReportGov');
+    setMysteryRatings({});
+    setMysteryRate(0);
   }, [scoringPeriod]);
 
   // Reset state when MDA changes
@@ -356,6 +456,11 @@ export default function ScoringMetricsPage() {
       setManualAverageResolutionTime(0);
       setManualReportGovRate(0);
       setReportgovRate(0);
+      
+      // Reset Mystery Shopping data
+      setMysteryType('hasReportGov');
+      setMysteryRatings({});
+      setMysteryRate(0);
     }
   }, [selectedMda]);
 
@@ -391,6 +496,16 @@ export default function ScoringMetricsPage() {
       toast.success(`📊 Loaded saved Report Gov data for ${selectedMda} - ${scoringPeriod}`);
     }
   }, [savedReportGovData, selectedMda, scoringPeriod, isLoadingReportGovData]);
+
+  // Load saved Mystery Shopping data when available
+  useEffect(() => {
+    if (!isLoadingMysteryShoppingData && savedMysteryShoppingData && selectedMda) {
+      setMysteryType(savedMysteryShoppingData.mysteryType as 'hasReportGov' | 'noReportGov');
+      setMysteryRatings(savedMysteryShoppingData.ratings || {});
+      setMysteryRate(savedMysteryShoppingData.totalScore);
+      toast.success(`🛍️ Loaded saved Mystery Shopping data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedMysteryShoppingData, selectedMda, scoringPeriod, isLoadingMysteryShoppingData]);
 
   if (isLoading || !isLoaded) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
@@ -848,6 +963,35 @@ export default function ScoringMetricsPage() {
     }
   };
 
+  // Save Mystery Shopping data
+  const handleSaveMysteryShoppingData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
+      const totalScore = calculateMysteryScore();
+      const maxPossibleScore = questions.length;
+      const percentage = (totalScore / 20) * 100;
+
+      await saveMysteryShoppingData({
+        mdaName: selectedMda,
+        scoringPeriod: scoringPeriod,
+        mysteryType: mysteryType,
+        ratings: mysteryRatings,
+        totalScore: totalScore,
+        maxPossibleScore: maxPossibleScore,
+        percentage: percentage
+      });
+      toast.success("✅ Mystery Shopping data saved successfully!");
+    } catch (error) {
+      toast.error("Failed to save Mystery Shopping data");
+      console.error(error);
+    }
+  };
+
   // Save the final score
   const handleSaveScore = async () => {
     if (!selectedMda) {
@@ -1276,24 +1420,47 @@ export default function ScoringMetricsPage() {
                 {/* Mystery Shopping */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">Mystery Shopping</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Mystery Shopping</h2>
+                      {isLoadingMysteryShoppingData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingMysteryShoppingData && savedMysteryShoppingData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                       20 Points
                     </span>
                   </div>
                   
-                  <Select
-                    value={mysteryRate || 0}
-                    onChange={(e) => setMysteryRate(Number(e.target.value))}
-                    className="w-full mb-3"
-                  >
-                    {[...Array(11)].map((_, i) => (
-                      <MenuItem key={i} value={i}>{i}</MenuItem>
-                    ))}
-                  </Select>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setShowMysteryModal(true)}
+                      className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Open Mystery Shopping Assessment
+                    </button>
 
-                  <div className="text-center">
-                    Score: {((mysteryRate / 10) * 20).toFixed(1)}/20
+                    <div className="text-center">
+                      Score: {calculateMysteryScore().toFixed(1)}/20
+                    </div>
+
+                    <button
+                      onClick={handleSaveMysteryShoppingData}
+                      disabled={!selectedMda || Object.keys(mysteryRatings).length === 0}
+                      className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                        !selectedMda || Object.keys(mysteryRatings).length === 0
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-green-500 hover:bg-green-600'
+                      }`}
+                    >
+                      💾 Save Mystery Shopping Data
+                    </button>
                   </div>
                 </div>
 
@@ -1692,11 +1859,60 @@ export default function ScoringMetricsPage() {
                           );
                         }
                         
-                        const monthReport = realMonthlyReports.find(report => {
+                        // Helper function to check if report name contains month name
+                        const reportNameContainsMonth = (reportName: string | undefined): boolean => {
+                          if (!reportName) return false;
+                          const nameLower = reportName.toLowerCase();
+                          const monthNameLower = monthName.toLowerCase();
+                          const monthNameShort = new Date(periodMonth.year, periodMonth.month, 1)
+                            .toLocaleString('default', { month: 'short' }).toLowerCase();
+                          return nameLower.includes(monthNameLower) || 
+                                 nameLower.includes(monthNameShort);
+                        };
+                        
+                        // Find report - first try by deadline date, then also check report names in the reports array
+                        let monthReport = realMonthlyReports.find(report => {
                           const reportDate = new Date(report.deadline);
                           return reportDate.getMonth() === periodMonth.month && 
                                  reportDate.getFullYear() === periodMonth.year;
                         });
+                        
+                        // If no match by deadline or report not submitted, check if any report in any month has this month in its name
+                        if (!monthReport || !monthReport.submitted) {
+                          for (const reportGroup of realMonthlyReports) {
+                            if (reportGroup.reports && Array.isArray(reportGroup.reports)) {
+                              const matchingReport = reportGroup.reports.find((r: any) => 
+                                reportNameContainsMonth(r.reportName)
+                              );
+                              if (matchingReport) {
+                                // Found a report with this month in the name, check if it's for this month
+                                const reportDate = new Date(reportGroup.deadline);
+                                // If the report group's month matches our target month (based on name), use it
+                                if (reportDate.getMonth() !== periodMonth.month || 
+                                    reportDate.getFullYear() !== periodMonth.year) {
+                                  // This report has the month name but is in a different month group
+                                  // Create a virtual report entry for this month
+                                  // Calculate deadline (last Friday of the month)
+                                  const lastDay = new Date(periodMonth.year, periodMonth.month + 1, 0);
+                                  const lastFriday = new Date(lastDay);
+                                  while (lastFriday.getDay() !== 5) {
+                                    lastFriday.setDate(lastFriday.getDate() - 1);
+                                  }
+                                  monthReport = {
+                                    deadline: lastFriday.getTime(),
+                                    submitted: true,
+                                    onTime: matchingReport.submittedAt ? 
+                                      new Date(matchingReport.submittedAt).getTime() <= lastFriday.getTime() : false,
+                                    submittedDate: matchingReport.submittedAt
+                                  };
+                                } else {
+                                  monthReport = reportGroup;
+                                }
+                                break;
+                              }
+                            }
+                          }
+                        }
                         
                         const isSubmitted = monthReport?.submitted || false;
                         const isOnTime = monthReport?.onTime || false;
@@ -1704,9 +1920,7 @@ export default function ScoringMetricsPage() {
                         return (
                           <div key={index} className={`p-2 rounded-md text-center ${
                             isSubmitted 
-                              ? isOnTime 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
                           }`}>
                             <div className="font-medium">{monthName}</div>
@@ -1833,11 +2047,60 @@ export default function ScoringMetricsPage() {
                           );
                         }
                         
-                        const monthReport = realMonthlyReports.find(report => {
+                        // Helper function to check if report name contains month name
+                        const reportNameContainsMonth = (reportName: string | undefined): boolean => {
+                          if (!reportName) return false;
+                          const nameLower = reportName.toLowerCase();
+                          const monthNameLower = monthName.toLowerCase();
+                          const monthNameShort = new Date(periodMonth.year, periodMonth.month, 1)
+                            .toLocaleString('default', { month: 'short' }).toLowerCase();
+                          return nameLower.includes(monthNameLower) || 
+                                 nameLower.includes(monthNameShort);
+                        };
+                        
+                        // Find report - first try by deadline date, then also check report names in the reports array
+                        let monthReport = realMonthlyReports.find(report => {
                           const reportDate = new Date(report.deadline);
                           return reportDate.getMonth() === periodMonth.month && 
                                  reportDate.getFullYear() === periodMonth.year;
                         });
+                        
+                        // If no match by deadline or report not submitted, check if any report in any month has this month in its name
+                        if (!monthReport || !monthReport.submitted) {
+                          for (const reportGroup of realMonthlyReports) {
+                            if (reportGroup.reports && Array.isArray(reportGroup.reports)) {
+                              const matchingReport = reportGroup.reports.find((r: any) => 
+                                reportNameContainsMonth(r.reportName)
+                              );
+                              if (matchingReport) {
+                                // Found a report with this month in the name, check if it's for this month
+                                const reportDate = new Date(reportGroup.deadline);
+                                // If the report group's month matches our target month (based on name), use it
+                                if (reportDate.getMonth() !== periodMonth.month || 
+                                    reportDate.getFullYear() !== periodMonth.year) {
+                                  // This report has the month name but is in a different month group
+                                  // Create a virtual report entry for this month
+                                  // Calculate deadline (last Friday of the month)
+                                  const lastDay = new Date(periodMonth.year, periodMonth.month + 1, 0);
+                                  const lastFriday = new Date(lastDay);
+                                  while (lastFriday.getDay() !== 5) {
+                                    lastFriday.setDate(lastFriday.getDate() - 1);
+                                  }
+                                  monthReport = {
+                                    deadline: lastFriday.getTime(),
+                                    submitted: true,
+                                    onTime: matchingReport.submittedAt ? 
+                                      new Date(matchingReport.submittedAt).getTime() <= lastFriday.getTime() : false,
+                                    submittedDate: matchingReport.submittedAt
+                                  };
+                                } else {
+                                  monthReport = reportGroup;
+                                }
+                                break;
+                              }
+                            }
+                          }
+                        }
                         
                         const isSubmitted = monthReport?.submitted || false;
                         const isOnTime = monthReport?.onTime || false;
@@ -2371,6 +2634,116 @@ export default function ScoringMetricsPage() {
                   className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg"
                 >
                   Save Monthly Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mystery Shopping Modal */}
+      {showMysteryModal && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowMysteryModal(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+            
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-6 text-center">Mystery Shopping Assessment</h2>
+              
+              {/* Type Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Select Assessment Type:
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="mysteryType"
+                      value="hasReportGov"
+                      checked={mysteryType === 'hasReportGov'}
+                      onChange={(e) => handleMysteryTypeChange('hasReportGov')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">ReportGov</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="mysteryType"
+                      value="noReportGov"
+                      checked={mysteryType === 'noReportGov'}
+                      onChange={(e) => handleMysteryTypeChange('noReportGov')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">No ReportGov</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Questions */}
+              <div className="space-y-6">
+                {(mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions).map((question, index) => (
+                  <div key={question.key} className="border border-gray-200 rounded-lg p-4">
+                    <h3 className="font-medium text-gray-900 mb-3">
+                      {index + 1}. {question.label}
+                    </h3>
+                    <div className={`grid gap-2 ${question.type === 'rating' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2'}`}>
+                      {(question.type === 'rating' ? ratingOptions : yesNoOptions).map((option) => (
+                        <label key={option.value} className="flex items-center p-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={question.key}
+                            value={option.value}
+                            checked={mysteryRatings[question.key] === option.value}
+                            onChange={(e) => handleMysteryRatingChange(question.key, parseInt(e.target.value))}
+                            className="mr-2"
+                          />
+                          <span className="text-sm">
+                            {question.type === 'rating' ? `${option.value} - ${option.label}` : option.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Score Display */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-2">Current Score</h3>
+                  <div className="text-3xl font-bold text-blue-600">
+                    {calculateMysteryScore().toFixed(1)}/20
+                  </div>
+                  <div className="text-sm text-blue-700 mt-1">
+                    Average: {((calculateMysteryScore() / 20) * 100).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-center gap-4 mt-6">
+                <button
+                  onClick={() => setShowMysteryModal(false)}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={async () => {
+                    setMysteryRate(calculateMysteryScore());
+                    setShowMysteryModal(false);
+                    await handleSaveMysteryShoppingData();
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg"
+                >
+                  Save Assessment
                 </button>
               </div>
             </div>
