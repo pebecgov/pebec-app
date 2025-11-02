@@ -637,7 +637,9 @@ export default function SaberAgentReportPage() {
   ) => {
     setTemplateFormData((prev) => {
       const currentTypeData = (prev[type] || {}) as ReportTypeDataMap[T];
-      const currentArray = [...(currentTypeData[fieldName] as any[])];
+      // Check if the field exists and is an array before spreading
+      const fieldValue = currentTypeData[fieldName];
+      const currentArray = Array.isArray(fieldValue) ? [...fieldValue] : [];
 
       // If only valueOrField is passed → treat as string[] update
       if (maybeValue === undefined) {
@@ -645,7 +647,7 @@ export default function SaberAgentReportPage() {
       } else {
         // valueOrField is the field name, maybeValue is the new value
         currentArray[index] = {
-          ...currentArray[index],
+          ...(currentArray[index] || {}),
           [valueOrField]: maybeValue,
         };
       }
@@ -725,7 +727,8 @@ export default function SaberAgentReportPage() {
   ) => {
     setTemplateFormData((prev) => {
       const currentTypeData = (prev[type] || {}) as ReportTypeDataMap[T];
-      const currentArray = (currentTypeData[fieldName] as string[]) || [];
+      const fieldValue = currentTypeData[fieldName];
+      const currentArray = Array.isArray(fieldValue) ? [...fieldValue] : [];
       const updatedArray = [...currentArray, ""];
 
       return {
@@ -748,7 +751,8 @@ export default function SaberAgentReportPage() {
   ) => {
     setTemplateFormData((prev) => {
       const currentTypeData = (prev[type] || {}) as ReportTypeDataMap[T];
-      const currentArray = (currentTypeData[fieldName] as string[]).slice();
+      const fieldValue = currentTypeData[fieldName];
+      const currentArray = Array.isArray(fieldValue) ? [...fieldValue] : [];
       const updatedArray = currentArray.filter((_, idx) => idx !== indexToRemove);
 
       if (updatedArray.length === 0) {
