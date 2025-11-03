@@ -832,5 +832,69 @@ export default defineSchema({
     updatedAt: v.number(),
     createdBy: v.id("users"),
     updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Inter MDA Collaboration Data Storage
+  mda_collaboration_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    rate: v.number(), // 0-10 rating
+    score: v.number(), // Calculated score (rate/10 * 15)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Stakeholder Engagement Data Storage
+  mda_stakeholder_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    rate: v.number(), // 0-10 rating
+    score: v.number(), // Calculated score (rate/10 * 10)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Report Governance Data Storage (checkbox items)
+  mda_report_governance_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    activeWebsite: v.boolean(),
+    activeUsers: v.boolean(),
+    reportGovLink: v.boolean(),
+    score: v.number(), // Calculated score (checked items / 3 * 5)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Monthly Report Submission Data Storage
+  mda_monthly_report_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    manualMonthlyReports: v.any(), // Object with month keys and boolean values
+    useManual: v.boolean(),
+    score: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Timeliness Data Storage
+  mda_timeliness_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    manualTimeliness: v.any(), // Object with month keys and boolean values
+    useManual: v.boolean(),
+    score: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
   }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"])
 });
