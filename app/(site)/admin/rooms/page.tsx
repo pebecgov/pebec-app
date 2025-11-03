@@ -12,6 +12,7 @@ import { TimePicker } from "@/components/ui/time-picker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ArrowLeft, Calendar, Clock, Users, Building2, Edit } from "lucide-react";
+import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import StaffMemberSelector from "@/components/StaffMemberSelector";
 import EditMeetingModal from "@/components/EditMeetingModal";
@@ -311,6 +312,13 @@ export default function AdminRoomsPage() {
                           </p>
                         </div>
                       )}
+                      {booking.createdAt && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-400">
+                            Booked on {format(new Date(booking.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -388,6 +396,13 @@ export default function AdminRoomsPage() {
                         <div className="mt-2">
                           <p className="text-xs text-gray-500">
                             Booked by: <span className="font-medium text-gray-700">{booking.creatorName}</span>
+                          </p>
+                        </div>
+                      )}
+                      {booking.createdAt && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-400">
+                            Booked on {format(new Date(booking.createdAt), "MMM d, yyyy 'at' h:mm a")}
                           </p>
                         </div>
                       )}

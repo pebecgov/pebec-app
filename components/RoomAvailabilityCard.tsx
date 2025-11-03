@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getNextWorkingDays, formatDateForDisplay, formatDateForAPI, isWorkingDay } from "@/lib/dateUtils";
+import { format } from "date-fns";
 
 interface RoomAvailabilityCardProps {
   title: string;
@@ -182,6 +183,13 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
                   <div className="mt-2">
                     <span className="text-xs text-gray-500">
                       Booked by: <span className="font-medium text-gray-700">{b.creatorName}</span>
+                    </span>
+                  </div>
+                )}
+                {b.createdAt && (
+                  <div className="mt-2">
+                    <span className="text-xs text-gray-400">
+                      Booked on {format(new Date(b.createdAt), "MMM d, yyyy 'at' h:mm a")}
                     </span>
                   </div>
                 )}
