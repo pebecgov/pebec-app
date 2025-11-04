@@ -180,7 +180,7 @@ export const mdasList = [{
   name: "Nigerian Postal Service",
   abbreviation: "NIPOST"
 }, {
-  name: "Nigerian Shippers' Council",
+  name: "Nigerian Shippers’ Council",
   abbreviation: "NSC"
 }, {
   name: "Nigerian Upstream Petroleum Regulatory Commission",
@@ -201,7 +201,7 @@ export const mdasList = [{
   name: "Securities and Exchange Commission",
   abbreviation: "SEC"
 }, {
-  name: "Service Compact (SERVICOM)",
+  name: "Service Compact",
   abbreviation: "SERVICOM"
 }, {
   name: "Standards Organisation of Nigeria",
