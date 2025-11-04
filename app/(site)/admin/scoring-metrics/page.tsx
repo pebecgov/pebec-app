@@ -379,6 +379,54 @@ export default function ScoringMetricsPage() {
     }
     return mdaName.trim();
   };
+
+  // Helper function to normalize MDA names for comparison (removes extra spaces, handles variations)
+  const normalizeMdaName = (mdaName: string): string => {
+    if (!mdaName) return '';
+    return mdaName
+      .trim()
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/[–—]/g, '-') // Replace em dash and en dash with regular dash
+      .toLowerCase();
+  };
+
+  // Helper function to find matching MDA from mdasList given a backend MDA name
+  const findMatchingMdaName = (backendMdaName: string): string | null => {
+    if (!backendMdaName) return null;
+    
+    const normalizedBackend = normalizeMdaName(backendMdaName);
+    const strippedBackend = normalizeMdaName(stripAbbreviation(backendMdaName));
+    
+    // Try to find exact match first
+    for (const mda of mdasList) {
+      const normalizedList = normalizeMdaName(mda.name);
+      const strippedList = normalizeMdaName(stripAbbreviation(mda.name));
+      
+      // Exact match (case-insensitive, normalized)
+      if (normalizedList === normalizedBackend) {
+        return mda.name;
+      }
+      
+      // Match after stripping abbreviations from both
+      if (strippedList === strippedBackend && strippedList.length > 0) {
+        return mda.name;
+      }
+      
+      // Match backend stripped against list full name
+      // This handles: backend "Special Control Unit..." matches list "EFCC - Special Control Unit..."
+      if (strippedBackend === normalizedList && strippedBackend.length > 0) {
+        return mda.name;
+      }
+      
+      // Match backend full name against list stripped
+      // This handles: backend "EFCC - Special Control Unit..." matches list "Special Control Unit..."
+      if (normalizedBackend === strippedList && strippedList.length > 0) {
+        return mda.name;
+      }
+    }
+    
+    return null;
+  };
   // Header matching functions (implemented locally for now)
   const performHeaderMatching = (headers: string[]) => {
     const mapping: { [key: string]: string | null } = {
@@ -1682,21 +1730,28 @@ export default function ScoringMetricsPage() {
                         // Merge with saved data from backend
                         if (liveDashboardData && Array.isArray(liveDashboardData)) {
                           liveDashboardData.forEach((mda: any) => {
-                            // Strip abbreviation from backend MDA name for matching
-                            const cleanedMdaName = stripAbbreviation(mda.mdaName);
-                            if (allMdasMap.has(cleanedMdaName)) {
-                              const existing = allMdasMap.get(cleanedMdaName);
-                              allMdasMap.set(cleanedMdaName, {
+                            // Find matching MDA name from mdasList
+                            const matchingMdaName = findMatchingMdaName(mda.mdaName);
+                            
+                            // Only include MDAs that are in mdasList
+                            if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
+                              const existing = allMdasMap.get(matchingMdaName);
+                              
+                              // Merge metric data intelligently - prefer non-null values, new data takes precedence if both exist
+                              const merged = {
                                 ...existing,
-                                ...mda,
-                                mdaName: cleanedMdaName // Use cleaned name without abbreviation
-                              });
-                            } else {
-                              // Add MDAs that might not be in mdasList but have data
-                              allMdasMap.set(cleanedMdaName, {
-                                ...mda,
-                                mdaName: cleanedMdaName // Use cleaned name without abbreviation
-                              });
+                                mdaName: matchingMdaName, // Use the canonical name from mdasList
+                                sla: mda.sla != null ? mda.sla : existing.sla,
+                                mysteryShopping: mda.mysteryShopping != null ? mda.mysteryShopping : existing.mysteryShopping,
+                                collaboration: mda.collaboration != null ? mda.collaboration : existing.collaboration,
+                                stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
+                                reportGovernance: mda.reportGovernance != null ? mda.reportGovernance : existing.reportGovernance,
+                                reportGovResolution: mda.reportGovResolution != null ? mda.reportGovResolution : existing.reportGovResolution,
+                                monthlyReport: mda.monthlyReport != null ? mda.monthlyReport : existing.monthlyReport,
+                                timeliness: mda.timeliness != null ? mda.timeliness : existing.timeliness,
+                              };
+                              
+                              allMdasMap.set(matchingMdaName, merged);
                             }
                           });
                         }
@@ -2048,21 +2103,28 @@ export default function ScoringMetricsPage() {
 
                           if (liveDashboardData && Array.isArray(liveDashboardData)) {
                             liveDashboardData.forEach((mda: any) => {
-                              // Strip abbreviation from backend MDA name for matching
-                              const cleanedMdaName = stripAbbreviation(mda.mdaName);
-                              if (allMdasMap.has(cleanedMdaName)) {
-                                const existing = allMdasMap.get(cleanedMdaName);
-                                allMdasMap.set(cleanedMdaName, {
+                              // Find matching MDA name from mdasList
+                              const matchingMdaName = findMatchingMdaName(mda.mdaName);
+                              
+                              // Only include MDAs that are in mdasList
+                              if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
+                                const existing = allMdasMap.get(matchingMdaName);
+                                
+                                // Merge metric data intelligently - keep existing data if new data is null/undefined
+                                const merged = {
                                   ...existing,
-                                  ...mda,
-                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
-                                });
-                              } else {
-                                // Add MDAs that might not be in mdasList but have data
-                                allMdasMap.set(cleanedMdaName, {
-                                  ...mda,
-                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
-                                });
+                                  mdaName: matchingMdaName, // Use the canonical name from mdasList
+                                  sla: mda.sla || existing.sla,
+                                  mysteryShopping: mda.mysteryShopping || existing.mysteryShopping,
+                                  collaboration: mda.collaboration || existing.collaboration,
+                                  stakeholder: mda.stakeholder || existing.stakeholder,
+                                  reportGovernance: mda.reportGovernance || existing.reportGovernance,
+                                  reportGovResolution: mda.reportGovResolution || existing.reportGovResolution,
+                                  monthlyReport: mda.monthlyReport || existing.monthlyReport,
+                                  timeliness: mda.timeliness || existing.timeliness,
+                                };
+                                
+                                allMdasMap.set(matchingMdaName, merged);
                               }
                             });
                           }
@@ -2243,21 +2305,28 @@ export default function ScoringMetricsPage() {
 
                           if (liveDashboardData && Array.isArray(liveDashboardData)) {
                             liveDashboardData.forEach((mda: any) => {
-                              // Strip abbreviation from backend MDA name for matching
-                              const cleanedMdaName = stripAbbreviation(mda.mdaName);
-                              if (allMdasMap.has(cleanedMdaName)) {
-                                const existing = allMdasMap.get(cleanedMdaName);
-                                allMdasMap.set(cleanedMdaName, {
+                              // Find matching MDA name from mdasList
+                              const matchingMdaName = findMatchingMdaName(mda.mdaName);
+                              
+                              // Only include MDAs that are in mdasList
+                              if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
+                                const existing = allMdasMap.get(matchingMdaName);
+                                
+                                // Merge metric data intelligently - keep existing data if new data is null/undefined
+                                const merged = {
                                   ...existing,
-                                  ...mda,
-                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
-                                });
-                              } else {
-                                // Add MDAs that might not be in mdasList but have data
-                                allMdasMap.set(cleanedMdaName, {
-                                  ...mda,
-                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
-                                });
+                                  mdaName: matchingMdaName, // Use the canonical name from mdasList
+                                  sla: mda.sla || existing.sla,
+                                  mysteryShopping: mda.mysteryShopping || existing.mysteryShopping,
+                                  collaboration: mda.collaboration || existing.collaboration,
+                                  stakeholder: mda.stakeholder || existing.stakeholder,
+                                  reportGovernance: mda.reportGovernance || existing.reportGovernance,
+                                  reportGovResolution: mda.reportGovResolution || existing.reportGovResolution,
+                                  monthlyReport: mda.monthlyReport || existing.monthlyReport,
+                                  timeliness: mda.timeliness || existing.timeliness,
+                                };
+                                
+                                allMdasMap.set(matchingMdaName, merged);
                               }
                             });
                           }
