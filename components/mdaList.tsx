@@ -6,9 +6,9 @@ export const mdasList = [{
   name: "Bureau for Public Procurement",
   abbreviation: "BPP"
 }, {
-  name: "Central Bank of Nigeria",
+  name: "Central Bank of Nigeria – National Collateral Agency",
   abbreviation: "CBN - NCR"
-}, {
+},  {
   name: "Trademarks Registry",
   abbreviation: "CLTR"
 }, {
@@ -17,7 +17,7 @@ export const mdasList = [{
 }, {
   name: "Department of State Services",
   abbreviation: "DSS"
-}, {
+},  {
   name: "EFCC - Special Control Unit for Money Laundering",
   abbreviation: "SCUML"
 }, {
@@ -83,10 +83,7 @@ export const mdasList = [{
 }, {
   name: "National Agency for Food and Drug Administration and Control",
   abbreviation: "NAFDAC"
-}, {
-  name: "National Collateral Registry",
-  abbreviation: "CBN - NCR"
-}, {
+},{
   name: "National Drug Law Enforcement Agency",
   abbreviation: "NDLEA"
 }, {
