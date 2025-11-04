@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import { toast } from "sonner";
 import ScoringMetricsDashboard from "@/components/Admin/ScoringMetricsDashboard";
 import { generateMdaScoringPDF } from "@/lib/pdfGenerator";
+import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
 
 // Result Table Component
 const ResultTable = ({ results, overallPercentage }: { results: any[], overallPercentage: number | null }) => {
@@ -345,6 +346,19 @@ export default function ScoringMetricsPage() {
     }
   }, [detailedScoringData, viewDetailsMda]);
 
+  // Handle dashboard PDF generation
+  const handleGenerateDashboardPDF = async () => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      return;
+    }
+    await generateDashboardPDF({
+      liveDashboardData,
+      selectedMetric,
+      dashboardYear,
+      mdasList
+    });
+  };
+
   // Helper function to sanitize MDA names (same as backend)
   const sanitizeMdaName = (mdaName: string): string => {
     return mdaName
@@ -353,6 +367,17 @@ export default function ScoringMetricsPage() {
       .replace(/\s+/g, '_') // Replace spaces with underscores
       .replace(/-+/g, '_') // Replace multiple dashes with underscores
       .toLowerCase();
+  };
+
+  // Helper function to strip abbreviation prefix from MDA names (e.g., "FME - Federal Ministry" -> "Federal Ministry")
+  const stripAbbreviation = (mdaName: string): string => {
+    if (!mdaName) return mdaName;
+    // Remove pattern like "ABC - " or "ABC -" from the start
+    const match = mdaName.match(/^[A-Z]+ - (.+)$/);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return mdaName.trim();
   };
   // Header matching functions (implemented locally for now)
   const performHeaderMatching = (headers: string[]) => {
@@ -680,16 +705,24 @@ export default function ScoringMetricsPage() {
       resolutionRateScore = (resolutionRate / 100) * 7; // 7 points for resolution rate
     }
     
-    let responseTimeScore = 3;
-    if (averageResponseTime > 24) {
+    let responseTimeScore = 0;
+    if (averageResponseTime === 0) {
+      responseTimeScore = 0; // No points if response time is 0
+    } else if (averageResponseTime > 24) {
       const penalty = (averageResponseTime - 24) * 0.06;
       responseTimeScore = Math.max(0, 3 - penalty);
+    } else {
+      responseTimeScore = 3; // Full points if > 0 and <= 24
     }
     
-    let resolutionTimeScore = 5;
-    if (averageResolutionTime > 72) {
+    let resolutionTimeScore = 0;
+    if (averageResolutionTime === 0) {
+      resolutionTimeScore = 0; // No points if resolution time is 0
+    } else if (averageResolutionTime > 72) {
       const penalty = (averageResolutionTime - 72) * 0.05; // Adjusted penalty for 5 points
       resolutionTimeScore = Math.max(0, 5 - penalty);
+    } else {
+      resolutionTimeScore = 5; // Full points if > 0 and <= 72
     }
 
     const totalScore = resolutionRateScore + responseTimeScore + resolutionTimeScore;
@@ -1556,6 +1589,13 @@ export default function ScoringMetricsPage() {
                       ))}
                     </Select>
                   </FormControl>
+                  <button
+                    onClick={handleGenerateDashboardPDF}
+                    disabled={liveDashboardData === undefined || !Array.isArray(liveDashboardData) || liveDashboardData.length === 0}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    📥 Download PDF
+                  </button>
                 </div>
               </div>
               <p className="text-sm text-gray-600">
@@ -1634,15 +1674,21 @@ export default function ScoringMetricsPage() {
                         // Merge with saved data from backend
                         if (liveDashboardData && Array.isArray(liveDashboardData)) {
                           liveDashboardData.forEach((mda: any) => {
-                            if (allMdasMap.has(mda.mdaName)) {
-                              const existing = allMdasMap.get(mda.mdaName);
-                              allMdasMap.set(mda.mdaName, {
+                            // Strip abbreviation from backend MDA name for matching
+                            const cleanedMdaName = stripAbbreviation(mda.mdaName);
+                            if (allMdasMap.has(cleanedMdaName)) {
+                              const existing = allMdasMap.get(cleanedMdaName);
+                              allMdasMap.set(cleanedMdaName, {
                                 ...existing,
-                                ...mda
+                                ...mda,
+                                mdaName: cleanedMdaName // Use cleaned name without abbreviation
                               });
                             } else {
                               // Add MDAs that might not be in mdasList but have data
-                              allMdasMap.set(mda.mdaName, mda);
+                              allMdasMap.set(cleanedMdaName, {
+                                ...mda,
+                                mdaName: cleanedMdaName // Use cleaned name without abbreviation
+                              });
                             }
                           });
                         }
@@ -1994,14 +2040,21 @@ export default function ScoringMetricsPage() {
 
                           if (liveDashboardData && Array.isArray(liveDashboardData)) {
                             liveDashboardData.forEach((mda: any) => {
-                              if (allMdasMap.has(mda.mdaName)) {
-                                const existing = allMdasMap.get(mda.mdaName);
-                                allMdasMap.set(mda.mdaName, {
+                              // Strip abbreviation from backend MDA name for matching
+                              const cleanedMdaName = stripAbbreviation(mda.mdaName);
+                              if (allMdasMap.has(cleanedMdaName)) {
+                                const existing = allMdasMap.get(cleanedMdaName);
+                                allMdasMap.set(cleanedMdaName, {
                                   ...existing,
-                                  ...mda
+                                  ...mda,
+                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
                                 });
                               } else {
-                                allMdasMap.set(mda.mdaName, mda);
+                                // Add MDAs that might not be in mdasList but have data
+                                allMdasMap.set(cleanedMdaName, {
+                                  ...mda,
+                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
+                                });
                               }
                             });
                           }
@@ -2182,14 +2235,21 @@ export default function ScoringMetricsPage() {
 
                           if (liveDashboardData && Array.isArray(liveDashboardData)) {
                             liveDashboardData.forEach((mda: any) => {
-                              if (allMdasMap.has(mda.mdaName)) {
-                                const existing = allMdasMap.get(mda.mdaName);
-                                allMdasMap.set(mda.mdaName, {
+                              // Strip abbreviation from backend MDA name for matching
+                              const cleanedMdaName = stripAbbreviation(mda.mdaName);
+                              if (allMdasMap.has(cleanedMdaName)) {
+                                const existing = allMdasMap.get(cleanedMdaName);
+                                allMdasMap.set(cleanedMdaName, {
                                   ...existing,
-                                  ...mda
+                                  ...mda,
+                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
                                 });
                               } else {
-                                allMdasMap.set(mda.mdaName, mda);
+                                // Add MDAs that might not be in mdasList but have data
+                                allMdasMap.set(cleanedMdaName, {
+                                  ...mda,
+                                  mdaName: cleanedMdaName // Use cleaned name without abbreviation
+                                });
                               }
                             });
                           }
