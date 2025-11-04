@@ -789,15 +789,23 @@ export default function ScoringMetricsPage() {
     
     // NEW SCORING LOGIC: Resolution rate (7 points), Response time (3 points), Resolution time (5 points)
     let resolutionRateScore = (resolutionRate / 100) * 7; // 7 points for resolution rate
-    let responseTimeScore = 3;
-    if (manualAverageResponseTime > 24) {
+    let responseTimeScore = 0;
+    if (manualAverageResponseTime === 0) {
+      responseTimeScore = 0; // No points if response time is 0
+    } else if (manualAverageResponseTime > 24) {
       const penalty = (manualAverageResponseTime - 24) * 0.06;
       responseTimeScore = Math.max(0, 3 - penalty);
+    } else {
+      responseTimeScore = 3; // Full points if > 0 and <= 24
     }
-    let resolutionTimeScore = 5;
-    if (manualAverageResolutionTime > 72) {
+    let resolutionTimeScore = 0;
+    if (manualAverageResolutionTime === 0) {
+      resolutionTimeScore = 0; // No points if resolution time is 0
+    } else if (manualAverageResolutionTime > 72) {
       const penalty = (manualAverageResolutionTime - 72) * 0.05; // Adjusted penalty for 5 points
       resolutionTimeScore = Math.max(0, 5 - penalty);
+    } else {
+      resolutionTimeScore = 5; // Full points if > 0 and <= 72
     }
 
     return resolutionRateScore + responseTimeScore + resolutionTimeScore;
