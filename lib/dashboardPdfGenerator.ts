@@ -34,13 +34,15 @@ interface GenerateDashboardPDFParams {
   selectedMetric: string;
   dashboardYear: number;
   mdasList: MdaList[];
+  filterType?: 'all' | 'withData'; // Optional filter type
 }
 
 export async function generateDashboardPDF({
   liveDashboardData,
   selectedMetric,
   dashboardYear,
-  mdasList
+  mdasList,
+  filterType = 'all'
 }: GenerateDashboardPDFParams): Promise<void> {
   if (!liveDashboardData || !Array.isArray(liveDashboardData) || liveDashboardData.length === 0) {
     toast.error("No data available to download");
@@ -100,25 +102,59 @@ export async function generateDashboardPDF({
     doc.setFontSize(12);
     doc.setFont(undefined, 'normal');
     doc.text(`Year: ${dashboardYear}`, pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 15;
+    yPosition += 5;
+    if (filterType === 'withData') {
+      doc.setFontSize(10);
+      doc.text(`Filter: MDAs with Data`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 5;
+    }
+    yPosition += 10;
 
-    // Process data similar to how it's done in the table
-    const allMdasMap = new Map<string, any>();
-    mdasList.forEach(mda => {
-      allMdasMap.set(mda.name, {
-        mdaName: mda.name,
-        sla: null,
-        mysteryShopping: null,
-        collaboration: null,
-        stakeholder: null,
-        reportGovernance: null,
-        reportGovResolution: null,
-        monthlyReport: null,
-        timeliness: null,
-        totalScore: 0,
-        totalPercentage: 0
+    // Process data - if filterType is 'withData', use the filtered data directly
+    // Otherwise, merge with all MDAs from mdasList
+    let allMdasArray: any[];
+    
+    if (filterType === 'withData') {
+      // Use filtered data directly - it's already processed and filtered
+      allMdasArray = liveDashboardData.map((mda: any) => {
+        // Calculate total score for each MDA
+        const slaScore = mda.sla?.score || 0;
+        const mysteryScore = mda.mysteryShopping?.score || 0;
+        const collaborationScore = mda.collaboration?.score || 0;
+        const stakeholderScore = mda.stakeholder?.score || 0;
+        const reportGovScore = mda.reportGovernance?.score || 0;
+        const reportGovResScore = mda.reportGovResolution?.score || 0;
+        const monthlyReportScore = mda.monthlyReport?.score || 0;
+        const timelinessScore = mda.timeliness?.score || 0;
+        
+        const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
+                          reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+        const totalPercentage = (totalScore / 100) * 100;
+        
+        return {
+          ...mda,
+          totalScore,
+          totalPercentage
+        };
       });
-    });
+    } else {
+      // Process data similar to how it's done in the table - merge with all MDAs
+      const allMdasMap = new Map<string, any>();
+      mdasList.forEach(mda => {
+        allMdasMap.set(mda.name, {
+          mdaName: mda.name,
+          sla: null,
+          mysteryShopping: null,
+          collaboration: null,
+          stakeholder: null,
+          reportGovernance: null,
+          reportGovResolution: null,
+          monthlyReport: null,
+          timeliness: null,
+          totalScore: 0,
+          totalPercentage: 0
+        });
+      });
 
       liveDashboardData.forEach((mda: any) => {
         // Strip abbreviation from backend MDA name for matching
@@ -139,26 +175,27 @@ export async function generateDashboardPDF({
         }
       });
 
-    const allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
-      const slaScore = mda.sla?.score || 0;
-      const mysteryScore = mda.mysteryShopping?.score || 0;
-      const collaborationScore = mda.collaboration?.score || 0;
-      const stakeholderScore = mda.stakeholder?.score || 0;
-      const reportGovScore = mda.reportGovernance?.score || 0;
-      const reportGovResScore = mda.reportGovResolution?.score || 0;
-      const monthlyReportScore = mda.monthlyReport?.score || 0;
-      const timelinessScore = mda.timeliness?.score || 0;
-      
-      const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
-                        reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
-      const totalPercentage = (totalScore / 100) * 100;
-      
-      return {
-        ...mda,
-        totalScore,
-        totalPercentage
-      };
-    });
+      allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
+        const slaScore = mda.sla?.score || 0;
+        const mysteryScore = mda.mysteryShopping?.score || 0;
+        const collaborationScore = mda.collaboration?.score || 0;
+        const stakeholderScore = mda.stakeholder?.score || 0;
+        const reportGovScore = mda.reportGovernance?.score || 0;
+        const reportGovResScore = mda.reportGovResolution?.score || 0;
+        const monthlyReportScore = mda.monthlyReport?.score || 0;
+        const timelinessScore = mda.timeliness?.score || 0;
+        
+        const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
+                          reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+        const totalPercentage = (totalScore / 100) * 100;
+        
+        return {
+          ...mda,
+          totalScore,
+          totalPercentage
+        };
+      });
+    }
 
     // Sort by selected metric
     const sortedData = [...allMdasArray].sort((a: any, b: any) => {
