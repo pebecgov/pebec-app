@@ -186,15 +186,20 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   // Mystery Shopping - combine both halves
   const mysteryTableData: string[][] = [];
   const hasReportGovQuestions = [
-    { key: 'reportGovIntegration', label: 'REPORTGOV INTEGRATION', type: 'rating' },
     { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
     { key: 'emailResponse', label: 'EMAIL RESPOND RATING', type: 'rating' },
     { key: 'functionalWebsite', label: 'FUNCTIONAL WEBSITE', type: 'yesno' },
     { key: 'csEmails', label: 'CUSTOMER SERVICES (CS) EMAILS LISTED', type: 'yesno' },
     { key: 'csPhone', label: 'CUSTOMER SERVICES (CS) PHONE NUMBER LISTED', type: 'yesno' },
     { key: 'faqAvailable', label: 'FAQ AVAILABLE', type: 'yesno' },
+    { key: 'requirementsClear', label: 'REQUIREMENTS/ELIGIBILITY FOR SERVICES CLEARLY OUTLINED', type: 'yesno' },
+    { key: 'timelinesClear', label: 'TIMELINES FOR SERVICE DELIVERY CLEARLY INDICATED FOR EACH SERVICE', type: 'yesno' },
+    { key: 'costsClear', label: 'COSTS FOR EACH SERVICE CLEARLY INDICATED WITH NO HIDDEN CHARGES', type: 'yesno' },
+    { key: 'reportGovDesktop', label: 'REPORTGOV DESKTOP AGENT ONBOARD', type: 'yesno' },
     { key: 'onlineApplication', label: 'AVAILABILITY OF ONLINE APPLICATION/PROCESS', type: 'yesno' },
-    { key: 'onlineApproval', label: 'APPROVAL/FACILITY GRANTED ONLINE', type: 'yesno' }
+    { key: 'onlineApproval', label: 'APPROVAL/FACILITY GRANTED ONLINE', type: 'yesno' },
+    { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' },
+    { key: 'satisfaction', label: 'SATISFACTION OF SERVICE THAT IS BEEN TESTED', type: 'rating' }
   ];
   const noReportGovQuestions = [
     { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
@@ -205,7 +210,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     { key: 'faqAvailable', label: 'FAQ AVAILABLE', type: 'yesno' },
     { key: 'onlineApplication', label: 'AVAILABILITY OF ONLINE APPLICATION/PROCESS', type: 'yesno' },
     { key: 'onlineApproval', label: 'APPROVAL/FACILITY GRANTED ONLINE', type: 'yesno' },
-    { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' }
+    { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' },
+    { key: 'satisfaction', label: 'SATISFACTION OF SERVICE THAT IS BEEN TESTED', type: 'rating' }
   ];
   const ratingLabels = ['No Response', 'POOR', 'FAIR', 'AVERAGE', 'GOOD', 'EXCELLENT'];
   
@@ -232,7 +238,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       });
       
       if (half.totalScore) avgTotalScore += half.totalScore;
-      if (half.maxPossibleScore) avgMaxScore = Math.max(avgMaxScore, half.maxPossibleScore);
+      // Mystery Shopping is always out of 20 points, regardless of question count
+      avgMaxScore = 20;
       if (half.percentage) avgPercentage += half.percentage;
     }
   });
@@ -241,11 +248,12 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const avgRating = info.values.reduce((sum, val) => sum + val, 0) / info.values.length;
     if (info.type === 'rating') {
       const points = (avgRating / 5) * 1;
-      mysteryTableData.push([info.label, `${ratingLabels[Math.round(avgRating)] || avgRating.toFixed(1)} (${points.toFixed(2)} pts)`]);
+      const ratingLabel = avgRating === 0 ? 'No Response' : (ratingLabels[Math.round(avgRating)] || avgRating.toFixed(1));
+      mysteryTableData.push([info.label, `${ratingLabel} (${points.toFixed(2)} points)`]);
     } else {
       const answer = avgRating >= 0.5 ? 'Yes' : 'No';
       const points = avgRating >= 0.5 ? 1 : 0;
-      mysteryTableData.push([info.label, `${answer} (${points} pt${points === 1 ? '' : 's'})`]);
+      mysteryTableData.push([info.label, `${answer} (${points} point${points === 1 ? '' : 's'})`]);
     }
   });
 
@@ -253,7 +261,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const finalMysteryPercentage = avgPercentage / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
 
   if (mysteryTableData.length > 0) {
-    mysteryTableData.push(['Total Score', `${finalMysteryScore.toFixed(1)}/${avgMaxScore || 20} (${finalMysteryPercentage.toFixed(1)}%)`]);
+    mysteryTableData.push(['Total Score', `${finalMysteryScore.toFixed(1)}/20 (${finalMysteryPercentage.toFixed(1)}%)`]);
     
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -384,66 +392,110 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // Report Gov Resolution - sum tickets, average times and score
+  // Report Gov Resolution - show single half if only one exists, otherwise sum/average
   if (data.reportGovResolution.firstHalf || data.reportGovResolution.secondHalf) {
     const resFirst = data.reportGovResolution.firstHalf || {};
     const resSecond = data.reportGovResolution.secondHalf || {};
+    const isSkipped = (resFirst?.isSkipped || false) || (resSecond?.isSkipped || false);
     
-    // Sum total tickets and resolved tickets (add both halves)
-    const totalTickets = (resFirst.totalTickets || 0) + (resSecond.totalTickets || 0);
-    const resolvedTickets = (resFirst.resolvedTickets || 0) + (resSecond.resolvedTickets || 0);
-    
-    // Calculate resolution rate from summed values
-    const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
-    
-    // Average response time and resolution time (only if both halves have data)
-    let avgResponseTime = resFirst.averageResponseTime || 0;
-    let avgResolutionTime = resFirst.averageResolutionTime || 0;
-    if (resFirst.averageResponseTime && resSecond.averageResponseTime) {
-      avgResponseTime = ((resFirst.averageResponseTime || 0) + (resSecond.averageResponseTime || 0)) / 2;
-    } else if (resSecond.averageResponseTime) {
-      avgResponseTime = resSecond.averageResponseTime;
-    }
-    
-    if (resFirst.averageResolutionTime && resSecond.averageResolutionTime) {
-      avgResolutionTime = ((resFirst.averageResolutionTime || 0) + (resSecond.averageResolutionTime || 0)) / 2;
-    } else if (resSecond.averageResolutionTime) {
-      avgResolutionTime = resSecond.averageResolutionTime;
-    }
-    
-    // Average score (only if both halves have data)
-    let avgScore = resFirst.score || 0;
-    if (resFirst.score && resSecond.score) {
-      avgScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
-    } else if (resSecond.score) {
-      avgScore = resSecond.score;
-    }
-
     if (yPosition > pageHeight - 80) {
       doc.addPage();
       yPosition = 20;
     }
 
-    autoTable(doc, {
-      startY: yPosition,
-      head: [['6. Report Gov Resolution (15 points)', '']],
-      body: [
+    // If skipped, just show "Skipped"
+    if (isSkipped) {
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['6. Report Gov Resolution (15 points)', '']],
+        body: [['Status', 'Skipped']],
+        headStyles: {
+          fillColor: [63, 81, 181],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        styles: { fontSize: 9 },
+        theme: 'striped'
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    } else {
+      // Not skipped - show detailed information
+      const hasFirstHalf = resFirst && (resFirst.totalTickets !== undefined || resFirst.score !== undefined);
+      const hasSecondHalf = resSecond && (resSecond.totalTickets !== undefined || resSecond.score !== undefined);
+      
+      let totalTickets, resolvedTickets, resolutionRate, avgResponseTime, avgResolutionTime, avgScore, periodLabel, originalHalfScore;
+      
+      if (hasFirstHalf && hasSecondHalf) {
+        // Both halves have data - sum tickets, average times and score
+        totalTickets = (resFirst.totalTickets || 0) + (resSecond.totalTickets || 0);
+        resolvedTickets = (resFirst.resolvedTickets || 0) + (resSecond.resolvedTickets || 0);
+        resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+        
+        avgResponseTime = resFirst.averageResponseTime && resSecond.averageResponseTime
+          ? ((resFirst.averageResponseTime || 0) + (resSecond.averageResponseTime || 0)) / 2
+          : (resFirst.averageResponseTime || resSecond.averageResponseTime || 0);
+        
+        avgResolutionTime = resFirst.averageResolutionTime && resSecond.averageResolutionTime
+          ? ((resFirst.averageResolutionTime || 0) + (resSecond.averageResolutionTime || 0)) / 2
+          : (resFirst.averageResolutionTime || resSecond.averageResolutionTime || 0);
+        
+        avgScore = resFirst.score && resSecond.score
+          ? ((resFirst.score || 0) + (resSecond.score || 0)) / 2
+          : (resFirst.score || resSecond.score || 0);
+        
+        periodLabel = "Both Halves (Averaged)";
+        originalHalfScore = null;
+      } else if (hasFirstHalf) {
+        // Only first half has data - divide score by 2 (like table)
+        totalTickets = resFirst.totalTickets || 0;
+        resolvedTickets = resFirst.resolvedTickets || 0;
+        resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+        avgResponseTime = resFirst.averageResponseTime || 0;
+        avgResolutionTime = resFirst.averageResolutionTime || 0;
+        originalHalfScore = resFirst.score || 0;
+        avgScore = originalHalfScore / 2; // Divide by 2 when only one half
+        periodLabel = "1st Half Only";
+      } else {
+        // Only second half has data - divide score by 2 (like table)
+        totalTickets = resSecond.totalTickets || 0;
+        resolvedTickets = resSecond.resolvedTickets || 0;
+        resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+        avgResponseTime = resSecond.averageResponseTime || 0;
+        avgResolutionTime = resSecond.averageResolutionTime || 0;
+        originalHalfScore = resSecond.score || 0;
+        avgScore = originalHalfScore / 2; // Divide by 2 when only one half
+        periodLabel = "2nd Half Only";
+      }
+
+      const tableBody = [
+        ['Period', periodLabel],
         ['Total Tickets', totalTickets.toFixed(0)],
         ['Resolved Tickets', resolvedTickets.toFixed(0)],
         ['Resolution Rate', `${resolutionRate.toFixed(1)}%`],
         ['Avg Response Time', `${avgResponseTime.toFixed(1)} hours`],
         ['Avg Resolution Time', `${avgResolutionTime.toFixed(1)} hours`],
         ['Score', `${avgScore.toFixed(1)}/15`]
-      ],
-      headStyles: {
-        fillColor: [63, 81, 181],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold'
-      },
-      styles: { fontSize: 9 },
-      theme: 'striped'
-    });
-    yPosition = (doc as any).lastAutoTable.finalY + 15;
+      ];
+      
+      // Add original half score if only one half has data
+      if (originalHalfScore !== null) {
+        tableBody.push([periodLabel.includes("1st") ? "1st Half only" : "2nd Half only", originalHalfScore.toFixed(1)]);
+      }
+
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['6. Report Gov Resolution (15 points)', '']],
+        body: tableBody,
+        headStyles: {
+          fillColor: [63, 81, 181],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        styles: { fontSize: 9 },
+        theme: 'striped'
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    }
   }
 
   // Monthly Report Submission - show all 12 months
@@ -564,43 +616,62 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     ((data.stakeholder.firstHalf?.score || 0) + (data.stakeholder.secondHalf?.score || 0)) / 2 : 0;
   const reportGovScore = data.reportGovernance.firstHalf || data.reportGovernance.secondHalf ?
     ((data.reportGovernance.firstHalf?.score || 0) + (data.reportGovernance.secondHalf?.score || 0)) / 2 : 0;
-  // Calculate Report Gov Resolution score (average if both halves exist, otherwise use available one)
+  // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
   let reportGovResScore = 0;
+  const isReportGovSkipped = (data.reportGovResolution.firstHalf?.isSkipped || false) || 
+                             (data.reportGovResolution.secondHalf?.isSkipped || false);
   if (data.reportGovResolution.firstHalf || data.reportGovResolution.secondHalf) {
     const resFirst = data.reportGovResolution.firstHalf || {};
     const resSecond = data.reportGovResolution.secondHalf || {};
-    if (resFirst.score && resSecond.score) {
-      reportGovResScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
-    } else if (resFirst.score) {
-      reportGovResScore = resFirst.score;
-    } else if (resSecond.score) {
-      reportGovResScore = resSecond.score;
+    const hasFirstHalf = resFirst && resFirst.score !== undefined && resFirst.score !== null;
+    const hasSecondHalf = resSecond && resSecond.score !== undefined && resSecond.score !== null;
+    
+    if (!isReportGovSkipped) {
+      if (hasFirstHalf && hasSecondHalf) {
+        // Both halves have data - average
+        reportGovResScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
+      } else if (hasFirstHalf) {
+        // Only first half - divide by 2
+        reportGovResScore = (resFirst.score || 0) / 2;
+      } else if (hasSecondHalf) {
+        // Only second half - divide by 2
+        reportGovResScore = (resSecond.score || 0) / 2;
+      }
     }
   }
 
   const totalScore = slaScore + mysteryScore + collabScore + stakeholderScore + 
                     reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+  
+  const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+  const totalPercentage = isReportGovSkipped 
+    ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+    : (totalScore / 100) * 100; // Standard: 100 points = 100%
 
   if (yPosition > pageHeight - 60) {
     doc.addPage();
     yPosition = 20;
   }
 
+  const summaryBody = [
+    ['SLA', `${slaScore.toFixed(1)}/30`],
+    ['Mystery Shopping', `${mysteryScore.toFixed(1)}/20`],
+    ['Inter MDA Collaboration', `${collabScore.toFixed(1)}/15`],
+    ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/10`],
+    ['Report Governance', `${reportGovScore.toFixed(1)}/5`],
+    ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`],
+    ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
+    ['Timeliness', `${timelinessScore.toFixed(1)}/2`],
+    ['', ''],
+    isReportGovSkipped 
+      ? ['OVERALL TOTAL', `${totalPercentage.toFixed(1)}/100 Using 85`]
+      : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/100 (${totalPercentage.toFixed(1)}%)`]
+  ];
+
   autoTable(doc, {
     startY: yPosition,
     head: [['OVERALL SCORE SUMMARY', '']],
-    body: [
-      ['SLA', `${slaScore.toFixed(1)}/30`],
-      ['Mystery Shopping', `${mysteryScore.toFixed(1)}/20`],
-      ['Inter MDA Collaboration', `${collabScore.toFixed(1)}/15`],
-      ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/10`],
-      ['Report Governance', `${reportGovScore.toFixed(1)}/5`],
-      ['Report Gov Resolution', `${reportGovResScore.toFixed(1)}/15`],
-      ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
-      ['Timeliness', `${timelinessScore.toFixed(1)}/2`],
-      ['', ''],
-      ['OVERALL TOTAL', `${totalScore.toFixed(1)}/100 (${totalScore.toFixed(1)}%)`]
-    ],
+    body: summaryBody,
     headStyles: {
       fillColor: [25, 118, 210],
       textColor: [255, 255, 255],

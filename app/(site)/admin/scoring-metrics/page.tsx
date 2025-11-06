@@ -87,7 +87,7 @@ export default function ScoringMetricsPage() {
   const router = useRouter();
 
   // State variables
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('live-dashboard');
   const [selectedMda, setSelectedMda] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [overallPercentage, setOverallPercentage] = useState<number | null>(null);
@@ -386,7 +386,10 @@ export default function ScoringMetricsPage() {
             collaboration: mda.collaboration != null ? mda.collaboration : existing.collaboration,
             stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
             reportGovernance: mda.reportGovernance != null ? mda.reportGovernance : existing.reportGovernance,
-            reportGovResolution: mda.reportGovResolution != null ? mda.reportGovResolution : existing.reportGovResolution,
+            reportGovResolution: mda.reportGovResolution != null ? {
+              ...mda.reportGovResolution,
+              // Preserve all fields including hasFirstHalf, hasSecondHalf, firstHalfScore, secondHalfScore
+            } : existing.reportGovResolution,
             monthlyReport: mda.monthlyReport != null ? mda.monthlyReport : existing.monthlyReport,
             timeliness: mda.timeliness != null ? mda.timeliness : existing.timeliness,
           };
@@ -409,12 +412,22 @@ export default function ScoringMetricsPage() {
       
       const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
                         reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
-      const totalPercentage = (totalScore / 100) * 100;
+      
+      // Check if Report Gov Resolution is skipped
+      const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
+      const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+      
+      // Normalize percentage: if skipped, 85 points = 100% for fair ranking
+      const totalPercentage = isReportGovSkipped 
+        ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+        : (totalScore / 100) * 100; // Standard: 100 points = 100%
       
       return {
         ...mda,
         totalScore,
-        totalPercentage
+        totalPercentage,
+        isReportGovSkipped,
+        maxPossiblePoints
       };
     });
 
@@ -736,8 +749,12 @@ export default function ScoringMetricsPage() {
   // Load saved Report Gov data when available
   useEffect(() => {
     if (!isLoadingReportGovData && savedReportGovData && selectedMda) {
-      if (savedReportGovData.isManual) {
+      if (savedReportGovData.isSkipped) {
+        setSkipReportGov(true);
+        setUseManualReportGov(false);
+      } else if (savedReportGovData.isManual) {
         setUseManualReportGov(true);
+        setSkipReportGov(false);
         setManualTotalTickets(savedReportGovData.totalTickets);
         setManualResolvedTickets(savedReportGovData.resolvedTickets);
         setManualAverageResponseTime(savedReportGovData.averageResponseTime);
@@ -745,6 +762,7 @@ export default function ScoringMetricsPage() {
         setManualReportGovRate(savedReportGovData.score);
       } else {
         setUseManualReportGov(false);
+        setSkipReportGov(false);
         setReportgovRate(savedReportGovData.score);
       }
       toast.success(`📊 Loaded saved Report Gov data for ${selectedMda} - ${scoringPeriod}`);
@@ -1111,12 +1129,25 @@ export default function ScoringMetricsPage() {
     // Use monthly SLA data
     const monthlySlaScore = calculateMonthlySlaScore();
     
+    // Use saved Mystery Shopping data for current period, or fall back to calculated score
+    // Mystery Shopping is saved for both halves, but we only want the current period's data
+    const mysteryShoppingScore = savedMysteryShoppingData?.totalScore ?? calculateMysteryScore();
+    
+    // Use saved Collaboration data for current period, or fall back to state
+    const collaborationScore = savedCollaborationData?.score ?? ((collaborationRate / 10) * 15);
+    
+    // Use saved Stakeholder data for current period, or fall back to state
+    const stakeholderScore = savedStakeholderData?.score ?? ((stakeholderRate / 10) * 10);
+    
+    // Use saved Report Governance data for current period, or fall back to calculated
+    const reportGovernanceScore = savedReportGovernanceData?.score ?? (Object.values(checkboxItems).filter(Boolean).length / 3 * 5);
+    
     const baseScores = {
       serviceLevelAgreement: monthlySlaScore.totalScore,
-      mysteryShopping: (mysteryRate / 10) * 20,
-      interMdaCollaboration: (collaborationRate / 10) * 15,
-      stakeholderEngagement: (stakeholderRate / 10) * 10,
-      reportGovernance: Object.values(checkboxItems).filter(Boolean).length / 3 * 5,
+      mysteryShopping: mysteryShoppingScore,
+      interMdaCollaboration: collaborationScore,
+      stakeholderEngagement: stakeholderScore,
+      reportGovernance: reportGovernanceScore,
       reportGovernanceResolution: reportGovScore,
       monthlyReportSubmission: monthlyReportScore,
       timelinessInSubmitting: timelinessScore
@@ -1138,7 +1169,10 @@ export default function ScoringMetricsPage() {
     const maxPossiblePoints = skipReportGov ? 85 : 100; // 100 - 15 (Report Gov Resolution points)
     
     const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
-    const totalPercentage = (totalScore / maxPossiblePoints) * 100;
+    // Normalize percentage: if skipped, 85 points = 100% for fair ranking
+    const totalPercentage = skipReportGov 
+      ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+      : (totalScore / 100) * 100; // Standard: 100 points = 100%
 
     return { scores, totalScore, totalPercentage, baseScores, maxPossiblePoints };
   };
@@ -1258,19 +1292,20 @@ export default function ScoringMetricsPage() {
     }
 
     try {
-      const isManual = useManualReportGov;
-      const score = isManual ? manualReportGovRate : reportgovRate;
+      const isManual = useManualReportGov && !skipReportGov;
+      const score = skipReportGov ? 0 : (isManual ? manualReportGovRate : reportgovRate);
       
       await saveReportGovData({
         mdaName: selectedMda,
         scoringPeriod: scoringPeriod,
-        totalTickets: isManual ? manualTotalTickets : ticketResolutionData.totalTickets,
-        resolvedTickets: isManual ? manualResolvedTickets : ticketResolutionData.resolvedTickets,
-        averageResponseTime: isManual ? manualAverageResponseTime : ticketResolutionData.averageResponseTime,
-        averageResolutionTime: isManual ? manualAverageResolutionTime : ticketResolutionData.averageResolutionTime,
-        resolutionRate: isManual ? (manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0) : ticketResolutionData.resolutionRate,
+        totalTickets: skipReportGov ? 0 : (isManual ? manualTotalTickets : ticketResolutionData.totalTickets),
+        resolvedTickets: skipReportGov ? 0 : (isManual ? manualResolvedTickets : ticketResolutionData.resolvedTickets),
+        averageResponseTime: skipReportGov ? 0 : (isManual ? manualAverageResponseTime : ticketResolutionData.averageResponseTime),
+        averageResolutionTime: skipReportGov ? 0 : (isManual ? manualAverageResolutionTime : ticketResolutionData.averageResolutionTime),
+        resolutionRate: skipReportGov ? 0 : (isManual ? (manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0) : ticketResolutionData.resolutionRate),
         score: score,
-        isManual: isManual
+        isManual: isManual,
+        isSkipped: skipReportGov
       });
       toast.success("✅ Report Governance data saved successfully!");
     } catch (error) {
@@ -1289,7 +1324,7 @@ export default function ScoringMetricsPage() {
     try {
       const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
       const totalScore = calculateMysteryScore();
-      const maxPossibleScore = questions.length;
+      const maxPossibleScore = 20; // Mystery Shopping is always out of 20 points
       const percentage = (totalScore / 20) * 100;
 
       // Extract year from current scoring period
@@ -1573,7 +1608,7 @@ export default function ScoringMetricsPage() {
         <div className="w-full mb-6">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
-              <button
+              {/* <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'dashboard'
@@ -1582,7 +1617,7 @@ export default function ScoringMetricsPage() {
                 }`}
               >
                 Dashboard
-              </button>
+              </button> */}
               <button
                 onClick={() => setActiveTab('live-dashboard')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -1608,11 +1643,11 @@ export default function ScoringMetricsPage() {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'dashboard' ? (
+        {/* {activeTab === 'dashboard' ? (
           <div className="w-full space-y-6">
             <ScoringMetricsDashboard />
             
-            {/* MDA Leaderboard */}
+            MDA Leaderboard
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h2 className="text-2xl font-bold text-gray-800 mb-6">MDA Performance Leaderboard</h2>
               
@@ -1707,7 +1742,8 @@ export default function ScoringMetricsPage() {
               )}
             </div>
           </div>
-        ) : activeTab === 'live-dashboard' ? (
+        ) : */}
+        {activeTab === 'live-dashboard' ? (
           <div className="w-full space-y-6">
             {/* Live Dashboard Header */}
             <div className="bg-white p-6 rounded-lg shadow-md">
@@ -1834,8 +1870,8 @@ export default function ScoringMetricsPage() {
                             let bValue: any = 0;
                             
                             if (selectedMetric === 'totalScore') {
-                              aValue = a.totalScore || 0;
-                              bValue = b.totalScore || 0;
+                              aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                              bValue = b.totalPercentage || 0;
                             } else if (selectedMetric === 'mysteryShopping') {
                               aValue = a.mysteryShopping?.score || 0;
                               bValue = b.mysteryShopping?.score || 0;
@@ -1871,8 +1907,8 @@ export default function ScoringMetricsPage() {
                           let bValue: any = 0;
                           
                           if (selectedMetric === 'totalScore') {
-                            aValue = a.totalScore || 0;
-                            bValue = b.totalScore || 0;
+                            aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                            bValue = b.totalPercentage || 0;
                           } else if (selectedMetric === 'mysteryShopping') {
                             aValue = a.mysteryShopping?.score || 0;
                             bValue = b.mysteryShopping?.score || 0;
@@ -2005,7 +2041,29 @@ export default function ScoringMetricsPage() {
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                       {mda.reportGovResolution ? (
-                                        <span className="font-semibold">{mda.reportGovResolution.score.toFixed(1)}/15</span>
+                                        <div>
+                                          {mda.reportGovResolution.isSkipped ? (
+                                            <div>
+                                              <div className="font-semibold text-gray-400 line-through">0/15</div>
+                                              <div className="text-xs text-yellow-600 mt-1">⚠️ Skipped</div>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <div className="font-semibold">{mda.reportGovResolution.score.toFixed(1)}/15</div>
+                                              {mda.reportGovResolution.hasFirstHalf !== undefined && (
+                                                <div className="text-xs text-gray-400 mt-1">
+                                                  {mda.reportGovResolution.hasFirstHalf && mda.reportGovResolution.hasSecondHalf ? (
+                                                    <span>1st: {mda.reportGovResolution.firstHalfScore?.toFixed(1) || 'N/A'}, 2nd: {mda.reportGovResolution.secondHalfScore?.toFixed(1) || 'N/A'}</span>
+                                                  ) : mda.reportGovResolution.hasFirstHalf ? (
+                                                    <span className="text-yellow-600">1st Half only: {mda.reportGovResolution.firstHalfScore?.toFixed(1) || 'N/A'}</span>
+                                                  ) : mda.reportGovResolution.hasSecondHalf ? (
+                                                    <span className="text-yellow-600">2nd Half only: {mda.reportGovResolution.secondHalfScore?.toFixed(1) || 'N/A'}</span>
+                                                  ) : null}
+                                                </div>
+                                              )}
+                                            </>
+                                          )}
+                                        </div>
                                       ) : (
                                         <span className="text-gray-400">—</span>
                                       )}
@@ -2031,14 +2089,33 @@ export default function ScoringMetricsPage() {
                                       )}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                      <span className={`font-bold ${
-                                        mda.totalScore >= 90 ? 'text-green-600' :
-                                        mda.totalScore >= 80 ? 'text-blue-600' :
-                                        mda.totalScore >= 70 ? 'text-yellow-600' :
-                                        mda.totalScore >= 60 ? 'text-orange-600' : 'text-red-600'
+                                      <div className="flex items-center gap-2">
+                                        <span className={`font-bold ${
+                                          mda.totalPercentage >= 90 ? 'text-green-600' :
+                                          mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                          mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                          mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                        }`}>
+                                          {mda.totalScore.toFixed(1)}/100
+                                        </span>
+                                        {mda.isReportGovSkipped && (
+                                          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" title="Report Gov Resolution skipped - using 85 points for normalization">
+                                            ⚠️ Using 85
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className={`text-xs mt-1 ${
+                                        mda.totalPercentage >= 90 ? 'text-green-600' :
+                                        mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                        mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                        mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
                                       }`}>
-                                        {mda.totalScore.toFixed(1)}/100
-                                      </span>
+                                        {mda.isReportGovSkipped ? (
+                                          <span>{mda.totalPercentage.toFixed(1)}/100</span>
+                                        ) : (
+                                          <span>{mda.totalPercentage.toFixed(1)}%</span>
+                                        )}
+                                      </div>
                                     </td>
                                   </>
                                 ) : (
@@ -2142,8 +2219,8 @@ export default function ScoringMetricsPage() {
                             let bValue: any = 0;
                             
                             if (selectedMetric === 'totalScore') {
-                              aValue = a.totalScore || 0;
-                              bValue = b.totalScore || 0;
+                              aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                              bValue = b.totalPercentage || 0;
                             } else if (selectedMetric === 'mysteryShopping') {
                               aValue = a.mysteryShopping?.score || 0;
                               bValue = b.mysteryShopping?.score || 0;
@@ -2182,7 +2259,7 @@ export default function ScoringMetricsPage() {
                             
                             if (selectedMetric === 'totalScore') {
                               score = mda.totalScore || 0;
-                              overallPercentage = score;
+                              overallPercentage = mda.totalPercentage || 0; // Use normalized percentage
                             } else if (selectedMetric === 'mysteryShopping') {
                               score = mda.mysteryShopping?.score || 0;
                               maxScore = 20;
@@ -2281,8 +2358,8 @@ export default function ScoringMetricsPage() {
                             let bValue: any = 0;
                             
                             if (selectedMetric === 'totalScore') {
-                              aValue = a.totalScore || 0;
-                              bValue = b.totalScore || 0;
+                              aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                              bValue = b.totalPercentage || 0;
                             } else if (selectedMetric === 'mysteryShopping') {
                               aValue = a.mysteryShopping?.score || 0;
                               bValue = b.mysteryShopping?.score || 0;
@@ -2321,7 +2398,7 @@ export default function ScoringMetricsPage() {
                             
                             if (selectedMetric === 'totalScore') {
                               score = mda.totalScore || 0;
-                              overallPercentage = score;
+                              overallPercentage = mda.totalPercentage || 0; // Use normalized percentage
                             } else if (selectedMetric === 'mysteryShopping') {
                               score = mda.mysteryShopping?.score || 0;
                               maxScore = 20;
@@ -2531,7 +2608,8 @@ export default function ScoringMetricsPage() {
                                 });
                                 
                                 if (half.totalScore) avgTotalScore += half.totalScore;
-                                if (half.maxPossibleScore) avgMaxScore = Math.max(avgMaxScore, half.maxPossibleScore);
+                                // Mystery Shopping is always out of 20 points, regardless of question count
+                                avgMaxScore = 20;
                                 if (half.percentage) avgPercentage += half.percentage;
                                 count++;
                               }
@@ -2571,7 +2649,7 @@ export default function ScoringMetricsPage() {
                                 </div>
                                 {finalMysteryScore > 0 && (
                                   <div className="mt-2 pt-2 border-t">
-                                    <span className="font-bold">Total Score: {finalMysteryScore.toFixed(1)}/{avgMaxScore || 20} ({finalMysteryPercentage.toFixed(1)}%)</span>
+                                    <span className="font-bold">Total Score: {finalMysteryScore.toFixed(1)}/20 ({finalMysteryPercentage.toFixed(1)}%)</span>
                                   </div>
                                 )}
                                 {Object.keys(combinedRatings).length === 0 && (
@@ -2670,41 +2748,75 @@ export default function ScoringMetricsPage() {
                             {(() => {
                               const resFirst = viewDetailsData.reportGovResolution?.firstHalf || {};
                               const resSecond = viewDetailsData.reportGovResolution?.secondHalf || {};
-                              const hasData = viewDetailsData.reportGovResolution?.firstHalf || viewDetailsData.reportGovResolution?.secondHalf;
+                              const hasFirstHalf = resFirst && (resFirst.totalTickets !== undefined || resFirst.score !== undefined);
+                              const hasSecondHalf = resSecond && (resSecond.totalTickets !== undefined || resSecond.score !== undefined);
+                              const isSkipped = (resFirst?.isSkipped || false) || (resSecond?.isSkipped || false);
+                              const hasData = hasFirstHalf || hasSecondHalf;
+                              
+                              if (isSkipped) {
+                                return (
+                                  <div className="bg-white p-3 rounded border">
+                                    <div className="text-sm space-y-1">
+                                      <div className="font-bold text-yellow-600">⚠️ Report Gov Resolution Skipped</div>
+                                      <div className="text-gray-500">Score: 0/15 (Skipped)</div>
+                                      <div className="text-xs text-blue-600 mt-2">
+                                        Note: Total score normalized to 85=100% for fair ranking
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
                               
                               if (hasData) {
-                                // Sum total tickets and resolved tickets (add both halves)
-                                const totalTickets = (resFirst.totalTickets || 0) + (resSecond.totalTickets || 0);
-                                const resolvedTickets = (resFirst.resolvedTickets || 0) + (resSecond.resolvedTickets || 0);
+                                let totalTickets, resolvedTickets, resolutionRate, avgResponseTime, avgResolutionTime, avgScore, periodLabel, originalHalfScore;
                                 
-                                // Calculate resolution rate from summed values
-                                const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
-                                
-                                // Average response time and resolution time (only if both halves have data)
-                                let avgResponseTime = resFirst.averageResponseTime || 0;
-                                let avgResolutionTime = resFirst.averageResolutionTime || 0;
-                                if (resFirst.averageResponseTime && resSecond.averageResponseTime) {
-                                  avgResponseTime = ((resFirst.averageResponseTime || 0) + (resSecond.averageResponseTime || 0)) / 2;
-                                } else if (resSecond.averageResponseTime) {
-                                  avgResponseTime = resSecond.averageResponseTime;
-                                }
-                                
-                                if (resFirst.averageResolutionTime && resSecond.averageResolutionTime) {
-                                  avgResolutionTime = ((resFirst.averageResolutionTime || 0) + (resSecond.averageResolutionTime || 0)) / 2;
-                                } else if (resSecond.averageResolutionTime) {
-                                  avgResolutionTime = resSecond.averageResolutionTime;
-                                }
-                                
-                                // Average score (only if both halves have data)
-                                let avgScore = resFirst.score || 0;
-                                if (resFirst.score && resSecond.score) {
-                                  avgScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
-                                } else if (resSecond.score) {
-                                  avgScore = resSecond.score;
+                                if (hasFirstHalf && hasSecondHalf) {
+                                  // Both halves have data - sum tickets, average times and score
+                                  totalTickets = (resFirst.totalTickets || 0) + (resSecond.totalTickets || 0);
+                                  resolvedTickets = (resFirst.resolvedTickets || 0) + (resSecond.resolvedTickets || 0);
+                                  resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+                                  
+                                  avgResponseTime = resFirst.averageResponseTime && resSecond.averageResponseTime
+                                    ? ((resFirst.averageResponseTime || 0) + (resSecond.averageResponseTime || 0)) / 2
+                                    : (resFirst.averageResponseTime || resSecond.averageResponseTime || 0);
+                                  
+                                  avgResolutionTime = resFirst.averageResolutionTime && resSecond.averageResolutionTime
+                                    ? ((resFirst.averageResolutionTime || 0) + (resSecond.averageResolutionTime || 0)) / 2
+                                    : (resFirst.averageResolutionTime || resSecond.averageResolutionTime || 0);
+                                  
+                                  avgScore = resFirst.score && resSecond.score
+                                    ? ((resFirst.score || 0) + (resSecond.score || 0)) / 2
+                                    : (resFirst.score || resSecond.score || 0);
+                                  
+                                  periodLabel = "Both Halves (Averaged)";
+                                  originalHalfScore = null;
+                                } else if (hasFirstHalf) {
+                                  // Only first half has data - divide score by 2 (like table)
+                                  totalTickets = resFirst.totalTickets || 0;
+                                  resolvedTickets = resFirst.resolvedTickets || 0;
+                                  resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+                                  avgResponseTime = resFirst.averageResponseTime || 0;
+                                  avgResolutionTime = resFirst.averageResolutionTime || 0;
+                                  originalHalfScore = resFirst.score || 0;
+                                  avgScore = originalHalfScore / 2; // Divide by 2 when only one half
+                                  periodLabel = "1st Half Only";
+                                } else {
+                                  // Only second half has data - divide score by 2 (like table)
+                                  totalTickets = resSecond.totalTickets || 0;
+                                  resolvedTickets = resSecond.resolvedTickets || 0;
+                                  resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+                                  avgResponseTime = resSecond.averageResponseTime || 0;
+                                  avgResolutionTime = resSecond.averageResolutionTime || 0;
+                                  originalHalfScore = resSecond.score || 0;
+                                  avgScore = originalHalfScore / 2; // Divide by 2 when only one half
+                                  periodLabel = "2nd Half Only";
                                 }
                                 
                                 return (
                                   <div className="bg-white p-3 rounded border">
+                                    {periodLabel && (
+                                      <div className="text-xs text-gray-500 mb-2 font-semibold">{periodLabel}</div>
+                                    )}
                                     <div className="text-sm space-y-1">
                                       <div>Total Tickets: {totalTickets.toFixed(0)}</div>
                                       <div>Resolved Tickets: {resolvedTickets.toFixed(0)}</div>
@@ -2712,6 +2824,11 @@ export default function ScoringMetricsPage() {
                                       <div>Avg Response Time: {avgResponseTime.toFixed(1)} hours</div>
                                       <div>Avg Resolution Time: {avgResolutionTime.toFixed(1)} hours</div>
                                       <div className="font-bold">Score: {avgScore.toFixed(1)}/15</div>
+                                      {originalHalfScore !== null && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          {periodLabel.includes("1st") ? "1st" : "2nd"} Half only: {originalHalfScore.toFixed(1)}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -2844,17 +2961,27 @@ export default function ScoringMetricsPage() {
                               ((viewDetailsData.stakeholder?.firstHalf?.score || 0) + (viewDetailsData.stakeholder?.secondHalf?.score || 0)) / 2 : 0;
                             const reportGovScore = viewDetailsData.reportGovernance?.firstHalf || viewDetailsData.reportGovernance?.secondHalf ?
                               ((viewDetailsData.reportGovernance?.firstHalf?.score || 0) + (viewDetailsData.reportGovernance?.secondHalf?.score || 0)) / 2 : 0;
-                            // Calculate Report Gov Resolution score (average if both halves exist, otherwise use available one)
+                            // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
                             let reportGovResScore = 0;
+                            const isReportGovSkipped = (viewDetailsData.reportGovResolution?.firstHalf?.isSkipped || false) || 
+                                                      (viewDetailsData.reportGovResolution?.secondHalf?.isSkipped || false);
                             if (viewDetailsData.reportGovResolution?.firstHalf || viewDetailsData.reportGovResolution?.secondHalf) {
                               const resFirst = viewDetailsData.reportGovResolution?.firstHalf || {};
                               const resSecond = viewDetailsData.reportGovResolution?.secondHalf || {};
-                              if (resFirst.score && resSecond.score) {
-                                reportGovResScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
-                              } else if (resFirst.score) {
-                                reportGovResScore = resFirst.score;
-                              } else if (resSecond.score) {
-                                reportGovResScore = resSecond.score;
+                              const hasFirstHalf = resFirst && resFirst.score !== undefined && resFirst.score !== null;
+                              const hasSecondHalf = resSecond && resSecond.score !== undefined && resSecond.score !== null;
+                              
+                              if (!isReportGovSkipped) {
+                                if (hasFirstHalf && hasSecondHalf) {
+                                  // Both halves have data - average
+                                  reportGovResScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
+                                } else if (hasFirstHalf) {
+                                  // Only first half - divide by 2
+                                  reportGovResScore = (resFirst.score || 0) / 2;
+                                } else if (hasSecondHalf) {
+                                  // Only second half - divide by 2
+                                  reportGovResScore = (resSecond.score || 0) / 2;
+                                }
                               }
                             }
                             
@@ -2880,6 +3007,11 @@ export default function ScoringMetricsPage() {
 
                             const totalScore = slaScore + mysteryScore + collabScore + stakeholderScore + 
                                               reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+                            
+                            const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+                            const totalPercentage = isReportGovSkipped 
+                              ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+                              : (totalScore / 100) * 100; // Standard: 100 points = 100%
 
                             return (
                               <div className="space-y-2 text-sm">
@@ -2888,12 +3020,23 @@ export default function ScoringMetricsPage() {
                                 <div className="flex justify-between"><span>Inter MDA Collaboration:</span><span className="font-semibold">{collabScore.toFixed(1)}/15</span></div>
                                 <div className="flex justify-between"><span>Stakeholder Engagement:</span><span className="font-semibold">{stakeholderScore.toFixed(1)}/10</span></div>
                                 <div className="flex justify-between"><span>Report Governance:</span><span className="font-semibold">{reportGovScore.toFixed(1)}/5</span></div>
-                                <div className="flex justify-between"><span>Report Gov Resolution:</span><span className="font-semibold">{reportGovResScore.toFixed(1)}/15</span></div>
+                                <div className={`flex justify-between ${isReportGovSkipped ? 'text-gray-500' : ''}`}>
+                                  <span>Report Gov Resolution: {isReportGovSkipped && <span className="text-yellow-600">(Skipped)</span>}</span>
+                                  <span className="font-semibold">{reportGovResScore.toFixed(1)}/15</span>
+                                </div>
                                 <div className="flex justify-between"><span>Monthly Report Submission:</span><span className="font-semibold">{monthlyReportScore.toFixed(1)}/3</span></div>
                                 <div className="flex justify-between"><span>Timeliness:</span><span className="font-semibold">{timelinessScore.toFixed(1)}/2</span></div>
+                                {isReportGovSkipped && (
+                                  <div className="text-xs text-blue-600 mt-2 p-2 bg-blue-50 rounded">
+                                    ⚠️ Report Gov Resolution skipped - normalized to 85=100% for fair ranking
+                                  </div>
+                                )}
                                 <div className="mt-4 pt-4 border-t-2 border-blue-400 flex justify-between text-lg">
                                   <span className="font-bold">OVERALL TOTAL:</span>
-                                  <span className="font-bold">{totalScore.toFixed(1)}/100 ({totalScore.toFixed(1)}%)</span>
+                                  <div className="flex flex-col items-end">
+                                    <span className="font-bold">{totalScore.toFixed(1)}/{maxPossiblePoints}</span>
+                                    <span className="font-bold">{totalPercentage.toFixed(1)}%</span>
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -4653,7 +4796,7 @@ export default function ScoringMetricsPage() {
                             {item.mdaName}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <span className="font-semibold">{item.totalScore.toFixed(1)}/{item.maxPossibleScore}</span>
+                            <span className="font-semibold">{item.totalScore.toFixed(1)}/20</span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`font-semibold ${

@@ -813,6 +813,7 @@ export default defineSchema({
     resolutionRate: v.number(),
     score: v.number(),
     isManual: v.boolean(),
+    isSkipped: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),
