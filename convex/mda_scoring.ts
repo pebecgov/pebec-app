@@ -1157,9 +1157,10 @@ export const saveReportGovData = mutation({
     averageResolutionTime: v.number(),
     resolutionRate: v.number(),
     score: v.number(),
-    isManual: v.boolean()
+    isManual: v.boolean(),
+    isSkipped: v.optional(v.boolean())
   },
-  handler: async (ctx, { mdaName, scoringPeriod, totalTickets, resolvedTickets, averageResponseTime, averageResolutionTime, resolutionRate, score, isManual }) => {
+  handler: async (ctx, { mdaName, scoringPeriod, totalTickets, resolvedTickets, averageResponseTime, averageResolutionTime, resolutionRate, score, isManual, isSkipped }) => {
     const user = await getCurrentUserOrThrow(ctx);
     
     // Check if Report Gov data already exists for this MDA and period
@@ -1177,6 +1178,7 @@ export const saveReportGovData = mutation({
         resolutionRate,
         score,
         isManual,
+        isSkipped: isSkipped ?? false,
         updatedAt: Date.now(),
         updatedBy: user._id
       });
@@ -1192,6 +1194,7 @@ export const saveReportGovData = mutation({
         resolutionRate,
         score,
         isManual,
+        isSkipped: isSkipped ?? false,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         createdBy: user._id,
@@ -1985,12 +1988,29 @@ export const getAllMdaSavedDataForDashboard = query({
         avgResolutionTime = secondHalf.averageResolutionTime;
       }
       
-      // Average score (only if both halves have data)
-      let avgScore = firstHalf?.score || 0;
-      if (firstHalf?.score && secondHalf?.score) {
+      // Report Gov Resolution scoring: Each half is worth 7.5 points (total = 15 points)
+      // If MDA scores 15 in 1st half, that equals 7.5 points (15 / 2 = 7.5)
+      // If MDA scores 10 in 1st half, that equals 5 points (10 / 2 = 5)
+      // Always divide by 2 to get the points contribution for that half
+      let avgScore = 0;
+      const hasFirstHalfData = firstHalf && firstHalf.score !== undefined && firstHalf.score !== null;
+      const hasSecondHalfData = secondHalf && secondHalf.score !== undefined && secondHalf.score !== null;
+      
+      // Check if either half is skipped
+      const isSkipped = (firstHalf?.isSkipped || false) || (secondHalf?.isSkipped || false);
+      
+      if (hasFirstHalfData && hasSecondHalfData) {
+        // Both halves have data - each half contributes half of its score
+        // Example: 1st half = 15, 2nd half = 10 → (15/2) + (10/2) = 7.5 + 5 = 12.5
         avgScore = ((firstHalf.score || 0) + (secondHalf.score || 0)) / 2;
-      } else if (secondHalf?.score) {
-        avgScore = secondHalf.score;
+      } else if (hasSecondHalfData) {
+        // Only second half has data - divide by 2 to get points (max 7.5)
+        // Example: 2nd half = 10 → 10 / 2 = 5 points
+        avgScore = (secondHalf.score || 0) / 2;
+      } else if (hasFirstHalfData) {
+        // Only first half has data - divide by 2 to get points (max 7.5)
+        // Example: 1st half = 15 → 15 / 2 = 7.5 points
+        avgScore = (firstHalf.score || 0) / 2;
       }
       
       mdaDataMap[mdaName].reportGovResolution = {
@@ -2000,7 +2020,12 @@ export const getAllMdaSavedDataForDashboard = query({
         resolutionRate: totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0,
         averageResponseTime: avgResponseTime,
         averageResolutionTime: avgResolutionTime,
-        maxPossibleScore: 15
+        maxPossibleScore: 15,
+        hasFirstHalf: hasFirstHalfData,
+        hasSecondHalf: hasSecondHalfData,
+        firstHalfScore: firstHalf?.score || null,
+        secondHalfScore: secondHalf?.score || null,
+        isSkipped: isSkipped
       };
     });
     

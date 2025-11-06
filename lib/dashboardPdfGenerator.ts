@@ -129,12 +129,22 @@ export async function generateDashboardPDF({
         
         const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
                           reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
-        const totalPercentage = (totalScore / 100) * 100;
+        
+        // Check if Report Gov Resolution is skipped
+        const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
+        const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+        
+        // Normalize percentage: if skipped, 85 points = 100% for fair ranking
+        const totalPercentage = isReportGovSkipped 
+          ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+          : (totalScore / 100) * 100; // Standard: 100 points = 100%
         
         return {
           ...mda,
           totalScore,
-          totalPercentage
+          totalPercentage,
+          isReportGovSkipped,
+          maxPossiblePoints
         };
       });
     } else {
@@ -187,12 +197,22 @@ export async function generateDashboardPDF({
         
         const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
                           reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
-        const totalPercentage = (totalScore / 100) * 100;
+        
+        // Check if Report Gov Resolution is skipped
+        const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
+        const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+        
+        // Normalize percentage: if skipped, 85 points = 100% for fair ranking
+        const totalPercentage = isReportGovSkipped 
+          ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+          : (totalScore / 100) * 100; // Standard: 100 points = 100%
         
         return {
           ...mda,
           totalScore,
-          totalPercentage
+          totalPercentage,
+          isReportGovSkipped,
+          maxPossiblePoints
         };
       });
     }
@@ -203,8 +223,8 @@ export async function generateDashboardPDF({
       let bValue: any = 0;
       
       if (selectedMetric === 'totalScore') {
-        aValue = a.totalScore || 0;
-        bValue = b.totalScore || 0;
+        aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+        bValue = b.totalPercentage || 0;
       } else if (selectedMetric === 'mysteryShopping') {
         aValue = a.mysteryShopping?.score || 0;
         bValue = b.mysteryShopping?.score || 0;
@@ -251,7 +271,7 @@ export async function generateDashboardPDF({
       if (selectedMetric === 'totalScore') {
         score = mda.totalScore || 0;
         maxScore = 100;
-        overallPercentage = score;
+        overallPercentage = mda.totalPercentage || 0; // Use normalized percentage
       } else if (selectedMetric === 'mysteryShopping') {
         score = mda.mysteryShopping?.score || 0;
         maxScore = 20;
@@ -295,16 +315,23 @@ export async function generateDashboardPDF({
           mda.collaboration ? `${mda.collaboration.score.toFixed(1)}/15` : '—',
           mda.stakeholder ? `${mda.stakeholder.score.toFixed(1)}/10` : '—',
           mda.reportGovernance ? `${mda.reportGovernance.score.toFixed(1)}/5` : '—',
-          mda.reportGovResolution ? `${mda.reportGovResolution.score.toFixed(1)}/15` : '—',
+          mda.reportGovResolution ? (mda.reportGovResolution.isSkipped ? '0/15 (Skipped)' : `${mda.reportGovResolution.score.toFixed(1)}/15`) : '—',
           mda.monthlyReport ? `${mda.monthlyReport.score.toFixed(1)}/3` : '—',
           mda.timeliness ? `${mda.timeliness.score.toFixed(1)}/2` : '—',
-          `${mda.totalScore.toFixed(1)}/100`
+          mda.isReportGovSkipped 
+            ? `${mda.totalPercentage.toFixed(1)}/100 Using 85%`
+            : `${mda.totalScore.toFixed(1)}/100 (${mda.totalPercentage.toFixed(1)}%)`
         ]);
       } else {
+        const displayValue = score > 0 
+          ? (mda.isReportGovSkipped 
+              ? `${overallPercentage.toFixed(1)}/100 Using 85%`
+              : `${overallPercentage.toFixed(1)}%`)
+          : '—';
         tableData.push([
           `#${rank}`,
           mda.mdaName,
-          score > 0 ? `${overallPercentage.toFixed(1)}%` : '—'
+          displayValue
         ]);
       }
     });
