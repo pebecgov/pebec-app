@@ -40,38 +40,14 @@ const indicators = {
   "access_to_electricity": {
     name: "Access to Electricity",
     subIndicators: {
-      "connection_days": {
-        label: "New connections are readily available within",
+      "band_a_shares": {
+        label: "Select percentage of businesses connected to Band A (High supply Feeder)",
         options: [
-          { value: "1-10", label: "1-10 Working days", score: 3 },
-          { value: "11-20", label: "11-20 Working days", score: 2 },
-          { value: "exceed-20", label: "Exceed 20 working days", score: 1 },
-          { value: "unavailable", label: "Connections unavailable", score: 0 }
-        ]
-      },
-      "supply_hours": {
-        label: "Average electricity supply hours in a day",
-        options: [
-          { value: "15-24", label: "15–24 hours daily", score: 3 },
-          { value: "10-14", label: "10–14 hours daily", score: 2 },
-          { value: "4-9", label: "4–9 hours daily", score: 1 },
-          { value: "0-3", label: "0–3 hours daily", score: 0 }
-        ]
-      },
-      "affordability": {
-        label: "Electricity connection costs relative to national averages",
-        options: [
-          { value: "very-expensive", label: "Very Expensive", score: 0 },
-          { value: "moderate", label: "Moderate", score: 1 },
-          { value: "very-affordable", label: "Very Affordable", score: 2 }
-        ]
-      },
-      "fault_resolution": {
-        label: "Faults were resolved within",
-        options: [
-          { value: "1-7", label: "1-7 days", score: 2 },
-          { value: "8-14", label: "8-14 days", score: 1 },
-          { value: "15-30", label: "15-30 days", score: 0 }
+          { value: "70-100", label: "70-100%", score: 10 },
+          { value: "50-69", label: "50-69%", score: 8 },
+          { value: "30-49", label: "30-49%", score: 6 },
+          { value: "10-29", label: "10-29%", score: 4 },
+          { value: "0-10", label: "0-10%", score: 2 }
         ]
       }
     }
@@ -554,12 +530,14 @@ const StateForm = memo(({
   state, 
   indicator, 
   stateData, 
+  savedScores,
   onUpdate,
   onSaveComplete
 }: { 
   state: string; 
   indicator: string; 
   stateData: StateScoreData; 
+  savedScores?: Array<{ subIndicator: string; value: string }>;
   onUpdate: (subIndicator: string, value: string) => void;
   onSaveComplete?: () => void;
 }) => {
@@ -598,8 +576,18 @@ const StateForm = memo(({
   const indicatorConfig = indicators[indicator as keyof typeof indicators];
   if (!indicatorConfig) return null;
 
-  // Determine if this state is completed
-  const isCompleted = Object.values(stateData).some(value => value !== "");
+  // Determine if this state is completed - check saved scores, not local edits
+  // Completion status should only reflect what's actually saved to the database
+  const allSubIndicators = Object.keys(indicatorConfig.subIndicators);
+  const savedScoresMap = savedScores?.reduce((acc, score) => {
+    acc[score.subIndicator] = score.value;
+    return acc;
+  }, {} as Record<string, string>) || {};
+  
+  const filledSubIndicators = allSubIndicators.filter(
+    subIndicator => savedScoresMap[subIndicator] && savedScoresMap[subIndicator] !== ""
+  );
+  const isCompleted = allSubIndicators.length > 0 && filledSubIndicators.length === allSubIndicators.length;
   const statusVariant = isCompleted ? "default" : "secondary";
   const statusText = isCompleted ? "Completed" : "In Progress";
 
@@ -630,7 +618,7 @@ const StateForm = memo(({
               <SelectContent>
                 {config.options.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                    {option.label} ({option.score})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -684,11 +672,32 @@ export default function StateScoringForm() {
     // The useEffect above will handle updating the local state
   }, []);
 
+  // Helper function to check if a state is completed for the selected indicator
+  const isStateCompleted = useCallback((state: string, indicator: string): boolean => {
+    if (!indicator || !state) return false;
+    
+    const indicatorConfig = indicators[indicator as keyof typeof indicators];
+    if (!indicatorConfig) return false;
+    
+    const stateData = stateScores[state] || {};
+    const allSubIndicators = Object.keys(indicatorConfig.subIndicators);
+    
+    // Check if ALL sub-indicators have values
+    return allSubIndicators.length > 0 && 
+           allSubIndicators.every(subIndicator => 
+             stateData[subIndicator] && stateData[subIndicator] !== ""
+           );
+  }, [stateScores]);
+
   // Memoized progress calculation
   const progressData = useMemo(() => {
+    if (!selectedIndicator) {
+      return { completed: 0, total: nigerianStates.length, percentage: 0 };
+    }
+    
     const totalStates = nigerianStates.length;
-    const completedStates = Object.values(stateScores).filter(data => 
-      Object.values(data).some(value => value !== "")
+    const completedStates = nigerianStates.filter(state => 
+      isStateCompleted(state, selectedIndicator)
     ).length;
     
     const progressPercentage = (completedStates / totalStates) * 100;
@@ -698,20 +707,19 @@ export default function StateScoringForm() {
       total: totalStates,
       percentage: progressPercentage
     };
-  }, [stateScores]);
+  }, [selectedIndicator, stateScores, isStateCompleted]);
 
   // Memoized state list
   const stateList = useMemo(() => {
     return nigerianStates.map(state => {
-      const isCompleted = stateScores[state] && 
-        Object.values(stateScores[state]).some(value => value !== "");
+      const isCompleted = selectedIndicator ? isStateCompleted(state, selectedIndicator) : false;
       
       return {
         name: state,
         isCompleted
       };
     });
-  }, [stateScores]);
+  }, [stateScores, selectedIndicator, isStateCompleted]);
 
   // Update state data
   const updateStateData = useCallback((state: string, subIndicator: string, value: string) => {
@@ -815,6 +823,7 @@ export default function StateScoringForm() {
                       state={selectedState}
                       indicator={selectedIndicator}
                       stateData={getCurrentStateData(selectedState)}
+                      savedScores={existingScores}
                       onUpdate={(subIndicator, value) => updateStateData(selectedState, subIndicator, value)}
                       onSaveComplete={handleSaveComplete}
                     />
