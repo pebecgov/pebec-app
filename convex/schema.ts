@@ -788,6 +788,15 @@ export default defineSchema({
     // industry: v.optional(v.string()),
   }).index("byBatchId", ["batchId"]).index("byProcessedAt", ["processedAt"]).index("byTemplateId", ["templateId"]),
 
+  // State Scores Table - Clean normalized structure
+  state_scores: defineTable({
+    state: v.string(),
+    indicator: v.string(),
+    subIndicator: v.string(),
+    value: v.string(), // descriptive string selected from form
+    score: v.float64(), // numeric score derived from value mapping
+    createdAt: v.number()
+  }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byCreatedAt", ["createdAt"]),
   // SLA Data Storage
   mda_sla_data: defineTable({
     mdaName: v.string(),
