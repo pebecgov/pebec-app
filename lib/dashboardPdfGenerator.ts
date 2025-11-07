@@ -21,7 +21,8 @@ interface DashboardData {
   mdaName: string;
   sla?: { score: number; monthsWithData?: number };
   mysteryShopping?: { score: number };
-  collaboration?: { score: number };
+  controversial?: { score: number };
+  innovation?: { score: number };
   stakeholder?: { score: number };
   reportGovernance?: { score: number };
   reportGovResolution?: { score: number };
@@ -84,7 +85,8 @@ export async function generateDashboardPDF({
       'totalScore': 'Total Score (All Metrics)',
       'mysteryShopping': 'Mystery Shopping',
       'sla': 'Service Level Agreement',
-      'collaboration': 'Inter MDA Collaboration',
+      'controversial': 'Controversial',
+      'innovation': 'Innovation',
       'stakeholder': 'Stakeholder Engagement',
       'reportGovernance': 'Report Governance',
       'reportGovResolution': 'Report Gov Resolution',
@@ -120,14 +122,15 @@ export async function generateDashboardPDF({
         // Calculate total score for each MDA
         const slaScore = mda.sla?.score || 0;
         const mysteryScore = mda.mysteryShopping?.score || 0;
-        const collaborationScore = mda.collaboration?.score || 0;
+        const controversialScore = mda.controversial?.score || 0;
+        const innovationScore = mda.innovation?.score || 0;
         const stakeholderScore = mda.stakeholder?.score || 0;
         const reportGovScore = mda.reportGovernance?.score || 0;
         const reportGovResScore = mda.reportGovResolution?.score || 0;
         const monthlyReportScore = mda.monthlyReport?.score || 0;
         const timelinessScore = mda.timeliness?.score || 0;
         
-        const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
+        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                           reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
         
         // Check if Report Gov Resolution is skipped
@@ -155,7 +158,8 @@ export async function generateDashboardPDF({
           mdaName: mda.name,
           sla: null,
           mysteryShopping: null,
-          collaboration: null,
+          controversial: null,
+          innovation: null,
           stakeholder: null,
           reportGovernance: null,
           reportGovResolution: null,
@@ -188,14 +192,15 @@ export async function generateDashboardPDF({
       allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
         const slaScore = mda.sla?.score || 0;
         const mysteryScore = mda.mysteryShopping?.score || 0;
-        const collaborationScore = mda.collaboration?.score || 0;
+        const controversialScore = mda.controversial?.score || 0;
+        const innovationScore = mda.innovation?.score || 0;
         const stakeholderScore = mda.stakeholder?.score || 0;
         const reportGovScore = mda.reportGovernance?.score || 0;
         const reportGovResScore = mda.reportGovResolution?.score || 0;
         const monthlyReportScore = mda.monthlyReport?.score || 0;
         const timelinessScore = mda.timeliness?.score || 0;
         
-        const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
+        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                           reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
         
         // Check if Report Gov Resolution is skipped
@@ -231,9 +236,12 @@ export async function generateDashboardPDF({
       } else if (selectedMetric === 'sla') {
         aValue = a.sla?.score || 0;
         bValue = b.sla?.score || 0;
-      } else if (selectedMetric === 'collaboration') {
-        aValue = a.collaboration?.score || 0;
-        bValue = b.collaboration?.score || 0;
+      } else if (selectedMetric === 'controversial') {
+        aValue = a.controversial?.score || 0;
+        bValue = b.controversial?.score || 0;
+      } else if (selectedMetric === 'innovation') {
+        aValue = a.innovation?.score || 0;
+        bValue = b.innovation?.score || 0;
       } else if (selectedMetric === 'stakeholder') {
         aValue = a.stakeholder?.score || 0;
         bValue = b.stakeholder?.score || 0;
@@ -280,13 +288,17 @@ export async function generateDashboardPDF({
         score = mda.sla?.score || 0;
         maxScore = 30;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'collaboration') {
-        score = mda.collaboration?.score || 0;
-        maxScore = 15;
+      } else if (selectedMetric === 'controversial') {
+        score = mda.controversial?.score || 0;
+        maxScore = 10;
+        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+      } else if (selectedMetric === 'innovation') {
+        score = mda.innovation?.score || 0;
+        maxScore = 10;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
       } else if (selectedMetric === 'stakeholder') {
         score = mda.stakeholder?.score || 0;
-        maxScore = 10;
+        maxScore = 5;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
       } else if (selectedMetric === 'reportGovernance') {
         score = mda.reportGovernance?.score || 0;
@@ -312,8 +324,9 @@ export async function generateDashboardPDF({
           mda.mdaName,
           mda.sla ? `${mda.sla.score.toFixed(1)}/30` : '—',
           mda.mysteryShopping ? `${mda.mysteryShopping.score.toFixed(1)}/20` : '—',
-          mda.collaboration ? `${mda.collaboration.score.toFixed(1)}/15` : '—',
-          mda.stakeholder ? `${mda.stakeholder.score.toFixed(1)}/10` : '—',
+          mda.controversial ? `${mda.controversial.score.toFixed(1)}/10` : '—',
+          mda.innovation ? `${mda.innovation.score.toFixed(1)}/10` : '—',
+          mda.stakeholder ? `${mda.stakeholder.score.toFixed(1)}/5` : '—',
           mda.reportGovernance ? `${mda.reportGovernance.score.toFixed(1)}/5` : '—',
           mda.reportGovResolution ? (mda.reportGovResolution.isSkipped ? '0/15 (Skipped)' : `${mda.reportGovResolution.score.toFixed(1)}/15`) : '—',
           mda.monthlyReport ? `${mda.monthlyReport.score.toFixed(1)}/3` : '—',
@@ -340,7 +353,7 @@ export async function generateDashboardPDF({
     if (selectedMetric === 'totalScore') {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Rank', 'MDA Name', 'SLA', 'Mystery Shopping', 'Collaboration', 'Stakeholder', 'Report Gov', 'Report Gov Resolution', 'Monthly Report', 'Timeliness', 'Total Score']],
+        head: [['Rank', 'MDA Name', 'SLA', 'Mystery Shopping', 'Controversial', 'Innovation', 'Stakeholder', 'Report Gov', 'Report Gov Resolution', 'Monthly Report', 'Timeliness', 'Total Score']],
         body: tableData,
         headStyles: {
           fillColor: [41, 128, 185],

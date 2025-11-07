@@ -94,7 +94,8 @@ export default function ScoringMetricsPage() {
   const [showModel, setShowModel] = useState(false);
   const [showSlaModal, setShowSlaModal] = useState(false);
   const [mysteryRate, setMysteryRate] = useState(0);
-  const [collaborationRate, setCollaborationRate] = useState(0);
+  const [isControversial, setIsControversial] = useState(false);
+  const [isInnovative, setIsInnovative] = useState(false);
   const [stakeholderRate, setStakeholderRate] = useState(0);
   const [slaRate, setSlaRate] = useState(0);
   const [slaMethod, setSlaMethod] = useState<'file' | 'rating'>('file');
@@ -277,8 +278,12 @@ export default function ScoringMetricsPage() {
     api.mda_scoring.getMysteryShoppingData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
-  const savedCollaborationData = useQuery(
-    api.mda_scoring.getCollaborationData,
+  const savedControversialData = useQuery(
+    api.mda_scoring.getControversialData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const savedInnovationData = useQuery(
+    api.mda_scoring.getInnovationData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
   const savedStakeholderData = useQuery(
@@ -302,7 +307,8 @@ export default function ScoringMetricsPage() {
   const isLoadingSLAData = selectedMda && savedSLAData === undefined;
   const isLoadingReportGovData = selectedMda && savedReportGovData === undefined;
   const isLoadingMysteryShoppingData = selectedMda && savedMysteryShoppingData === undefined;
-  const isLoadingCollaborationData = selectedMda && savedCollaborationData === undefined;
+  const isLoadingControversialData = selectedMda && savedControversialData === undefined;
+  const isLoadingInnovationData = selectedMda && savedInnovationData === undefined;
   const isLoadingStakeholderData = selectedMda && savedStakeholderData === undefined;
   const isLoadingReportGovernanceData = selectedMda && savedReportGovernanceData === undefined;
   const isLoadingMonthlyReportData = selectedMda && savedMonthlyReportData === undefined;
@@ -312,7 +318,8 @@ export default function ScoringMetricsPage() {
   const saveSLAData = useMutation(api.mda_scoring.saveSLAData);
   const saveReportGovData = useMutation(api.mda_scoring.saveReportGovData);
   const saveMysteryShoppingData = useMutation(api.mda_scoring.saveMysteryShoppingData);
-  const saveCollaborationData = useMutation(api.mda_scoring.saveCollaborationData);
+  const saveControversialData = useMutation(api.mda_scoring.saveControversialData);
+  const saveInnovationData = useMutation(api.mda_scoring.saveInnovationData);
   const saveStakeholderData = useMutation(api.mda_scoring.saveStakeholderData);
   const saveReportGovernanceData = useMutation(api.mda_scoring.saveReportGovernanceData);
   const saveMonthlyReportData = useMutation(api.mda_scoring.saveMonthlyReportData);
@@ -356,7 +363,8 @@ export default function ScoringMetricsPage() {
         mdaName: mda.name,
         sla: null,
         mysteryShopping: null,
-        collaboration: null,
+        controversial: null,
+        innovation: null,
         stakeholder: null,
         reportGovernance: null,
         reportGovResolution: null,
@@ -383,7 +391,8 @@ export default function ScoringMetricsPage() {
             mdaName: matchingMdaName, // Use the canonical name from mdasList
             sla: mda.sla != null ? mda.sla : existing.sla,
             mysteryShopping: mda.mysteryShopping != null ? mda.mysteryShopping : existing.mysteryShopping,
-            collaboration: mda.collaboration != null ? mda.collaboration : existing.collaboration,
+            controversial: mda.controversial != null ? mda.controversial : existing.controversial,
+            innovation: mda.innovation != null ? mda.innovation : existing.innovation,
             stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
             reportGovernance: mda.reportGovernance != null ? mda.reportGovernance : existing.reportGovernance,
             reportGovResolution: mda.reportGovResolution != null ? {
@@ -403,14 +412,15 @@ export default function ScoringMetricsPage() {
     let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
       const slaScore = mda.sla?.score || 0;
       const mysteryScore = mda.mysteryShopping?.score || 0;
-      const collaborationScore = mda.collaboration?.score || 0;
+      const controversialScore = mda.controversial?.score || 0;
+      const innovationScore = mda.innovation?.score || 0;
       const stakeholderScore = mda.stakeholder?.score || 0;
       const reportGovScore = mda.reportGovernance?.score || 0;
       const reportGovResScore = mda.reportGovResolution?.score || 0;
       const monthlyReportScore = mda.monthlyReport?.score || 0;
       const timelinessScore = mda.timeliness?.score || 0;
       
-      const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
+      const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                         reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
       
       // Check if Report Gov Resolution is skipped
@@ -435,8 +445,8 @@ export default function ScoringMetricsPage() {
     if (filter === 'withData') {
       allMdasArray = allMdasArray.filter((mda: any) => {
         // Check if MDA has at least one metric with data
-        return mda.sla || mda.mysteryShopping || mda.collaboration || 
-               mda.stakeholder || mda.reportGovernance || mda.reportGovResolution || 
+        return mda.sla || mda.mysteryShopping || mda.controversial || 
+               mda.innovation || mda.stakeholder || mda.reportGovernance || mda.reportGovResolution || 
                mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
       });
     }
@@ -458,7 +468,8 @@ export default function ScoringMetricsPage() {
       mdaName: mda.mdaName,
       sla: mda.sla,
       mysteryShopping: mda.mysteryShopping,
-      collaboration: mda.collaboration,
+      controversial: mda.controversial,
+      innovation: mda.innovation,
       stakeholder: mda.stakeholder,
       reportGovernance: mda.reportGovernance,
       reportGovResolution: mda.reportGovResolution,
@@ -779,13 +790,21 @@ export default function ScoringMetricsPage() {
     }
   }, [savedMysteryShoppingData, selectedMda, scoringPeriod, isLoadingMysteryShoppingData]);
 
-  // Load saved Collaboration data when available
+  // Load saved Controversial data when available
   useEffect(() => {
-    if (!isLoadingCollaborationData && savedCollaborationData && selectedMda) {
-      setCollaborationRate(savedCollaborationData.rate || 0);
-      toast.success(`🤝 Loaded saved Inter MDA Collaboration data for ${selectedMda} - ${scoringPeriod}`);
+    if (!isLoadingControversialData && savedControversialData && selectedMda) {
+      setIsControversial(savedControversialData.isControversial || false);
+      toast.success(`⚠️ Loaded saved Controversial data for ${selectedMda} - ${scoringPeriod}`);
     }
-  }, [savedCollaborationData, selectedMda, scoringPeriod, isLoadingCollaborationData]);
+  }, [savedControversialData, selectedMda, scoringPeriod, isLoadingControversialData]);
+
+  // Load saved Innovation data when available
+  useEffect(() => {
+    if (!isLoadingInnovationData && savedInnovationData && selectedMda) {
+      setIsInnovative(savedInnovationData.isInnovative || false);
+      toast.success(`💡 Loaded saved Innovation data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedInnovationData, selectedMda, scoringPeriod, isLoadingInnovationData]);
 
   // Load saved Stakeholder Engagement data when available
   useEffect(() => {
@@ -1133,11 +1152,14 @@ export default function ScoringMetricsPage() {
     // Mystery Shopping is saved for both halves, but we only want the current period's data
     const mysteryShoppingScore = savedMysteryShoppingData?.totalScore ?? calculateMysteryScore();
     
-    // Use saved Collaboration data for current period, or fall back to state
-    const collaborationScore = savedCollaborationData?.score ?? ((collaborationRate / 10) * 15);
+    // Use saved Controversial data for current period, or fall back to state
+    const controversialScore = savedControversialData?.score ?? (isControversial ? 0 : 10);
+    
+    // Use saved Innovation data for current period, or fall back to state
+    const innovationScore = savedInnovationData?.score ?? (isInnovative ? 10 : 0);
     
     // Use saved Stakeholder data for current period, or fall back to state
-    const stakeholderScore = savedStakeholderData?.score ?? ((stakeholderRate / 10) * 10);
+    const stakeholderScore = savedStakeholderData?.score ?? ((stakeholderRate / 10) * 5);
     
     // Use saved Report Governance data for current period, or fall back to calculated
     const reportGovernanceScore = savedReportGovernanceData?.score ?? (Object.values(checkboxItems).filter(Boolean).length / 3 * 5);
@@ -1145,7 +1167,8 @@ export default function ScoringMetricsPage() {
     const baseScores = {
       serviceLevelAgreement: monthlySlaScore.totalScore,
       mysteryShopping: mysteryShoppingScore,
-      interMdaCollaboration: collaborationScore,
+      controversial: controversialScore,
+      innovation: innovationScore,
       stakeholderEngagement: stakeholderScore,
       reportGovernance: reportGovernanceScore,
       reportGovernanceResolution: reportGovScore,
@@ -1157,7 +1180,8 @@ export default function ScoringMetricsPage() {
     const scores = {
       serviceLevelAgreement: calculateAverageWithPastData(baseScores.serviceLevelAgreement, 'serviceLevelAgreement'),
       mysteryShopping: calculateAverageWithPastData(baseScores.mysteryShopping, 'mysteryShopping'),
-      interMdaCollaboration: calculateAverageWithPastData(baseScores.interMdaCollaboration, 'interMdaCollaboration'),
+      controversial: calculateAverageWithPastData(baseScores.controversial, 'controversial'),
+      innovation: calculateAverageWithPastData(baseScores.innovation, 'innovation'),
       stakeholderEngagement: calculateAverageWithPastData(baseScores.stakeholderEngagement, 'stakeholderEngagement'),
       reportGovernance: calculateAverageWithPastData(baseScores.reportGovernance, 'reportGovernance'),
       reportGovernanceResolution: skipReportGov ? 0 : calculateAverageWithPastData(baseScores.reportGovernanceResolution, 'reportGovernanceResolution'),
@@ -1361,15 +1385,16 @@ export default function ScoringMetricsPage() {
     }
   };
 
-  // Save Inter MDA Collaboration data for both halves
-  const handleSaveCollaborationData = async () => {
+  // Save Controversial data for both halves
+  const handleSaveControversialData = async () => {
     if (!selectedMda) {
       toast.error("Please select an MDA first");
       return;
     }
 
     try {
-      const score = (collaborationRate / 10) * 15;
+      // Controversial: Yes = 0 points, No = 10 points
+      const score = isControversial ? 0 : 10;
       
       // Extract year from current scoring period
       const yearMatch = scoringPeriod.match(/\d{4}/);
@@ -1379,22 +1404,61 @@ export default function ScoringMetricsPage() {
 
       // Save for both halves
       await Promise.all([
-        saveCollaborationData({
+        saveControversialData({
           mdaName: selectedMda,
           scoringPeriod: firstHalfPeriod,
-          rate: collaborationRate,
+          isControversial: isControversial,
           score: score
         }),
-        saveCollaborationData({
+        saveControversialData({
           mdaName: selectedMda,
           scoringPeriod: secondHalfPeriod,
-          rate: collaborationRate,
+          isControversial: isControversial,
           score: score
         })
       ]);
-      toast.success("✅ Inter MDA Collaboration data saved for both halves successfully!");
+      toast.success("✅ Controversial data saved for both halves successfully!");
     } catch (error) {
-      toast.error("Failed to save Inter MDA Collaboration data");
+      toast.error("Failed to save Controversial data");
+      console.error(error);
+    }
+  };
+
+  // Save Innovation data for both halves
+  const handleSaveInnovationData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      // Innovation: Yes = 10 points, No = 0 points
+      const score = isInnovative ? 10 : 0;
+      
+      // Extract year from current scoring period
+      const yearMatch = scoringPeriod.match(/\d{4}/);
+      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+      const firstHalfPeriod = `1st Half ${targetYear}`;
+      const secondHalfPeriod = `2nd Half ${targetYear}`;
+
+      // Save for both halves
+      await Promise.all([
+        saveInnovationData({
+          mdaName: selectedMda,
+          scoringPeriod: firstHalfPeriod,
+          isInnovative: isInnovative,
+          score: score
+        }),
+        saveInnovationData({
+          mdaName: selectedMda,
+          scoringPeriod: secondHalfPeriod,
+          isInnovative: isInnovative,
+          score: score
+        })
+      ]);
+      toast.success("✅ Innovation data saved for both halves successfully!");
+    } catch (error) {
+      toast.error("Failed to save Innovation data");
       console.error(error);
     }
   };
@@ -1407,7 +1471,7 @@ export default function ScoringMetricsPage() {
     }
 
     try {
-      const score = (stakeholderRate / 10) * 10;
+      const score = (stakeholderRate / 10) * 5;
       
       // Extract year from current scoring period
       const yearMatch = scoringPeriod.match(/\d{4}/);
@@ -1556,7 +1620,8 @@ export default function ScoringMetricsPage() {
         scoringPeriod: scoringPeriod,
         serviceLevelAgreementScore: finalScoreData.scores.serviceLevelAgreement,
         mysteryShoppingScore: finalScoreData.scores.mysteryShopping,
-        interMdaCollaborationScore: finalScoreData.scores.interMdaCollaboration,
+        controversialScore: finalScoreData.scores.controversial,
+        innovationScore: finalScoreData.scores.innovation,
         stakeholderEngagementScore: finalScoreData.scores.stakeholderEngagement,
         reportGovernanceScore: finalScoreData.scores.reportGovernance,
         reportGovernanceResolutionScore: finalScoreData.scores.reportGovernanceResolution,
@@ -1762,7 +1827,8 @@ export default function ScoringMetricsPage() {
                       <MenuItem value="totalScore">Total Score (All Metrics)</MenuItem>
                       <MenuItem value="mysteryShopping">Mystery Shopping</MenuItem>
                       <MenuItem value="sla">Service Level Agreement</MenuItem>
-                      <MenuItem value="collaboration">Inter MDA Collaboration</MenuItem>
+                      <MenuItem value="controversial">Controversial</MenuItem>
+                      <MenuItem value="innovation">Innovation</MenuItem>
                       <MenuItem value="stakeholder">Stakeholder Engagement</MenuItem>
                       <MenuItem value="reportGovernance">Report Governance</MenuItem>
                       <MenuItem value="reportGovResolution">Report Gov Resolution</MenuItem>
@@ -1832,7 +1898,8 @@ export default function ScoringMetricsPage() {
                           <>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SLA</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mystery Shopping</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Collaboration</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Controversial</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Innovation</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stakeholder</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov Resolution</th>
@@ -1844,7 +1911,8 @@ export default function ScoringMetricsPage() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {selectedMetric === 'mysteryShopping' ? 'Mystery Shopping' :
                              selectedMetric === 'sla' ? 'Service Level Agreement' :
-                             selectedMetric === 'collaboration' ? 'Inter MDA Collaboration' :
+                             selectedMetric === 'controversial' ? 'Controversial' :
+                             selectedMetric === 'innovation' ? 'Innovation' :
                              selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
                              selectedMetric === 'reportGovernance' ? 'Report Governance' :
                              selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
@@ -1878,9 +1946,12 @@ export default function ScoringMetricsPage() {
                             } else if (selectedMetric === 'sla') {
                               aValue = a.sla?.score || 0;
                               bValue = b.sla?.score || 0;
-                            } else if (selectedMetric === 'collaboration') {
-                              aValue = a.collaboration?.score || 0;
-                              bValue = b.collaboration?.score || 0;
+                            } else if (selectedMetric === 'controversial') {
+                              aValue = a.controversial?.score || 0;
+                              bValue = b.controversial?.score || 0;
+                            } else if (selectedMetric === 'innovation') {
+                              aValue = a.innovation?.score || 0;
+                              bValue = b.innovation?.score || 0;
                             } else if (selectedMetric === 'stakeholder') {
                               aValue = a.stakeholder?.score || 0;
                               bValue = b.stakeholder?.score || 0;
@@ -1915,9 +1986,12 @@ export default function ScoringMetricsPage() {
                           } else if (selectedMetric === 'sla') {
                             aValue = a.sla?.score || 0;
                             bValue = b.sla?.score || 0;
-                          } else if (selectedMetric === 'collaboration') {
-                            aValue = a.collaboration?.score || 0;
-                            bValue = b.collaboration?.score || 0;
+                          } else if (selectedMetric === 'controversial') {
+                            aValue = a.controversial?.score || 0;
+                            bValue = b.controversial?.score || 0;
+                          } else if (selectedMetric === 'innovation') {
+                            aValue = a.innovation?.score || 0;
+                            bValue = b.innovation?.score || 0;
                           } else if (selectedMetric === 'stakeholder') {
                             aValue = a.stakeholder?.score || 0;
                             bValue = b.stakeholder?.score || 0;
@@ -1965,13 +2039,17 @@ export default function ScoringMetricsPage() {
                               score = mda.sla?.score || 0;
                               maxScore = 30;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                            } else if (selectedMetric === 'collaboration') {
-                              score = mda.collaboration?.score || 0;
-                              maxScore = 15;
+                            } else if (selectedMetric === 'controversial') {
+                              score = mda.controversial?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'innovation') {
+                              score = mda.innovation?.score || 0;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'stakeholder') {
                               score = mda.stakeholder?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'reportGovernance') {
                               score = mda.reportGovernance?.score || 0;
@@ -2019,15 +2097,22 @@ export default function ScoringMetricsPage() {
                                       )}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                      {mda.collaboration ? (
-                                        <span className="font-semibold">{mda.collaboration.score.toFixed(1)}/15</span>
+                                      {mda.controversial ? (
+                                        <span className="font-semibold">{mda.controversial.score.toFixed(1)}/10</span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.innovation ? (
+                                        <span className="font-semibold">{mda.innovation.score.toFixed(1)}/10</span>
                                       ) : (
                                         <span className="text-gray-400">—</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                       {mda.stakeholder ? (
-                                        <span className="font-semibold">{mda.stakeholder.score.toFixed(1)}/10</span>
+                                        <span className="font-semibold">{mda.stakeholder.score.toFixed(1)}/5</span>
                                       ) : (
                                         <span className="text-gray-400">—</span>
                                       )}
@@ -2198,7 +2283,8 @@ export default function ScoringMetricsPage() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {selectedMetric === 'mysteryShopping' ? 'Mystery Shopping' :
                              selectedMetric === 'sla' ? 'Service Level Agreement' :
-                             selectedMetric === 'collaboration' ? 'Inter MDA Collaboration' :
+                             selectedMetric === 'controversial' ? 'Controversial' :
+                             selectedMetric === 'innovation' ? 'Innovation' :
                              selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
                              selectedMetric === 'reportGovernance' ? 'Report Governance' :
                              selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
@@ -2227,9 +2313,12 @@ export default function ScoringMetricsPage() {
                             } else if (selectedMetric === 'sla') {
                               aValue = a.sla?.score || 0;
                               bValue = b.sla?.score || 0;
-                            } else if (selectedMetric === 'collaboration') {
-                              aValue = a.collaboration?.score || 0;
-                              bValue = b.collaboration?.score || 0;
+                            } else if (selectedMetric === 'controversial') {
+                              aValue = a.controversial?.score || 0;
+                              bValue = b.controversial?.score || 0;
+                            } else if (selectedMetric === 'innovation') {
+                              aValue = a.innovation?.score || 0;
+                              bValue = b.innovation?.score || 0;
                             } else if (selectedMetric === 'stakeholder') {
                               aValue = a.stakeholder?.score || 0;
                               bValue = b.stakeholder?.score || 0;
@@ -2268,13 +2357,17 @@ export default function ScoringMetricsPage() {
                               score = mda.sla?.score || 0;
                               maxScore = 30;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                            } else if (selectedMetric === 'collaboration') {
-                              score = mda.collaboration?.score || 0;
-                              maxScore = 15;
+                            } else if (selectedMetric === 'controversial') {
+                              score = mda.controversial?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'innovation') {
+                              score = mda.innovation?.score || 0;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'stakeholder') {
                               score = mda.stakeholder?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'reportGovernance') {
                               score = mda.reportGovernance?.score || 0;
@@ -2337,7 +2430,8 @@ export default function ScoringMetricsPage() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {selectedMetric === 'mysteryShopping' ? 'Mystery Shopping' :
                              selectedMetric === 'sla' ? 'Service Level Agreement' :
-                             selectedMetric === 'collaboration' ? 'Inter MDA Collaboration' :
+                             selectedMetric === 'controversial' ? 'Controversial' :
+                             selectedMetric === 'innovation' ? 'Innovation' :
                              selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
                              selectedMetric === 'reportGovernance' ? 'Report Governance' :
                              selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
@@ -2366,9 +2460,12 @@ export default function ScoringMetricsPage() {
                             } else if (selectedMetric === 'sla') {
                               aValue = a.sla?.score || 0;
                               bValue = b.sla?.score || 0;
-                            } else if (selectedMetric === 'collaboration') {
-                              aValue = a.collaboration?.score || 0;
-                              bValue = b.collaboration?.score || 0;
+                            } else if (selectedMetric === 'controversial') {
+                              aValue = a.controversial?.score || 0;
+                              bValue = b.controversial?.score || 0;
+                            } else if (selectedMetric === 'innovation') {
+                              aValue = a.innovation?.score || 0;
+                              bValue = b.innovation?.score || 0;
                             } else if (selectedMetric === 'stakeholder') {
                               aValue = a.stakeholder?.score || 0;
                               bValue = b.stakeholder?.score || 0;
@@ -2407,13 +2504,17 @@ export default function ScoringMetricsPage() {
                               score = mda.sla?.score || 0;
                               maxScore = 30;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                            } else if (selectedMetric === 'collaboration') {
-                              score = mda.collaboration?.score || 0;
-                              maxScore = 15;
+                            } else if (selectedMetric === 'controversial') {
+                              score = mda.controversial?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'innovation') {
+                              score = mda.innovation?.score || 0;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'stakeholder') {
                               score = mda.stakeholder?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'reportGovernance') {
                               score = mda.reportGovernance?.score || 0;
@@ -2662,20 +2763,20 @@ export default function ScoringMetricsPage() {
 
                         {/* Other Metrics Sections */}
                         <div className="bg-gray-50 p-4 rounded-lg">
-                          <h3 className="text-lg font-bold mb-3">3. Inter MDA Collaboration (15 points)</h3>
+                          <h3 className="text-lg font-bold mb-3">3. Controversial (10 points)</h3>
                           <div className="space-y-2">
                             {(() => {
-                              const collabFirst = viewDetailsData.collaboration?.firstHalf || { rate: 0, score: 0 };
-                              const collabSecond = viewDetailsData.collaboration?.secondHalf || { rate: 0, score: 0 };
-                              const hasData = viewDetailsData.collaboration?.firstHalf || viewDetailsData.collaboration?.secondHalf;
+                              const contFirst = viewDetailsData.controversial?.firstHalf || { isControversial: false, score: 0 };
+                              const contSecond = viewDetailsData.controversial?.secondHalf || { isControversial: false, score: 0 };
+                              const hasData = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf;
                               
                               if (hasData) {
-                                const avgRate = ((collabFirst.rate || 0) + (collabSecond.rate || 0)) / 2;
-                                const avgScore = ((collabFirst.score || 0) + (collabSecond.score || 0)) / 2;
+                                const avgScore = ((contFirst.score || 0) + (contSecond.score || 0)) / 2;
+                                const isControversial = contFirst.isControversial || contSecond.isControversial;
                                 return (
                                   <>
-                                    <div>Rate: {avgRate.toFixed(1)}/10</div>
-                                    <div>Score: {avgScore.toFixed(1)}/15</div>
+                                    <div>Answer: {isControversial ? 'Yes' : 'No'}</div>
+                                    <div>Score: {avgScore.toFixed(1)}/10</div>
                                   </>
                                 );
                               }
@@ -2685,7 +2786,30 @@ export default function ScoringMetricsPage() {
                         </div>
 
                         <div className="bg-gray-50 p-4 rounded-lg">
-                          <h3 className="text-lg font-bold mb-3">4. Stakeholder Engagement (10 points)</h3>
+                          <h3 className="text-lg font-bold mb-3">4. Innovation (10 points)</h3>
+                          <div className="space-y-2">
+                            {(() => {
+                              const innovFirst = viewDetailsData.innovation?.firstHalf || { isInnovative: false, score: 0 };
+                              const innovSecond = viewDetailsData.innovation?.secondHalf || { isInnovative: false, score: 0 };
+                              const hasData = viewDetailsData.innovation?.firstHalf || viewDetailsData.innovation?.secondHalf;
+                              
+                              if (hasData) {
+                                const avgScore = ((innovFirst.score || 0) + (innovSecond.score || 0)) / 2;
+                                const isInnovative = innovFirst.isInnovative || innovSecond.isInnovative;
+                                return (
+                                  <>
+                                    <div>Answer: {isInnovative ? 'Yes' : 'No'}</div>
+                                    <div>Score: {avgScore.toFixed(1)}/10</div>
+                                  </>
+                                );
+                              }
+                              return <p className="text-gray-500">No data available</p>;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">5. Stakeholder Engagement (5 points)</h3>
                           <div className="space-y-2">
                             {(() => {
                               const stakeFirst = viewDetailsData.stakeholder?.firstHalf || { rate: 0, score: 0 };
@@ -2698,7 +2822,7 @@ export default function ScoringMetricsPage() {
                                 return (
                                   <>
                                     <div>Rate: {avgRate.toFixed(1)}/10</div>
-                                    <div>Score: {avgScore.toFixed(1)}/10</div>
+                                    <div>Score: {avgScore.toFixed(1)}/5</div>
                                   </>
                                 );
                               }
@@ -2955,8 +3079,10 @@ export default function ScoringMetricsPage() {
 
                             const mysteryScore = viewDetailsData.mysteryShopping?.firstHalf || viewDetailsData.mysteryShopping?.secondHalf ?
                               ((viewDetailsData.mysteryShopping?.firstHalf?.totalScore || 0) + (viewDetailsData.mysteryShopping?.secondHalf?.totalScore || 0)) / 2 : 0;
-                            const collabScore = viewDetailsData.collaboration?.firstHalf || viewDetailsData.collaboration?.secondHalf ?
-                              ((viewDetailsData.collaboration?.firstHalf?.score || 0) + (viewDetailsData.collaboration?.secondHalf?.score || 0)) / 2 : 0;
+                            const controversialScore = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf ?
+                              ((viewDetailsData.controversial?.firstHalf?.score || 0) + (viewDetailsData.controversial?.secondHalf?.score || 0)) / 2 : 0;
+                            const innovationScore = viewDetailsData.innovation?.firstHalf || viewDetailsData.innovation?.secondHalf ?
+                              ((viewDetailsData.innovation?.firstHalf?.score || 0) + (viewDetailsData.innovation?.secondHalf?.score || 0)) / 2 : 0;
                             const stakeholderScore = viewDetailsData.stakeholder?.firstHalf || viewDetailsData.stakeholder?.secondHalf ?
                               ((viewDetailsData.stakeholder?.firstHalf?.score || 0) + (viewDetailsData.stakeholder?.secondHalf?.score || 0)) / 2 : 0;
                             const reportGovScore = viewDetailsData.reportGovernance?.firstHalf || viewDetailsData.reportGovernance?.secondHalf ?
@@ -3005,7 +3131,7 @@ export default function ScoringMetricsPage() {
                             });
                             const timelinessScore = timelinessMonths.size * (2 / 12);
 
-                            const totalScore = slaScore + mysteryScore + collabScore + stakeholderScore + 
+                            const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                                               reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
                             
                             const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
@@ -3017,8 +3143,9 @@ export default function ScoringMetricsPage() {
                               <div className="space-y-2 text-sm">
                                 <div className="flex justify-between"><span>SLA:</span><span className="font-semibold">{slaScore.toFixed(1)}/30</span></div>
                                 <div className="flex justify-between"><span>Mystery Shopping:</span><span className="font-semibold">{mysteryScore.toFixed(1)}/20</span></div>
-                                <div className="flex justify-between"><span>Inter MDA Collaboration:</span><span className="font-semibold">{collabScore.toFixed(1)}/15</span></div>
-                                <div className="flex justify-between"><span>Stakeholder Engagement:</span><span className="font-semibold">{stakeholderScore.toFixed(1)}/10</span></div>
+                                <div className="flex justify-between"><span>Controversial:</span><span className="font-semibold">{controversialScore.toFixed(1)}/10</span></div>
+                                <div className="flex justify-between"><span>Innovation:</span><span className="font-semibold">{innovationScore.toFixed(1)}/10</span></div>
+                                <div className="flex justify-between"><span>Stakeholder Engagement:</span><span className="font-semibold">{stakeholderScore.toFixed(1)}/5</span></div>
                                 <div className="flex justify-between"><span>Report Governance:</span><span className="font-semibold">{reportGovScore.toFixed(1)}/5</span></div>
                                 <div className={`flex justify-between ${isReportGovSkipped ? 'text-gray-500' : ''}`}>
                                   <span>Report Gov Resolution: {isReportGovSkipped && <span className="text-yellow-600">(Skipped)</span>}</span>
@@ -3342,43 +3469,89 @@ export default function ScoringMetricsPage() {
                   </div>
                 </div>
 
-                {/* Inter MDA Collaboration */}
+                {/* Controversial */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold">Inter MDA Collaboration</h2>
-                      {isLoadingCollaborationData && (
+                      <h2 className="text-lg font-semibold">Controversial</h2>
+                      {isLoadingControversialData && (
                         <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
                           🔄 Loading...
                         </span>
                       )}
-                      {!isLoadingCollaborationData && savedCollaborationData && (
+                      {!isLoadingControversialData && savedControversialData && (
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
                           💾 Saved
                         </span>
                       )}
                     </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      15 Points
+                      10 Points
                     </span>
                   </div>
                   
                   <Select
-                    value={collaborationRate || 0}
-                    onChange={(e) => setCollaborationRate(Number(e.target.value))}
+                    value={isControversial ? 'yes' : 'no'}
+                    onChange={(e) => setIsControversial(e.target.value === 'yes')}
                     className="w-full mb-3"
                   >
-                    {[...Array(11)].map((_, i) => (
-                      <MenuItem key={i} value={i}>{i}</MenuItem>
-                    ))}
+                    <MenuItem value="no">No</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
                   </Select>
 
                   <div className="text-center mb-3">
-                    Score: {((collaborationRate / 10) * 15).toFixed(1)}/15
+                    Score: {(isControversial ? 0 : 10).toFixed(1)}/10
                   </div>
 
                   <button
-                    onClick={handleSaveCollaborationData}
+                    onClick={handleSaveControversialData}
+                    disabled={!selectedMda}
+                    className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                      !selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    💾 Save 
+                  </button>
+                </div>
+
+                {/* Innovation */}
+                <div className="bg-gray-100/50 p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Innovation</h2>
+                      {isLoadingInnovationData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingInnovationData && savedInnovationData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
+                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                      10 Points
+                    </span>
+                  </div>
+                  
+                  <Select
+                    value={isInnovative ? 'yes' : 'no'}
+                    onChange={(e) => setIsInnovative(e.target.value === 'yes')}
+                    className="w-full mb-3"
+                  >
+                    <MenuItem value="no">No</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                  </Select>
+
+                  <div className="text-center mb-3">
+                    Score: {(isInnovative ? 10 : 0).toFixed(1)}/10
+                  </div>
+
+                  <button
+                    onClick={handleSaveInnovationData}
                     disabled={!selectedMda}
                     className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
                       !selectedMda
@@ -3407,7 +3580,7 @@ export default function ScoringMetricsPage() {
                       )}
                     </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      10 Points
+                      5 Points
                     </span>
                   </div>
                   
@@ -3422,7 +3595,7 @@ export default function ScoringMetricsPage() {
                   </Select>
 
                   <div className="text-center mb-3">
-                    Score: {((stakeholderRate / 10) * 10).toFixed(1)}/10
+                    Score: {((stakeholderRate / 10) * 5).toFixed(1)}/5
                   </div>
 
                   <button
@@ -4223,8 +4396,9 @@ export default function ScoringMetricsPage() {
                   <div className="space-y-2 text-sm">
                     <div>Service Level Agreement: {finalScoreData.scores.serviceLevelAgreement.toFixed(1)}/30</div>
                     <div>Mystery Shopping: {finalScoreData.scores.mysteryShopping.toFixed(1)}/20</div>
-                    <div>Inter MDA Collaboration: {finalScoreData.scores.interMdaCollaboration.toFixed(1)}/15</div>
-                    <div>Stakeholder Engagement: {finalScoreData.scores.stakeholderEngagement.toFixed(1)}/10</div>
+                    <div>Controversial: {finalScoreData.scores.controversial.toFixed(1)}/10</div>
+                    <div>Innovation: {finalScoreData.scores.innovation.toFixed(1)}/10</div>
+                    <div>Stakeholder Engagement: {finalScoreData.scores.stakeholderEngagement.toFixed(1)}/5</div>
                     <div>Report Governance: {finalScoreData.scores.reportGovernance.toFixed(1)}/5</div>
                     <div className={skipReportGov ? "text-gray-500 line-through" : ""}>
                       Report Gov Resolution: {finalScoreData.scores.reportGovernanceResolution.toFixed(1)}/15

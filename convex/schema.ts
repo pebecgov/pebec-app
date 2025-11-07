@@ -69,7 +69,8 @@ export default defineSchema({
     // Individual metric scores
     serviceLevelAgreementScore: v.number(),
     mysteryShoppingScore: v.number(),
-    interMdaCollaborationScore: v.number(),
+    controversialScore: v.number(),
+    innovationScore: v.number(),
     stakeholderEngagementScore: v.number(),
     reportGovernanceScore: v.number(),
     reportGovernanceResolutionScore: v.number(),
@@ -835,12 +836,24 @@ export default defineSchema({
     updatedBy: v.id("users")
   }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
 
-  // Inter MDA Collaboration Data Storage
-  mda_collaboration_data: defineTable({
+  // Controversial Data Storage (Yes = 0 points, No = 10 points, but max is 5 points)
+  mda_controversial_data: defineTable({
     mdaName: v.string(),
     scoringPeriod: v.string(),
-    rate: v.number(), // 0-10 rating
-    score: v.number(), // Calculated score (rate/10 * 15)
+    isControversial: v.boolean(), // true = Yes (0 points), false = No (10 points, but capped at 5)
+    score: v.number(), // Calculated score (No = 5 points, Yes = 0 points)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Innovation Data Storage (Yes = 10 points, No = 0 points, but max is 5 points)
+  mda_innovation_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    isInnovative: v.boolean(), // true = Yes (10 points, but capped at 5), false = No (0 points)
+    score: v.number(), // Calculated score (Yes = 5 points, No = 0 points)
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),
@@ -852,7 +865,7 @@ export default defineSchema({
     mdaName: v.string(),
     scoringPeriod: v.string(),
     rate: v.number(), // 0-10 rating
-    score: v.number(), // Calculated score (rate/10 * 10)
+    score: v.number(), // Calculated score (rate/10 * 5)
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),
