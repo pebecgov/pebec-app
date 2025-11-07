@@ -124,7 +124,8 @@ export const calculateAndSaveMDAScore = mutation({
     // Individual metric scores
     serviceLevelAgreementScore: v.number(),
     mysteryShoppingScore: v.number(),
-    interMdaCollaborationScore: v.number(),
+    controversialScore: v.number(),
+    innovationScore: v.number(),
     stakeholderEngagementScore: v.number(),
     reportGovernanceScore: v.number(),
     reportGovernanceResolutionScore: v.number(),
@@ -159,7 +160,8 @@ export const calculateAndSaveMDAScore = mutation({
     const totalScore = 
       args.serviceLevelAgreementScore +
       args.mysteryShoppingScore +
-      args.interMdaCollaborationScore +
+      args.controversialScore +
+      args.innovationScore +
       args.stakeholderEngagementScore +
       args.reportGovernanceScore +
       args.reportGovernanceResolutionScore +
@@ -189,7 +191,8 @@ export const calculateAndSaveMDAScore = mutation({
       scoredAt: Date.now(),
       serviceLevelAgreementScore: args.serviceLevelAgreementScore,
       mysteryShoppingScore: args.mysteryShoppingScore,
-      interMdaCollaborationScore: args.interMdaCollaborationScore,
+      controversialScore: args.controversialScore,
+      innovationScore: args.innovationScore,
       stakeholderEngagementScore: args.stakeholderEngagementScore,
       reportGovernanceScore: args.reportGovernanceScore,
       reportGovernanceResolutionScore: args.reportGovernanceResolutionScore,
@@ -589,7 +592,8 @@ export const getPastScoringData = query({
     const averages = {
       serviceLevelAgreement: pastScores.reduce((sum, score) => sum + score.serviceLevelAgreementScore, 0) / totalScores,
       mysteryShopping: pastScores.reduce((sum, score) => sum + score.mysteryShoppingScore, 0) / totalScores,
-      interMdaCollaboration: pastScores.reduce((sum, score) => sum + score.interMdaCollaborationScore, 0) / totalScores,
+      controversial: pastScores.reduce((sum, score) => sum + (score.controversialScore || 0), 0) / totalScores,
+      innovation: pastScores.reduce((sum, score) => sum + (score.innovationScore || 0), 0) / totalScores,
       stakeholderEngagement: pastScores.reduce((sum, score) => sum + score.stakeholderEngagementScore, 0) / totalScores,
       reportGovernance: pastScores.reduce((sum, score) => sum + score.reportGovernanceScore, 0) / totalScores,
       reportGovernanceResolution: pastScores.reduce((sum, score) => sum + score.reportGovernanceResolutionScore, 0) / totalScores,
@@ -1287,18 +1291,33 @@ export const getMysteryShoppingData = query({
   }
 });
 
-// Get Collaboration data for a specific MDA and period
-export const getCollaborationData = query({
+// Get Controversial data for a specific MDA and period
+export const getControversialData = query({
   args: {
     mdaName: v.string(),
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const collaborationData = await ctx.db.query("mda_collaboration_data")
+    const controversialData = await ctx.db.query("mda_controversial_data")
       .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
       .first();
     
-    return collaborationData;
+    return controversialData;
+  }
+});
+
+// Get Innovation data for a specific MDA and period
+export const getInnovationData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    const innovationData = await ctx.db.query("mda_innovation_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    return innovationData;
   }
 });
 
@@ -1446,33 +1465,33 @@ export const getTimelinessData = query({
   }
 });
 
-// Save Inter MDA Collaboration data for a specific MDA and period
-export const saveCollaborationData = mutation({
+// Save Controversial data for a specific MDA and period
+export const saveControversialData = mutation({
   args: {
     mdaName: v.string(),
     scoringPeriod: v.string(),
-    rate: v.number(),
+    isControversial: v.boolean(),
     score: v.number()
   },
-  handler: async (ctx, { mdaName, scoringPeriod, rate, score }) => {
+  handler: async (ctx, { mdaName, scoringPeriod, isControversial, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
     
-    const existingData = await ctx.db.query("mda_collaboration_data")
+    const existingData = await ctx.db.query("mda_controversial_data")
       .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
       .first();
     
     if (existingData) {
       await ctx.db.patch(existingData._id, {
-        rate,
+        isControversial,
         score,
         updatedAt: Date.now(),
         updatedBy: user._id
       });
     } else {
-      await ctx.db.insert("mda_collaboration_data", {
+      await ctx.db.insert("mda_controversial_data", {
         mdaName,
         scoringPeriod,
-        rate,
+        isControversial,
         score,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -1481,7 +1500,46 @@ export const saveCollaborationData = mutation({
       });
     }
     
-    return { success: true, message: "Inter MDA Collaboration data saved successfully" };
+    return { success: true, message: "Controversial data saved successfully" };
+  }
+});
+
+// Save Innovation data for a specific MDA and period
+export const saveInnovationData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    isInnovative: v.boolean(),
+    score: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, isInnovative, score }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    const existingData = await ctx.db.query("mda_innovation_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+    
+    if (existingData) {
+      await ctx.db.patch(existingData._id, {
+        isInnovative,
+        score,
+        updatedAt: Date.now(),
+        updatedBy: user._id
+      });
+    } else {
+      await ctx.db.insert("mda_innovation_data", {
+        mdaName,
+        scoringPeriod,
+        isInnovative,
+        score,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: user._id,
+        updatedBy: user._id
+      });
+    }
+    
+    return { success: true, message: "Innovation data saved successfully" };
   }
 });
 
@@ -1775,11 +1833,17 @@ export const getAllMdaSavedDataForDashboard = query({
     ]);
     const mysteryData = [...mysteryFirstHalf, ...mysterySecondHalf];
     
-    const [collabFirstHalf, collabSecondHalf] = await Promise.all([
-      ctx.db.query("mda_collaboration_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_collaboration_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+    const [controversialFirstHalf, controversialSecondHalf] = await Promise.all([
+      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
+      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
     ]);
-    const collaborationData = [...collabFirstHalf, ...collabSecondHalf];
+    const controversialData = [...controversialFirstHalf, ...controversialSecondHalf];
+    
+    const [innovationFirstHalf, innovationSecondHalf] = await Promise.all([
+      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
+      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+    ]);
+    const innovationData = [...innovationFirstHalf, ...innovationSecondHalf];
     
     const [stakeholderFirstHalf, stakeholderSecondHalf] = await Promise.all([
       ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
@@ -1820,7 +1884,8 @@ export const getAllMdaSavedDataForDashboard = query({
         mdaName: name,
         sla: null,
         mysteryShopping: null,
-        collaboration: null,
+        controversial: null,
+        innovation: null,
         stakeholder: null,
         reportGovernance: null,
         reportGovResolution: null,
@@ -1838,7 +1903,7 @@ export const getAllMdaSavedDataForDashboard = query({
     
     Object.entries(slaByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       // Count unique months across both halves
@@ -1878,7 +1943,7 @@ export const getAllMdaSavedDataForDashboard = query({
     
     Object.entries(mysteryByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       const avgScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / dataList.length;
@@ -1891,23 +1956,43 @@ export const getAllMdaSavedDataForDashboard = query({
       };
     });
     
-    // Process Collaboration (average across both halves)
-    const collaborationByMda: { [key: string]: any[] } = {};
-    collaborationData.forEach(data => {
-      if (!collaborationByMda[data.mdaName]) collaborationByMda[data.mdaName] = [];
-      collaborationByMda[data.mdaName].push(data);
+    // Process Controversial (average across both halves)
+    const controversialByMda: { [key: string]: any[] } = {};
+    controversialData.forEach(data => {
+      if (!controversialByMda[data.mdaName]) controversialByMda[data.mdaName] = [];
+      controversialByMda[data.mdaName].push(data);
     });
     
-    Object.entries(collaborationByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(controversialByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
       
-      mdaDataMap[mdaName].collaboration = {
+      mdaDataMap[mdaName].controversial = {
         score: avgScore,
-        maxPossibleScore: 15
+        maxPossibleScore: 10
+      };
+    });
+    
+    // Process Innovation (average across both halves)
+    const innovationByMda: { [key: string]: any[] } = {};
+    innovationData.forEach(data => {
+      if (!innovationByMda[data.mdaName]) innovationByMda[data.mdaName] = [];
+      innovationByMda[data.mdaName].push(data);
+    });
+    
+    Object.entries(innovationByMda).forEach(([mdaName, dataList]) => {
+      if (!mdaDataMap[mdaName]) {
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+      }
+      
+      const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
+      
+      mdaDataMap[mdaName].innovation = {
+        score: avgScore,
+        maxPossibleScore: 10
       };
     });
     
@@ -1920,14 +2005,14 @@ export const getAllMdaSavedDataForDashboard = query({
     
     Object.entries(stakeholderByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
       
       mdaDataMap[mdaName].stakeholder = {
         score: avgScore,
-        maxPossibleScore: 10
+        maxPossibleScore: 5
       };
     });
     
@@ -1940,7 +2025,7 @@ export const getAllMdaSavedDataForDashboard = query({
     
     Object.entries(reportGovByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -1960,7 +2045,7 @@ export const getAllMdaSavedDataForDashboard = query({
     
     Object.entries(reportGovResByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       // Sum total tickets and resolved tickets (add both halves)
@@ -2038,7 +2123,7 @@ export const getAllMdaSavedDataForDashboard = query({
     
     Object.entries(monthlyReportByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       // If manual mode, count months from manualMonthlyReports
@@ -2085,7 +2170,7 @@ export const getAllMdaSavedDataForDashboard = query({
     
     Object.entries(timelinessByMda).forEach(([mdaName, dataList]) => {
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, collaboration: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, reportGovernance: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
       }
       
       // If manual mode, count months from manualTimeliness
@@ -2127,14 +2212,15 @@ export const getAllMdaSavedDataForDashboard = query({
     const result = Object.values(mdaDataMap).map((mda: any) => {
       const slaScore = mda.sla?.score || 0;
       const mysteryScore = mda.mysteryShopping?.score || 0;
-      const collaborationScore = mda.collaboration?.score || 0;
+      const controversialScore = mda.controversial?.score || 0;
+      const innovationScore = mda.innovation?.score || 0;
       const stakeholderScore = mda.stakeholder?.score || 0;
       const reportGovScore = mda.reportGovernance?.score || 0;
       const reportGovResScore = mda.reportGovResolution?.score || 0;
       const monthlyReportScore = mda.monthlyReport?.score || 0;
       const timelinessScore = mda.timeliness?.score || 0;
       
-      const totalScore = slaScore + mysteryScore + collaborationScore + stakeholderScore + 
+      const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                         reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
       const totalPercentage = (totalScore / 100) * 100;
       
@@ -2170,9 +2256,14 @@ export const getMdaDetailedScoringData = query({
       ctx.db.query("mda_mystery_shopping_data").withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", secondHalfPeriod)).first()
     ]);
     
-    const [collabFirstHalf, collabSecondHalf] = await Promise.all([
-      ctx.db.query("mda_collaboration_data").withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", firstHalfPeriod)).first(),
-      ctx.db.query("mda_collaboration_data").withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", secondHalfPeriod)).first()
+    const [controversialFirstHalf, controversialSecondHalf] = await Promise.all([
+      ctx.db.query("mda_controversial_data").withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", firstHalfPeriod)).first(),
+      ctx.db.query("mda_controversial_data").withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", secondHalfPeriod)).first()
+    ]);
+    
+    const [innovationFirstHalf, innovationSecondHalf] = await Promise.all([
+      ctx.db.query("mda_innovation_data").withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", firstHalfPeriod)).first(),
+      ctx.db.query("mda_innovation_data").withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", secondHalfPeriod)).first()
     ]);
     
     const [stakeholderFirstHalf, stakeholderSecondHalf] = await Promise.all([
@@ -2211,9 +2302,13 @@ export const getMdaDetailedScoringData = query({
         firstHalf: mysteryFirstHalf,
         secondHalf: mysterySecondHalf
       },
-      collaboration: {
-        firstHalf: collabFirstHalf,
-        secondHalf: collabSecondHalf
+      controversial: {
+        firstHalf: controversialFirstHalf,
+        secondHalf: controversialSecondHalf
+      },
+      innovation: {
+        firstHalf: innovationFirstHalf,
+        secondHalf: innovationSecondHalf
       },
       stakeholder: {
         firstHalf: stakeholderFirstHalf,

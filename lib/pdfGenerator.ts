@@ -12,7 +12,11 @@ interface MdaDetailedData {
     firstHalf: any;
     secondHalf: any;
   };
-  collaboration: {
+  controversial: {
+    firstHalf: any;
+    secondHalf: any;
+  };
+  innovation: {
     firstHalf: any;
     secondHalf: any;
   };
@@ -289,12 +293,12 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition += 15;
   }
 
-  // Inter MDA Collaboration - average both halves
-  if (data.collaboration.firstHalf || data.collaboration.secondHalf) {
-    const collabFirst = data.collaboration.firstHalf || { rate: 0, score: 0 };
-    const collabSecond = data.collaboration.secondHalf || { rate: 0, score: 0 };
-    const avgRate = ((collabFirst.rate || 0) + (collabSecond.rate || 0)) / 2;
-    const avgScore = ((collabFirst.score || 0) + (collabSecond.score || 0)) / 2;
+  // Controversial - average both halves
+  if (data.controversial.firstHalf || data.controversial.secondHalf) {
+    const contFirst = data.controversial.firstHalf || { isControversial: false, score: 0 };
+    const contSecond = data.controversial.secondHalf || { isControversial: false, score: 0 };
+    const avgScore = ((contFirst.score || 0) + (contSecond.score || 0)) / 2;
+    const isControversial = contFirst.isControversial || contSecond.isControversial;
 
     if (yPosition > pageHeight - 50) {
       doc.addPage();
@@ -303,10 +307,40 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['3. Inter MDA Collaboration (15 points)', '']],
+      head: [['3. Controversial (10 points)', '']],
       body: [
-        ['Rate', `${avgRate.toFixed(1)}/10`],
-        ['Score', `${avgScore.toFixed(1)}/15`]
+        ['Answer', isControversial ? 'Yes' : 'No'],
+        ['Score', `${avgScore.toFixed(1)}/10`]
+      ],
+      headStyles: {
+        fillColor: [156, 39, 176],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: { fontSize: 9 },
+      theme: 'grid'
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 15;
+  }
+
+  // Innovation - average both halves
+  if (data.innovation.firstHalf || data.innovation.secondHalf) {
+    const innovFirst = data.innovation.firstHalf || { isInnovative: false, score: 0 };
+    const innovSecond = data.innovation.secondHalf || { isInnovative: false, score: 0 };
+    const avgScore = ((innovFirst.score || 0) + (innovSecond.score || 0)) / 2;
+    const isInnovative = innovFirst.isInnovative || innovSecond.isInnovative;
+
+    if (yPosition > pageHeight - 50) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['4. Innovation (10 points)', '']],
+      body: [
+        ['Answer', isInnovative ? 'Yes' : 'No'],
+        ['Score', `${avgScore.toFixed(1)}/10`]
       ],
       headStyles: {
         fillColor: [156, 39, 176],
@@ -333,10 +367,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['4. Stakeholder Engagement (10 points)', '']],
+      head: [['5. Stakeholder Engagement (5 points)', '']],
       body: [
         ['Rate', `${avgRate.toFixed(1)}/10`],
-        ['Score', `${avgScore.toFixed(1)}/10`]
+        ['Score', `${avgScore.toFixed(1)}/5`]
       ],
       headStyles: {
         fillColor: [255, 152, 0],
@@ -610,8 +644,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const slaScore = slaFinalScore;
 
   const mysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
-  const collabScore = data.collaboration.firstHalf || data.collaboration.secondHalf ?
-    ((data.collaboration.firstHalf?.score || 0) + (data.collaboration.secondHalf?.score || 0)) / 2 : 0;
+  const controversialScore = data.controversial.firstHalf || data.controversial.secondHalf ?
+    ((data.controversial.firstHalf?.score || 0) + (data.controversial.secondHalf?.score || 0)) / 2 : 0;
+  const innovationScore = data.innovation.firstHalf || data.innovation.secondHalf ?
+    ((data.innovation.firstHalf?.score || 0) + (data.innovation.secondHalf?.score || 0)) / 2 : 0;
   const stakeholderScore = data.stakeholder.firstHalf || data.stakeholder.secondHalf ?
     ((data.stakeholder.firstHalf?.score || 0) + (data.stakeholder.secondHalf?.score || 0)) / 2 : 0;
   const reportGovScore = data.reportGovernance.firstHalf || data.reportGovernance.secondHalf ?
@@ -640,7 +676,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  const totalScore = slaScore + mysteryScore + collabScore + stakeholderScore + 
+  const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                     reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
   
   const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
@@ -656,8 +692,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const summaryBody = [
     ['SLA', `${slaScore.toFixed(1)}/30`],
     ['Mystery Shopping', `${mysteryScore.toFixed(1)}/20`],
-    ['Inter MDA Collaboration', `${collabScore.toFixed(1)}/15`],
-    ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/10`],
+    ['Controversial', `${controversialScore.toFixed(1)}/10`],
+    ['Innovation', `${innovationScore.toFixed(1)}/10`],
+    ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/5`],
     ['Report Governance', `${reportGovScore.toFixed(1)}/5`],
     ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`],
     ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
