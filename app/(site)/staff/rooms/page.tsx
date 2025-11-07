@@ -346,6 +346,11 @@ export default function StaffRoomsPage() {
                       </div>
                     </div>
                   )}
+                  {b.createdAt && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      Booked on {format(new Date(b.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                    </p>
+                  )}
                 </div>
                 {(convexUser?._id === b.createdBy || convexUser?.role === "admin") && (
                   <div className="flex gap-2">

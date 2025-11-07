@@ -8,8 +8,8 @@ export const mdasList = [{
 }, {
   name: "Central Bank of Nigeria – National Collateral Agency",
   abbreviation: "CBN - NCR"
-}, {
-  name: "Commercial Law & Trademarks Registry",
+},  {
+  name: "Trademarks Registry",
   abbreviation: "CLTR"
 }, {
   name: "Corporate Affairs Commission",
@@ -17,7 +17,7 @@ export const mdasList = [{
 }, {
   name: "Department of State Services",
   abbreviation: "DSS"
-}, {
+},  {
   name: "EFCC - Special Control Unit for Money Laundering",
   abbreviation: "SCUML"
 }, {
@@ -33,7 +33,7 @@ export const mdasList = [{
   name: "Federal Inland Revenue Service",
   abbreviation: "FIRS"
 }, {
-  name: "Federal Ministry of Aviation",
+  name: "Federal Ministry of Aviation and Aerospace Development",
   abbreviation: "FMA"
 }, {
   name: "Federal Ministry of Environment",
@@ -42,13 +42,13 @@ export const mdasList = [{
   name: "Federal Ministry of Finance",
   abbreviation: "FMF"
 }, {
-  name: "Federal Ministry of Foreign Affairs",
+  name: "Ministry of Foreign Affairs",
   abbreviation: "FMoFA"
 }, {
-  name: "Federal Ministry of Information and Culture",
+  name: "Federal Ministry of Information and National Orientation",
   abbreviation: "FMIC"
 }, {
-  name: "Federal Ministry of Interior",
+  name: "Ministry of Interior",
   abbreviation: "FMI"
 }, {
   name: "Federal Ministry of Justice",
@@ -78,12 +78,12 @@ export const mdasList = [{
   name: "Joint Tax Board",
   abbreviation: "JTB"
 }, {
-  name: "Ministry of Budget and National Planning",
+  name: "Ministry of Budget and Economic Planning",
   abbreviation: "BNP"
 }, {
   name: "National Agency for Food and Drug Administration and Control",
   abbreviation: "NAFDAC"
-}, {
+},{
   name: "National Drug Law Enforcement Agency",
   abbreviation: "NDLEA"
 }, {
@@ -162,7 +162,7 @@ export const mdasList = [{
   name: "Nigerian Export-Import Bank",
   abbreviation: "NEXIM"
 }, {
-  name: "Nigerian Investment Promotion Commission",
+  name: "Nigerian Investment Promotion Council",
   abbreviation: "NIPC"
 }, {
   name: "Nigerian Maritime Administration and Safety Agency",
@@ -183,7 +183,7 @@ export const mdasList = [{
   name: "Nigerian Upstream Petroleum Regulatory Commission",
   abbreviation: "NUPRC"
 }, {
-  name: "Office of the Head of the Civil Service of the Federation",
+  name: "Office of the Head of Service of the Federation",
   abbreviation: "OHCSF"
 }, {
   name: "Oil & Gas Free Zone Authority",
@@ -192,10 +192,7 @@ export const mdasList = [{
   name: "Patent and Design Registry",
   abbreviation: "PDR"
 }, {
-  name: "Presidential Task Force on Money Laundering",
-  abbreviation: "PTFML"
-}, {
-  name: "Office of the Secretary to the Government of the Federation",
+  name: "Secretary to the Government of the Federation",
   abbreviation: "OSGF"
 }, {
   name: "Securities and Exchange Commission",

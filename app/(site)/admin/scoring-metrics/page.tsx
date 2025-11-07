@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useUserRole } from "@/lib/useUserRole";
@@ -11,6 +11,8 @@ import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
 import * as XLSX from 'xlsx';
 import { toast } from "sonner";
 import ScoringMetricsDashboard from "@/components/Admin/ScoringMetricsDashboard";
+import { generateMdaScoringPDF } from "@/lib/pdfGenerator";
+import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
 
 // Result Table Component
 const ResultTable = ({ results, overallPercentage }: { results: any[], overallPercentage: number | null }) => {
@@ -85,14 +87,15 @@ export default function ScoringMetricsPage() {
   const router = useRouter();
 
   // State variables
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('live-dashboard');
   const [selectedMda, setSelectedMda] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [overallPercentage, setOverallPercentage] = useState<number | null>(null);
   const [showModel, setShowModel] = useState(false);
   const [showSlaModal, setShowSlaModal] = useState(false);
   const [mysteryRate, setMysteryRate] = useState(0);
-  const [collaborationRate, setCollaborationRate] = useState(0);
+  const [isControversial, setIsControversial] = useState(false);
+  const [isInnovative, setIsInnovative] = useState(false);
   const [stakeholderRate, setStakeholderRate] = useState(0);
   const [slaRate, setSlaRate] = useState(0);
   const [slaMethod, setSlaMethod] = useState<'file' | 'rating'>('file');
@@ -219,6 +222,25 @@ export default function ScoringMetricsPage() {
   const [recommendations, setRecommendations] = useState('');
   const [processingMonthlyFiles, setProcessingMonthlyFiles] = useState<{[key: string]: boolean}>({});
   
+  // Ranking modal states
+  const [showMysteryRanking, setShowMysteryRanking] = useState(false);
+  const [showSLARanking, setShowSLARanking] = useState(false);
+  const [showReportGovRanking, setShowReportGovRanking] = useState(false);
+  
+  // Live Dashboard state
+  const [dashboardYear, setDashboardYear] = useState(new Date().getFullYear());
+  const [sortColumn, setSortColumn] = useState<string>('totalScore');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [selectedMetric, setSelectedMetric] = useState<string>('totalScore');
+  const [mdaFilter, setMdaFilter] = useState<'all' | 'withData'>('all');
+  
+  // View Details Modal state
+  const [viewDetailsMda, setViewDetailsMda] = useState<string | null>(null);
+  const [viewDetailsData, setViewDetailsData] = useState<any>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  
+  const convex = useConvex();
+  
   // Manual monthly report overrides
   const [manualMonthlyReports, setManualMonthlyReports] = useState<{[key: string]: boolean}>({});
   const [useManualMonthlyReports, setUseManualMonthlyReports] = useState(false);
@@ -256,16 +278,213 @@ export default function ScoringMetricsPage() {
     api.mda_scoring.getMysteryShoppingData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
+  const savedControversialData = useQuery(
+    api.mda_scoring.getControversialData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const savedInnovationData = useQuery(
+    api.mda_scoring.getInnovationData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const savedStakeholderData = useQuery(
+    api.mda_scoring.getStakeholderData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const savedReportGovernanceData = useQuery(
+    api.mda_scoring.getReportGovernanceData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const savedMonthlyReportData = useQuery(
+    api.mda_scoring.getMonthlyReportData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
+  const savedTimelinessData = useQuery(
+    api.mda_scoring.getTimelinessData,
+    selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
+  );
   
   // Loading states for saved data
   const isLoadingSLAData = selectedMda && savedSLAData === undefined;
   const isLoadingReportGovData = selectedMda && savedReportGovData === undefined;
   const isLoadingMysteryShoppingData = selectedMda && savedMysteryShoppingData === undefined;
+  const isLoadingControversialData = selectedMda && savedControversialData === undefined;
+  const isLoadingInnovationData = selectedMda && savedInnovationData === undefined;
+  const isLoadingStakeholderData = selectedMda && savedStakeholderData === undefined;
+  const isLoadingReportGovernanceData = selectedMda && savedReportGovernanceData === undefined;
+  const isLoadingMonthlyReportData = selectedMda && savedMonthlyReportData === undefined;
+  const isLoadingTimelinessData = selectedMda && savedTimelinessData === undefined;
   
   // New mutations for saving data
   const saveSLAData = useMutation(api.mda_scoring.saveSLAData);
   const saveReportGovData = useMutation(api.mda_scoring.saveReportGovData);
   const saveMysteryShoppingData = useMutation(api.mda_scoring.saveMysteryShoppingData);
+  const saveControversialData = useMutation(api.mda_scoring.saveControversialData);
+  const saveInnovationData = useMutation(api.mda_scoring.saveInnovationData);
+  const saveStakeholderData = useMutation(api.mda_scoring.saveStakeholderData);
+  const saveReportGovernanceData = useMutation(api.mda_scoring.saveReportGovernanceData);
+  const saveMonthlyReportData = useMutation(api.mda_scoring.saveMonthlyReportData);
+  const saveTimelinessData = useMutation(api.mda_scoring.saveTimelinessData);
+  
+  // Ranking queries
+  const mysteryRankings = useQuery(api.mda_scoring.getAllMysteryShoppingRankings, { scoringPeriod });
+  const slaRankings = useQuery(api.mda_scoring.getAllSLARankings, { scoringPeriod });
+  const reportGovRankings = useQuery(api.mda_scoring.getAllReportGovRankings, { scoringPeriod });
+  
+  // Live Dashboard query
+  const liveDashboardData = useQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, { year: dashboardYear });
+  
+  // Detailed data query for view modal
+  const detailedScoringData = useQuery(
+    api.mda_scoring.getMdaDetailedScoringData,
+    viewDetailsMda ? { mdaName: viewDetailsMda, year: dashboardYear } : "skip"
+  );
+
+  // Update loading state when data arrives
+  useEffect(() => {
+    if (viewDetailsMda) {
+      if (detailedScoringData === undefined) {
+        setIsLoadingDetails(true);
+      } else {
+        setIsLoadingDetails(false);
+        setViewDetailsData(detailedScoringData);
+      }
+    } else {
+      setViewDetailsData(null);
+      setIsLoadingDetails(false);
+    }
+  }, [detailedScoringData, viewDetailsMda]);
+
+  // Helper function to process and filter MDA data for dashboard
+  const processDashboardMdaData = (filter: 'all' | 'withData' = 'all') => {
+    // Initialize all MDAs from mdasList with null data
+    const allMdasMap = new Map<string, any>();
+    mdasList.forEach(mda => {
+      allMdasMap.set(mda.name, {
+        mdaName: mda.name,
+        sla: null,
+        mysteryShopping: null,
+        controversial: null,
+        innovation: null,
+        stakeholder: null,
+        reportGovernance: null,
+        reportGovResolution: null,
+        monthlyReport: null,
+        timeliness: null,
+        totalScore: 0,
+        totalPercentage: 0
+      });
+    });
+
+    // Merge with saved data from backend
+    if (liveDashboardData && Array.isArray(liveDashboardData)) {
+      liveDashboardData.forEach((mda: any) => {
+        // Find matching MDA name from mdasList
+        const matchingMdaName = findMatchingMdaName(mda.mdaName);
+        
+        // Only include MDAs that are in mdasList
+        if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
+          const existing = allMdasMap.get(matchingMdaName);
+          
+          // Merge metric data intelligently - prefer non-null values, new data takes precedence if both exist
+          const merged = {
+            ...existing,
+            mdaName: matchingMdaName, // Use the canonical name from mdasList
+            sla: mda.sla != null ? mda.sla : existing.sla,
+            mysteryShopping: mda.mysteryShopping != null ? mda.mysteryShopping : existing.mysteryShopping,
+            controversial: mda.controversial != null ? mda.controversial : existing.controversial,
+            innovation: mda.innovation != null ? mda.innovation : existing.innovation,
+            stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
+            reportGovernance: mda.reportGovernance != null ? mda.reportGovernance : existing.reportGovernance,
+            reportGovResolution: mda.reportGovResolution != null ? {
+              ...mda.reportGovResolution,
+              // Preserve all fields including hasFirstHalf, hasSecondHalf, firstHalfScore, secondHalfScore
+            } : existing.reportGovResolution,
+            monthlyReport: mda.monthlyReport != null ? mda.monthlyReport : existing.monthlyReport,
+            timeliness: mda.timeliness != null ? mda.timeliness : existing.timeliness,
+          };
+          
+          allMdasMap.set(matchingMdaName, merged);
+        }
+      });
+    }
+
+    // Convert to array and calculate total scores
+    let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
+      const slaScore = mda.sla?.score || 0;
+      const mysteryScore = mda.mysteryShopping?.score || 0;
+      const controversialScore = mda.controversial?.score || 0;
+      const innovationScore = mda.innovation?.score || 0;
+      const stakeholderScore = mda.stakeholder?.score || 0;
+      const reportGovScore = mda.reportGovernance?.score || 0;
+      const reportGovResScore = mda.reportGovResolution?.score || 0;
+      const monthlyReportScore = mda.monthlyReport?.score || 0;
+      const timelinessScore = mda.timeliness?.score || 0;
+      
+      const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
+                        reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+      
+      // Check if Report Gov Resolution is skipped
+      const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
+      const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+      
+      // Normalize percentage: if skipped, 85 points = 100% for fair ranking
+      const totalPercentage = isReportGovSkipped 
+        ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+        : (totalScore / 100) * 100; // Standard: 100 points = 100%
+      
+      return {
+        ...mda,
+        totalScore,
+        totalPercentage,
+        isReportGovSkipped,
+        maxPossiblePoints
+      };
+    });
+
+    // Filter based on selected filter
+    if (filter === 'withData') {
+      allMdasArray = allMdasArray.filter((mda: any) => {
+        // Check if MDA has at least one metric with data
+        return mda.sla || mda.mysteryShopping || mda.controversial || 
+               mda.innovation || mda.stakeholder || mda.reportGovernance || mda.reportGovResolution || 
+               mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
+      });
+    }
+
+    return allMdasArray;
+  };
+
+  // Handle dashboard PDF generation
+  const handleGenerateDashboardPDF = async () => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      return;
+    }
+    
+    // Process and filter data based on current filter
+    const processedData = processDashboardMdaData(mdaFilter);
+    
+    // Convert back to the format expected by PDF generator
+    const filteredLiveData = processedData.map((mda: any) => ({
+      mdaName: mda.mdaName,
+      sla: mda.sla,
+      mysteryShopping: mda.mysteryShopping,
+      controversial: mda.controversial,
+      innovation: mda.innovation,
+      stakeholder: mda.stakeholder,
+      reportGovernance: mda.reportGovernance,
+      reportGovResolution: mda.reportGovResolution,
+      monthlyReport: mda.monthlyReport,
+      timeliness: mda.timeliness
+    }));
+    
+    await generateDashboardPDF({
+      liveDashboardData: filteredLiveData,
+      selectedMetric,
+      dashboardYear,
+      mdasList,
+      filterType: mdaFilter
+    });
+  };
 
   // Helper function to sanitize MDA names (same as backend)
   const sanitizeMdaName = (mdaName: string): string => {
@@ -275,6 +494,65 @@ export default function ScoringMetricsPage() {
       .replace(/\s+/g, '_') // Replace spaces with underscores
       .replace(/-+/g, '_') // Replace multiple dashes with underscores
       .toLowerCase();
+  };
+
+  // Helper function to strip abbreviation prefix from MDA names (e.g., "FME - Federal Ministry" -> "Federal Ministry")
+  const stripAbbreviation = (mdaName: string): string => {
+    if (!mdaName) return mdaName;
+    // Remove pattern like "ABC - " or "ABC -" from the start
+    const match = mdaName.match(/^[A-Z]+ - (.+)$/);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return mdaName.trim();
+  };
+
+  // Helper function to normalize MDA names for comparison (removes extra spaces, handles variations)
+  const normalizeMdaName = (mdaName: string): string => {
+    if (!mdaName) return '';
+    return mdaName
+      .trim()
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/[–—]/g, '-') // Replace em dash and en dash with regular dash
+      .toLowerCase();
+  };
+
+  // Helper function to find matching MDA from mdasList given a backend MDA name
+  const findMatchingMdaName = (backendMdaName: string): string | null => {
+    if (!backendMdaName) return null;
+    
+    const normalizedBackend = normalizeMdaName(backendMdaName);
+    const strippedBackend = normalizeMdaName(stripAbbreviation(backendMdaName));
+    
+    // Try to find exact match first
+    for (const mda of mdasList) {
+      const normalizedList = normalizeMdaName(mda.name);
+      const strippedList = normalizeMdaName(stripAbbreviation(mda.name));
+      
+      // Exact match (case-insensitive, normalized)
+      if (normalizedList === normalizedBackend) {
+        return mda.name;
+      }
+      
+      // Match after stripping abbreviations from both
+      if (strippedList === strippedBackend && strippedList.length > 0) {
+        return mda.name;
+      }
+      
+      // Match backend stripped against list full name
+      // This handles: backend "Special Control Unit..." matches list "EFCC - Special Control Unit..."
+      if (strippedBackend === normalizedList && strippedBackend.length > 0) {
+        return mda.name;
+      }
+      
+      // Match backend full name against list stripped
+      // This handles: backend "EFCC - Special Control Unit..." matches list "Special Control Unit..."
+      if (normalizedBackend === strippedList && strippedList.length > 0) {
+        return mda.name;
+      }
+    }
+    
+    return null;
   };
   // Header matching functions (implemented locally for now)
   const performHeaderMatching = (headers: string[]) => {
@@ -482,8 +760,12 @@ export default function ScoringMetricsPage() {
   // Load saved Report Gov data when available
   useEffect(() => {
     if (!isLoadingReportGovData && savedReportGovData && selectedMda) {
-      if (savedReportGovData.isManual) {
+      if (savedReportGovData.isSkipped) {
+        setSkipReportGov(true);
+        setUseManualReportGov(false);
+      } else if (savedReportGovData.isManual) {
         setUseManualReportGov(true);
+        setSkipReportGov(false);
         setManualTotalTickets(savedReportGovData.totalTickets);
         setManualResolvedTickets(savedReportGovData.resolvedTickets);
         setManualAverageResponseTime(savedReportGovData.averageResponseTime);
@@ -491,6 +773,7 @@ export default function ScoringMetricsPage() {
         setManualReportGovRate(savedReportGovData.score);
       } else {
         setUseManualReportGov(false);
+        setSkipReportGov(false);
         setReportgovRate(savedReportGovData.score);
       }
       toast.success(`📊 Loaded saved Report Gov data for ${selectedMda} - ${scoringPeriod}`);
@@ -506,6 +789,60 @@ export default function ScoringMetricsPage() {
       toast.success(`🛍️ Loaded saved Mystery Shopping data for ${selectedMda} - ${scoringPeriod}`);
     }
   }, [savedMysteryShoppingData, selectedMda, scoringPeriod, isLoadingMysteryShoppingData]);
+
+  // Load saved Controversial data when available
+  useEffect(() => {
+    if (!isLoadingControversialData && savedControversialData && selectedMda) {
+      setIsControversial(savedControversialData.isControversial || false);
+      toast.success(`⚠️ Loaded saved Controversial data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedControversialData, selectedMda, scoringPeriod, isLoadingControversialData]);
+
+  // Load saved Innovation data when available
+  useEffect(() => {
+    if (!isLoadingInnovationData && savedInnovationData && selectedMda) {
+      setIsInnovative(savedInnovationData.isInnovative || false);
+      toast.success(`💡 Loaded saved Innovation data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedInnovationData, selectedMda, scoringPeriod, isLoadingInnovationData]);
+
+  // Load saved Stakeholder Engagement data when available
+  useEffect(() => {
+    if (!isLoadingStakeholderData && savedStakeholderData && selectedMda) {
+      setStakeholderRate(savedStakeholderData.rate || 0);
+      toast.success(`👥 Loaded saved Stakeholder Engagement data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedStakeholderData, selectedMda, scoringPeriod, isLoadingStakeholderData]);
+
+  // Load saved Report Governance data when available
+  useEffect(() => {
+    if (!isLoadingReportGovernanceData && savedReportGovernanceData && selectedMda) {
+      setCheckboxItems({
+        activeWebsite: savedReportGovernanceData.activeWebsite || false,
+        activeUsers: savedReportGovernanceData.activeUsers || false,
+        reportGovLink: savedReportGovernanceData.reportGovLink || false
+      });
+      toast.success(`📋 Loaded saved Report Governance data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedReportGovernanceData, selectedMda, scoringPeriod, isLoadingReportGovernanceData]);
+
+  // Load saved Monthly Report Submission data when available
+  useEffect(() => {
+    if (!isLoadingMonthlyReportData && savedMonthlyReportData && selectedMda) {
+      setUseManualMonthlyReports(savedMonthlyReportData.useManual || false);
+      setManualMonthlyReports(savedMonthlyReportData.manualMonthlyReports || {});
+      toast.success(`📅 Loaded saved Monthly Report Submission data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedMonthlyReportData, selectedMda, scoringPeriod, isLoadingMonthlyReportData]);
+
+  // Load saved Timeliness data when available
+  useEffect(() => {
+    if (!isLoadingTimelinessData && savedTimelinessData && selectedMda) {
+      setUseManualTimeliness(savedTimelinessData.useManual || false);
+      setManualTimeliness(savedTimelinessData.manualTimeliness || {});
+      toast.success(`⏰ Loaded saved Timeliness data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedTimelinessData, selectedMda, scoringPeriod, isLoadingTimelinessData]);
 
   if (isLoading || !isLoaded) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
@@ -556,16 +893,24 @@ export default function ScoringMetricsPage() {
       resolutionRateScore = (resolutionRate / 100) * 7; // 7 points for resolution rate
     }
     
-    let responseTimeScore = 3;
-    if (averageResponseTime > 24) {
+    let responseTimeScore = 0;
+    if (averageResponseTime === 0) {
+      responseTimeScore = 0; // No points if response time is 0
+    } else if (averageResponseTime > 24) {
       const penalty = (averageResponseTime - 24) * 0.06;
       responseTimeScore = Math.max(0, 3 - penalty);
+    } else {
+      responseTimeScore = 3; // Full points if > 0 and <= 24
     }
     
-    let resolutionTimeScore = 5;
-    if (averageResolutionTime > 72) {
+    let resolutionTimeScore = 0;
+    if (averageResolutionTime === 0) {
+      resolutionTimeScore = 0; // No points if resolution time is 0
+    } else if (averageResolutionTime > 72) {
       const penalty = (averageResolutionTime - 72) * 0.05; // Adjusted penalty for 5 points
       resolutionTimeScore = Math.max(0, 5 - penalty);
+    } else {
+      resolutionTimeScore = 5; // Full points if > 0 and <= 72
     }
 
     const totalScore = resolutionRateScore + responseTimeScore + resolutionTimeScore;
@@ -632,15 +977,23 @@ export default function ScoringMetricsPage() {
     
     // NEW SCORING LOGIC: Resolution rate (7 points), Response time (3 points), Resolution time (5 points)
     let resolutionRateScore = (resolutionRate / 100) * 7; // 7 points for resolution rate
-    let responseTimeScore = 3;
-    if (manualAverageResponseTime > 24) {
+    let responseTimeScore = 0;
+    if (manualAverageResponseTime === 0) {
+      responseTimeScore = 0; // No points if response time is 0
+    } else if (manualAverageResponseTime > 24) {
       const penalty = (manualAverageResponseTime - 24) * 0.06;
       responseTimeScore = Math.max(0, 3 - penalty);
+    } else {
+      responseTimeScore = 3; // Full points if > 0 and <= 24
     }
-    let resolutionTimeScore = 5;
-    if (manualAverageResolutionTime > 72) {
+    let resolutionTimeScore = 0;
+    if (manualAverageResolutionTime === 0) {
+      resolutionTimeScore = 0; // No points if resolution time is 0
+    } else if (manualAverageResolutionTime > 72) {
       const penalty = (manualAverageResolutionTime - 72) * 0.05; // Adjusted penalty for 5 points
       resolutionTimeScore = Math.max(0, 5 - penalty);
+    } else {
+      resolutionTimeScore = 5; // Full points if > 0 and <= 72
     }
 
     return resolutionRateScore + responseTimeScore + resolutionTimeScore;
@@ -795,12 +1148,29 @@ export default function ScoringMetricsPage() {
     // Use monthly SLA data
     const monthlySlaScore = calculateMonthlySlaScore();
     
+    // Use saved Mystery Shopping data for current period, or fall back to calculated score
+    // Mystery Shopping is saved for both halves, but we only want the current period's data
+    const mysteryShoppingScore = savedMysteryShoppingData?.totalScore ?? calculateMysteryScore();
+    
+    // Use saved Controversial data for current period, or fall back to state
+    const controversialScore = savedControversialData?.score ?? (isControversial ? 0 : 10);
+    
+    // Use saved Innovation data for current period, or fall back to state
+    const innovationScore = savedInnovationData?.score ?? (isInnovative ? 10 : 0);
+    
+    // Use saved Stakeholder data for current period, or fall back to state
+    const stakeholderScore = savedStakeholderData?.score ?? ((stakeholderRate / 10) * 5);
+    
+    // Use saved Report Governance data for current period, or fall back to calculated
+    const reportGovernanceScore = savedReportGovernanceData?.score ?? (Object.values(checkboxItems).filter(Boolean).length / 3 * 5);
+    
     const baseScores = {
       serviceLevelAgreement: monthlySlaScore.totalScore,
-      mysteryShopping: (mysteryRate / 10) * 20,
-      interMdaCollaboration: (collaborationRate / 10) * 15,
-      stakeholderEngagement: (stakeholderRate / 10) * 10,
-      reportGovernance: Object.values(checkboxItems).filter(Boolean).length / 3 * 5,
+      mysteryShopping: mysteryShoppingScore,
+      controversial: controversialScore,
+      innovation: innovationScore,
+      stakeholderEngagement: stakeholderScore,
+      reportGovernance: reportGovernanceScore,
       reportGovernanceResolution: reportGovScore,
       monthlyReportSubmission: monthlyReportScore,
       timelinessInSubmitting: timelinessScore
@@ -810,7 +1180,8 @@ export default function ScoringMetricsPage() {
     const scores = {
       serviceLevelAgreement: calculateAverageWithPastData(baseScores.serviceLevelAgreement, 'serviceLevelAgreement'),
       mysteryShopping: calculateAverageWithPastData(baseScores.mysteryShopping, 'mysteryShopping'),
-      interMdaCollaboration: calculateAverageWithPastData(baseScores.interMdaCollaboration, 'interMdaCollaboration'),
+      controversial: calculateAverageWithPastData(baseScores.controversial, 'controversial'),
+      innovation: calculateAverageWithPastData(baseScores.innovation, 'innovation'),
       stakeholderEngagement: calculateAverageWithPastData(baseScores.stakeholderEngagement, 'stakeholderEngagement'),
       reportGovernance: calculateAverageWithPastData(baseScores.reportGovernance, 'reportGovernance'),
       reportGovernanceResolution: skipReportGov ? 0 : calculateAverageWithPastData(baseScores.reportGovernanceResolution, 'reportGovernanceResolution'),
@@ -822,7 +1193,10 @@ export default function ScoringMetricsPage() {
     const maxPossiblePoints = skipReportGov ? 85 : 100; // 100 - 15 (Report Gov Resolution points)
     
     const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
-    const totalPercentage = (totalScore / maxPossiblePoints) * 100;
+    // Normalize percentage: if skipped, 85 points = 100% for fair ranking
+    const totalPercentage = skipReportGov 
+      ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+      : (totalScore / 100) * 100; // Standard: 100 points = 100%
 
     return { scores, totalScore, totalPercentage, baseScores, maxPossiblePoints };
   };
@@ -942,19 +1316,20 @@ export default function ScoringMetricsPage() {
     }
 
     try {
-      const isManual = useManualReportGov;
-      const score = isManual ? manualReportGovRate : reportgovRate;
+      const isManual = useManualReportGov && !skipReportGov;
+      const score = skipReportGov ? 0 : (isManual ? manualReportGovRate : reportgovRate);
       
       await saveReportGovData({
         mdaName: selectedMda,
         scoringPeriod: scoringPeriod,
-        totalTickets: isManual ? manualTotalTickets : ticketResolutionData.totalTickets,
-        resolvedTickets: isManual ? manualResolvedTickets : ticketResolutionData.resolvedTickets,
-        averageResponseTime: isManual ? manualAverageResponseTime : ticketResolutionData.averageResponseTime,
-        averageResolutionTime: isManual ? manualAverageResolutionTime : ticketResolutionData.averageResolutionTime,
-        resolutionRate: isManual ? (manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0) : ticketResolutionData.resolutionRate,
+        totalTickets: skipReportGov ? 0 : (isManual ? manualTotalTickets : ticketResolutionData.totalTickets),
+        resolvedTickets: skipReportGov ? 0 : (isManual ? manualResolvedTickets : ticketResolutionData.resolvedTickets),
+        averageResponseTime: skipReportGov ? 0 : (isManual ? manualAverageResponseTime : ticketResolutionData.averageResponseTime),
+        averageResolutionTime: skipReportGov ? 0 : (isManual ? manualAverageResolutionTime : ticketResolutionData.averageResolutionTime),
+        resolutionRate: skipReportGov ? 0 : (isManual ? (manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0) : ticketResolutionData.resolutionRate),
         score: score,
-        isManual: isManual
+        isManual: isManual,
+        isSkipped: skipReportGov
       });
       toast.success("✅ Report Governance data saved successfully!");
     } catch (error) {
@@ -963,7 +1338,7 @@ export default function ScoringMetricsPage() {
     }
   };
 
-  // Save Mystery Shopping data
+  // Save Mystery Shopping data for both halves
   const handleSaveMysteryShoppingData = async () => {
     if (!selectedMda) {
       toast.error("Please select an MDA first");
@@ -973,21 +1348,249 @@ export default function ScoringMetricsPage() {
     try {
       const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
       const totalScore = calculateMysteryScore();
-      const maxPossibleScore = questions.length;
+      const maxPossibleScore = 20; // Mystery Shopping is always out of 20 points
       const percentage = (totalScore / 20) * 100;
 
-      await saveMysteryShoppingData({
-        mdaName: selectedMda,
-        scoringPeriod: scoringPeriod,
-        mysteryType: mysteryType,
-        ratings: mysteryRatings,
-        totalScore: totalScore,
-        maxPossibleScore: maxPossibleScore,
-        percentage: percentage
-      });
-      toast.success("✅ Mystery Shopping data saved successfully!");
+      // Extract year from current scoring period
+      const yearMatch = scoringPeriod.match(/\d{4}/);
+      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+      const firstHalfPeriod = `1st Half ${targetYear}`;
+      const secondHalfPeriod = `2nd Half ${targetYear}`;
+
+      // Save for both halves
+      await Promise.all([
+        saveMysteryShoppingData({
+          mdaName: selectedMda,
+          scoringPeriod: firstHalfPeriod,
+          mysteryType: mysteryType,
+          ratings: mysteryRatings,
+          totalScore: totalScore,
+          maxPossibleScore: maxPossibleScore,
+          percentage: percentage
+        }),
+        saveMysteryShoppingData({
+          mdaName: selectedMda,
+          scoringPeriod: secondHalfPeriod,
+          mysteryType: mysteryType,
+          ratings: mysteryRatings,
+          totalScore: totalScore,
+          maxPossibleScore: maxPossibleScore,
+          percentage: percentage
+        })
+      ]);
+      toast.success("✅ Mystery Shopping data saved for both halves successfully!");
     } catch (error) {
       toast.error("Failed to save Mystery Shopping data");
+      console.error(error);
+    }
+  };
+
+  // Save Controversial data for both halves
+  const handleSaveControversialData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      // Controversial: Yes = 0 points, No = 10 points
+      const score = isControversial ? 0 : 10;
+      
+      // Extract year from current scoring period
+      const yearMatch = scoringPeriod.match(/\d{4}/);
+      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+      const firstHalfPeriod = `1st Half ${targetYear}`;
+      const secondHalfPeriod = `2nd Half ${targetYear}`;
+
+      // Save for both halves
+      await Promise.all([
+        saveControversialData({
+          mdaName: selectedMda,
+          scoringPeriod: firstHalfPeriod,
+          isControversial: isControversial,
+          score: score
+        }),
+        saveControversialData({
+          mdaName: selectedMda,
+          scoringPeriod: secondHalfPeriod,
+          isControversial: isControversial,
+          score: score
+        })
+      ]);
+      toast.success("✅ Controversial data saved for both halves successfully!");
+    } catch (error) {
+      toast.error("Failed to save Controversial data");
+      console.error(error);
+    }
+  };
+
+  // Save Innovation data for both halves
+  const handleSaveInnovationData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      // Innovation: Yes = 10 points, No = 0 points
+      const score = isInnovative ? 10 : 0;
+      
+      // Extract year from current scoring period
+      const yearMatch = scoringPeriod.match(/\d{4}/);
+      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+      const firstHalfPeriod = `1st Half ${targetYear}`;
+      const secondHalfPeriod = `2nd Half ${targetYear}`;
+
+      // Save for both halves
+      await Promise.all([
+        saveInnovationData({
+          mdaName: selectedMda,
+          scoringPeriod: firstHalfPeriod,
+          isInnovative: isInnovative,
+          score: score
+        }),
+        saveInnovationData({
+          mdaName: selectedMda,
+          scoringPeriod: secondHalfPeriod,
+          isInnovative: isInnovative,
+          score: score
+        })
+      ]);
+      toast.success("✅ Innovation data saved for both halves successfully!");
+    } catch (error) {
+      toast.error("Failed to save Innovation data");
+      console.error(error);
+    }
+  };
+
+  // Save Stakeholder Engagement data for both halves
+  const handleSaveStakeholderData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      const score = (stakeholderRate / 10) * 5;
+      
+      // Extract year from current scoring period
+      const yearMatch = scoringPeriod.match(/\d{4}/);
+      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+      const firstHalfPeriod = `1st Half ${targetYear}`;
+      const secondHalfPeriod = `2nd Half ${targetYear}`;
+
+      // Save for both halves
+      await Promise.all([
+        saveStakeholderData({
+          mdaName: selectedMda,
+          scoringPeriod: firstHalfPeriod,
+          rate: stakeholderRate,
+          score: score
+        }),
+        saveStakeholderData({
+          mdaName: selectedMda,
+          scoringPeriod: secondHalfPeriod,
+          rate: stakeholderRate,
+          score: score
+        })
+      ]);
+      toast.success("✅ Stakeholder Engagement data saved for both halves successfully!");
+    } catch (error) {
+      toast.error("Failed to save Stakeholder Engagement data");
+      console.error(error);
+    }
+  };
+
+  // Save Report Governance data for both halves
+  const handleSaveReportGovernanceData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      const score = (Object.values(checkboxItems).filter(Boolean).length / 3) * 5;
+      
+      // Extract year from current scoring period
+      const yearMatch = scoringPeriod.match(/\d{4}/);
+      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+      const firstHalfPeriod = `1st Half ${targetYear}`;
+      const secondHalfPeriod = `2nd Half ${targetYear}`;
+
+      // Save for both halves
+      await Promise.all([
+        saveReportGovernanceData({
+          mdaName: selectedMda,
+          scoringPeriod: firstHalfPeriod,
+          activeWebsite: checkboxItems.activeWebsite,
+          activeUsers: checkboxItems.activeUsers,
+          reportGovLink: checkboxItems.reportGovLink,
+          score: score
+        }),
+        saveReportGovernanceData({
+          mdaName: selectedMda,
+          scoringPeriod: secondHalfPeriod,
+          activeWebsite: checkboxItems.activeWebsite,
+          activeUsers: checkboxItems.activeUsers,
+          reportGovLink: checkboxItems.reportGovLink,
+          score: score
+        })
+      ]);
+      toast.success("✅ Report Governance data saved for both halves successfully!");
+    } catch (error) {
+      toast.error("Failed to save Report Governance data");
+      console.error(error);
+    }
+  };
+
+  // Save Monthly Report Submission data
+  const handleSaveMonthlyReportData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      const score = useManualMonthlyReports ? 
+        ((Object.values(manualMonthlyReports).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 3) :
+        monthlyReportData.score;
+
+      await saveMonthlyReportData({
+        mdaName: selectedMda,
+        scoringPeriod: scoringPeriod,
+        manualMonthlyReports: manualMonthlyReports,
+        useManual: useManualMonthlyReports,
+        score: score
+      });
+      toast.success("✅ Monthly Report Submission data saved successfully!");
+    } catch (error) {
+      toast.error("Failed to save Monthly Report Submission data");
+      console.error(error);
+    }
+  };
+
+  // Save Timeliness data
+  const handleSaveTimelinessData = async () => {
+    if (!selectedMda) {
+      toast.error("Please select an MDA first");
+      return;
+    }
+
+    try {
+      const score = useManualTimeliness ? 
+        ((Object.values(manualTimeliness).filter(Boolean).length / getMonthsForPeriod(scoringPeriod).length) * 2) :
+        deadlineData.score;
+
+      await saveTimelinessData({
+        mdaName: selectedMda,
+        scoringPeriod: scoringPeriod,
+        manualTimeliness: manualTimeliness,
+        useManual: useManualTimeliness,
+        score: score
+      });
+      toast.success("✅ Timeliness data saved successfully!");
+    } catch (error) {
+      toast.error("Failed to save Timeliness data");
       console.error(error);
     }
   };
@@ -1017,7 +1620,8 @@ export default function ScoringMetricsPage() {
         scoringPeriod: scoringPeriod,
         serviceLevelAgreementScore: finalScoreData.scores.serviceLevelAgreement,
         mysteryShoppingScore: finalScoreData.scores.mysteryShopping,
-        interMdaCollaborationScore: finalScoreData.scores.interMdaCollaboration,
+        controversialScore: finalScoreData.scores.controversial,
+        innovationScore: finalScoreData.scores.innovation,
         stakeholderEngagementScore: finalScoreData.scores.stakeholderEngagement,
         reportGovernanceScore: finalScoreData.scores.reportGovernance,
         reportGovernanceResolutionScore: finalScoreData.scores.reportGovernanceResolution,
@@ -1069,7 +1673,7 @@ export default function ScoringMetricsPage() {
         <div className="w-full mb-6">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
-              <button
+              {/* <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'dashboard'
@@ -1078,6 +1682,16 @@ export default function ScoringMetricsPage() {
                 }`}
               >
                 Dashboard
+              </button> */}
+              <button
+                onClick={() => setActiveTab('live-dashboard')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'live-dashboard'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Live Dashboard
               </button>
               <button
                 onClick={() => setActiveTab('scoring')}
@@ -1094,11 +1708,11 @@ export default function ScoringMetricsPage() {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'dashboard' ? (
+        {/* {activeTab === 'dashboard' ? (
           <div className="w-full space-y-6">
             <ScoringMetricsDashboard />
             
-            {/* MDA Leaderboard */}
+            MDA Leaderboard
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h2 className="text-2xl font-bold text-gray-800 mb-6">MDA Performance Leaderboard</h2>
               
@@ -1192,6 +1806,1379 @@ export default function ScoringMetricsPage() {
                 </div>
               )}
             </div>
+          </div>
+        ) : */}
+        {activeTab === 'live-dashboard' ? (
+          <div className="w-full space-y-6">
+            {/* Live Dashboard Header */}
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">Live Scoring Dashboard</h2>
+                <div className="flex items-center gap-4">
+                  <FormControl sx={{ minWidth: 200 }} variant="outlined">
+                    <InputLabel id="metric-label">Select Metric</InputLabel>
+                    <Select
+                      labelId="metric-label"
+                      id="metric-select"
+                      value={selectedMetric}
+                      onChange={(e) => setSelectedMetric(e.target.value)}
+                      label="Select Metric"
+                    >
+                      <MenuItem value="totalScore">Total Score (All Metrics)</MenuItem>
+                      <MenuItem value="mysteryShopping">Mystery Shopping</MenuItem>
+                      <MenuItem value="sla">Service Level Agreement</MenuItem>
+                      <MenuItem value="controversial">Controversial</MenuItem>
+                      <MenuItem value="innovation">Innovation</MenuItem>
+                      <MenuItem value="stakeholder">Stakeholder Engagement</MenuItem>
+                      <MenuItem value="reportGovernance">Report Governance</MenuItem>
+                      <MenuItem value="reportGovResolution">Report Gov Resolution</MenuItem>
+                      <MenuItem value="monthlyReport">Monthly Report Submission</MenuItem>
+                      <MenuItem value="timeliness">Timeliness</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl sx={{ minWidth: 180 }} variant="outlined">
+                    <InputLabel id="filter-label">Filter MDAs</InputLabel>
+                    <Select
+                      labelId="filter-label"
+                      id="filter-select"
+                      value={mdaFilter}
+                      onChange={(e) => setMdaFilter(e.target.value as 'all' | 'withData')}
+                      label="Filter MDAs"
+                    >
+                      <MenuItem value="all">All MDAs</MenuItem>
+                      <MenuItem value="withData">MDAs with Data</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl sx={{ minWidth: 150 }} variant="outlined">
+                    <InputLabel id="year-label">Year</InputLabel>
+                    <Select
+                      labelId="year-label"
+                      id="year-select"
+                      value={dashboardYear}
+                      onChange={(e) => setDashboardYear(Number(e.target.value))}
+                      label="Year"
+                    >
+                      {[currentYear - 1, currentYear, currentYear + 1].map(year => (
+                        <MenuItem key={year} value={year}>{year}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <button
+                    onClick={handleGenerateDashboardPDF}
+                    disabled={liveDashboardData === undefined || !Array.isArray(liveDashboardData) || liveDashboardData.length === 0}
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    📥 Download PDF
+                  </button>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600">
+                View {mdaFilter === 'all' ? 'all' : 'MDAs with data'} with their saved metric scores. Data is averaged across both halves (1st Half & 2nd Half) for the selected year.
+              </p>
+            </div>
+
+            {/* Live Dashboard Table */}
+            {liveDashboardData === undefined ? (
+              <div className="bg-white p-6 rounded-lg shadow-md text-center">
+                <p className="text-gray-500">Loading dashboard data...</p>
+              </div>
+            ) : (
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Rank
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          MDA Name
+                        </th>
+                        {selectedMetric === 'totalScore' ? (
+                          <>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SLA</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mystery Shopping</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Controversial</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Innovation</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stakeholder</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov Resolution</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Report</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timeliness</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
+                          </>
+                        ) : (
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {selectedMetric === 'mysteryShopping' ? 'Mystery Shopping' :
+                             selectedMetric === 'sla' ? 'Service Level Agreement' :
+                             selectedMetric === 'controversial' ? 'Controversial' :
+                             selectedMetric === 'innovation' ? 'Innovation' :
+                             selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                             selectedMetric === 'reportGovernance' ? 'Report Governance' :
+                             selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                             selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                             selectedMetric === 'timeliness' ? 'Timeliness' : 'Score'} (Overall %)
+                          </th>
+                        )}
+                          {selectedMetric === 'totalScore' && (
+                          <>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(() => {
+                        // Get processed and filtered MDA data
+                        const allMdasArray = processDashboardMdaData(mdaFilter);
+
+                        // Sort data by selected metric
+                        const sortedData = Array.isArray(allMdasArray) ? [...allMdasArray].sort((a: any, b: any) => {
+                            let aValue: any = 0;
+                            let bValue: any = 0;
+                            
+                            if (selectedMetric === 'totalScore') {
+                              aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                              bValue = b.totalPercentage || 0;
+                            } else if (selectedMetric === 'mysteryShopping') {
+                              aValue = a.mysteryShopping?.score || 0;
+                              bValue = b.mysteryShopping?.score || 0;
+                            } else if (selectedMetric === 'sla') {
+                              aValue = a.sla?.score || 0;
+                              bValue = b.sla?.score || 0;
+                            } else if (selectedMetric === 'controversial') {
+                              aValue = a.controversial?.score || 0;
+                              bValue = b.controversial?.score || 0;
+                            } else if (selectedMetric === 'innovation') {
+                              aValue = a.innovation?.score || 0;
+                              bValue = b.innovation?.score || 0;
+                            } else if (selectedMetric === 'stakeholder') {
+                              aValue = a.stakeholder?.score || 0;
+                              bValue = b.stakeholder?.score || 0;
+                            } else if (selectedMetric === 'reportGovernance') {
+                              aValue = a.reportGovernance?.score || 0;
+                              bValue = b.reportGovernance?.score || 0;
+                            } else if (selectedMetric === 'reportGovResolution') {
+                              aValue = a.reportGovResolution?.score || 0;
+                              bValue = b.reportGovResolution?.score || 0;
+                            } else if (selectedMetric === 'monthlyReport') {
+                              aValue = a.monthlyReport?.score || 0;
+                              bValue = b.monthlyReport?.score || 0;
+                            } else if (selectedMetric === 'timeliness') {
+                              aValue = a.timeliness?.score || 0;
+                              bValue = b.timeliness?.score || 0;
+                            }
+                            
+                            return bValue - aValue; // Always sort descending by default
+                          }) : [];
+                          
+                        // Recalculate ranks based on selected metric
+                        const rankedByMetric = [...allMdasArray].sort((a: any, b: any) => {
+                          let aValue: any = 0;
+                          let bValue: any = 0;
+                          
+                          if (selectedMetric === 'totalScore') {
+                            aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                            bValue = b.totalPercentage || 0;
+                          } else if (selectedMetric === 'mysteryShopping') {
+                            aValue = a.mysteryShopping?.score || 0;
+                            bValue = b.mysteryShopping?.score || 0;
+                          } else if (selectedMetric === 'sla') {
+                            aValue = a.sla?.score || 0;
+                            bValue = b.sla?.score || 0;
+                          } else if (selectedMetric === 'controversial') {
+                            aValue = a.controversial?.score || 0;
+                            bValue = b.controversial?.score || 0;
+                          } else if (selectedMetric === 'innovation') {
+                            aValue = a.innovation?.score || 0;
+                            bValue = b.innovation?.score || 0;
+                          } else if (selectedMetric === 'stakeholder') {
+                            aValue = a.stakeholder?.score || 0;
+                            bValue = b.stakeholder?.score || 0;
+                          } else if (selectedMetric === 'reportGovernance') {
+                            aValue = a.reportGovernance?.score || 0;
+                            bValue = b.reportGovernance?.score || 0;
+                          } else if (selectedMetric === 'reportGovResolution') {
+                            aValue = a.reportGovResolution?.score || 0;
+                            bValue = b.reportGovResolution?.score || 0;
+                          } else if (selectedMetric === 'monthlyReport') {
+                            aValue = a.monthlyReport?.score || 0;
+                            bValue = b.monthlyReport?.score || 0;
+                          } else if (selectedMetric === 'timeliness') {
+                            aValue = a.timeliness?.score || 0;
+                            bValue = b.timeliness?.score || 0;
+                          }
+                          
+                          return bValue - aValue;
+                        });
+                          
+                          // Calculate ranks based on selected metric
+                          const rankMap = new Map<string, number>();
+                          rankedByMetric.forEach((mda: any, idx: number) => {
+                            rankMap.set(mda.mdaName, idx + 1);
+                          });
+                          
+                          return sortedData.map((mda: any, index: number) => {
+                            // Get rank based on selected metric
+                            const rank = rankMap.get(mda.mdaName) || sortedData.length;
+                            
+                            // Calculate overall percentage for selected metric
+                            let score = 0;
+                            let maxScore = 100;
+                            let overallPercentage = 0;
+                            
+                            if (selectedMetric === 'totalScore') {
+                              score = mda.totalScore || 0;
+                              maxScore = 100;
+                              overallPercentage = score;
+                            } else if (selectedMetric === 'mysteryShopping') {
+                              score = mda.mysteryShopping?.score || 0;
+                              maxScore = 20;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'sla') {
+                              score = mda.sla?.score || 0;
+                              maxScore = 30;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'controversial') {
+                              score = mda.controversial?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'innovation') {
+                              score = mda.innovation?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'stakeholder') {
+                              score = mda.stakeholder?.score || 0;
+                              maxScore = 5;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'reportGovernance') {
+                              score = mda.reportGovernance?.score || 0;
+                              maxScore = 5;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'reportGovResolution') {
+                              score = mda.reportGovResolution?.score || 0;
+                              maxScore = 15;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'monthlyReport') {
+                              score = mda.monthlyReport?.score || 0;
+                              maxScore = 3;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'timeliness') {
+                              score = mda.timeliness?.score || 0;
+                              maxScore = 2;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            }
+                            
+                            return (
+                              <tr key={mda.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  #{rank}
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {mda.mdaName}
+                                </td>
+                                {selectedMetric === 'totalScore' ? (
+                                  <>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.sla ? (
+                                        <div>
+                                          <div className="font-semibold">{mda.sla.score.toFixed(1)}/30</div>
+                                          <div className="text-xs text-gray-400">{mda.sla.monthsWithData}/12 months</div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.mysteryShopping ? (
+                                        <span className="font-semibold">{mda.mysteryShopping.score.toFixed(1)}/20</span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.controversial ? (
+                                        <span className="font-semibold">{mda.controversial.score.toFixed(1)}/10</span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.innovation ? (
+                                        <span className="font-semibold">{mda.innovation.score.toFixed(1)}/10</span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.stakeholder ? (
+                                        <span className="font-semibold">{mda.stakeholder.score.toFixed(1)}/5</span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.reportGovernance ? (
+                                        <span className="font-semibold">{mda.reportGovernance.score.toFixed(1)}/5</span>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.reportGovResolution ? (
+                                        <div>
+                                          {mda.reportGovResolution.isSkipped ? (
+                                            <div>
+                                              <div className="font-semibold text-gray-400 line-through">0/15</div>
+                                              <div className="text-xs text-yellow-600 mt-1">⚠️ Skipped</div>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <div className="font-semibold">{mda.reportGovResolution.score.toFixed(1)}/15</div>
+                                              {mda.reportGovResolution.hasFirstHalf !== undefined && (
+                                                <div className="text-xs text-gray-400 mt-1">
+                                                  {mda.reportGovResolution.hasFirstHalf && mda.reportGovResolution.hasSecondHalf ? (
+                                                    <span>1st: {mda.reportGovResolution.firstHalfScore?.toFixed(1) || 'N/A'}, 2nd: {mda.reportGovResolution.secondHalfScore?.toFixed(1) || 'N/A'}</span>
+                                                  ) : mda.reportGovResolution.hasFirstHalf ? (
+                                                    <span className="text-yellow-600">1st Half only: {mda.reportGovResolution.firstHalfScore?.toFixed(1) || 'N/A'}</span>
+                                                  ) : mda.reportGovResolution.hasSecondHalf ? (
+                                                    <span className="text-yellow-600">2nd Half only: {mda.reportGovResolution.secondHalfScore?.toFixed(1) || 'N/A'}</span>
+                                                  ) : null}
+                                                </div>
+                                              )}
+                                            </>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.monthlyReport ? (
+                                        <div>
+                                          <div className="font-semibold">{mda.monthlyReport.score.toFixed(1)}/3</div>
+                                          <div className="text-xs text-gray-400">{mda.monthlyReport.monthsWithData}/12 months</div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      {mda.timeliness ? (
+                                        <div>
+                                          <div className="font-semibold">{mda.timeliness.score.toFixed(1)}/2</div>
+                                          <div className="text-xs text-gray-400">{mda.timeliness.monthsWithData}/12 months</div>
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`font-bold ${
+                                          mda.totalPercentage >= 90 ? 'text-green-600' :
+                                          mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                          mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                          mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                        }`}>
+                                          {mda.totalScore.toFixed(1)}/100
+                                        </span>
+                                        {mda.isReportGovSkipped && (
+                                          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" title="Report Gov Resolution skipped - using 85 points for normalization">
+                                            ⚠️ Using 85
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className={`text-xs mt-1 ${
+                                        mda.totalPercentage >= 90 ? 'text-green-600' :
+                                        mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                        mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                        mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                      }`}>
+                                        {mda.isReportGovSkipped ? (
+                                          <span>{mda.totalPercentage.toFixed(1)}/100</span>
+                                        ) : (
+                                          <span>{mda.totalPercentage.toFixed(1)}%</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </>
+                                ) : (
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm">
+                                    {score > 0 ? (
+                                      <span className={`font-bold text-lg ${
+                                        overallPercentage >= 90 ? 'text-green-600' :
+                                        overallPercentage >= 80 ? 'text-blue-600' :
+                                        overallPercentage >= 70 ? 'text-yellow-600' :
+                                        overallPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                      }`}>
+                                        {overallPercentage.toFixed(1)}%
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-400">—</span>
+                                    )}
+                                  </td>
+                                )}
+                                <td className="px-4 py-4 whitespace-nowrap text-sm">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setViewDetailsMda(mda.mdaName);
+                                        setIsLoadingDetails(true);
+                                      }}
+                                      className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                                    >
+                                      👁️ View
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          setIsLoadingDetails(true);
+                                          // Fetch data using Convex client
+                                          const detailedData = await (convex as any).query(
+                                            api.mda_scoring.getMdaDetailedScoringData,
+                                            { mdaName: mda.mdaName, year: dashboardYear }
+                                          ) as any;
+                                          if (detailedData) {
+                                            await generateMdaScoringPDF(detailedData);
+                                            toast.success("PDF downloaded successfully!");
+                                          } else {
+                                            toast.error("No data available to download");
+                                          }
+                                        } catch (error) {
+                                          console.error("Error downloading PDF:", error);
+                                          toast.error("Failed to download PDF");
+                                        } finally {
+                                          setIsLoadingDetails(false);
+                                        }
+                                      }}
+                                      className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs"
+                                    >
+                                      📥 Download
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Top 10 and Bottom 10 Tables */}
+            {liveDashboardData !== undefined && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Top 10 Table */}
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">🏆 Top 10</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-green-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {selectedMetric === 'mysteryShopping' ? 'Mystery Shopping' :
+                             selectedMetric === 'sla' ? 'Service Level Agreement' :
+                             selectedMetric === 'controversial' ? 'Controversial' :
+                             selectedMetric === 'innovation' ? 'Innovation' :
+                             selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                             selectedMetric === 'reportGovernance' ? 'Report Governance' :
+                             selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                             selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                             selectedMetric === 'timeliness' ? 'Timeliness' :
+                             selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {(() => {
+                          // Use same processed and filtered data
+                          const allMdasArray = processDashboardMdaData(mdaFilter);
+
+                          // Sort by selected metric
+                          const sortedData = [...allMdasArray].sort((a: any, b: any) => {
+                            let aValue: any = 0;
+                            let bValue: any = 0;
+                            
+                            if (selectedMetric === 'totalScore') {
+                              aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                              bValue = b.totalPercentage || 0;
+                            } else if (selectedMetric === 'mysteryShopping') {
+                              aValue = a.mysteryShopping?.score || 0;
+                              bValue = b.mysteryShopping?.score || 0;
+                            } else if (selectedMetric === 'sla') {
+                              aValue = a.sla?.score || 0;
+                              bValue = b.sla?.score || 0;
+                            } else if (selectedMetric === 'controversial') {
+                              aValue = a.controversial?.score || 0;
+                              bValue = b.controversial?.score || 0;
+                            } else if (selectedMetric === 'innovation') {
+                              aValue = a.innovation?.score || 0;
+                              bValue = b.innovation?.score || 0;
+                            } else if (selectedMetric === 'stakeholder') {
+                              aValue = a.stakeholder?.score || 0;
+                              bValue = b.stakeholder?.score || 0;
+                            } else if (selectedMetric === 'reportGovernance') {
+                              aValue = a.reportGovernance?.score || 0;
+                              bValue = b.reportGovernance?.score || 0;
+                            } else if (selectedMetric === 'reportGovResolution') {
+                              aValue = a.reportGovResolution?.score || 0;
+                              bValue = b.reportGovResolution?.score || 0;
+                            } else if (selectedMetric === 'monthlyReport') {
+                              aValue = a.monthlyReport?.score || 0;
+                              bValue = b.monthlyReport?.score || 0;
+                            } else if (selectedMetric === 'timeliness') {
+                              aValue = a.timeliness?.score || 0;
+                              bValue = b.timeliness?.score || 0;
+                            }
+                            
+                            return bValue - aValue;
+                          });
+
+                          const top10 = sortedData.slice(0, 10);
+
+                          return top10.map((mda: any, index: number) => {
+                            let score = 0;
+                            let maxScore = 100;
+                            let overallPercentage = 0;
+                            
+                            if (selectedMetric === 'totalScore') {
+                              score = mda.totalScore || 0;
+                              overallPercentage = mda.totalPercentage || 0; // Use normalized percentage
+                            } else if (selectedMetric === 'mysteryShopping') {
+                              score = mda.mysteryShopping?.score || 0;
+                              maxScore = 20;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'sla') {
+                              score = mda.sla?.score || 0;
+                              maxScore = 30;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'controversial') {
+                              score = mda.controversial?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'innovation') {
+                              score = mda.innovation?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'stakeholder') {
+                              score = mda.stakeholder?.score || 0;
+                              maxScore = 5;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'reportGovernance') {
+                              score = mda.reportGovernance?.score || 0;
+                              maxScore = 5;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'reportGovResolution') {
+                              score = mda.reportGovResolution?.score || 0;
+                              maxScore = 15;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'monthlyReport') {
+                              score = mda.monthlyReport?.score || 0;
+                              maxScore = 3;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'timeliness') {
+                              score = mda.timeliness?.score || 0;
+                              maxScore = 2;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            }
+
+                            return (
+                              <tr key={mda.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-green-50"}>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  #{index + 1}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {mda.mdaName}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                  {score > 0 ? (
+                                    <span className={`font-bold text-lg ${
+                                      overallPercentage >= 90 ? 'text-green-600' :
+                                      overallPercentage >= 80 ? 'text-blue-600' :
+                                      overallPercentage >= 70 ? 'text-yellow-600' :
+                                      overallPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                    }`}>
+                                      {overallPercentage.toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Bottom 10 Table */}
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">📉 Bottom 10</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-red-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {selectedMetric === 'mysteryShopping' ? 'Mystery Shopping' :
+                             selectedMetric === 'sla' ? 'Service Level Agreement' :
+                             selectedMetric === 'controversial' ? 'Controversial' :
+                             selectedMetric === 'innovation' ? 'Innovation' :
+                             selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                             selectedMetric === 'reportGovernance' ? 'Report Governance' :
+                             selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                             selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                             selectedMetric === 'timeliness' ? 'Timeliness' :
+                             selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {(() => {
+                          // Use same processed and filtered data
+                          const allMdasArray = processDashboardMdaData(mdaFilter);
+
+                          // Sort by selected metric
+                          const sortedData = [...allMdasArray].sort((a: any, b: any) => {
+                            let aValue: any = 0;
+                            let bValue: any = 0;
+                            
+                            if (selectedMetric === 'totalScore') {
+                              aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
+                              bValue = b.totalPercentage || 0;
+                            } else if (selectedMetric === 'mysteryShopping') {
+                              aValue = a.mysteryShopping?.score || 0;
+                              bValue = b.mysteryShopping?.score || 0;
+                            } else if (selectedMetric === 'sla') {
+                              aValue = a.sla?.score || 0;
+                              bValue = b.sla?.score || 0;
+                            } else if (selectedMetric === 'controversial') {
+                              aValue = a.controversial?.score || 0;
+                              bValue = b.controversial?.score || 0;
+                            } else if (selectedMetric === 'innovation') {
+                              aValue = a.innovation?.score || 0;
+                              bValue = b.innovation?.score || 0;
+                            } else if (selectedMetric === 'stakeholder') {
+                              aValue = a.stakeholder?.score || 0;
+                              bValue = b.stakeholder?.score || 0;
+                            } else if (selectedMetric === 'reportGovernance') {
+                              aValue = a.reportGovernance?.score || 0;
+                              bValue = b.reportGovernance?.score || 0;
+                            } else if (selectedMetric === 'reportGovResolution') {
+                              aValue = a.reportGovResolution?.score || 0;
+                              bValue = b.reportGovResolution?.score || 0;
+                            } else if (selectedMetric === 'monthlyReport') {
+                              aValue = a.monthlyReport?.score || 0;
+                              bValue = b.monthlyReport?.score || 0;
+                            } else if (selectedMetric === 'timeliness') {
+                              aValue = a.timeliness?.score || 0;
+                              bValue = b.timeliness?.score || 0;
+                            }
+                            
+                            return bValue - aValue;
+                          });
+
+                          const bottom10 = sortedData.slice(-10).reverse(); // Get last 10 and reverse to show lowest first
+
+                          return bottom10.map((mda: any, index: number) => {
+                            let score = 0;
+                            let maxScore = 100;
+                            let overallPercentage = 0;
+                            
+                            if (selectedMetric === 'totalScore') {
+                              score = mda.totalScore || 0;
+                              overallPercentage = mda.totalPercentage || 0; // Use normalized percentage
+                            } else if (selectedMetric === 'mysteryShopping') {
+                              score = mda.mysteryShopping?.score || 0;
+                              maxScore = 20;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'sla') {
+                              score = mda.sla?.score || 0;
+                              maxScore = 30;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'controversial') {
+                              score = mda.controversial?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'innovation') {
+                              score = mda.innovation?.score || 0;
+                              maxScore = 10;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'stakeholder') {
+                              score = mda.stakeholder?.score || 0;
+                              maxScore = 5;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'reportGovernance') {
+                              score = mda.reportGovernance?.score || 0;
+                              maxScore = 5;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'reportGovResolution') {
+                              score = mda.reportGovResolution?.score || 0;
+                              maxScore = 15;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'monthlyReport') {
+                              score = mda.monthlyReport?.score || 0;
+                              maxScore = 3;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            } else if (selectedMetric === 'timeliness') {
+                              score = mda.timeliness?.score || 0;
+                              maxScore = 2;
+                              overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                            }
+
+                            // Calculate rank: if total is 70, bottom 10 ranks are 70, 69, 68... 61
+                            // sortedData.length gives total count, so last rank is sortedData.length
+                            // Bottom 10 starts from sortedData.length and goes down
+                            const bottomRank = sortedData.length - index;
+
+                            return (
+                              <tr key={mda.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-red-50"}>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  #{bottomRank}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {mda.mdaName}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                  {score > 0 ? (
+                                    <span className={`font-bold text-lg ${
+                                      overallPercentage >= 90 ? 'text-green-600' :
+                                      overallPercentage >= 80 ? 'text-blue-600' :
+                                      overallPercentage >= 70 ? 'text-yellow-600' :
+                                      overallPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                    }`}>
+                                      {overallPercentage.toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* View Details Modal */}
+            {viewDetailsMda && (
+              <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                <div className="relative w-full max-w-6xl max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl">
+                  <button
+                    onClick={() => {
+                      setViewDetailsMda(null);
+                      setViewDetailsData(null);
+                      setIsLoadingDetails(false);
+                    }}
+                    className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+                  >
+                    &times;
+                  </button>
+                  <div className="p-6">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                      {viewDetailsMda} - Detailed Scoring Report {dashboardYear}
+                    </h2>
+                    
+                    {isLoadingDetails ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">Loading detailed data...</p>
+                      </div>
+                    ) : viewDetailsData ? (
+                      <div className="space-y-6">
+                        {/* SLA Section */}
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">1. Service Level Agreement (30 points)</h3>
+                          {(() => {
+                            const monthlyData: { [key: string]: { percentage?: number; method?: string } } = {};
+                            if (viewDetailsData.sla?.firstHalf?.monthlySlaData) {
+                              Object.entries(viewDetailsData.sla.firstHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
+                                if (value && (value.method === 'file' || value.method === 'rating')) {
+                                  monthlyData[key] = {
+                                    percentage: value.method === 'file' ? value.overallPercentage : (value.rating / 10) * 100,
+                                    method: value.method
+                                  };
+                                }
+                              });
+                            }
+                            if (viewDetailsData.sla?.secondHalf?.monthlySlaData) {
+                              Object.entries(viewDetailsData.sla.secondHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
+                                if (value && (value.method === 'file' || value.method === 'rating')) {
+                                  monthlyData[key] = {
+                                    percentage: value.method === 'file' ? value.overallPercentage : (value.rating / 10) * 100,
+                                    method: value.method
+                                  };
+                                }
+                              });
+                            }
+                            
+                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            
+                            // Show all 12 months (0-indexed: 0 = Jan, 11 = Dec)
+                            return (
+                              <div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                                  {monthNames.map((monthName, index) => {
+                                    const monthIndex = index; // 0-11 (0 = Jan, 11 = Dec)
+                                    const monthKey = `${dashboardYear}-${monthIndex}`;
+                                    const monthData = monthlyData[monthKey];
+                                    
+                                    return (
+                                      <div key={monthKey} className={`p-2 rounded border ${
+                                        monthData ? 'bg-white' : 'bg-gray-100'
+                                      }`}>
+                                        <div className="font-semibold text-sm">{monthName} {dashboardYear}</div>
+                                        <div className={`text-xs ${
+                                          monthData ? 'text-gray-600' : 'text-gray-400'
+                                        }`}>
+                                          {monthData ? `${monthData.percentage?.toFixed(1)}%` : 'No data'}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Mystery Shopping Section */}
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">2. Mystery Shopping (20 points)</h3>
+                          {(() => {
+                            const hasReportGovQuestions = [
+                              { key: 'reportGovIntegration', label: 'REPORTGOV INTEGRATION', type: 'rating' },
+                              { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
+                              { key: 'emailResponse', label: 'EMAIL RESPOND RATING', type: 'rating' },
+                              { key: 'functionalWebsite', label: 'FUNCTIONAL WEBSITE', type: 'yesno' },
+                              { key: 'csEmails', label: 'CUSTOMER SERVICES (CS) EMAILS LISTED', type: 'yesno' },
+                              { key: 'csPhone', label: 'CUSTOMER SERVICES (CS) PHONE NUMBER LISTED', type: 'yesno' },
+                              { key: 'faqAvailable', label: 'FAQ AVAILABLE', type: 'yesno' },
+                              { key: 'onlineApplication', label: 'AVAILABILITY OF ONLINE APPLICATION/PROCESS', type: 'yesno' },
+                              { key: 'onlineApproval', label: 'APPROVAL/FACILITY GRANTED ONLINE', type: 'yesno' },
+                              { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' },
+                              { key: 'satisfaction', label: 'SATISFACTION OF SERVICE THAT IS BEEN TESTED', type: 'rating' }
+                            
+                            ];
+                            const noReportGovQuestions = [
+                              { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
+                              { key: 'emailResponse', label: 'EMAIL RESPOND RATING', type: 'rating' },
+                              { key: 'functionalWebsite', label: 'FUNCTIONAL WEBSITE', type: 'yesno' },
+                              { key: 'csEmails', label: 'CUSTOMER SERVICES (CS) EMAILS LISTED', type: 'yesno' },
+                              { key: 'csPhone', label: 'CUSTOMER SERVICES (CS) PHONE NUMBER LISTED', type: 'yesno' },
+                              { key: 'faqAvailable', label: 'FAQ AVAILABLE', type: 'yesno' },
+                              { key: 'onlineApplication', label: 'AVAILABILITY OF ONLINE APPLICATION/PROCESS', type: 'yesno' },
+                              { key: 'onlineApproval', label: 'APPROVAL/FACILITY GRANTED ONLINE', type: 'yesno' },
+                              { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' }
+                            ];
+                            
+                            const ratingLabels = ['No Response', 'POOR', 'FAIR', 'AVERAGE', 'GOOD', 'EXCELLENT'];
+                            
+                            // Combine ratings from both halves
+                            const combinedRatings: { [key: string]: { values: number[], label: string, type: string } } = {};
+                            let avgTotalScore = 0;
+                            let avgMaxScore = 0;
+                            let avgPercentage = 0;
+                            let mysteryType = '';
+                            let count = 0;
+                            
+                            [viewDetailsData.mysteryShopping?.firstHalf, viewDetailsData.mysteryShopping?.secondHalf].forEach(half => {
+                              if (half) {
+                                mysteryType = half.mysteryType || mysteryType;
+                                const questions = half.mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
+                                
+                                questions.forEach(q => {
+                                  const rating = half.ratings?.[q.key];
+                                  if (rating !== undefined) {
+                                    if (!combinedRatings[q.key]) {
+                                      combinedRatings[q.key] = { values: [], label: q.label, type: q.type };
+                                    }
+                                    combinedRatings[q.key].values.push(rating);
+                                  }
+                                });
+                                
+                                if (half.totalScore) avgTotalScore += half.totalScore;
+                                // Mystery Shopping is always out of 20 points, regardless of question count
+                                avgMaxScore = 20;
+                                if (half.percentage) avgPercentage += half.percentage;
+                                count++;
+                              }
+                            });
+
+                            const finalMysteryScore = count > 0 ? avgTotalScore / count : 0;
+                            const finalMysteryPercentage = count > 0 ? avgPercentage / count : 0;
+
+                            return (
+                              <div className="bg-white p-3 rounded border">
+                                {mysteryType && (
+                                  <div className="font-semibold mb-2 text-sm text-gray-600">Type: {mysteryType === 'hasReportGov' ? 'Has ReportGov' : 'No ReportGov'}</div>
+                                )}
+                                <div className="space-y-1 text-sm">
+                                  {Object.entries(combinedRatings).map(([key, info]) => {
+                                    const avgRating = info.values.reduce((sum, val) => sum + val, 0) / info.values.length;
+                                    
+                                    if (info.type === 'rating') {
+                                      const points = (avgRating / 5) * 1;
+                                      return (
+                                        <div key={key} className="flex justify-between">
+                                          <span>{info.label}:</span>
+                                          <span className="font-semibold">{ratingLabels[Math.round(avgRating)] || avgRating.toFixed(1)} ({points.toFixed(2)} points)</span>
+                                        </div>
+                                      );
+                                    } else {
+                                      const answer = avgRating >= 0.5 ? 'Yes' : 'No';
+                                      const points = avgRating >= 0.5 ? 1 : 0;
+                                      return (
+                                        <div key={key} className="flex justify-between">
+                                          <span>{info.label}:</span>
+                                          <span className="font-semibold">{answer} ({points} point{points === 1 ? '' : 's'})</span>
+                                        </div>
+                                      );
+                                    }
+                                  })}
+                                </div>
+                                {finalMysteryScore > 0 && (
+                                  <div className="mt-2 pt-2 border-t">
+                                    <span className="font-bold">Total Score: {finalMysteryScore.toFixed(1)}/20 ({finalMysteryPercentage.toFixed(1)}%)</span>
+                                  </div>
+                                )}
+                                {Object.keys(combinedRatings).length === 0 && (
+                                  <p className="text-gray-500">No data available</p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Other Metrics Sections */}
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">3. Controversial (10 points)</h3>
+                          <div className="space-y-2">
+                            {(() => {
+                              const contFirst = viewDetailsData.controversial?.firstHalf || { isControversial: false, score: 0 };
+                              const contSecond = viewDetailsData.controversial?.secondHalf || { isControversial: false, score: 0 };
+                              const hasData = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf;
+                              
+                              if (hasData) {
+                                const avgScore = ((contFirst.score || 0) + (contSecond.score || 0)) / 2;
+                                const isControversial = contFirst.isControversial || contSecond.isControversial;
+                                return (
+                                  <>
+                                    <div>Answer: {isControversial ? 'Yes' : 'No'}</div>
+                                    <div>Score: {avgScore.toFixed(1)}/10</div>
+                                  </>
+                                );
+                              }
+                              return <p className="text-gray-500">No data available</p>;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">4. Innovation (10 points)</h3>
+                          <div className="space-y-2">
+                            {(() => {
+                              const innovFirst = viewDetailsData.innovation?.firstHalf || { isInnovative: false, score: 0 };
+                              const innovSecond = viewDetailsData.innovation?.secondHalf || { isInnovative: false, score: 0 };
+                              const hasData = viewDetailsData.innovation?.firstHalf || viewDetailsData.innovation?.secondHalf;
+                              
+                              if (hasData) {
+                                const avgScore = ((innovFirst.score || 0) + (innovSecond.score || 0)) / 2;
+                                const isInnovative = innovFirst.isInnovative || innovSecond.isInnovative;
+                                return (
+                                  <>
+                                    <div>Answer: {isInnovative ? 'Yes' : 'No'}</div>
+                                    <div>Score: {avgScore.toFixed(1)}/10</div>
+                                  </>
+                                );
+                              }
+                              return <p className="text-gray-500">No data available</p>;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">5. Stakeholder Engagement (5 points)</h3>
+                          <div className="space-y-2">
+                            {(() => {
+                              const stakeFirst = viewDetailsData.stakeholder?.firstHalf || { rate: 0, score: 0 };
+                              const stakeSecond = viewDetailsData.stakeholder?.secondHalf || { rate: 0, score: 0 };
+                              const hasData = viewDetailsData.stakeholder?.firstHalf || viewDetailsData.stakeholder?.secondHalf;
+                              
+                              if (hasData) {
+                                const avgRate = ((stakeFirst.rate || 0) + (stakeSecond.rate || 0)) / 2;
+                                const avgScore = ((stakeFirst.score || 0) + (stakeSecond.score || 0)) / 2;
+                                return (
+                                  <>
+                                    <div>Rate: {avgRate.toFixed(1)}/10</div>
+                                    <div>Score: {avgScore.toFixed(1)}/5</div>
+                                  </>
+                                );
+                              }
+                              return <p className="text-gray-500">No data available</p>;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">5. Report Governance (5 points)</h3>
+                          <div className="space-y-2">
+                            {(() => {
+                              const checkedItems = new Set<string>();
+                              let avgScore = 0;
+                              let count = 0;
+
+                              [viewDetailsData.reportGovernance?.firstHalf, viewDetailsData.reportGovernance?.secondHalf].forEach(half => {
+                                if (half) {
+                                  if (half.activeWebsite) checkedItems.add('Active Website');
+                                  if (half.activeUsers) checkedItems.add('Active Users');
+                                  if (half.reportGovLink) checkedItems.add('ReportGov Link');
+                                  if (half.score) {
+                                    avgScore += half.score;
+                                    count++;
+                                  }
+                                }
+                              });
+
+                              const hasData = count > 0 || checkedItems.size > 0;
+                              if (hasData) {
+                                const finalScore = count > 0 ? avgScore / count : 0;
+                                return (
+                                  <>
+                                    <div>Items: {Array.from(checkedItems).join(', ') || 'None'}</div>
+                                    <div>Score: {finalScore.toFixed(1)}/5</div>
+                                  </>
+                                );
+                              }
+                              return <p className="text-gray-500">No data available</p>;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">6. Report Gov Resolution (15 points)</h3>
+                          <div className="space-y-3">
+                            {(() => {
+                              const resFirst = viewDetailsData.reportGovResolution?.firstHalf || {};
+                              const resSecond = viewDetailsData.reportGovResolution?.secondHalf || {};
+                              const hasFirstHalf = resFirst && (resFirst.totalTickets !== undefined || resFirst.score !== undefined);
+                              const hasSecondHalf = resSecond && (resSecond.totalTickets !== undefined || resSecond.score !== undefined);
+                              const isSkipped = (resFirst?.isSkipped || false) || (resSecond?.isSkipped || false);
+                              const hasData = hasFirstHalf || hasSecondHalf;
+                              
+                              if (isSkipped) {
+                                return (
+                                  <div className="bg-white p-3 rounded border">
+                                    <div className="text-sm space-y-1">
+                                      <div className="font-bold text-yellow-600">⚠️ Report Gov Resolution Skipped</div>
+                                      <div className="text-gray-500">Score: 0/15 (Skipped)</div>
+                                      <div className="text-xs text-blue-600 mt-2">
+                                        Note: Total score normalized to 85=100% for fair ranking
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              
+                              if (hasData) {
+                                let totalTickets, resolvedTickets, resolutionRate, avgResponseTime, avgResolutionTime, avgScore, periodLabel, originalHalfScore;
+                                
+                                if (hasFirstHalf && hasSecondHalf) {
+                                  // Both halves have data - sum tickets, average times and score
+                                  totalTickets = (resFirst.totalTickets || 0) + (resSecond.totalTickets || 0);
+                                  resolvedTickets = (resFirst.resolvedTickets || 0) + (resSecond.resolvedTickets || 0);
+                                  resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+                                  
+                                  avgResponseTime = resFirst.averageResponseTime && resSecond.averageResponseTime
+                                    ? ((resFirst.averageResponseTime || 0) + (resSecond.averageResponseTime || 0)) / 2
+                                    : (resFirst.averageResponseTime || resSecond.averageResponseTime || 0);
+                                  
+                                  avgResolutionTime = resFirst.averageResolutionTime && resSecond.averageResolutionTime
+                                    ? ((resFirst.averageResolutionTime || 0) + (resSecond.averageResolutionTime || 0)) / 2
+                                    : (resFirst.averageResolutionTime || resSecond.averageResolutionTime || 0);
+                                  
+                                  avgScore = resFirst.score && resSecond.score
+                                    ? ((resFirst.score || 0) + (resSecond.score || 0)) / 2
+                                    : (resFirst.score || resSecond.score || 0);
+                                  
+                                  periodLabel = "Both Halves (Averaged)";
+                                  originalHalfScore = null;
+                                } else if (hasFirstHalf) {
+                                  // Only first half has data - divide score by 2 (like table)
+                                  totalTickets = resFirst.totalTickets || 0;
+                                  resolvedTickets = resFirst.resolvedTickets || 0;
+                                  resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+                                  avgResponseTime = resFirst.averageResponseTime || 0;
+                                  avgResolutionTime = resFirst.averageResolutionTime || 0;
+                                  originalHalfScore = resFirst.score || 0;
+                                  avgScore = originalHalfScore / 2; // Divide by 2 when only one half
+                                  periodLabel = "1st Half Only";
+                                } else {
+                                  // Only second half has data - divide score by 2 (like table)
+                                  totalTickets = resSecond.totalTickets || 0;
+                                  resolvedTickets = resSecond.resolvedTickets || 0;
+                                  resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+                                  avgResponseTime = resSecond.averageResponseTime || 0;
+                                  avgResolutionTime = resSecond.averageResolutionTime || 0;
+                                  originalHalfScore = resSecond.score || 0;
+                                  avgScore = originalHalfScore / 2; // Divide by 2 when only one half
+                                  periodLabel = "2nd Half Only";
+                                }
+                                
+                                return (
+                                  <div className="bg-white p-3 rounded border">
+                                    {periodLabel && (
+                                      <div className="text-xs text-gray-500 mb-2 font-semibold">{periodLabel}</div>
+                                    )}
+                                    <div className="text-sm space-y-1">
+                                      <div>Total Tickets: {totalTickets.toFixed(0)}</div>
+                                      <div>Resolved Tickets: {resolvedTickets.toFixed(0)}</div>
+                                      <div>Resolution Rate: {resolutionRate.toFixed(1)}%</div>
+                                      <div>Avg Response Time: {avgResponseTime.toFixed(1)} hours</div>
+                                      <div>Avg Resolution Time: {avgResolutionTime.toFixed(1)} hours</div>
+                                      <div className="font-bold">Score: {avgScore.toFixed(1)}/15</div>
+                                      {originalHalfScore !== null && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          {periodLabel.includes("1st") ? "1st" : "2nd"} Half only: {originalHalfScore.toFixed(1)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return <p className="text-gray-500">No data available</p>;
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">7. Monthly Report Submission (3 points)</h3>
+                          {(() => {
+                            const monthlyData: { [key: string]: boolean } = {};
+                            if (viewDetailsData.monthlyReport?.firstHalf?.manualMonthlyReports) {
+                              Object.entries(viewDetailsData.monthlyReport.firstHalf.manualMonthlyReports).forEach(([key, value]) => {
+                                if (value) monthlyData[key] = true;
+                              });
+                            }
+                            if (viewDetailsData.monthlyReport?.secondHalf?.manualMonthlyReports) {
+                              Object.entries(viewDetailsData.monthlyReport.secondHalf.manualMonthlyReports).forEach(([key, value]) => {
+                                if (value) monthlyData[key] = true;
+                              });
+                            }
+                            
+                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            
+                            // Show all 12 months (0-indexed: 0 = Jan, 11 = Dec)
+                            return (
+                              <div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                                  {monthNames.map((monthName, index) => {
+                                    const monthIndex = index; // 0-11 (0 = Jan, 11 = Dec)
+                                    const monthKey = `${dashboardYear}-${monthIndex}`;
+                                    const isSubmitted = monthlyData[monthKey] === true;
+                                    
+                                    return (
+                                      <div key={monthKey} className={`p-2 rounded border ${
+                                        isSubmitted ? 'bg-white' : 'bg-gray-100'
+                                      }`}>
+                                        <div className="font-semibold text-sm">{monthName} {dashboardYear}</div>
+                                        <div className={`text-xs ${
+                                          isSubmitted ? 'text-green-600' : 'text-red-500'
+                                        }`}>
+                                          {isSubmitted ? 'Submitted' : 'Not submitted'}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                          <h3 className="text-lg font-bold mb-3">8. Timeliness in Submitting Report (2 points)</h3>
+                          {(() => {
+                            const monthlyData: { [key: string]: boolean } = {};
+                            if (viewDetailsData.timeliness?.firstHalf?.manualTimeliness) {
+                              Object.entries(viewDetailsData.timeliness.firstHalf.manualTimeliness).forEach(([key, value]) => {
+                                if (value) monthlyData[key] = true;
+                              });
+                            }
+                            if (viewDetailsData.timeliness?.secondHalf?.manualTimeliness) {
+                              Object.entries(viewDetailsData.timeliness.secondHalf.manualTimeliness).forEach(([key, value]) => {
+                                if (value) monthlyData[key] = true;
+                              });
+                            }
+                            
+                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            
+                            // Show all 12 months (0-indexed: 0 = Jan, 11 = Dec)
+                            return (
+                              <div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                                  {monthNames.map((monthName, index) => {
+                                    const monthIndex = index; // 0-11 (0 = Jan, 11 = Dec)
+                                    const monthKey = `${dashboardYear}-${monthIndex}`;
+                                    const isOnTime = monthlyData[monthKey] === true;
+                                    
+                                    return (
+                                      <div key={monthKey} className={`p-2 rounded border ${
+                                        isOnTime ? 'bg-white' : 'bg-gray-100'
+                                      }`}>
+                                        <div className="font-semibold text-sm">{monthName} {dashboardYear}</div>
+                                        <div className={`text-xs ${
+                                          isOnTime ? 'text-green-600' : 'text-red-500'
+                                        }`}>
+                                          {isOnTime ? 'On Time' : 'Late'}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Overall Score Summary */}
+                        <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300">
+                          <h3 className="text-xl font-bold mb-3">OVERALL SCORE SUMMARY</h3>
+                          {(() => {
+                            // Calculate scores (same logic as PDF)
+                            const allMonthKeys = new Set<string>();
+                            [viewDetailsData.sla?.firstHalf, viewDetailsData.sla?.secondHalf].forEach(half => {
+                              if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
+                                Object.keys(half.monthlySlaData).forEach(key => {
+                                  const monthData = half.monthlySlaData[key];
+                                  if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
+                                    allMonthKeys.add(key);
+                                  }
+                                });
+                              }
+                            });
+                            const totalMonthsWithData = allMonthKeys.size;
+                            const sumTotalScore = [viewDetailsData.sla?.firstHalf, viewDetailsData.sla?.secondHalf]
+                              .filter(Boolean)
+                              .reduce((sum, d) => sum + (d.totalScore || 0), 0);
+                            const maxPossibleRawScore = totalMonthsWithData * 5;
+                            const pointsPerMonth = 30 / 12;
+                            const maxPossibleScoreForMonths = totalMonthsWithData * pointsPerMonth;
+                            const slaScore = totalMonthsWithData > 0 ? (sumTotalScore / maxPossibleRawScore) * maxPossibleScoreForMonths : 0;
+
+                            const mysteryScore = viewDetailsData.mysteryShopping?.firstHalf || viewDetailsData.mysteryShopping?.secondHalf ?
+                              ((viewDetailsData.mysteryShopping?.firstHalf?.totalScore || 0) + (viewDetailsData.mysteryShopping?.secondHalf?.totalScore || 0)) / 2 : 0;
+                            const controversialScore = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf ?
+                              ((viewDetailsData.controversial?.firstHalf?.score || 0) + (viewDetailsData.controversial?.secondHalf?.score || 0)) / 2 : 0;
+                            const innovationScore = viewDetailsData.innovation?.firstHalf || viewDetailsData.innovation?.secondHalf ?
+                              ((viewDetailsData.innovation?.firstHalf?.score || 0) + (viewDetailsData.innovation?.secondHalf?.score || 0)) / 2 : 0;
+                            const stakeholderScore = viewDetailsData.stakeholder?.firstHalf || viewDetailsData.stakeholder?.secondHalf ?
+                              ((viewDetailsData.stakeholder?.firstHalf?.score || 0) + (viewDetailsData.stakeholder?.secondHalf?.score || 0)) / 2 : 0;
+                            const reportGovScore = viewDetailsData.reportGovernance?.firstHalf || viewDetailsData.reportGovernance?.secondHalf ?
+                              ((viewDetailsData.reportGovernance?.firstHalf?.score || 0) + (viewDetailsData.reportGovernance?.secondHalf?.score || 0)) / 2 : 0;
+                            // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
+                            let reportGovResScore = 0;
+                            const isReportGovSkipped = (viewDetailsData.reportGovResolution?.firstHalf?.isSkipped || false) || 
+                                                      (viewDetailsData.reportGovResolution?.secondHalf?.isSkipped || false);
+                            if (viewDetailsData.reportGovResolution?.firstHalf || viewDetailsData.reportGovResolution?.secondHalf) {
+                              const resFirst = viewDetailsData.reportGovResolution?.firstHalf || {};
+                              const resSecond = viewDetailsData.reportGovResolution?.secondHalf || {};
+                              const hasFirstHalf = resFirst && resFirst.score !== undefined && resFirst.score !== null;
+                              const hasSecondHalf = resSecond && resSecond.score !== undefined && resSecond.score !== null;
+                              
+                              if (!isReportGovSkipped) {
+                                if (hasFirstHalf && hasSecondHalf) {
+                                  // Both halves have data - average
+                                  reportGovResScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
+                                } else if (hasFirstHalf) {
+                                  // Only first half - divide by 2
+                                  reportGovResScore = (resFirst.score || 0) / 2;
+                                } else if (hasSecondHalf) {
+                                  // Only second half - divide by 2
+                                  reportGovResScore = (resSecond.score || 0) / 2;
+                                }
+                              }
+                            }
+                            
+                            const monthlyReportMonths = new Set<string>();
+                            [viewDetailsData.monthlyReport?.firstHalf, viewDetailsData.monthlyReport?.secondHalf].forEach(half => {
+                              if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
+                                Object.keys(half.manualMonthlyReports).forEach(key => {
+                                  if (half.manualMonthlyReports[key]) monthlyReportMonths.add(key);
+                                });
+                              }
+                            });
+                            const monthlyReportScore = monthlyReportMonths.size * (3 / 12);
+                            
+                            const timelinessMonths = new Set<string>();
+                            [viewDetailsData.timeliness?.firstHalf, viewDetailsData.timeliness?.secondHalf].forEach(half => {
+                              if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
+                                Object.keys(half.manualTimeliness).forEach(key => {
+                                  if (half.manualTimeliness[key]) timelinessMonths.add(key);
+                                });
+                              }
+                            });
+                            const timelinessScore = timelinessMonths.size * (2 / 12);
+
+                            const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
+                                              reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+                            
+                            const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+                            const totalPercentage = isReportGovSkipped 
+                              ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
+                              : (totalScore / 100) * 100; // Standard: 100 points = 100%
+
+                            return (
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between"><span>SLA:</span><span className="font-semibold">{slaScore.toFixed(1)}/30</span></div>
+                                <div className="flex justify-between"><span>Mystery Shopping:</span><span className="font-semibold">{mysteryScore.toFixed(1)}/20</span></div>
+                                <div className="flex justify-between"><span>Controversial:</span><span className="font-semibold">{controversialScore.toFixed(1)}/10</span></div>
+                                <div className="flex justify-between"><span>Innovation:</span><span className="font-semibold">{innovationScore.toFixed(1)}/10</span></div>
+                                <div className="flex justify-between"><span>Stakeholder Engagement:</span><span className="font-semibold">{stakeholderScore.toFixed(1)}/5</span></div>
+                                <div className="flex justify-between"><span>Report Governance:</span><span className="font-semibold">{reportGovScore.toFixed(1)}/5</span></div>
+                                <div className={`flex justify-between ${isReportGovSkipped ? 'text-gray-500' : ''}`}>
+                                  <span>Report Gov Resolution: {isReportGovSkipped && <span className="text-yellow-600">(Skipped)</span>}</span>
+                                  <span className="font-semibold">{reportGovResScore.toFixed(1)}/15</span>
+                                </div>
+                                <div className="flex justify-between"><span>Monthly Report Submission:</span><span className="font-semibold">{monthlyReportScore.toFixed(1)}/3</span></div>
+                                <div className="flex justify-between"><span>Timeliness:</span><span className="font-semibold">{timelinessScore.toFixed(1)}/2</span></div>
+                                {isReportGovSkipped && (
+                                  <div className="text-xs text-blue-600 mt-2 p-2 bg-blue-50 rounded">
+                                    ⚠️ Report Gov Resolution skipped - normalized to 85=100% for fair ranking
+                                  </div>
+                                )}
+                                <div className="mt-4 pt-4 border-t-2 border-blue-400 flex justify-between text-lg">
+                                  <span className="font-bold">OVERALL TOTAL:</span>
+                                  <div className="flex flex-col items-end">
+                                    <span className="font-bold">{totalScore.toFixed(1)}/{maxPossiblePoints}</span>
+                                    <span className="font-bold">{totalPercentage.toFixed(1)}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">No data available for this MDA</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="w-full flex-col flex items-center justify-center">
@@ -1351,9 +3338,18 @@ export default function ScoringMetricsPage() {
                         </span>
                       )}
                     </div>
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      30 Points
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowSLARanking(true)}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                        title="View all MDAs ranked by SLA score"
+                      >
+                        📊 Rankings
+                      </button>
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        30 Points
+                      </span>
+                    </div>
                   </div>
                   
                   <div className="space-y-3">
@@ -1433,9 +3429,18 @@ export default function ScoringMetricsPage() {
                         </span>
                       )}
                     </div>
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      20 Points
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowMysteryRanking(true)}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                        title="View all MDAs ranked by Mystery Shopping score"
+                      >
+                        📊 Rankings
+                      </button>
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        20 Points
+                      </span>
+                    </div>
                   </div>
                   
                   <div className="space-y-3">
@@ -1459,41 +3464,123 @@ export default function ScoringMetricsPage() {
                           : 'bg-green-500 hover:bg-green-600'
                       }`}
                     >
-                      💾 Save Mystery Shopping Data
+                      💾 Save 
                     </button>
                   </div>
                 </div>
 
-                {/* Inter MDA Collaboration */}
+                {/* Controversial */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">Inter MDA Collaboration</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Controversial</h2>
+                      {isLoadingControversialData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingControversialData && savedControversialData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      15 Points
+                      10 Points
                     </span>
                   </div>
                   
                   <Select
-                    value={collaborationRate || 0}
-                    onChange={(e) => setCollaborationRate(Number(e.target.value))}
+                    value={isControversial ? 'yes' : 'no'}
+                    onChange={(e) => setIsControversial(e.target.value === 'yes')}
                     className="w-full mb-3"
                   >
-                    {[...Array(11)].map((_, i) => (
-                      <MenuItem key={i} value={i}>{i}</MenuItem>
-                    ))}
+                    <MenuItem value="no">No</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
                   </Select>
 
-                  <div className="text-center">
-                    Score: {((collaborationRate / 10) * 15).toFixed(1)}/15
+                  <div className="text-center mb-3">
+                    Score: {(isControversial ? 0 : 10).toFixed(1)}/10
                   </div>
+
+                  <button
+                    onClick={handleSaveControversialData}
+                    disabled={!selectedMda}
+                    className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                      !selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    💾 Save 
+                  </button>
+                </div>
+
+                {/* Innovation */}
+                <div className="bg-gray-100/50 p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Innovation</h2>
+                      {isLoadingInnovationData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingInnovationData && savedInnovationData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
+                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                      10 Points
+                    </span>
+                  </div>
+                  
+                  <Select
+                    value={isInnovative ? 'yes' : 'no'}
+                    onChange={(e) => setIsInnovative(e.target.value === 'yes')}
+                    className="w-full mb-3"
+                  >
+                    <MenuItem value="no">No</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                  </Select>
+
+                  <div className="text-center mb-3">
+                    Score: {(isInnovative ? 10 : 0).toFixed(1)}/10
+                  </div>
+
+                  <button
+                    onClick={handleSaveInnovationData}
+                    disabled={!selectedMda}
+                    className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                      !selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    💾 Save 
+                  </button>
                 </div>
 
                 {/* Stakeholder Engagement */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">Stakeholder Engagement</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Stakeholder Engagement</h2>
+                      {isLoadingStakeholderData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingStakeholderData && savedStakeholderData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      10 Points
+                      5 Points
                     </span>
                   </div>
                   
@@ -1507,21 +3594,45 @@ export default function ScoringMetricsPage() {
                     ))}
                   </Select>
 
-                  <div className="text-center">
-                    Score: {((stakeholderRate / 10) * 10).toFixed(1)}/10
+                  <div className="text-center mb-3">
+                    Score: {((stakeholderRate / 10) * 5).toFixed(1)}/5
                   </div>
+
+                  <button
+                    onClick={handleSaveStakeholderData}
+                    disabled={!selectedMda}
+                    className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                      !selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    💾 Save 
+                  </button>
                 </div>
 
                 {/* Report Governance */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">Report Governance</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">Report Governance</h2>
+                      {isLoadingReportGovernanceData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingReportGovernanceData && savedReportGovernanceData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
+                    </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                       5 Points
                     </span>
                   </div>
                   
-                  <div className="space-y-2">
+                  <div className="space-y-2 mb-3">
                     {Object.entries(checkboxItems).map(([key, value]) => (
                       <label key={key} className="flex items-center">
                         <input
@@ -1538,9 +3649,21 @@ export default function ScoringMetricsPage() {
                     ))}
                   </div>
 
-                  <div className="text-center mt-3">
+                  <div className="text-center mb-3">
                     Score: {(Object.values(checkboxItems).filter(Boolean).length / 3 * 5).toFixed(1)}/5
                   </div>
+
+                  <button
+                    onClick={handleSaveReportGovernanceData}
+                    disabled={!selectedMda}
+                    className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                      !selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    💾 Save 
+                  </button>
                 </div>
 
                 {/* Report Governance Resolution */}
@@ -1559,9 +3682,18 @@ export default function ScoringMetricsPage() {
                         </span>
                       )}
                     </div>
-                    <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      15 Points
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowReportGovRanking(true)}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                        title="View all MDAs ranked by Report Gov Resolution score"
+                      >
+                        📊 Rankings
+                      </button>
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        15 Points
+                      </span>
+                    </div>
                   </div>
                   
                   {/* Toggle between automatic, manual, and skip */}
@@ -1775,9 +3907,21 @@ export default function ScoringMetricsPage() {
                 {/* Monthly Report Submission */}
                 <div className="w-full md:w-1/2 flex flex-col items-center bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center gap-2 w-full mb-4">
-                    <div>
-                      <h2 className="text-lg font-semibold">Monthly Report Submission</h2>
-                      <p className="text-sm text-gray-600">Track submission of monthly reports</p>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <h2 className="text-lg font-semibold">Monthly Report Submission</h2>
+                        <p className="text-sm text-gray-600">Track submission of monthly reports</p>
+                      </div>
+                      {isLoadingMonthlyReportData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingMonthlyReportData && savedMonthlyReportData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
                     </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                       3 Points
@@ -1820,6 +3964,8 @@ export default function ScoringMetricsPage() {
                       ></div>
                     </div>
                   </div>
+
+               
                   
                   {/* Monthly Report Grid */}
                   <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-4">
@@ -1958,14 +4104,37 @@ export default function ScoringMetricsPage() {
                         monthlyReportData.score.toFixed(1)}/3
                     </div>
                   </div>
+                  <button
+                    onClick={handleSaveMonthlyReportData}
+                    disabled={!selectedMda}
+                    className={`w-full mb-4 py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                      !selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    💾 Save Monthly Report Data
+                  </button>
                 </div>
 
                 {/* Deadline Compliance */}
                 <div className="w-full md:w-1/2 flex flex-col items-center bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center gap-2 w-full mb-4">
-                    <div>
-                      <h2 className="text-lg font-semibold">Timeliness in Submitting Report</h2>
-                      <p className="text-sm text-gray-600">Assess timeliness of report submissions</p>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <h2 className="text-lg font-semibold">Timeliness in Submitting Report</h2>
+                        <p className="text-sm text-gray-600">Assess timeliness of report submissions</p>
+                      </div>
+                      {isLoadingTimelinessData && (
+                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                          🔄 Loading...
+                        </span>
+                      )}
+                      {!isLoadingTimelinessData && savedTimelinessData && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          💾 Saved
+                        </span>
+                      )}
                     </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                       2 Points
@@ -2128,7 +4297,7 @@ export default function ScoringMetricsPage() {
                     })}
                   </div>
                   
-                  <div className="flex items-center w-full space-x-4">
+                  <div className="flex items-center w-full space-x-4 mb-3">
                     <label className="block text-sm font-medium">Score:</label>
                     <input
                       type="range"
@@ -2153,6 +4322,18 @@ export default function ScoringMetricsPage() {
                         deadlineData.score.toFixed(1)}/2
                     </div>
                   </div>
+
+                  <button
+                    onClick={handleSaveTimelinessData}
+                    disabled={!selectedMda}
+                    className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
+                      !selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-green-500 hover:bg-green-600'
+                    }`}
+                  >
+                    💾 Save Timeliness Data
+                  </button>
                 </div>
               </div>
 
@@ -2215,8 +4396,9 @@ export default function ScoringMetricsPage() {
                   <div className="space-y-2 text-sm">
                     <div>Service Level Agreement: {finalScoreData.scores.serviceLevelAgreement.toFixed(1)}/30</div>
                     <div>Mystery Shopping: {finalScoreData.scores.mysteryShopping.toFixed(1)}/20</div>
-                    <div>Inter MDA Collaboration: {finalScoreData.scores.interMdaCollaboration.toFixed(1)}/15</div>
-                    <div>Stakeholder Engagement: {finalScoreData.scores.stakeholderEngagement.toFixed(1)}/10</div>
+                    <div>Controversial: {finalScoreData.scores.controversial.toFixed(1)}/10</div>
+                    <div>Innovation: {finalScoreData.scores.innovation.toFixed(1)}/10</div>
+                    <div>Stakeholder Engagement: {finalScoreData.scores.stakeholderEngagement.toFixed(1)}/5</div>
                     <div>Report Governance: {finalScoreData.scores.reportGovernance.toFixed(1)}/5</div>
                     <div className={skipReportGov ? "text-gray-500 line-through" : ""}>
                       Report Gov Resolution: {finalScoreData.scores.reportGovernanceResolution.toFixed(1)}/15
@@ -2746,6 +4928,211 @@ export default function ScoringMetricsPage() {
                   Save Assessment
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mystery Shopping Ranking Modal */}
+      {showMysteryRanking && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowMysteryRanking(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+            
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4 text-center">Mystery Shopping Rankings</h2>
+              <p className="text-center text-gray-600 mb-6">Year {scoringPeriod.match(/\d{4}/)?.[0] || currentYear} - Averaged across both halves</p>
+              
+              {mysteryRankings && Array.isArray(mysteryRankings) && mysteryRankings.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(mysteryRankings || []).map((item: any, index: number) => (
+                        <tr key={item.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.mdaName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="font-semibold">{item.totalScore.toFixed(1)}/20</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${
+                              item.percentage >= 90 ? 'text-green-600' :
+                              item.percentage >= 80 ? 'text-blue-600' :
+                              item.percentage >= 70 ? 'text-yellow-600' :
+                              'text-red-600'
+                            }`}>
+                              {item.percentage.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.mysteryType === 'hasReportGov' ? 'ReportGov' : 'No ReportGov'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No Mystery Shopping rankings available for this period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SLA Ranking Modal */}
+      {showSLARanking && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowSLARanking(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+            
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4 text-center">SLA Rankings</h2>
+              <p className="text-center text-gray-600 mb-6">Year {scoringPeriod.match(/\d{4}/)?.[0] || currentYear} - Averaged across both halves</p>
+              
+              {slaRankings && Array.isArray(slaRankings) && slaRankings.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Months Completed</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(slaRankings || []).map((item: any, index: number) => (
+                        <tr key={item.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.mdaName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="font-semibold">{item.totalScore.toFixed(1)}/30</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${
+                              item.percentage >= 90 ? 'text-green-600' :
+                              item.percentage >= 80 ? 'text-blue-600' :
+                              item.percentage >= 70 ? 'text-yellow-600' :
+                              'text-red-600'
+                            }`}>
+                              {item.percentage.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.monthsWithData}/{item.totalMonths}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No SLA rankings available for this period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Gov Ranking Modal */}
+      {showReportGovRanking && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-5xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowReportGovRanking(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+            
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-4 text-center">Report Gov Resolution Rankings</h2>
+              <p className="text-center text-gray-600 mb-6">Year {scoringPeriod.match(/\d{4}/)?.[0] || currentYear} - Averaged across both halves</p>
+              
+              {reportGovRankings && Array.isArray(reportGovRankings) && reportGovRankings.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resolution Rate</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Response Time</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Resolution Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(reportGovRankings || []).map((item: any, index: number) => (
+                        <tr key={item.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.mdaName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${
+                              item.score >= 13.5 ? 'text-green-600' :
+                              item.score >= 12 ? 'text-blue-600' :
+                              item.score >= 10.5 ? 'text-yellow-600' :
+                              'text-red-600'
+                            }`}>
+                              {item.score.toFixed(1)}/15
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.resolutionRate.toFixed(1)}% ({item.resolvedTickets}/{item.totalTickets})
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.averageResponseTime.toFixed(1)}h
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.averageResolutionTime.toFixed(1)}h
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No Report Gov Resolution rankings available for this period.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

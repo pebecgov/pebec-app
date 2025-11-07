@@ -69,7 +69,8 @@ export default defineSchema({
     // Individual metric scores
     serviceLevelAgreementScore: v.number(),
     mysteryShoppingScore: v.number(),
-    interMdaCollaborationScore: v.number(),
+    controversialScore: v.number(),
+    innovationScore: v.number(),
     stakeholderEngagementScore: v.number(),
     reportGovernanceScore: v.number(),
     reportGovernanceResolutionScore: v.number(),
@@ -822,6 +823,7 @@ export default defineSchema({
     resolutionRate: v.number(),
     score: v.number(),
     isManual: v.boolean(),
+    isSkipped: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),
@@ -837,6 +839,82 @@ export default defineSchema({
     totalScore: v.number(),
     maxPossibleScore: v.number(),
     percentage: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Controversial Data Storage (Yes = 0 points, No = 10 points, but max is 5 points)
+  mda_controversial_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    isControversial: v.boolean(), // true = Yes (0 points), false = No (10 points, but capped at 5)
+    score: v.number(), // Calculated score (No = 5 points, Yes = 0 points)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Innovation Data Storage (Yes = 10 points, No = 0 points, but max is 5 points)
+  mda_innovation_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    isInnovative: v.boolean(), // true = Yes (10 points, but capped at 5), false = No (0 points)
+    score: v.number(), // Calculated score (Yes = 5 points, No = 0 points)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Stakeholder Engagement Data Storage
+  mda_stakeholder_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    rate: v.number(), // 0-10 rating
+    score: v.number(), // Calculated score (rate/10 * 5)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Report Governance Data Storage (checkbox items)
+  mda_report_governance_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    activeWebsite: v.boolean(),
+    activeUsers: v.boolean(),
+    reportGovLink: v.boolean(),
+    score: v.number(), // Calculated score (checked items / 3 * 5)
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Monthly Report Submission Data Storage
+  mda_monthly_report_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    manualMonthlyReports: v.any(), // Object with month keys and boolean values
+    useManual: v.boolean(),
+    score: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Timeliness Data Storage
+  mda_timeliness_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    manualTimeliness: v.any(), // Object with month keys and boolean values
+    useManual: v.boolean(),
+    score: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),
