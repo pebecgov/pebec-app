@@ -18,6 +18,7 @@ import type * as ai_helper_scoring from "../ai_helper_scoring.js";
 import type * as business_letters from "../business_letters.js";
 import type * as chat from "../chat.js";
 import type * as cleanup from "../cleanup.js";
+import type * as config_indicators from "../config/indicators.js";
 import type * as crons from "../crons.js";
 import type * as dli from "../dli.js";
 import type * as email from "../email.js";
@@ -71,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   business_letters: typeof business_letters;
   chat: typeof chat;
   cleanup: typeof cleanup;
+  "config/indicators": typeof config_indicators;
   crons: typeof crons;
   dli: typeof dli;
   email: typeof email;
