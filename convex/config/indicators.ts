@@ -308,19 +308,19 @@ export const indicators = {
   "export_import_facilitation": {
     name: "Export-Import Facilitation",
     subIndicators: {
-      "licensing_automation": {
-        label: "Automation of licensing Procedures",
+      "totalExporters_perState": {
+        label: "Total number of exporters per state",
         options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
+          { value: ">999", label: ">999", score: 3 },
+          { value: "500-999", label: "500-999", score: 2 },
+          { value: "0-499", label: "0-499", score: 1 }
         ]
       },
-      "business_registration": {
-        label: "Have businesses that have registered to be number",
+      "StateChamberOfCommerce": {
+        label: "Have state chamber of commerce",
         options: [
-          { value: "high-number", label: "High number", score: 2 },
-          { value: "moderate-number", label: "Moderate number", score: 1 },
-          { value: "low-number", label: "Low number", score: 0 }
+          { value: "yes", label: "Yes", score: 1 },
+          { value: "no", label: "No", score: 0 }
         ]
       }
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -9,10 +9,35 @@ import { api } from "@/convex/_generated/api";
 import StateScoringForm from "@/components/Admin/StateScoringForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { useStateRankings } from "@/hooks/useStateRankings";
+import { indicators } from "@/convex/config/indicators";
+import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 
 // Grade calculation function
-const calculateGrade = (totalScore: number, maxPossibleScore: number = 79): { grade: string; description: string } => {
-  const percentage = (totalScore / maxPossibleScore) * 100;
+const indicatorMaxScores: Record<string, number> = Object.fromEntries(
+  Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
+    const maxScoreForIndicator = Object.values(indicatorConfig.subIndicators).reduce((sum, subIndicator: any) => {
+      const options = subIndicator.options as Array<{ score: number }>;
+      const maxOptionScore = options.reduce((max, option) => Math.max(max, option.score), 0);
+      return sum + maxOptionScore;
+    }, 0);
+    return [indicatorKey, maxScoreForIndicator];
+  })
+);
+
+const overallMaxScore = Object.values(indicatorMaxScores).reduce((sum, value) => sum + value, 0);
+
+const formatScore = (value?: number | null) => {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return "0";
+  }
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+};
+
+const calculateGrade = (totalScore: number, maxPossibleScore: number = overallMaxScore): { grade: string; description: string } => {
+  const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
   
   if (percentage >= 85) return { grade: "A", description: "Excellent" };
   if (percentage >= 70) return { grade: "B", description: "Good" };
@@ -36,12 +61,12 @@ const calculateAnalytics = (allScores: any[]) => {
       lastUpdated: null,
       gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 },
       indicatorPerformance: {},
-      totalPossiblePoints: 79
+      totalPossiblePoints: overallMaxScore
     };
   }
 
   // Total possible points across all indicators
-  const TOTAL_POSSIBLE_POINTS = 79;
+  const TOTAL_POSSIBLE_POINTS = overallMaxScore;
 
   // Group by state and calculate totals
   const stateTotals: Record<string, number> = {};
@@ -192,7 +217,7 @@ const AnalyticsDashboard = () => {
           <p><strong>Below Standards (Below 70%):</strong> States that need improvement to meet requirements</p>
           <p><strong>Scoring Methods:</strong> 
             <span className="ml-1">
-              • <span className="font-semibold text-blue-600">79-Point Scale:</span> Standard scoring with all metrics included
+              • <span className="font-semibold text-blue-600">{formatScore(overallMaxScore)}-Point Scale:</span> Standard scoring with all metrics included
               
              </span>
           </p>
@@ -219,7 +244,7 @@ const AnalyticsDashboard = () => {
           <CardContent className="p-6">
             <div className="text-lg font-semibold text-gray-700 mb-2">National Average</div>
             <div className="text-3xl font-bold text-yellow-600">{analytics.nationalAveragePercentage.toFixed(1)}%</div>
-            <div className="text-sm text-gray-600">{nationalAverage.toFixed(1)}/79 points</div>
+            <div className="text-sm text-gray-600">{nationalAverage.toFixed(1)}/{formatScore(overallMaxScore)} points</div>
           </CardContent>
         </Card>
 
@@ -332,10 +357,14 @@ const AnalyticsDashboard = () => {
                 data={Object.entries(indicatorPerformance)
                   .sort(([,a], [,b]) => b - a)
                   .map(([indicator, average]) => ({
+                    id: indicator, // Unique identifier
                     name: indicator.replace(/([A-Z])/g, ' $1').trim(),
-                    value: average,
+                    value: Number(average.toFixed(2)), // Ensure consistent number format
                     fill: '#3b82f6'
-                  }))}
+                  }))
+                  .filter((item, index, self) => 
+                    index === self.findIndex((t) => t.id === item.id)
+                  )}
                 layout="horizontal"
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -380,13 +409,59 @@ const AnalyticsDashboard = () => {
 };
 
 // Rankings Table Component
-const RankingsTable = () => {
-  const rankings = useQuery(api.state_scores.getStateRankings);
+const INDICATOR_ALL_VALUE = "all";
 
-  if (rankings === undefined) {
+const RankingsTable = () => {
+  const [selectedIndicator, setSelectedIndicator] = useState<string>(INDICATOR_ALL_VALUE);
+  const indicatorKey = selectedIndicator === INDICATOR_ALL_VALUE ? undefined : selectedIndicator;
+  const { rankings, isLoading, isEmpty } = useStateRankings(indicatorKey);
+
+  const indicatorOptions = useMemo(() => {
+    return [
+      { value: INDICATOR_ALL_VALUE, label: "All Indicators" },
+      ...Object.entries(indicators).map(([key, config]) => ({
+        value: key,
+        label: config.name,
+      })),
+    ];
+  }, []);
+
+  const selectedIndicatorLabel = useMemo(() => {
+    if (selectedIndicator === INDICATOR_ALL_VALUE) {
+      return "All Indicators";
+    }
+    return indicators[selectedIndicator]?.name ?? selectedIndicator;
+  }, [selectedIndicator]);
+
+  const exportPDF = useCallback(async () => {
+    await generateStateRankingPDF({
+      rankings,
+      indicatorLabel: selectedIndicatorLabel,
+      indicatorKey,
+    });
+  }, [rankings, selectedIndicatorLabel, indicatorKey]);
+
+  if (isLoading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <div className="text-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <Select value={selectedIndicator} onValueChange={setSelectedIndicator} disabled>
+            <SelectTrigger className="w-full sm:w-60">
+              <SelectValue placeholder="Filter by indicator" />
+            </SelectTrigger>
+            <SelectContent>
+              {indicatorOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" disabled>
+            Generate PDF
+          </Button>
+        </div>
+        <div className="text-center mt-6">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading rankings...</p>
         </div>
@@ -394,21 +469,70 @@ const RankingsTable = () => {
     );
   }
 
-  if (rankings.length === 0) {
+  if (isEmpty) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <div className="text-center">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <Select value={selectedIndicator} onValueChange={setSelectedIndicator}>
+            <SelectTrigger className="w-full sm:w-60">
+              <SelectValue placeholder="Filter by indicator" />
+            </SelectTrigger>
+            <SelectContent>
+              {indicatorOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" disabled>
+            Generate PDF
+          </Button>
+        </div>
+        <div className="text-center mt-6">
           <p className="text-gray-600">No rankings available yet.</p>
         </div>
       </div>
     );
   }
 
+  const maxScore =
+    rankings.length > 0
+      ? rankings[0].maxScore
+      : indicatorKey
+        ? indicatorMaxScores[indicatorKey] ?? 0
+        : overallMaxScore;
+
   return (
-    <div className="py-3 bg-white">
-      
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden py-3">
-      <div className="overflow-x-auto">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-gray-200">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Detailed Rankings</h3>
+            <p className="text-sm text-gray-500">
+              Viewing results for {selectedIndicatorLabel} — Max score {formatScore(maxScore)}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <Select value={selectedIndicator} onValueChange={setSelectedIndicator}>
+              <SelectTrigger className="w-full sm:w-60">
+                <SelectValue placeholder="Filter by indicator" />
+              </SelectTrigger>
+              <SelectContent>
+                {indicatorOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={exportPDF} className="bg-green-600 hover:bg-green-700 text-white">
+            📥 Download PDF
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="overflow-x-auto pb-4">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -419,7 +543,10 @@ const RankingsTable = () => {
                 State
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Score & Percentage
+                Indicator Score
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                % Score
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Grade
@@ -428,9 +555,10 @@ const RankingsTable = () => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {rankings.map((ranking, index) => {
-              const { grade, description } = calculateGrade(ranking.totalScore, 79);
+              const maxScoreForRow = ranking.maxScore || overallMaxScore;
+              const { grade, description } = calculateGrade(ranking.totalScore, maxScoreForRow);
               const isTopThree = index < 3;
-              
+
               return (
                 <tr key={ranking.state} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900">
@@ -449,21 +577,25 @@ const RankingsTable = () => {
                     {ranking.state}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 font-mono">
-                    <div className="text-right">
-                      <div className="font-semibold">{ranking.totalScore.toFixed(1)}/79</div>
-                      <div className="text-xs text-gray-500">
-                        {ranking.percentageScore ? ranking.percentageScore.toFixed(1) : ((ranking.totalScore / 79) * 100).toFixed(1)}%
-                      </div>
-                    </div>
+                    {ranking.totalScore.toFixed(1)}/{maxScoreForRow.toFixed(1)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900 font-mono">
+                    {ranking.percentageScore.toFixed(1)}%
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      grade === "A" ? "bg-green-100 text-green-800" :
-                      grade === "B" ? "bg-blue-100 text-blue-800" :
-                      grade === "C" ? "bg-yellow-100 text-yellow-800" :
-                      grade === "D" ? "bg-orange-100 text-orange-800" :
-                      "bg-red-100 text-red-800"
-                    }`}>
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        grade === "A"
+                          ? "bg-green-100 text-green-800"
+                          : grade === "B"
+                          ? "bg-blue-100 text-blue-800"
+                          : grade === "C"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : grade === "D"
+                          ? "bg-orange-100 text-orange-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
                       {grade} - {description}
                     </span>
                   </td>
@@ -473,8 +605,6 @@ const RankingsTable = () => {
           </tbody>
         </table>
       </div>
-      
-      
       {rankings.length > 0 && (
         <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
           <p className="text-sm text-gray-600 text-center">
@@ -482,7 +612,6 @@ const RankingsTable = () => {
           </p>
         </div>
       )}
-    </div>
     </div>
   );
 };
