@@ -6,11 +6,15 @@ import { getCurrentUserOrThrow } from "./users";
 export const subscribeToNewsletter = mutation({
   args: {
     email: v.string(),
-    name: v.optional(v.string())
+    name: v.optional(v.string()),
+    organization: v.optional(v.string()),
+    jobRole: v.optional(v.string())
   },
   handler: async (ctx, {
     email,
-    name
+    name,
+    organization,
+    jobRole
   }) => {
     const existing = await ctx.db.query("newsletter_subscribers").withIndex("by_email", q => q.eq("email", email)).first();
     const now = new Date().toISOString();
@@ -20,15 +24,18 @@ export const subscribeToNewsletter = mutation({
           isSubscribed: true,
           subscribedAt: now,
           unsubscribedAt: undefined,
-          ...(name ? {
-            name
-          } : {})
-        });
-      } else if (name && existing.name !== name) {
-        await ctx.db.patch(existing._id, {
-          name
+          ...(name ? { name } : {}),
+          ...(organization ? { organization } : {}),
+          ...(jobRole ? { jobRole } : {})
         });
       } else {
+        const updates: Record<string, string | undefined> = {};
+        if (name && existing.name !== name) updates.name = name;
+        if (organization && existing.organization !== organization) updates.organization = organization;
+        if (jobRole && existing.jobRole !== jobRole) updates.jobRole = jobRole;
+        if (Object.keys(updates).length > 0) {
+          await ctx.db.patch(existing._id, updates);
+        }
         return {
           success: true,
           message: "Already subscribed."
@@ -38,6 +45,8 @@ export const subscribeToNewsletter = mutation({
       await ctx.db.insert("newsletter_subscribers", {
         email,
         name,
+        organization,
+        jobRole,
         isSubscribed: true,
         subscribedAt: now
       });
@@ -55,7 +64,6 @@ export const subscribeToNewsletter = mutation({
         type: "newsletter_subscribed"
       });
     }
-    const unsubscribeLink = `https://www.localhost:3000/unsubscribe?email=${encodeURIComponent(email)}`;
     const html = `
       <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; border: 1px solid #ccc; border-radius: 8px;">
         <div style="background-color: #0047AB; color: white; padding: 16px; text-align: center; border-radius: 8px 8px 0 0;">
@@ -342,11 +350,15 @@ export const getSubscribers = query({
 export const addSubscriber = mutation({
   args: {
     email: v.string(),
-    name: v.optional(v.string())
+    name: v.optional(v.string()),
+    organization: v.optional(v.string()),
+    jobRole: v.optional(v.string())
   },
   handler: async (ctx, {
     email,
-    name
+    name,
+    organization,
+    jobRole
   }) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (!["admin", "staff"].includes(user.role ?? "")) throw new Error("Unauthorized");
@@ -360,17 +372,29 @@ export const addSubscriber = mutation({
           unsubscribedAt: undefined,
           ...(name ? {
             name
+          } : {}),
+          ...(organization ? {
+            organization
+          } : {}),
+          ...(jobRole ? {
+            jobRole
           } : {})
         });
-      } else if (name && existing.name !== name) {
-        await ctx.db.patch(existing._id, {
-          name
-        });
+      } else {
+        const updates: Record<string, string | undefined> = {};
+        if (name && existing.name !== name) updates.name = name;
+        if (organization && existing.organization !== organization) updates.organization = organization;
+        if (jobRole && existing.jobRole !== jobRole) updates.jobRole = jobRole;
+        if (Object.keys(updates).length > 0) {
+          await ctx.db.patch(existing._id, updates);
+        }
       }
     } else {
       await ctx.db.insert("newsletter_subscribers", {
         email,
         name,
+        organization,
+        jobRole,
         isSubscribed: true,
         subscribedAt: now
       });

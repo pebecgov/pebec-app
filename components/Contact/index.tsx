@@ -24,6 +24,8 @@ export const Contact = () => {
   });
   const [newsletterName, setNewsletterName] = useState("");
   const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterOrganization, setNewsletterOrganization] = useState("");
+  const [newsletterJobRole, setNewsletterJobRole] = useState("");
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
   const [newsletterError, setNewsletterError] = useState("");
 
@@ -87,19 +89,31 @@ export const Contact = () => {
       setNewsletterError("Please enter a valid email address.");
       return;
     }
+    if (!newsletterOrganization.trim()) {
+      setNewsletterError("Please enter your organization.");
+      return;
+    }
+    if (!newsletterJobRole.trim()) {
+      setNewsletterError("Please enter your job role.");
+      return;
+    }
 
     try {
       setNewsletterError("");
       setNewsletterSubscribed(false);
       const res = await subscribeToNewsletter({
         email: newsletterEmail,
-        name: newsletterName.trim()
+        name: newsletterName.trim(),
+        organization: newsletterOrganization.trim(),
+        jobRole: newsletterJobRole.trim()
       });
 
       if (res?.success) {
         setNewsletterSubscribed(true);
         setNewsletterName("");
         setNewsletterEmail("");
+        setNewsletterOrganization("");
+        setNewsletterJobRole("");
         toast.success("Subscribed to the newsletter!");
       }
     } catch (error) {
@@ -132,14 +146,14 @@ export const Contact = () => {
               </p>
             </div>
 
-            <form onSubmit={handleNewsletterSubmit} className="w-full md:w-auto flex flex-col sm:flex-row gap-3 items-center">
+            <form onSubmit={handleNewsletterSubmit} className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
               <input
                 type="text"
                 required
                 placeholder="Full name"
                 value={newsletterName}
                 onChange={e => setNewsletterName(e.target.value)}
-                className="w-full sm:w-64 rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
               />
               <input
                 type="email"
@@ -147,9 +161,25 @@ export const Contact = () => {
                 placeholder="Email address"
                 value={newsletterEmail}
                 onChange={e => setNewsletterEmail(e.target.value)}
-                className="w-full sm:w-72 rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
               />
-              <Button type="submit" className="px-6 py-3 text-base rounded-md bg-black text-white hover:bg-green-800">
+              <input
+                type="text"
+                required
+                placeholder="Organization"
+                value={newsletterOrganization}
+                onChange={e => setNewsletterOrganization(e.target.value)}
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <input
+                type="text"
+                required
+                placeholder="Job Role"
+                value={newsletterJobRole}
+                onChange={e => setNewsletterJobRole(e.target.value)}
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <Button type="submit" className="sm:col-span-2 lg:col-span-1 px-6 py-3 text-base rounded-md bg-black text-white hover:bg-green-800">
                 Subscribe
               </Button>
             </form>
