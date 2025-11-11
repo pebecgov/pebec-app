@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
-import SendLetterModal from "../BusinessLetters/SubmitLetter";
 import { useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast, Toaster } from "sonner";
@@ -13,8 +12,8 @@ import { toast, Toaster } from "sonner";
 export const Contact = () => {
   const getAdminEmails = useMutation(api.users.getAdminEmails);
   const sendEmail = useAction(api.sendEmail.sendEmail);
+  const subscribeToNewsletter = useMutation(api.newsletters.subscribeToNewsletter);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [openModal, setOpenModal] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -23,6 +22,10 @@ export const Contact = () => {
     phone: "",
     message: ""
   });
+  const [newsletterName, setNewsletterName] = useState("");
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
+  const [newsletterError, setNewsletterError] = useState("");
 
   useEffect(() => {
     setHasMounted(true);
@@ -74,6 +77,37 @@ export const Contact = () => {
     }
   };
 
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterName.trim()) {
+      setNewsletterError("Please enter your name.");
+      return;
+    }
+    if (!newsletterEmail) {
+      setNewsletterError("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      setNewsletterError("");
+      setNewsletterSubscribed(false);
+      const res = await subscribeToNewsletter({
+        email: newsletterEmail,
+        name: newsletterName.trim()
+      });
+
+      if (res?.success) {
+        setNewsletterSubscribed(true);
+        setNewsletterName("");
+        setNewsletterEmail("");
+        toast.success("Subscribed to the newsletter!");
+      }
+    } catch (error) {
+      console.error("Newsletter subscription failed", error);
+      setNewsletterError("Something went wrong. Please try again.");
+    }
+  };
+
   if (!hasMounted) {
     return (
       <>
@@ -87,21 +121,46 @@ export const Contact = () => {
     <>
       <Toaster />
       <section id="support" className="px-4 md:px-8 2xl:px-0">
-      <div className="bg-gray-100 py-10 px-6 rounded-xl shadow-sm mb-10 border border-gray-200">
-  <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-    <div>
-      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-        📄 Have a letter to send to PEBEC?
-      </h2>
-      <p className="text-gray-600 text-sm md:text-base max-w-xl">
-        Submit your official business letter with ease and receive a timely acknowledgment from the Council.
-      </p>
-    </div>
-    <Button onClick={() => setOpenModal(true)} className="text-white bg-black hover:bg-green-800 px-6 py-6 text-base md:text-lg rounded-md">
-    Send Us a Letter
-    </Button>
-  </div>
-      </div>
+        <div className="bg-gray-100 py-10 px-6 rounded-xl shadow-sm mb-10 border border-gray-200">
+          <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                📰 Stay in the loop with PEBEC
+              </h2>
+              <p className="text-gray-600 text-sm md:text-base max-w-xl">
+                Subscribe to our newsletter to receive the latest updates, reforms, and resources directly in your inbox.
+              </p>
+            </div>
+
+            <form onSubmit={handleNewsletterSubmit} className="w-full md:w-auto flex flex-col sm:flex-row gap-3 items-center">
+              <input
+                type="text"
+                required
+                placeholder="Full name"
+                value={newsletterName}
+                onChange={e => setNewsletterName(e.target.value)}
+                className="w-full sm:w-64 rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <input
+                type="email"
+                required
+                placeholder="Email address"
+                value={newsletterEmail}
+                onChange={e => setNewsletterEmail(e.target.value)}
+                className="w-full sm:w-72 rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <Button type="submit" className="px-6 py-3 text-base rounded-md bg-black text-white hover:bg-green-800">
+                Subscribe
+              </Button>
+            </form>
+          </div>
+          {(newsletterSubscribed || newsletterError) && (
+            <div className="max-w-6xl mx-auto mt-4">
+              {newsletterSubscribed && <p className="text-green-600 text-sm">Subscribed successfully ✅</p>}
+              {newsletterError && <p className="text-red-500 text-sm">{newsletterError}</p>}
+            </div>
+          )}
+        </div>
 
         <div className="relative mx-auto max-w-c-1390 px-7.5 pt-10 lg:px-15 lg:pt-15 xl:px-20 xl:pt-20">
           <div className="absolute left-0 top-0 -z-1 h-2/3 w-full rounded-lg bg-gradient-to-t from-transparent to-[#dee7ff47] dark:bg-gradient-to-t dark:to-[#252A42]"></div>
@@ -194,7 +253,7 @@ export const Contact = () => {
 
               <div className="5 mb-7">
                 <h3 className="mb-4 text-metatitle3 font-medium text-black dark:text-white">
-                  Our Loaction
+                  Our Location
                 </h3>
                 <p>5th Floor, Total House 1, Plot 247 Herbert Macaulay Way, Central Business District (Opposite NNPC Towers), Abuja, FCT
 
@@ -221,7 +280,6 @@ export const Contact = () => {
             </motion.div>
           </div>
         </div>
-        <SendLetterModal open={openModal} setOpen={setOpenModal} />
       </section>
     </>
   );

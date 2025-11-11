@@ -5,10 +5,12 @@ import { api } from "./_generated/api";
 import { getCurrentUserOrThrow } from "./users";
 export const subscribeToNewsletter = mutation({
   args: {
-    email: v.string()
+    email: v.string(),
+    name: v.optional(v.string())
   },
   handler: async (ctx, {
-    email
+    email,
+    name
   }) => {
     const existing = await ctx.db.query("newsletter_subscribers").withIndex("by_email", q => q.eq("email", email)).first();
     const now = new Date().toISOString();
@@ -17,7 +19,14 @@ export const subscribeToNewsletter = mutation({
         await ctx.db.patch(existing._id, {
           isSubscribed: true,
           subscribedAt: now,
-          unsubscribedAt: undefined
+          unsubscribedAt: undefined,
+          ...(name ? {
+            name
+          } : {})
+        });
+      } else if (name && existing.name !== name) {
+        await ctx.db.patch(existing._id, {
+          name
         });
       } else {
         return {
@@ -28,6 +37,7 @@ export const subscribeToNewsletter = mutation({
     } else {
       await ctx.db.insert("newsletter_subscribers", {
         email,
+        name,
         isSubscribed: true,
         subscribedAt: now
       });
@@ -39,7 +49,7 @@ export const subscribeToNewsletter = mutation({
     for (const user of notifyUsers) {
       await ctx.db.insert("notifications", {
         userId: user._id,
-        message: `New newsletter subscription: ${email}`,
+        message: `New newsletter subscription: ${name ? `${name} (${email})` : email}`,
         isRead: false,
         createdAt: Date.now(),
         type: "newsletter_subscribed"
@@ -52,7 +62,7 @@ export const subscribeToNewsletter = mutation({
           <h2>Welcome to the PEBEC Newsletter</h2>
         </div>
         <div style="padding: 20px;">
-          <p>Hello,</p>
+          <p>Hello${name ? ` ${name}` : ""},</p>
           <p>You’ve successfully subscribed to the <strong>PEBEC Newsletter</strong>. We’ll keep you updated with the latest reports, reforms, and updates that matter to ease of doing business in Nigeria.</p>
           <p>If you ever change your mind, you can unsubscribe by email us at info@pebec.gov.ng.</p>
           
@@ -331,10 +341,12 @@ export const getSubscribers = query({
 });
 export const addSubscriber = mutation({
   args: {
-    email: v.string()
+    email: v.string(),
+    name: v.optional(v.string())
   },
   handler: async (ctx, {
-    email
+    email,
+    name
   }) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (!["admin", "staff"].includes(user.role ?? "")) throw new Error("Unauthorized");
@@ -345,12 +357,20 @@ export const addSubscriber = mutation({
         await ctx.db.patch(existing._id, {
           isSubscribed: true,
           subscribedAt: now,
-          unsubscribedAt: undefined
+          unsubscribedAt: undefined,
+          ...(name ? {
+            name
+          } : {})
+        });
+      } else if (name && existing.name !== name) {
+        await ctx.db.patch(existing._id, {
+          name
         });
       }
     } else {
       await ctx.db.insert("newsletter_subscribers", {
         email,
+        name,
         isSubscribed: true,
         subscribedAt: now
       });

@@ -533,6 +533,7 @@ export default defineSchema({
   }).index("byEmail", ["email"]).index("byStatus", ["status"]),
   newsletter_subscribers: defineTable({
     email: v.string(),
+    name: v.optional(v.string()),
     isSubscribed: v.boolean(),
     subscribedAt: v.string(),
     unsubscribedAt: v.optional(v.string())
