@@ -61,10 +61,10 @@ export function StateRankingsWidget({ limit = 5, showTop = true }: StateRankings
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold font-mono">
-                  {ranking.totalScore.toFixed(1)}/79
+                  {ranking.totalScore.toFixed(1)}/{ranking.maxScore.toFixed(1)}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {ranking.percentageScore ? ranking.percentageScore.toFixed(1) : ((ranking.totalScore / 79) * 100).toFixed(1)}%
+                  {ranking.percentageScore.toFixed(1)}%
                 </div>
               </div>
             </div>
