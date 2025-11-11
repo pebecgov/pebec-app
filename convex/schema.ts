@@ -534,6 +534,8 @@ export default defineSchema({
   newsletter_subscribers: defineTable({
     email: v.string(),
     name: v.optional(v.string()),
+    organization: v.optional(v.string()),
+    jobRole: v.optional(v.string()),
     isSubscribed: v.boolean(),
     subscribedAt: v.string(),
     unsubscribedAt: v.optional(v.string())
