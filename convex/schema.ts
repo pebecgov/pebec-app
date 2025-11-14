@@ -72,7 +72,7 @@ export default defineSchema({
     controversialScore: v.number(),
     innovationScore: v.number(),
     stakeholderEngagementScore: v.number(),
-    reportGovernanceScore: v.number(),
+    transparencyScore: v.number(),
     reportGovernanceResolutionScore: v.number(),
     monthlyReportSubmissionScore: v.number(),
     timelinessInSubmittingScore: v.number(),
@@ -848,11 +848,11 @@ export default defineSchema({
     updatedBy: v.id("users")
   }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
 
-  // Controversial Data Storage (Yes = 0 points, No = 10 points, but max is 5 points)
+  // Controversial Data Storage (Yes = 0 points, No = 5 points)
   mda_controversial_data: defineTable({
     mdaName: v.string(),
     scoringPeriod: v.string(),
-    isControversial: v.boolean(), // true = Yes (0 points), false = No (10 points, but capped at 5)
+    isControversial: v.boolean(), // true = Yes (0 points), false = No (5 points)
     score: v.number(), // Calculated score (No = 5 points, Yes = 0 points)
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -860,11 +860,11 @@ export default defineSchema({
     updatedBy: v.id("users")
   }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
 
-  // Innovation Data Storage (Yes = 10 points, No = 0 points, but max is 5 points)
+  // Innovation Data Storage (Yes = 5 points, No = 0 points)
   mda_innovation_data: defineTable({
     mdaName: v.string(),
     scoringPeriod: v.string(),
-    isInnovative: v.boolean(), // true = Yes (10 points, but capped at 5), false = No (0 points)
+    isInnovative: v.boolean(), // true = Yes (5 points), false = No (0 points)
     score: v.number(), // Calculated score (Yes = 5 points, No = 0 points)
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -877,21 +877,20 @@ export default defineSchema({
     mdaName: v.string(),
     scoringPeriod: v.string(),
     rate: v.number(), // 0-10 rating
-    score: v.number(), // Calculated score (rate/10 * 5)
+    score: v.number(), // Calculated score (rate/10 * 10)
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),
     updatedBy: v.id("users")
   }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
 
-  // Report Governance Data Storage (checkbox items)
-  mda_report_governance_data: defineTable({
+  // Transparency Data Storage (two questions, 5 points each, optional metric)
+  mda_transparency_data: defineTable({
     mdaName: v.string(),
     scoringPeriod: v.string(),
-    activeWebsite: v.boolean(),
-    activeUsers: v.boolean(),
-    reportGovLink: v.boolean(),
-    score: v.number(), // Calculated score (checked items / 3 * 5)
+    responses: v.any(), // Object with question keys and boolean values
+    score: v.number(), // Calculated score (each "true" is 5 points, total 10)
+    isSkipped: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),

@@ -24,8 +24,8 @@ interface DashboardData {
   controversial?: { score: number };
   innovation?: { score: number };
   stakeholder?: { score: number };
-  reportGovernance?: { score: number };
-  reportGovResolution?: { score: number };
+  transparency?: { score: number; isSkipped?: boolean };
+  reportGovResolution?: { score: number; isSkipped?: boolean };
   monthlyReport?: { score: number; monthsWithData?: number };
   timeliness?: { score: number; monthsWithData?: number };
 }
@@ -87,8 +87,8 @@ export async function generateDashboardPDF({
       'sla': 'Service Level Agreement',
       'controversial': 'Controversial',
       'innovation': 'Innovation',
-      'stakeholder': 'Stakeholder Engagement',
-      'reportGovernance': 'Report Governance',
+  'stakeholder': 'Stakeholder Engagement',
+  'transparency': 'Transparency',
       'reportGovResolution': 'Report Gov Resolution',
       'monthlyReport': 'Monthly Report Submission',
       'timeliness': 'Timeliness'
@@ -125,28 +125,34 @@ export async function generateDashboardPDF({
         const controversialScore = mda.controversial?.score || 0;
         const innovationScore = mda.innovation?.score || 0;
         const stakeholderScore = mda.stakeholder?.score || 0;
-        const reportGovScore = mda.reportGovernance?.score || 0;
+        const transparencyScore = mda.transparency?.score || 0;
         const reportGovResScore = mda.reportGovResolution?.score || 0;
         const monthlyReportScore = mda.monthlyReport?.score || 0;
         const timelinessScore = mda.timeliness?.score || 0;
         
         const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
-                          reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+                          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
         
-        // Check if Report Gov Resolution is skipped
         const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
-        const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+        const isTransparencySkipped = mda.transparency?.isSkipped || false;
+        let maxPossiblePoints = 100;
+        if (isTransparencySkipped) {
+          maxPossiblePoints -= 10;
+        }
+        if (isReportGovSkipped) {
+          maxPossiblePoints -= 15;
+        }
         
-        // Normalize percentage: if skipped, 85 points = 100% for fair ranking
-        const totalPercentage = isReportGovSkipped 
-          ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
-          : (totalScore / 100) * 100; // Standard: 100 points = 100%
+        const totalPercentage = maxPossiblePoints > 0
+          ? (totalScore / maxPossiblePoints) * 100
+          : 0;
         
         return {
           ...mda,
           totalScore,
           totalPercentage,
           isReportGovSkipped,
+          isTransparencySkipped,
           maxPossiblePoints
         };
       });
@@ -195,28 +201,36 @@ export async function generateDashboardPDF({
         const controversialScore = mda.controversial?.score || 0;
         const innovationScore = mda.innovation?.score || 0;
         const stakeholderScore = mda.stakeholder?.score || 0;
-        const reportGovScore = mda.reportGovernance?.score || 0;
+        const transparencyScore = mda.transparency?.score || 0;
         const reportGovResScore = mda.reportGovResolution?.score || 0;
         const monthlyReportScore = mda.monthlyReport?.score || 0;
         const timelinessScore = mda.timeliness?.score || 0;
         
         const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
-                          reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+                          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
         
-        // Check if Report Gov Resolution is skipped
+        // Check if optional metrics are skipped
         const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
-        const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+        const isTransparencySkipped = mda.transparency?.isSkipped || false;
+        let maxPossiblePoints = 100;
+        if (isTransparencySkipped) {
+          maxPossiblePoints -= 10;
+        }
+        if (isReportGovSkipped) {
+          maxPossiblePoints -= 15;
+        }
         
-        // Normalize percentage: if skipped, 85 points = 100% for fair ranking
-        const totalPercentage = isReportGovSkipped 
-          ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
-          : (totalScore / 100) * 100; // Standard: 100 points = 100%
+        // Normalize percentage using adjusted max points
+        const totalPercentage = maxPossiblePoints > 0
+          ? (totalScore / maxPossiblePoints) * 100
+          : 0;
         
         return {
           ...mda,
           totalScore,
           totalPercentage,
           isReportGovSkipped,
+          isTransparencySkipped,
           maxPossiblePoints
         };
       });
@@ -300,9 +314,9 @@ export async function generateDashboardPDF({
         score = mda.stakeholder?.score || 0;
         maxScore = 5;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'reportGovernance') {
-        score = mda.reportGovernance?.score || 0;
-        maxScore = 5;
+      } else if (selectedMetric === 'transparency') {
+        score = mda.transparency?.score || 0;
+        maxScore = 10;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
       } else if (selectedMetric === 'reportGovResolution') {
         score = mda.reportGovResolution?.score || 0;
