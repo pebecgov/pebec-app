@@ -151,6 +151,11 @@ export default function ScoringMetricsPage() {
     { key: 'reportGovLink', label: 'REPORTGOV LINK INTEGRATED ON MDA WEBSITE', type: 'yesno' }
   ];
 
+  const transparencyQuestions: Array<{ key: keyof TransparencyItemsState; label: string }> = [
+    { key: 'proactiveDisclosure', label: 'PROACTIVE DISCLOSURE OF SERVICE INFORMATION' },
+    { key: 'serviceLevelPublishing', label: 'SERVICE LEVEL STANDARDS PUBLISHED' },
+  ];
+
   // Calculate mystery shopping score
   const calculateMysteryScore = () => {
     const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
@@ -200,15 +205,19 @@ export default function ScoringMetricsPage() {
     results: any[];
     overallPercentage: number | null;
   }}>({});
-  const [checkboxItems, setCheckboxItems] = useState({
-    activeWebsite: false,
-    activeUsers: false,
-    reportGovLink: false,
+  type TransparencyItemsState = {
+    proactiveDisclosure: boolean;
+    serviceLevelPublishing: boolean;
+  };
+  const [transparencyItems, setTransparencyItems] = useState<TransparencyItemsState>({
+    proactiveDisclosure: false,
+    serviceLevelPublishing: false,
   });
   const [reportgovRate, setReportgovRate] = useState(0);
   const [manualReportGovRate, setManualReportGovRate] = useState(0);
   const [useManualReportGov, setUseManualReportGov] = useState(false);
   const [skipReportGov, setSkipReportGov] = useState(false);
+  const [skipTransparency, setSkipTransparency] = useState(false);
   
   // Manual Report Gov Resolution inputs
   const [manualTotalTickets, setManualTotalTickets] = useState(0);
@@ -290,8 +299,13 @@ export default function ScoringMetricsPage() {
     api.mda_scoring.getStakeholderData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
-  const savedReportGovernanceData = useQuery(
-    api.mda_scoring.getReportGovernanceData,
+  type ExtendedMdaScoringApi = typeof api.mda_scoring & {
+    getTransparencyData: any;
+    saveTransparencyData: any;
+  };
+  const mdaScoringApi = api.mda_scoring as ExtendedMdaScoringApi;
+  const savedTransparencyData = useQuery(
+    mdaScoringApi.getTransparencyData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
   const savedMonthlyReportData = useQuery(
@@ -310,7 +324,7 @@ export default function ScoringMetricsPage() {
   const isLoadingControversialData = selectedMda && savedControversialData === undefined;
   const isLoadingInnovationData = selectedMda && savedInnovationData === undefined;
   const isLoadingStakeholderData = selectedMda && savedStakeholderData === undefined;
-  const isLoadingReportGovernanceData = selectedMda && savedReportGovernanceData === undefined;
+  const isLoadingTransparencyData = selectedMda && savedTransparencyData === undefined;
   const isLoadingMonthlyReportData = selectedMda && savedMonthlyReportData === undefined;
   const isLoadingTimelinessData = selectedMda && savedTimelinessData === undefined;
   
@@ -321,7 +335,7 @@ export default function ScoringMetricsPage() {
   const saveControversialData = useMutation(api.mda_scoring.saveControversialData);
   const saveInnovationData = useMutation(api.mda_scoring.saveInnovationData);
   const saveStakeholderData = useMutation(api.mda_scoring.saveStakeholderData);
-  const saveReportGovernanceData = useMutation(api.mda_scoring.saveReportGovernanceData);
+  const saveTransparencyData = useMutation(mdaScoringApi.saveTransparencyData);
   const saveMonthlyReportData = useMutation(api.mda_scoring.saveMonthlyReportData);
   const saveTimelinessData = useMutation(api.mda_scoring.saveTimelinessData);
   
@@ -366,7 +380,7 @@ export default function ScoringMetricsPage() {
         controversial: null,
         innovation: null,
         stakeholder: null,
-        reportGovernance: null,
+        transparency: null,
         reportGovResolution: null,
         monthlyReport: null,
         timeliness: null,
@@ -394,7 +408,7 @@ export default function ScoringMetricsPage() {
             controversial: mda.controversial != null ? mda.controversial : existing.controversial,
             innovation: mda.innovation != null ? mda.innovation : existing.innovation,
             stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
-            reportGovernance: mda.reportGovernance != null ? mda.reportGovernance : existing.reportGovernance,
+            transparency: mda.transparency != null ? mda.transparency : existing.transparency,
             reportGovResolution: mda.reportGovResolution != null ? {
               ...mda.reportGovResolution,
               // Preserve all fields including hasFirstHalf, hasSecondHalf, firstHalfScore, secondHalfScore
@@ -415,28 +429,35 @@ export default function ScoringMetricsPage() {
       const controversialScore = mda.controversial?.score || 0;
       const innovationScore = mda.innovation?.score || 0;
       const stakeholderScore = mda.stakeholder?.score || 0;
-      const reportGovScore = mda.reportGovernance?.score || 0;
+      const transparencyScore = mda.transparency?.score || 0;
       const reportGovResScore = mda.reportGovResolution?.score || 0;
       const monthlyReportScore = mda.monthlyReport?.score || 0;
       const timelinessScore = mda.timeliness?.score || 0;
       
       const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
-                        reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+                        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
       
-      // Check if Report Gov Resolution is skipped
+      // Check if optional metrics are skipped
       const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
-      const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
+      const isTransparencySkipped = mda.transparency?.isSkipped || false;
+      let maxPossiblePoints = 100;
+      if (isTransparencySkipped) {
+        maxPossiblePoints -= 10;
+      }
+      if (isReportGovSkipped) {
+        maxPossiblePoints -= 15;
+      }
       
-      // Normalize percentage: if skipped, 85 points = 100% for fair ranking
-      const totalPercentage = isReportGovSkipped 
-        ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
-        : (totalScore / 100) * 100; // Standard: 100 points = 100%
+      const totalPercentage = maxPossiblePoints > 0
+        ? (totalScore / maxPossiblePoints) * 100
+        : 0;
       
       return {
         ...mda,
         totalScore,
         totalPercentage,
         isReportGovSkipped,
+        isTransparencySkipped,
         maxPossiblePoints
       };
     });
@@ -446,7 +467,7 @@ export default function ScoringMetricsPage() {
       allMdasArray = allMdasArray.filter((mda: any) => {
         // Check if MDA has at least one metric with data
         return mda.sla || mda.mysteryShopping || mda.controversial || 
-               mda.innovation || mda.stakeholder || mda.reportGovernance || mda.reportGovResolution || 
+               mda.innovation || mda.stakeholder || mda.transparency || mda.reportGovResolution || 
                mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
       });
     }
@@ -471,7 +492,7 @@ export default function ScoringMetricsPage() {
       controversial: mda.controversial,
       innovation: mda.innovation,
       stakeholder: mda.stakeholder,
-      reportGovernance: mda.reportGovernance,
+      transparency: mda.transparency,
       reportGovResolution: mda.reportGovResolution,
       monthlyReport: mda.monthlyReport,
       timeliness: mda.timeliness
@@ -814,17 +835,26 @@ export default function ScoringMetricsPage() {
     }
   }, [savedStakeholderData, selectedMda, scoringPeriod, isLoadingStakeholderData]);
 
-  // Load saved Report Governance data when available
+  // Load saved Transparency data when available
   useEffect(() => {
-    if (!isLoadingReportGovernanceData && savedReportGovernanceData && selectedMda) {
-      setCheckboxItems({
-        activeWebsite: savedReportGovernanceData.activeWebsite || false,
-        activeUsers: savedReportGovernanceData.activeUsers || false,
-        reportGovLink: savedReportGovernanceData.reportGovLink || false
+    if (!selectedMda) {
+      setSkipTransparency(false);
+      setTransparencyItems({
+        proactiveDisclosure: false,
+        serviceLevelPublishing: false,
       });
-      toast.success(`📋 Loaded saved Report Governance data for ${selectedMda} - ${scoringPeriod}`);
+      return;
     }
-  }, [savedReportGovernanceData, selectedMda, scoringPeriod, isLoadingReportGovernanceData]);
+
+    if (!isLoadingTransparencyData && savedTransparencyData) {
+      setSkipTransparency(savedTransparencyData.isSkipped || false);
+      setTransparencyItems({
+        proactiveDisclosure: savedTransparencyData.responses?.proactiveDisclosure || false,
+        serviceLevelPublishing: savedTransparencyData.responses?.serviceLevelPublishing || false,
+      });
+      toast.success(`🔍 Loaded saved Transparency data for ${selectedMda} - ${scoringPeriod}`);
+    }
+  }, [savedTransparencyData, selectedMda, scoringPeriod, isLoadingTransparencyData]);
 
   // Load saved Monthly Report Submission data when available
   useEffect(() => {
@@ -1048,6 +1078,12 @@ export default function ScoringMetricsPage() {
   };
 
 
+  const calculateTransparencyScore = () => {
+    if (skipTransparency) return 0;
+    const answeredYes = Object.values(transparencyItems).filter(Boolean).length;
+    return answeredYes * 5;
+  };
+
 
   // Function to calculate average with past data
   const calculateAverageWithPastData = (currentScore: number, metricName: string) => {
@@ -1153,16 +1189,16 @@ export default function ScoringMetricsPage() {
     const mysteryShoppingScore = savedMysteryShoppingData?.totalScore ?? calculateMysteryScore();
     
     // Use saved Controversial data for current period, or fall back to state
-    const controversialScore = savedControversialData?.score ?? (isControversial ? 0 : 10);
+    const controversialScore = savedControversialData?.score ?? (isControversial ? 0 : 5);
     
     // Use saved Innovation data for current period, or fall back to state
-    const innovationScore = savedInnovationData?.score ?? (isInnovative ? 10 : 0);
+    const innovationScore = savedInnovationData?.score ?? (isInnovative ? 5 : 0);
     
     // Use saved Stakeholder data for current period, or fall back to state
-    const stakeholderScore = savedStakeholderData?.score ?? ((stakeholderRate / 10) * 5);
+    const stakeholderScore = savedStakeholderData?.score ?? ((stakeholderRate / 10) * 10);
     
-    // Use saved Report Governance data for current period, or fall back to calculated
-    const reportGovernanceScore = savedReportGovernanceData?.score ?? (Object.values(checkboxItems).filter(Boolean).length / 3 * 5);
+    // Use saved Transparency data for current period, or fall back to calculated
+    const transparencyScore = savedTransparencyData?.score ?? calculateTransparencyScore();
     
     const baseScores = {
       serviceLevelAgreement: monthlySlaScore.totalScore,
@@ -1170,7 +1206,7 @@ export default function ScoringMetricsPage() {
       controversial: controversialScore,
       innovation: innovationScore,
       stakeholderEngagement: stakeholderScore,
-      reportGovernance: reportGovernanceScore,
+      transparency: transparencyScore,
       reportGovernanceResolution: reportGovScore,
       monthlyReportSubmission: monthlyReportScore,
       timelinessInSubmitting: timelinessScore
@@ -1183,20 +1219,20 @@ export default function ScoringMetricsPage() {
       controversial: calculateAverageWithPastData(baseScores.controversial, 'controversial'),
       innovation: calculateAverageWithPastData(baseScores.innovation, 'innovation'),
       stakeholderEngagement: calculateAverageWithPastData(baseScores.stakeholderEngagement, 'stakeholderEngagement'),
-      reportGovernance: calculateAverageWithPastData(baseScores.reportGovernance, 'reportGovernance'),
+      transparency: calculateAverageWithPastData(baseScores.transparency, 'transparency'),
       reportGovernanceResolution: skipReportGov ? 0 : calculateAverageWithPastData(baseScores.reportGovernanceResolution, 'reportGovernanceResolution'),
       monthlyReportSubmission: calculateAverageWithPastData(baseScores.monthlyReportSubmission, 'monthlyReportSubmission'),
       timelinessInSubmitting: calculateAverageWithPastData(baseScores.timelinessInSubmitting, 'timelinessInSubmitting')
     };
 
     // Calculate total possible points (excluding skipped metrics)
-    const maxPossiblePoints = skipReportGov ? 85 : 100; // 100 - 15 (Report Gov Resolution points)
+    const maxPossiblePoints = 100 - (skipReportGov ? 15 : 0) - (skipTransparency ? 10 : 0);
     
     const totalScore = Object.values(scores).reduce((sum, score) => sum + score, 0);
     // Normalize percentage: if skipped, 85 points = 100% for fair ranking
-    const totalPercentage = skipReportGov 
-      ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
-      : (totalScore / 100) * 100; // Standard: 100 points = 100%
+    const totalPercentage = maxPossiblePoints > 0
+      ? (totalScore / maxPossiblePoints) * 100
+      : 0;
 
     return { scores, totalScore, totalPercentage, baseScores, maxPossiblePoints };
   };
@@ -1308,7 +1344,7 @@ export default function ScoringMetricsPage() {
     }
   };
 
-  // Save Report Gov data
+  // Save Report Gov Resolution data
   const handleSaveReportGovData = async () => {
     if (!selectedMda) {
       toast.error("Please select an MDA first");
@@ -1331,9 +1367,9 @@ export default function ScoringMetricsPage() {
         isManual: isManual,
         isSkipped: skipReportGov
       });
-      toast.success("✅ Report Governance data saved successfully!");
+      toast.success("✅ Report Gov Resolution data saved successfully!");
     } catch (error) {
-      toast.error("Failed to save Report Governance data");
+      toast.error("Failed to save Report Gov Resolution data");
       console.error(error);
     }
   };
@@ -1394,7 +1430,7 @@ export default function ScoringMetricsPage() {
 
     try {
       // Controversial: Yes = 0 points, No = 10 points
-      const score = isControversial ? 0 : 10;
+      const score = isControversial ? 0 : 5;
       
       // Extract year from current scoring period
       const yearMatch = scoringPeriod.match(/\d{4}/);
@@ -1433,7 +1469,7 @@ export default function ScoringMetricsPage() {
 
     try {
       // Innovation: Yes = 10 points, No = 0 points
-      const score = isInnovative ? 10 : 0;
+      const score = isInnovative ? 5 : 0;
       
       // Extract year from current scoring period
       const yearMatch = scoringPeriod.match(/\d{4}/);
@@ -1471,7 +1507,7 @@ export default function ScoringMetricsPage() {
     }
 
     try {
-      const score = (stakeholderRate / 10) * 5;
+      const score = (stakeholderRate / 10) * 10;
       
       // Extract year from current scoring period
       const yearMatch = scoringPeriod.match(/\d{4}/);
@@ -1501,44 +1537,51 @@ export default function ScoringMetricsPage() {
     }
   };
 
-  // Save Report Governance data for both halves
-  const handleSaveReportGovernanceData = async () => {
+  // Save Transparency data
+  const handleSaveTransparencyData = async () => {
     if (!selectedMda) {
       toast.error("Please select an MDA first");
       return;
     }
 
     try {
-      const score = (Object.values(checkboxItems).filter(Boolean).length / 3) * 5;
-      
-      // Extract year from current scoring period
+      const score = skipTransparency ? 0 : calculateTransparencyScore();
       const yearMatch = scoringPeriod.match(/\d{4}/);
       const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
       const firstHalfPeriod = `1st Half ${targetYear}`;
       const secondHalfPeriod = `2nd Half ${targetYear}`;
 
-      // Save for both halves
-      await Promise.all([
-        saveReportGovernanceData({
-          mdaName: selectedMda,
-          scoringPeriod: firstHalfPeriod,
-          activeWebsite: checkboxItems.activeWebsite,
-          activeUsers: checkboxItems.activeUsers,
-          reportGovLink: checkboxItems.reportGovLink,
-          score: score
-        }),
-        saveReportGovernanceData({
+      const baseResponses = {
+        proactiveDisclosure: transparencyItems.proactiveDisclosure,
+        serviceLevelPublishing: transparencyItems.serviceLevelPublishing,
+      };
+
+      await saveTransparencyData({
+        mdaName: selectedMda,
+        scoringPeriod,
+        responses: baseResponses,
+        score,
+        isSkipped: skipTransparency
+      });
+
+      if (scoringPeriod.includes("1st Half")) {
+        const copiedResponses = {
+          ...baseResponses,
+          __copiedFrom: scoringPeriod,
+        };
+
+        await saveTransparencyData({
           mdaName: selectedMda,
           scoringPeriod: secondHalfPeriod,
-          activeWebsite: checkboxItems.activeWebsite,
-          activeUsers: checkboxItems.activeUsers,
-          reportGovLink: checkboxItems.reportGovLink,
-          score: score
-        })
-      ]);
-      toast.success("✅ Report Governance data saved for both halves successfully!");
+          responses: copiedResponses,
+          score,
+          isSkipped: skipTransparency
+        });
+      }
+
+      toast.success("✅ Transparency data saved successfully!");
     } catch (error) {
-      toast.error("Failed to save Report Governance data");
+      toast.error("Failed to save Transparency data");
       console.error(error);
     }
   };
@@ -1623,7 +1666,7 @@ export default function ScoringMetricsPage() {
         controversialScore: finalScoreData.scores.controversial,
         innovationScore: finalScoreData.scores.innovation,
         stakeholderEngagementScore: finalScoreData.scores.stakeholderEngagement,
-        reportGovernanceScore: finalScoreData.scores.reportGovernance,
+        transparencyScore: finalScoreData.scores.transparency,
         reportGovernanceResolutionScore: finalScoreData.scores.reportGovernanceResolution,
         monthlyReportSubmissionScore: finalScoreData.scores.monthlyReportSubmission,
         timelinessInSubmittingScore: finalScoreData.scores.timelinessInSubmitting,
@@ -1632,13 +1675,12 @@ export default function ScoringMetricsPage() {
         averageResponseTime: mda?.averageResponseTime || 0,
         averageResolutionTime: mda?.averageResolutionTime || 0,
         resolutionRate: mda?.resolutionRate || 0,
-        hasActiveWebsite: checkboxItems.activeWebsite,
-        hasReportGovLink: checkboxItems.reportGovLink,
-        hasActiveUsers: checkboxItems.activeUsers,
         notes: notes,
         recommendations: recommendations,
         maxPossiblePoints: finalScoreData.maxPossiblePoints || 100,
-        scoringMethod: skipReportGov ? "skip_reportgov" : "standard"
+        scoringMethod: skipReportGov
+          ? (skipTransparency ? "skip_both" : "skip_reportgov")
+          : (skipTransparency ? "skip_transparency" : "standard")
       } as any);
 
       if (result.success) {
@@ -1830,7 +1872,7 @@ export default function ScoringMetricsPage() {
                       <MenuItem value="controversial">Controversial</MenuItem>
                       <MenuItem value="innovation">Innovation</MenuItem>
                       <MenuItem value="stakeholder">Stakeholder Engagement</MenuItem>
-                      <MenuItem value="reportGovernance">Report Governance</MenuItem>
+                      <MenuItem value="transparency">Transparency</MenuItem>
                       <MenuItem value="reportGovResolution">Report Gov Resolution</MenuItem>
                       <MenuItem value="monthlyReport">Monthly Report Submission</MenuItem>
                       <MenuItem value="timeliness">Timeliness</MenuItem>
@@ -1901,7 +1943,7 @@ export default function ScoringMetricsPage() {
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Controversial</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Innovation</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stakeholder</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transparency</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov Resolution</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Report</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timeliness</th>
@@ -1914,7 +1956,7 @@ export default function ScoringMetricsPage() {
                              selectedMetric === 'controversial' ? 'Controversial' :
                              selectedMetric === 'innovation' ? 'Innovation' :
                              selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                             selectedMetric === 'reportGovernance' ? 'Report Governance' :
+                             selectedMetric === 'transparency' ? 'Transparency' :
                              selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
                              selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
                              selectedMetric === 'timeliness' ? 'Timeliness' : 'Score'} (Overall %)
@@ -1955,9 +1997,9 @@ export default function ScoringMetricsPage() {
                             } else if (selectedMetric === 'stakeholder') {
                               aValue = a.stakeholder?.score || 0;
                               bValue = b.stakeholder?.score || 0;
-                            } else if (selectedMetric === 'reportGovernance') {
-                              aValue = a.reportGovernance?.score || 0;
-                              bValue = b.reportGovernance?.score || 0;
+                            } else if (selectedMetric === 'transparency') {
+                              aValue = a.transparency?.score || 0;
+                              bValue = b.transparency?.score || 0;
                             } else if (selectedMetric === 'reportGovResolution') {
                               aValue = a.reportGovResolution?.score || 0;
                               bValue = b.reportGovResolution?.score || 0;
@@ -1995,9 +2037,9 @@ export default function ScoringMetricsPage() {
                           } else if (selectedMetric === 'stakeholder') {
                             aValue = a.stakeholder?.score || 0;
                             bValue = b.stakeholder?.score || 0;
-                          } else if (selectedMetric === 'reportGovernance') {
-                            aValue = a.reportGovernance?.score || 0;
-                            bValue = b.reportGovernance?.score || 0;
+                          } else if (selectedMetric === 'transparency') {
+                            aValue = a.transparency?.score || 0;
+                            bValue = b.transparency?.score || 0;
                           } else if (selectedMetric === 'reportGovResolution') {
                             aValue = a.reportGovResolution?.score || 0;
                             bValue = b.reportGovResolution?.score || 0;
@@ -2041,19 +2083,19 @@ export default function ScoringMetricsPage() {
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'controversial') {
                               score = mda.controversial?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'innovation') {
                               score = mda.innovation?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'stakeholder') {
                               score = mda.stakeholder?.score || 0;
-                              maxScore = 5;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                            } else if (selectedMetric === 'reportGovernance') {
-                              score = mda.reportGovernance?.score || 0;
-                              maxScore = 5;
+                            } else if (selectedMetric === 'transparency') {
+                              score = mda.transparency?.score || 0;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'reportGovResolution') {
                               score = mda.reportGovResolution?.score || 0;
@@ -2098,28 +2140,28 @@ export default function ScoringMetricsPage() {
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                       {mda.controversial ? (
-                                        <span className="font-semibold">{mda.controversial.score.toFixed(1)}/10</span>
+                                        <span className="font-semibold">{mda.controversial.score.toFixed(1)}/5</span>
                                       ) : (
                                         <span className="text-gray-400">—</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                       {mda.innovation ? (
-                                        <span className="font-semibold">{mda.innovation.score.toFixed(1)}/10</span>
+                                        <span className="font-semibold">{mda.innovation.score.toFixed(1)}/5</span>
                                       ) : (
                                         <span className="text-gray-400">—</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                       {mda.stakeholder ? (
-                                        <span className="font-semibold">{mda.stakeholder.score.toFixed(1)}/5</span>
+                                        <span className="font-semibold">{mda.stakeholder.score.toFixed(1)}/10</span>
                                       ) : (
                                         <span className="text-gray-400">—</span>
                                       )}
                                     </td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                      {mda.reportGovernance ? (
-                                        <span className="font-semibold">{mda.reportGovernance.score.toFixed(1)}/5</span>
+                                      {mda.transparency ? (
+                                        <span className="font-semibold">{mda.transparency.score.toFixed(1)}/10</span>
                                       ) : (
                                         <span className="text-gray-400">—</span>
                                       )}
@@ -2286,7 +2328,7 @@ export default function ScoringMetricsPage() {
                              selectedMetric === 'controversial' ? 'Controversial' :
                              selectedMetric === 'innovation' ? 'Innovation' :
                              selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                             selectedMetric === 'reportGovernance' ? 'Report Governance' :
+                             selectedMetric === 'transparency' ? 'Transparency' :
                              selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
                              selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
                              selectedMetric === 'timeliness' ? 'Timeliness' :
@@ -2322,9 +2364,9 @@ export default function ScoringMetricsPage() {
                             } else if (selectedMetric === 'stakeholder') {
                               aValue = a.stakeholder?.score || 0;
                               bValue = b.stakeholder?.score || 0;
-                            } else if (selectedMetric === 'reportGovernance') {
-                              aValue = a.reportGovernance?.score || 0;
-                              bValue = b.reportGovernance?.score || 0;
+                            } else if (selectedMetric === 'transparency') {
+                              aValue = a.transparency?.score || 0;
+                              bValue = b.transparency?.score || 0;
                             } else if (selectedMetric === 'reportGovResolution') {
                               aValue = a.reportGovResolution?.score || 0;
                               bValue = b.reportGovResolution?.score || 0;
@@ -2359,19 +2401,19 @@ export default function ScoringMetricsPage() {
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'controversial') {
                               score = mda.controversial?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'innovation') {
                               score = mda.innovation?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'stakeholder') {
                               score = mda.stakeholder?.score || 0;
-                              maxScore = 5;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                            } else if (selectedMetric === 'reportGovernance') {
-                              score = mda.reportGovernance?.score || 0;
-                              maxScore = 5;
+                            } else if (selectedMetric === 'transparency') {
+                              score = mda.transparency?.score || 0;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'reportGovResolution') {
                               score = mda.reportGovResolution?.score || 0;
@@ -2433,7 +2475,7 @@ export default function ScoringMetricsPage() {
                              selectedMetric === 'controversial' ? 'Controversial' :
                              selectedMetric === 'innovation' ? 'Innovation' :
                              selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                             selectedMetric === 'reportGovernance' ? 'Report Governance' :
+                             selectedMetric === 'transparency' ? 'Transparency' :
                              selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
                              selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
                              selectedMetric === 'timeliness' ? 'Timeliness' :
@@ -2469,9 +2511,9 @@ export default function ScoringMetricsPage() {
                             } else if (selectedMetric === 'stakeholder') {
                               aValue = a.stakeholder?.score || 0;
                               bValue = b.stakeholder?.score || 0;
-                            } else if (selectedMetric === 'reportGovernance') {
-                              aValue = a.reportGovernance?.score || 0;
-                              bValue = b.reportGovernance?.score || 0;
+                            } else if (selectedMetric === 'transparency') {
+                              aValue = a.transparency?.score || 0;
+                              bValue = b.transparency?.score || 0;
                             } else if (selectedMetric === 'reportGovResolution') {
                               aValue = a.reportGovResolution?.score || 0;
                               bValue = b.reportGovResolution?.score || 0;
@@ -2506,19 +2548,19 @@ export default function ScoringMetricsPage() {
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'controversial') {
                               score = mda.controversial?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'innovation') {
                               score = mda.innovation?.score || 0;
-                              maxScore = 10;
+                              maxScore = 5;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'stakeholder') {
                               score = mda.stakeholder?.score || 0;
-                              maxScore = 5;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                            } else if (selectedMetric === 'reportGovernance') {
-                              score = mda.reportGovernance?.score || 0;
-                              maxScore = 5;
+                            } else if (selectedMetric === 'transparency') {
+                              score = mda.transparency?.score || 0;
+                              maxScore = 10;
                               overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                             } else if (selectedMetric === 'reportGovResolution') {
                               score = mda.reportGovResolution?.score || 0;
@@ -2776,7 +2818,7 @@ export default function ScoringMetricsPage() {
                                 return (
                                   <>
                                     <div>Answer: {isControversial ? 'Yes' : 'No'}</div>
-                                    <div>Score: {avgScore.toFixed(1)}/10</div>
+                                    <div>Score: {avgScore.toFixed(1)}/5</div>
                                   </>
                                 );
                               }
@@ -2799,7 +2841,7 @@ export default function ScoringMetricsPage() {
                                 return (
                                   <>
                                     <div>Answer: {isInnovative ? 'Yes' : 'No'}</div>
-                                    <div>Score: {avgScore.toFixed(1)}/10</div>
+                                    <div>Score: {avgScore.toFixed(1)}/5</div>
                                   </>
                                 );
                               }
@@ -2809,7 +2851,7 @@ export default function ScoringMetricsPage() {
                         </div>
 
                         <div className="bg-gray-50 p-4 rounded-lg">
-                          <h3 className="text-lg font-bold mb-3">5. Stakeholder Engagement (5 points)</h3>
+                          <h3 className="text-lg font-bold mb-3">5. Stakeholder Engagement (10 points)</h3>
                           <div className="space-y-2">
                             {(() => {
                               const stakeFirst = viewDetailsData.stakeholder?.firstHalf || { rate: 0, score: 0 };
@@ -2832,36 +2874,85 @@ export default function ScoringMetricsPage() {
                         </div>
 
                         <div className="bg-gray-50 p-4 rounded-lg">
-                          <h3 className="text-lg font-bold mb-3">5. Report Governance (5 points)</h3>
+                          <h3 className="text-lg font-bold mb-3">5. Transparency (10 points)</h3>
                           <div className="space-y-2">
                             {(() => {
-                              const checkedItems = new Set<string>();
-                              let avgScore = 0;
-                              let count = 0;
+                              const firstHalf = viewDetailsData.transparency?.firstHalf;
+                              const secondHalf = viewDetailsData.transparency?.secondHalf;
+                              const hasData = firstHalf || secondHalf;
 
-                              [viewDetailsData.reportGovernance?.firstHalf, viewDetailsData.reportGovernance?.secondHalf].forEach(half => {
-                                if (half) {
-                                  if (half.activeWebsite) checkedItems.add('Active Website');
-                                  if (half.activeUsers) checkedItems.add('Active Users');
-                                  if (half.reportGovLink) checkedItems.add('ReportGov Link');
-                                  if (half.score) {
-                                    avgScore += half.score;
-                                    count++;
-                                  }
-                                }
-                              });
+                              if (!hasData) {
+                                return <p className="text-gray-500">No data available</p>;
+                              }
 
-                              const hasData = count > 0 || checkedItems.size > 0;
-                              if (hasData) {
-                                const finalScore = count > 0 ? avgScore / count : 0;
+                              const bothSkipped = (firstHalf?.isSkipped || false) && (secondHalf?.isSkipped || false);
+                              if (bothSkipped) {
                                 return (
-                                  <>
-                                    <div>Items: {Array.from(checkedItems).join(', ') || 'None'}</div>
-                                    <div>Score: {finalScore.toFixed(1)}/5</div>
-                                  </>
+                                  <div className="bg-white p-3 rounded border">
+                                    <div className="text-sm space-y-1">
+                                      <div className="font-bold text-yellow-600">⚠️ Transparency Skipped</div>
+                                      <div className="text-gray-500">Score: 0/10 (Skipped)</div>
+                                      <div className="text-xs text-blue-600 mt-2">
+                                        Note: Total score normalized when transparency is skipped
+                                      </div>
+                                    </div>
+                                  </div>
                                 );
                               }
-                              return <p className="text-gray-500">No data available</p>;
+
+                              const activeEntries = [firstHalf, secondHalf].filter(
+                                entry => entry && !entry.isSkipped
+                              );
+                              const combinedScore =
+                                activeEntries.length > 0
+                                  ? activeEntries.reduce(
+                                      (sum, entry) => sum + (entry?.score || 0),
+                                      0
+                                    ) / activeEntries.length
+                                  : 0;
+
+                              return (
+                                <>
+                                  <div className="space-y-2 text-sm">
+                                    {transparencyQuestions.map(question => {
+                                      const firstValue = firstHalf
+                                        ? firstHalf.isSkipped
+                                          ? "Skipped"
+                                          : firstHalf.responses?.[question.key]
+                                          ? "Yes"
+                                          : "No"
+                                        : "No data";
+                                      const secondValue = secondHalf
+                                        ? secondHalf.isSkipped
+                                          ? "Skipped"
+                                          : secondHalf.responses?.[question.key]
+                                          ? "Yes"
+                                          : "No"
+                                        : "No data";
+
+                                      return (
+                                        <div key={question.key} className="flex justify-between">
+                                          <span>{question.label}:</span>
+                                          <span className="font-semibold text-gray-700">
+                                            1st Half: {firstValue} | 2nd Half: {secondValue}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="font-bold">Combined Score: {combinedScore.toFixed(1)}/10</div>
+                                  {secondHalf?.responses?.__copiedFrom && (
+                                    <div className="text-xs text-blue-600 mt-2">
+                                      2nd Half currently mirrors {secondHalf.responses.__copiedFrom}
+                                    </div>
+                                  )}
+                                  {firstHalf?.responses?.__copiedFrom && (
+                                    <div className="text-xs text-blue-600 mt-2">
+                                      1st Half currently mirrors {firstHalf.responses.__copiedFrom}
+                                    </div>
+                                  )}
+                                </>
+                              );
                             })()}
                           </div>
                         </div>
@@ -3085,8 +3176,19 @@ export default function ScoringMetricsPage() {
                               ((viewDetailsData.innovation?.firstHalf?.score || 0) + (viewDetailsData.innovation?.secondHalf?.score || 0)) / 2 : 0;
                             const stakeholderScore = viewDetailsData.stakeholder?.firstHalf || viewDetailsData.stakeholder?.secondHalf ?
                               ((viewDetailsData.stakeholder?.firstHalf?.score || 0) + (viewDetailsData.stakeholder?.secondHalf?.score || 0)) / 2 : 0;
-                            const reportGovScore = viewDetailsData.reportGovernance?.firstHalf || viewDetailsData.reportGovernance?.secondHalf ?
-                              ((viewDetailsData.reportGovernance?.firstHalf?.score || 0) + (viewDetailsData.reportGovernance?.secondHalf?.score || 0)) / 2 : 0;
+                            let transparencyScore = 0;
+                            let isTransparencySkipped = false;
+                            const transparencyEntries = [viewDetailsData.transparency?.firstHalf, viewDetailsData.transparency?.secondHalf]
+                              .filter(Boolean);
+                            if (transparencyEntries.length > 0) {
+                              const activeTransparencyEntries = transparencyEntries.filter(entry => !entry?.isSkipped);
+                              if (activeTransparencyEntries.length > 0) {
+                                transparencyScore =
+                                  activeTransparencyEntries.reduce((sum, entry) => sum + (entry?.score || 0), 0) /
+                                  activeTransparencyEntries.length;
+                              }
+                              isTransparencySkipped = activeTransparencyEntries.length === 0;
+                            }
                             // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
                             let reportGovResScore = 0;
                             const isReportGovSkipped = (viewDetailsData.reportGovResolution?.firstHalf?.isSkipped || false) || 
@@ -3132,30 +3234,39 @@ export default function ScoringMetricsPage() {
                             const timelinessScore = timelinessMonths.size * (2 / 12);
 
                             const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
-                                              reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+                                              transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
                             
-                            const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
-                            const totalPercentage = isReportGovSkipped 
-                              ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
-                              : (totalScore / 100) * 100; // Standard: 100 points = 100%
+                            let maxPossiblePoints = 100;
+                            if (isTransparencySkipped) {
+                              maxPossiblePoints -= 10;
+                            }
+                            if (isReportGovSkipped) {
+                              maxPossiblePoints -= 15;
+                            }
+                            const totalPercentage = maxPossiblePoints > 0
+                              ? (totalScore / maxPossiblePoints) * 100
+                              : 0;
 
                             return (
                               <div className="space-y-2 text-sm">
                                 <div className="flex justify-between"><span>SLA:</span><span className="font-semibold">{slaScore.toFixed(1)}/30</span></div>
                                 <div className="flex justify-between"><span>Mystery Shopping:</span><span className="font-semibold">{mysteryScore.toFixed(1)}/20</span></div>
-                                <div className="flex justify-between"><span>Controversial:</span><span className="font-semibold">{controversialScore.toFixed(1)}/10</span></div>
-                                <div className="flex justify-between"><span>Innovation:</span><span className="font-semibold">{innovationScore.toFixed(1)}/10</span></div>
-                                <div className="flex justify-between"><span>Stakeholder Engagement:</span><span className="font-semibold">{stakeholderScore.toFixed(1)}/5</span></div>
-                                <div className="flex justify-between"><span>Report Governance:</span><span className="font-semibold">{reportGovScore.toFixed(1)}/5</span></div>
+                                <div className="flex justify-between"><span>Controversial:</span><span className="font-semibold">{controversialScore.toFixed(1)}/5</span></div>
+                                <div className="flex justify-between"><span>Innovation:</span><span className="font-semibold">{innovationScore.toFixed(1)}/5</span></div>
+                                <div className="flex justify-between"><span>Stakeholder Engagement:</span><span className="font-semibold">{stakeholderScore.toFixed(1)}/10</span></div>
+                                <div className={`flex justify-between ${isTransparencySkipped ? 'text-gray-500' : ''}`}>
+                                  <span>Transparency: {isTransparencySkipped && <span className="text-yellow-600">(Skipped)</span>}</span>
+                                  <span className="font-semibold">{transparencyScore.toFixed(1)}/10</span>
+                                </div>
                                 <div className={`flex justify-between ${isReportGovSkipped ? 'text-gray-500' : ''}`}>
                                   <span>Report Gov Resolution: {isReportGovSkipped && <span className="text-yellow-600">(Skipped)</span>}</span>
                                   <span className="font-semibold">{reportGovResScore.toFixed(1)}/15</span>
                                 </div>
                                 <div className="flex justify-between"><span>Monthly Report Submission:</span><span className="font-semibold">{monthlyReportScore.toFixed(1)}/3</span></div>
                                 <div className="flex justify-between"><span>Timeliness:</span><span className="font-semibold">{timelinessScore.toFixed(1)}/2</span></div>
-                                {isReportGovSkipped && (
+                                {(isReportGovSkipped || isTransparencySkipped) && (
                                   <div className="text-xs text-blue-600 mt-2 p-2 bg-blue-50 rounded">
-                                    ⚠️ Report Gov Resolution skipped - normalized to 85=100% for fair ranking
+                                    ⚠️ Optional metrics skipped - normalized to {maxPossiblePoints}=100% for fair ranking
                                   </div>
                                 )}
                                 <div className="mt-4 pt-4 border-t-2 border-blue-400 flex justify-between text-lg">
@@ -3500,7 +3611,7 @@ export default function ScoringMetricsPage() {
                   </Select>
 
                   <div className="text-center mb-3">
-                    Score: {(isControversial ? 0 : 10).toFixed(1)}/10
+                    Score: {(isControversial ? 0 : 5).toFixed(1)}/5
                   </div>
 
                   <button
@@ -3533,7 +3644,7 @@ export default function ScoringMetricsPage() {
                       )}
                     </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      10 Points
+                      5 Points
                     </span>
                   </div>
                   
@@ -3547,7 +3658,7 @@ export default function ScoringMetricsPage() {
                   </Select>
 
                   <div className="text-center mb-3">
-                    Score: {(isInnovative ? 10 : 0).toFixed(1)}/10
+                    Score: {(isInnovative ? 5 : 0).toFixed(1)}/5
                   </div>
 
                   <button
@@ -3580,7 +3691,7 @@ export default function ScoringMetricsPage() {
                       )}
                     </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      5 Points
+                      10 Points
                     </span>
                   </div>
                   
@@ -3595,7 +3706,7 @@ export default function ScoringMetricsPage() {
                   </Select>
 
                   <div className="text-center mb-3">
-                    Score: {((stakeholderRate / 10) * 5).toFixed(1)}/5
+                    Score: {((stakeholderRate / 10) * 10).toFixed(1)}/10
                   </div>
 
                   <button
@@ -3611,50 +3722,75 @@ export default function ScoringMetricsPage() {
                   </button>
                 </div>
 
-                {/* Report Governance */}
+                {/* Transparency */}
                 <div className="bg-gray-100/50 p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold">Report Governance</h2>
-                      {isLoadingReportGovernanceData && (
+                      <h2 className="text-lg font-semibold">Transparency</h2>
+                      {isLoadingTransparencyData && (
                         <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
                           🔄 Loading...
                         </span>
                       )}
-                      {!isLoadingReportGovernanceData && savedReportGovernanceData && (
+                      {!isLoadingTransparencyData && savedTransparencyData && (
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
                           💾 Saved
                         </span>
                       )}
                     </div>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                      5 Points
+                      10 Points
                     </span>
                   </div>
                   
-                  <div className="space-y-2 mb-3">
-                    {Object.entries(checkboxItems).map(([key, value]) => (
-                      <label key={key} className="flex items-center">
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="transparency-mode"
+                        checked={!skipTransparency}
+                        onChange={() => setSkipTransparency(false)}
+                        className="mr-2"
+                      />
+                      Evaluate
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="transparency-mode"
+                        checked={skipTransparency}
+                        onChange={() => setSkipTransparency(true)}
+                        className="mr-2"
+                      />
+                      Skip (0 points)
+                    </label>
+                  </div>
+
+                  <div className={`space-y-2 mb-3 ${skipTransparency ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {transparencyQuestions.map((question) => (
+                      <label key={question.key} className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={value}
-                          onChange={(e) => setCheckboxItems(prev => ({
-                            ...prev,
-                            [key]: e.target.checked
-                          }))}
+                          checked={transparencyItems[question.key]}
+                          onChange={(e) =>
+                            setTransparencyItems((prev) => ({
+                              ...prev,
+                              [question.key]: e.target.checked,
+                            }))
+                          }
                           className="mr-2"
                         />
-                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                        {question.label}
                       </label>
                     ))}
                   </div>
 
                   <div className="text-center mb-3">
-                    Score: {(Object.values(checkboxItems).filter(Boolean).length / 3 * 5).toFixed(1)}/5
+                    Score: {calculateTransparencyScore().toFixed(1)}/10
                   </div>
 
                   <button
-                    onClick={handleSaveReportGovernanceData}
+                    onClick={handleSaveTransparencyData}
                     disabled={!selectedMda}
                     className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${
                       !selectedMda
@@ -4396,10 +4532,10 @@ export default function ScoringMetricsPage() {
                   <div className="space-y-2 text-sm">
                     <div>Service Level Agreement: {finalScoreData.scores.serviceLevelAgreement.toFixed(1)}/30</div>
                     <div>Mystery Shopping: {finalScoreData.scores.mysteryShopping.toFixed(1)}/20</div>
-                    <div>Controversial: {finalScoreData.scores.controversial.toFixed(1)}/10</div>
-                    <div>Innovation: {finalScoreData.scores.innovation.toFixed(1)}/10</div>
-                    <div>Stakeholder Engagement: {finalScoreData.scores.stakeholderEngagement.toFixed(1)}/5</div>
-                    <div>Report Governance: {finalScoreData.scores.reportGovernance.toFixed(1)}/5</div>
+                    <div>Controversial: {finalScoreData.scores.controversial.toFixed(1)}/5</div>
+                    <div>Innovation: {finalScoreData.scores.innovation.toFixed(1)}/5</div>
+                    <div>Stakeholder Engagement: {finalScoreData.scores.stakeholderEngagement.toFixed(1)}/10</div>
+                    <div>Transparency: {finalScoreData.scores.transparency.toFixed(1)}/10</div>
                     <div className={skipReportGov ? "text-gray-500 line-through" : ""}>
                       Report Gov Resolution: {finalScoreData.scores.reportGovernanceResolution.toFixed(1)}/15
                       {skipReportGov && " (Skipped)"}
@@ -4408,10 +4544,10 @@ export default function ScoringMetricsPage() {
                     <div>Timeliness in Submitting: {finalScoreData.scores.timelinessInSubmitting.toFixed(1)}/2</div>
                   </div>
                   
-                  {skipReportGov && (
+                  {(skipReportGov || skipTransparency) && (
                     <div className="mt-3 pt-3 border-t border-gray-200">
                       <p className="text-xs text-blue-600">
-                        ⚠️ Report Gov Resolution skipped - calculated out of 85 points instead of 100
+                        ⚠️ Optional metrics skipped - calculated out of {finalScoreData.maxPossiblePoints} points instead of 100
                       </p>
                     </div>
                   )}

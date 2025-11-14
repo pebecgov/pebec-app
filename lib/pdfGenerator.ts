@@ -24,7 +24,7 @@ interface MdaDetailedData {
     firstHalf: any;
     secondHalf: any;
   };
-  reportGovernance: {
+  transparency: {
     firstHalf: any;
     secondHalf: any;
   };
@@ -95,6 +95,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${monthNames[monthIndex]} ${year}`;
   };
+
+  const transparencyQuestions: Array<{ key: string; label: string }> = [
+    { key: 'proactiveDisclosure', label: 'Proactive disclosure of service information' },
+    { key: 'serviceLevelPublishing', label: 'Service level standards published' }
+  ];
 
   // Service Level Agreement (SLA)
   // Generate all 12 months for the year
@@ -383,47 +388,72 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // Report Governance - combine both halves
-  if (data.reportGovernance.firstHalf || data.reportGovernance.secondHalf) {
-    const checkedItems = new Set<string>();
-    let avgScore = 0;
-    let count = 0;
+  // Transparency - combine both halves
+  if (data.transparency.firstHalf || data.transparency.secondHalf) {
+    const firstHalf = data.transparency.firstHalf;
+    const secondHalf = data.transparency.secondHalf;
+    const hasData = firstHalf || secondHalf;
 
-    [data.reportGovernance.firstHalf, data.reportGovernance.secondHalf].forEach(half => {
-      if (half) {
-        if (half.activeWebsite) checkedItems.add('Active Website');
-        if (half.activeUsers) checkedItems.add('Active Users');
-        if (half.reportGovLink) checkedItems.add('ReportGov Link');
-        if (half.score) {
-          avgScore += half.score;
-          count++;
+    if (hasData) {
+      const bothSkipped = (firstHalf?.isSkipped || false) && (secondHalf?.isSkipped || false);
+      const activeEntries = [firstHalf, secondHalf].filter(
+        entry => entry && !entry.isSkipped
+      );
+      const combinedScore = activeEntries.length > 0
+        ? activeEntries.reduce((sum, entry) => sum + (entry?.score || 0), 0) / activeEntries.length
+        : 0;
+
+      if (yPosition > pageHeight - 70) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      const bodyRows: string[][] = [];
+
+      transparencyQuestions.forEach(question => {
+        const firstValue = firstHalf
+          ? firstHalf.isSkipped
+            ? 'Skipped'
+            : firstHalf.responses?.[question.key]
+            ? 'Yes'
+            : 'No'
+          : 'No data';
+        const secondValue = secondHalf
+          ? secondHalf.isSkipped
+            ? 'Skipped'
+            : secondHalf.responses?.[question.key]
+            ? 'Yes'
+            : 'No'
+          : 'No data';
+        bodyRows.push([question.label, `1st Half: ${firstValue} | 2nd Half: ${secondValue}`]);
+      });
+
+      if (bothSkipped) {
+        bodyRows.push(['Status', '⚠️ Transparency skipped']);
+      } else {
+        bodyRows.push(['Combined Score', `${combinedScore.toFixed(1)}/10`]);
+        if (secondHalf?.responses?.__copiedFrom) {
+          bodyRows.push(['Note', `2nd Half mirrors ${secondHalf.responses.__copiedFrom}`]);
+        }
+        if (firstHalf?.responses?.__copiedFrom) {
+          bodyRows.push(['Note', `1st Half mirrors ${firstHalf.responses.__copiedFrom}`]);
         }
       }
-    });
 
-    const finalScore = count > 0 ? avgScore / count : 0;
-
-    if (yPosition > pageHeight - 50) {
-      doc.addPage();
-      yPosition = 20;
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['5. Transparency (10 points)', '']],
+        body: bodyRows,
+        headStyles: {
+          fillColor: [233, 30, 99],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        styles: { fontSize: 9 },
+        theme: 'grid'
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
     }
-
-    autoTable(doc, {
-      startY: yPosition,
-      head: [['5. Report Governance (5 points)', '']],
-      body: [
-        ['Items', Array.from(checkedItems).join(', ') || 'None'],
-        ['Score', `${finalScore.toFixed(1)}/5`]
-      ],
-      headStyles: {
-        fillColor: [233, 30, 99],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold'
-      },
-      styles: { fontSize: 9 },
-      theme: 'grid'
-    });
-    yPosition = (doc as any).lastAutoTable.finalY + 15;
   }
 
   // Report Gov Resolution - show single half if only one exists, otherwise sum/average
@@ -650,8 +680,21 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     ((data.innovation.firstHalf?.score || 0) + (data.innovation.secondHalf?.score || 0)) / 2 : 0;
   const stakeholderScore = data.stakeholder.firstHalf || data.stakeholder.secondHalf ?
     ((data.stakeholder.firstHalf?.score || 0) + (data.stakeholder.secondHalf?.score || 0)) / 2 : 0;
-  const reportGovScore = data.reportGovernance.firstHalf || data.reportGovernance.secondHalf ?
-    ((data.reportGovernance.firstHalf?.score || 0) + (data.reportGovernance.secondHalf?.score || 0)) / 2 : 0;
+  let transparencyScore = 0;
+  let isTransparencySkipped = false;
+  const transparencyEntries = [data.transparency.firstHalf, data.transparency.secondHalf].filter(Boolean);
+  if (transparencyEntries.length > 0) {
+    const activeTransparencyEntries = transparencyEntries.filter(
+      entry => entry && !entry.isSkipped
+    );
+    if (activeTransparencyEntries.length > 0) {
+      transparencyScore = activeTransparencyEntries.reduce(
+        (sum, entry) => sum + (entry?.score || 0),
+        0
+      ) / activeTransparencyEntries.length;
+    }
+    isTransparencySkipped = activeTransparencyEntries.length === 0;
+  }
   // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
   let reportGovResScore = 0;
   const isReportGovSkipped = (data.reportGovResolution.firstHalf?.isSkipped || false) || 
@@ -677,12 +720,18 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   }
 
   const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
-                    reportGovScore + reportGovResScore + monthlyReportScore + timelinessScore;
+                    transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
   
-  const maxPossiblePoints = isReportGovSkipped ? 85 : 100;
-  const totalPercentage = isReportGovSkipped 
-    ? (totalScore / 85) * 100  // Normalize: 85 points = 100%
-    : (totalScore / 100) * 100; // Standard: 100 points = 100%
+  let maxPossiblePoints = 100;
+  if (isTransparencySkipped) {
+    maxPossiblePoints -= 10;
+  }
+  if (isReportGovSkipped) {
+    maxPossiblePoints -= 15;
+  }
+  const totalPercentage = maxPossiblePoints > 0
+    ? (totalScore / maxPossiblePoints) * 100
+    : 0;
 
   if (yPosition > pageHeight - 60) {
     doc.addPage();
@@ -695,13 +744,13 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     ['Controversial', `${controversialScore.toFixed(1)}/10`],
     ['Innovation', `${innovationScore.toFixed(1)}/10`],
     ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/5`],
-    ['Report Governance', `${reportGovScore.toFixed(1)}/5`],
+    ['Transparency', isTransparencySkipped ? 'Skipped' : `${transparencyScore.toFixed(1)}/10`],
     ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`],
     ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
     ['Timeliness', `${timelinessScore.toFixed(1)}/2`],
     ['', ''],
-    isReportGovSkipped 
-      ? ['OVERALL TOTAL', `${totalPercentage.toFixed(1)}/100 Using 85`]
+    maxPossiblePoints !== 100
+      ? ['OVERALL TOTAL', `${totalPercentage.toFixed(1)}/100 Using ${maxPossiblePoints}`]
       : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/100 (${totalPercentage.toFixed(1)}%)`]
   ];
 
