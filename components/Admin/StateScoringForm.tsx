@@ -113,17 +113,10 @@ const indicators = {
           { value: "full-price", label: "Full Price", score: 0 }
         ]
       },
-      "isp_presence": {
-        label: "Does major ISP operate within the state?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
       "4g_5g_coverage": {
         label: "Does this state have 4G/5G coverage?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       },
@@ -143,6 +136,7 @@ const indicators = {
         label: "Is the land registration process automated in the state?",
         options: [
           { value: "automated", label: "Automated", score: 1 },
+          { value: "hybrid", label: "Hybrid", score: 0.5 },
           { value: "manual", label: "Manual", score: 0 }
         ]
       },
@@ -151,13 +145,15 @@ const indicators = {
         options: [
           { value: "1-30-days", label: "1–30 days", score: 2 },
           { value: "31-60-days", label: "31–60 days", score: 1 },
-          { value: "over-60-days", label: ">60 days", score: 0 }
+          { value: "over-60-days", label: ">60 days", score: 0 },
+          { value: "not-available", label: "Not Available", score: 0 }
         ]
       },
       "procedures_availability": {
         label: "Are land registration procedures and fees publicly available and accessible?",
         options: [
           { value: "publicly-available-online", label: "Publicly available online", score: 1 },
+          { value: "either-fees-or-procedures", label: "Either fees or procedures are available", score: 0.5 },
           { value: "not-publicly-available", label: "Not publicly available", score: 0 }
         ]
       },
@@ -316,25 +312,17 @@ const indicators = {
   "getting_credit": {
     name: "Getting Credit",
     subIndicators: {
-      "bank_branches": {
-        label: "Number of licensed bank branches and Micro Finance Banks per 100,000 adults",
-        options: [
-          { value: "15-100", label: "15%-100%", score: 2 },
-          { value: "5-14", label: "5%-14%", score: 1 },
-          { value: "0-4", label: "0%-4%", score: 0 }
-        ]
-      },
       "boi_collaboration": {
         label: "Does the state collaborate with BOI or any federal Agency to create access to credit?",
         options: [
-          { value: "yes", label: "Yes", score: 2 },
+          { value: "yes", label: "Yes", score: 3 },
           { value: "no", label: "No", score: 0 }
         ]
       },
       "microfinance_banks": {
         label: "Have owned microfinance banks or cooperatives?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
+            { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       }
@@ -471,14 +459,6 @@ const indicators = {
           { value: "2-tertiary-1-technical", label: "2 tertiary + 1 technical", score: 1 },
           { value: "1-tertiary-institution", label: "1 tertiary institution", score: 0.5 },
           { value: "none", label: "None", score: 0 }
-        ]
-      },
-      "jamb_performance": {
-        label: "What is the state's performance in JAMB admissions and success rate?",
-        options: [
-          { value: "top-10-jamb-60-percent-success", label: "Ranks Top 10 for JAMB admission or ≥60% success", score: 2 },
-          { value: "ranks-11-20-40-59-percent-success", label: "Ranks 11–20 or 40–59% success", score: 1 },
-          { value: "below-40-percent-no-data", label: "<40% success or no data", score: 0 }
         ]
       }
     }
