@@ -1,5 +1,8 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 export const mdasList = [{
+  name: "Advertising Regulatory Council of Nigeria",
+  abbreviation: "ARCON"
+}, {
   name: "Bank of Industry",
   abbreviation: "BOI"
 }, {

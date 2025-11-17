@@ -131,11 +131,16 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     });
   }
 
-  // Calculate SLA score (used for both SLA table and Overall Summary)
+  // Calculate SLA score (used for both SLA table and Overall Summary) - Exclude November (10) and December (11)
   const slaAllMonthKeys = new Set<string>();
   [data.sla.firstHalf, data.sla.secondHalf].forEach(half => {
     if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
       Object.keys(half.monthlySlaData).forEach(key => {
+        // Extract month index from key (format: "year-month")
+        const monthIndex = parseInt(key.split('-')[1]);
+        // Exclude November (10) and December (11)
+        if (monthIndex === 10 || monthIndex === 11) return;
+        
         const monthData = half.monthlySlaData[key];
         if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
           slaAllMonthKeys.add(key);
@@ -145,11 +150,29 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   });
   
   const slaTotalMonthsWithData = slaAllMonthKeys.size;
-  const slaSumTotalScore = [data.sla.firstHalf, data.sla.secondHalf]
-    .filter(Boolean)
-    .reduce((sum, d) => sum + (d.totalScore || 0), 0);
+  // Recalculate sumTotalScore excluding November and December
+  let slaSumTotalScore = 0;
+  [data.sla.firstHalf, data.sla.secondHalf].forEach(half => {
+    if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
+      Object.entries(half.monthlySlaData).forEach(([key, monthData]: [string, any]) => {
+        // Extract month index from key (format: "year-month")
+        const monthIndex = parseInt(key.split('-')[1]);
+        // Exclude November (10) and December (11)
+        if (monthIndex === 10 || monthIndex === 11) return;
+        
+        if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
+          // Calculate score for this month (5 points max per month)
+          if (monthData.method === 'file') {
+            slaSumTotalScore += (monthData.overallPercentage / 100) * 5;
+          } else if (monthData.method === 'rating') {
+            slaSumTotalScore += (monthData.rating / 10) * 5;
+          }
+        }
+      });
+    }
+  });
   const slaMaxPossibleRawScore = slaTotalMonthsWithData * 5;
-  const pointsPerMonth = 30 / 12;
+  const pointsPerMonth = 30 / 10; // Changed from 12 to 10 months
   const slaMaxPossibleScoreForMonths = slaTotalMonthsWithData * pointsPerMonth;
   const slaFinalScore = slaTotalMonthsWithData > 0 ? (slaSumTotalScore / slaMaxPossibleRawScore) * slaMaxPossibleScoreForMonths : 0;
 
@@ -168,7 +191,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   
   // Add summary rows
   slaTableData.push(['Total Score', `${slaFinalScore.toFixed(1)}/30 (${((slaFinalScore / 30) * 100).toFixed(1)}%)`]);
-  slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/12`]);
+  slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
     autoTable(doc, {
       startY: yPosition,
@@ -562,18 +585,23 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  // Monthly Report Submission - show all 12 months
+  // Monthly Report Submission - show all 12 months but exclude Nov/Dec from calculations
   const monthlyReportTableData: string[][] = [];
   const monthlyReportMonths: { [key: string]: boolean } = {};
   [data.monthlyReport.firstHalf, data.monthlyReport.secondHalf].forEach(half => {
     if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
       Object.entries(half.manualMonthlyReports).forEach(([key, value]) => {
+        // Extract month index from key (format: "year-month")
+        const monthIndex = parseInt(key.split('-')[1]);
+        // Exclude November (10) and December (11) from calculations
+        if (monthIndex === 10 || monthIndex === 11) return;
+        
         if (value) monthlyReportMonths[key] = true;
       });
     }
   });
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec)
+  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec) for display
   for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
@@ -583,11 +611,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   }
 
   const monthlyReportCount = Object.keys(monthlyReportMonths).length;
-  const monthlyReportScore = monthlyReportCount * (3 / 12);
+  const monthlyReportScore = monthlyReportCount * (3 / 10); // Changed from 12 to 10 months
 
   if (monthlyReportTableData.length > 0) {
     monthlyReportTableData.push(['Total Score', `${monthlyReportScore.toFixed(1)}/3`]);
-    monthlyReportTableData.push(['Months Submitted', `${monthlyReportCount}/12`]);
+    monthlyReportTableData.push(['Months Submitted', `${monthlyReportCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -616,18 +644,23 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition += 15;
   }
 
-  // Timeliness - show all 12 months
+  // Timeliness - show all 12 months but exclude Nov/Dec from calculations
   const timelinessTableData: string[][] = [];
   const timelinessMonths: { [key: string]: boolean } = {};
   [data.timeliness.firstHalf, data.timeliness.secondHalf].forEach(half => {
     if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
       Object.entries(half.manualTimeliness).forEach(([key, value]) => {
+        // Extract month index from key (format: "year-month")
+        const monthIndex = parseInt(key.split('-')[1]);
+        // Exclude November (10) and December (11) from calculations
+        if (monthIndex === 10 || monthIndex === 11) return;
+        
         if (value) timelinessMonths[key] = true;
       });
     }
   });
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec)
+  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec) for display
   for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
@@ -637,11 +670,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   }
 
   const timelinessCount = Object.keys(timelinessMonths).length;
-  const timelinessScore = timelinessCount * (2 / 12);
+  const timelinessScore = timelinessCount * (2 / 10); // Changed from 12 to 10 months
 
   // Add summary rows
   timelinessTableData.push(['Total Score', `${timelinessScore.toFixed(1)}/2`]);
-  timelinessTableData.push(['Months On Time', `${timelinessCount}/12`]);
+  timelinessTableData.push(['Months On Time', `${timelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
   if (yPosition > pageHeight - 80) {
     doc.addPage();

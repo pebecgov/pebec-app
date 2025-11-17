@@ -424,15 +424,47 @@ export default function ScoringMetricsPage() {
 
     // Convert to array and calculate total scores
     let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
-      const slaScore = mda.sla?.score || 0;
+      // Recalculate SLA score based on 10 months instead of 12
+      let slaScore = mda.sla?.score || 0;
+      if (mda.sla && mda.sla.monthsWithData) {
+        // Recalculate: if backend calculated based on 12 months, we need to adjust to 10 months
+        // Backend: score = (monthsWithData * (30/12)) * percentage = monthsWithData * 2.5 * percentage
+        // Frontend (10 months): score = (monthsWithData * (30/10)) * percentage = monthsWithData * 3 * percentage
+        // Adjustment factor: (30/10) / (30/12) = 3 / 2.5 = 1.2
+        // But we need to recalculate from raw data if available
+        if (mda.sla.monthsWithData > 0) {
+          // If we have the raw totalScore and monthsWithData, recalculate
+          const pointsPerMonth10 = 30 / 10; // 3 points per month
+          const pointsPerMonth12 = 30 / 12; // 2.5 points per month (backend calculation)
+          // Backend score was calculated as: (monthsWithData * pointsPerMonth12) * percentage
+          // We need: (monthsWithData * pointsPerMonth10) * percentage
+          // So: newScore = oldScore * (pointsPerMonth10 / pointsPerMonth12)
+          slaScore = mda.sla.score * (pointsPerMonth10 / pointsPerMonth12);
+        }
+      }
+      
+      // Recalculate Monthly Report score based on 10 months instead of 12
+      let monthlyReportScore = mda.monthlyReport?.score || 0;
+      if (mda.monthlyReport && mda.monthlyReport.monthsWithData) {
+        const pointsPerMonth10 = 3 / 10; // 0.3 points per month
+        const pointsPerMonth12 = 3 / 12; // 0.25 points per month (backend calculation)
+        monthlyReportScore = mda.monthlyReport.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+      
+      // Recalculate Timeliness score based on 10 months instead of 12
+      let timelinessScore = mda.timeliness?.score || 0;
+      if (mda.timeliness && mda.timeliness.monthsWithData) {
+        const pointsPerMonth10 = 2 / 10; // 0.2 points per month
+        const pointsPerMonth12 = 2 / 12; // 0.167 points per month (backend calculation)
+        timelinessScore = mda.timeliness.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+      
       const mysteryScore = mda.mysteryShopping?.score || 0;
       const controversialScore = mda.controversial?.score || 0;
       const innovationScore = mda.innovation?.score || 0;
       const stakeholderScore = mda.stakeholder?.score || 0;
       const transparencyScore = mda.transparency?.score || 0;
       const reportGovResScore = mda.reportGovResolution?.score || 0;
-      const monthlyReportScore = mda.monthlyReport?.score || 0;
-      const timelinessScore = mda.timeliness?.score || 0;
       
       const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                         transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
@@ -454,6 +486,9 @@ export default function ScoringMetricsPage() {
       
       return {
         ...mda,
+        sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
+        monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
+        timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
         totalScore,
         totalPercentage,
         isReportGovSkipped,
@@ -2125,7 +2160,7 @@ export default function ScoringMetricsPage() {
                                       {mda.sla ? (
                                         <div>
                                           <div className="font-semibold">{mda.sla.score.toFixed(1)}/30</div>
-                                          <div className="text-xs text-gray-400">{mda.sla.monthsWithData}/12 months</div>
+                                          <div className="text-xs text-gray-400">{mda.sla.monthsWithData}/10 months</div>
                                         </div>
                                       ) : (
                                         <span className="text-gray-400">—</span>
@@ -2199,7 +2234,7 @@ export default function ScoringMetricsPage() {
                                       {mda.monthlyReport ? (
                                         <div>
                                           <div className="font-semibold">{mda.monthlyReport.score.toFixed(1)}/3</div>
-                                          <div className="text-xs text-gray-400">{mda.monthlyReport.monthsWithData}/12 months</div>
+                                          <div className="text-xs text-gray-400">{mda.monthlyReport.monthsWithData}/10 months</div>
                                         </div>
                                       ) : (
                                         <span className="text-gray-400">—</span>
@@ -2209,7 +2244,7 @@ export default function ScoringMetricsPage() {
                                       {mda.timeliness ? (
                                         <div>
                                           <div className="font-semibold">{mda.timeliness.score.toFixed(1)}/2</div>
-                                          <div className="text-xs text-gray-400">{mda.timeliness.monthsWithData}/12 months</div>
+                                          <div className="text-xs text-gray-400">{mda.timeliness.monthsWithData}/10 months</div>
                                         </div>
                                       ) : (
                                         <span className="text-gray-400">—</span>
@@ -3147,11 +3182,16 @@ export default function ScoringMetricsPage() {
                         <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-300">
                           <h3 className="text-xl font-bold mb-3">OVERALL SCORE SUMMARY</h3>
                           {(() => {
-                            // Calculate scores (same logic as PDF)
+                            // Calculate scores (same logic as PDF) - Exclude November (10) and December (11)
                             const allMonthKeys = new Set<string>();
                             [viewDetailsData.sla?.firstHalf, viewDetailsData.sla?.secondHalf].forEach(half => {
                               if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
                                 Object.keys(half.monthlySlaData).forEach(key => {
+                                  // Extract month index from key (format: "year-month")
+                                  const monthIndex = parseInt(key.split('-')[1]);
+                                  // Exclude November (10) and December (11)
+                                  if (monthIndex === 10 || monthIndex === 11) return;
+                                  
                                   const monthData = half.monthlySlaData[key];
                                   if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
                                     allMonthKeys.add(key);
@@ -3160,11 +3200,29 @@ export default function ScoringMetricsPage() {
                               }
                             });
                             const totalMonthsWithData = allMonthKeys.size;
-                            const sumTotalScore = [viewDetailsData.sla?.firstHalf, viewDetailsData.sla?.secondHalf]
-                              .filter(Boolean)
-                              .reduce((sum, d) => sum + (d.totalScore || 0), 0);
+                            // Recalculate sumTotalScore excluding November and December
+                            let sumTotalScore = 0;
+                            [viewDetailsData.sla?.firstHalf, viewDetailsData.sla?.secondHalf].forEach(half => {
+                              if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
+                                Object.entries(half.monthlySlaData).forEach(([key, monthData]: [string, any]) => {
+                                  // Extract month index from key (format: "year-month")
+                                  const monthIndex = parseInt(key.split('-')[1]);
+                                  // Exclude November (10) and December (11)
+                                  if (monthIndex === 10 || monthIndex === 11) return;
+                                  
+                                  if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
+                                    // Calculate score for this month (5 points max per month)
+                                    if (monthData.method === 'file') {
+                                      sumTotalScore += (monthData.overallPercentage / 100) * 5;
+                                    } else if (monthData.method === 'rating') {
+                                      sumTotalScore += (monthData.rating / 10) * 5;
+                                    }
+                                  }
+                                });
+                              }
+                            });
                             const maxPossibleRawScore = totalMonthsWithData * 5;
-                            const pointsPerMonth = 30 / 12;
+                            const pointsPerMonth = 30 / 10; // Changed from 12 to 10 months
                             const maxPossibleScoreForMonths = totalMonthsWithData * pointsPerMonth;
                             const slaScore = totalMonthsWithData > 0 ? (sumTotalScore / maxPossibleRawScore) * maxPossibleScoreForMonths : 0;
 
@@ -3217,21 +3275,31 @@ export default function ScoringMetricsPage() {
                             [viewDetailsData.monthlyReport?.firstHalf, viewDetailsData.monthlyReport?.secondHalf].forEach(half => {
                               if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
                                 Object.keys(half.manualMonthlyReports).forEach(key => {
+                                  // Extract month index from key (format: "year-month")
+                                  const monthIndex = parseInt(key.split('-')[1]);
+                                  // Exclude November (10) and December (11)
+                                  if (monthIndex === 10 || monthIndex === 11) return;
+                                  
                                   if (half.manualMonthlyReports[key]) monthlyReportMonths.add(key);
                                 });
                               }
                             });
-                            const monthlyReportScore = monthlyReportMonths.size * (3 / 12);
+                            const monthlyReportScore = monthlyReportMonths.size * (3 / 10); // Changed from 12 to 10 months
                             
                             const timelinessMonths = new Set<string>();
                             [viewDetailsData.timeliness?.firstHalf, viewDetailsData.timeliness?.secondHalf].forEach(half => {
                               if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
                                 Object.keys(half.manualTimeliness).forEach(key => {
+                                  // Extract month index from key (format: "year-month")
+                                  const monthIndex = parseInt(key.split('-')[1]);
+                                  // Exclude November (10) and December (11)
+                                  if (monthIndex === 10 || monthIndex === 11) return;
+                                  
                                   if (half.manualTimeliness[key]) timelinessMonths.add(key);
                                 });
                               }
                             });
-                            const timelinessScore = timelinessMonths.size * (2 / 12);
+                            const timelinessScore = timelinessMonths.size * (2 / 10); // Changed from 12 to 10 months
 
                             const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
                                               transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
