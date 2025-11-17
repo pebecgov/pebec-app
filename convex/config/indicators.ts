@@ -89,6 +89,7 @@ export const indicators = {
         label: "Can you apply for a service online?",
         options: [
           { value: "yes", label: "Yes", score: 2 },
+          { value: "partially", label: "Partially", score: 1 },
           { value: "no", label: "No", score: 0 }
         ]
       }
@@ -195,7 +196,7 @@ export const indicators = {
       "health_insurance": {
         label: "Has the state launched and is it actively implementing a State Health Insurance Scheme?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       },

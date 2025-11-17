@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useStateRankings } from "@/hooks/useStateRankings";
 import { indicators } from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
+import AnalysisTab from "@/components/Admin/AnalysisTab";
 
 // Grade calculation function
 const indicatorMaxScores: Record<string, number> = Object.fromEntries(
@@ -28,6 +29,16 @@ const indicatorMaxScores: Record<string, number> = Object.fromEntries(
 );
 
 const overallMaxScore = Object.values(indicatorMaxScores).reduce((sum, value) => sum + value, 0);
+
+const nigerianStates = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa",
+  "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo",
+  "Ekiti", "Enugu", "Gombe", "Imo", "Jigawa", "Kaduna",
+  "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
+  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo",
+  "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
+  "Federal Capital Territory",
+];
 
 const formatScore = (value?: number | null) => {
   if (value === undefined || value === null || Number.isNaN(value)) {
@@ -620,6 +631,35 @@ export default function StateScoringPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("scoring");
+  const [selectedStateFilter, setSelectedStateFilter] = useState("");
+  const stateIndicatorScores = useQuery(
+    api.saveStateScore.getStateScores,
+    selectedStateFilter ? { state: selectedStateFilter } : "skip",
+  );
+
+  const analysisIndicators = useMemo(() => {
+    if (!selectedStateFilter || !stateIndicatorScores) {
+      return null;
+    }
+
+    const totals: Record<string, number> = {};
+
+    stateIndicatorScores.forEach((score) => {
+      totals[score.indicator] = (totals[score.indicator] ?? 0) + (score.score ?? 0);
+    });
+
+    return Object.entries(indicators).map(([indicatorKey, config]) => {
+      const totalScore = totals[indicatorKey] ?? 0;
+      const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
+      const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+
+      return {
+        name: config.name,
+        totalScore,
+        percentage,
+      };
+    });
+  }, [stateIndicatorScores, selectedStateFilter]);
 
   useEffect(() => {
     if (isLoaded && !user) {
@@ -642,9 +682,37 @@ export default function StateScoringPage() {
   return (
     <div className="container mx-auto p-6 max-w-7xl">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">State Scoring & Rankings</h1>
-        <p className="text-gray-600">Score states and view performance rankings</p>
+      <div className="mb-8 space-y-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">State Scoring & Rankings</h1>
+          <p className="text-gray-600">Score states, analyze indicator performance, and view rankings.</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Global State Filter</p>
+            <p className="text-sm text-gray-500">Select a state to power the Analysis dashboard across tabs.</p>
+          </div>
+          <div className="w-full sm:w-64">
+            <Select
+              value={selectedStateFilter || "all"}
+              onValueChange={(value) => {
+                setSelectedStateFilter(value === "all" ? "" : value);
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a state" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All States</SelectItem>
+                {nigerianStates.map((state) => (
+                  <SelectItem key={state} value={state}>
+                    {state}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -671,6 +739,16 @@ export default function StateScoringPage() {
             >
               Rankings
             </button>
+            <button
+              onClick={() => setActiveTab("analysis")}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "analysis"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Analysis
+            </button>
           </nav>
         </div>
       </div>
@@ -696,6 +774,16 @@ export default function StateScoringPage() {
               <h3 className="text-lg font-semibold text-gray-700 mb-4">Detailed Rankings</h3>
               <RankingsTable />
             </div>
+          </div>
+        )}
+
+        {activeTab === "analysis" && (
+          <div className="space-y-6">
+         
+            <AnalysisTab
+              selectedState={selectedStateFilter || undefined}
+              indicators={analysisIndicators ?? undefined}
+            />
           </div>
         )}
       </div>
