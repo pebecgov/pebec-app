@@ -218,17 +218,23 @@ export default function Admin() {
     // Download
     XLSX.writeFile(workbook, "users.xlsx");
   };
-  const filteredUsers = users?.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_")).filter(user => {
-    const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field => field?.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
-    const matchesStream = selectedStreamFilter === "all" || user.role === "staff" && user.staffStream === selectedStreamFilter;
-    const matchesMda = selectedMdaFilter === "all" || (user.mdaName && `${user.mdaName}` === selectedMdaFilter);
-    return matchesSearch && matchesRole && matchesStream && matchesMda;
-  }) || [];
+  const filteredUsers =
+    users
+      ?.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_"))
+      .filter(user => {
+        const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field =>
+          field?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
+        const matchesStream = selectedStreamFilter === "all" || (user.role === "staff" && user.staffStream === selectedStreamFilter);
+        const matchesMda = selectedMdaFilter === "all" || (user.mdaName && `${user.mdaName}` === selectedMdaFilter);
+        return matchesSearch && matchesRole && matchesStream && matchesMda;
+      }) || [];
   const totalPages = Math.ceil(filteredUsers.length / recordsPerPage);
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
-  return <div className="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-6">
-    <h1 className="text-2xl font-semibold mb-4">Manage Users</h1>
+  const content = (
+    <div className="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-6">
+      <h1 className="text-2xl font-semibold mb-4">Manage Users</h1>
 
       {}
       {}
@@ -721,12 +727,13 @@ export default function Admin() {
               </DialogContent>
             </Dialog>
             <Link href={`/admin/users/${user.clerkUserId}`}>
-  <Button size="sm" variant="secondary" className="mt-2 text-xs px-3 py-1">
-    👁️ See Full Details
-  </Button>
-              </Link>
+              <Button size="sm" variant="secondary" className="mt-2 text-xs px-3 py-1">
+                👁️ See Full Details
+              </Button>
+            </Link>
           </TableCell>
-        </TableRow>;
+        </TableRow>
+      );
       })}
     </TableBody>
   </Table>
@@ -744,5 +751,8 @@ export default function Admin() {
           Next
         </Button>
       </div>
-    </div>;
+    </div>
+  );
+
+  return content;
 }
