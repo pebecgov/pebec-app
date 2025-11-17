@@ -13,11 +13,14 @@ import { Bar } from "react-chartjs-2";
 import { Sparklines, SparklinesLine } from "react-sparklines";
 import { Chart, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
 import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Briefcase, CheckCircle, AlertTriangle } from "lucide-react";
 import { Line } from "react-chartjs-2";
 import { Clock, Timer, BarChart2, TrendingUp } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { buildPerformanceSections, emptyPerformanceData, withFallbackRows, type PerformanceData } from "@/lib/performanceInsights";
 Chart.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 export default function TicketSummary() {
   const { isSignedIn } =  useAuth();
@@ -41,6 +44,11 @@ export default function TicketSummary() {
   
 
   const mdas = useQuery(api.tickets.getAllMdas);
+  const currentUser = useQuery(api.users.getCurrentUsers);
+  const privilegedRoles = ["admin", "staff", "president", "vice_president"];
+  const canViewPerformanceInsights = !!currentUser && privilegedRoles.includes(currentUser.role ?? "");
+  const performanceInsights = useQuery(api.tickets.getMdaPerformanceInsights, canViewPerformanceInsights ? {} : "skip");
+  const performanceData: PerformanceData = performanceInsights ?? emptyPerformanceData;
   const handleExport = () => {
     if (!stats) return;
     const data = [{
@@ -84,6 +92,35 @@ export default function TicketSummary() {
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, sheet, "Ticket Summary");
     XLSX.writeFile(book, "ticket_summary.xlsx");
+  };
+
+  const exportPerformanceToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+    const sections = buildPerformanceSections(performanceData);
+    sections.forEach(section => {
+      const rows = withFallbackRows(section);
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(workbook, worksheet, section.sheetName);
+    });
+    XLSX.writeFile(workbook, "mda_performance_insights.xlsx");
+  };
+
+  const exportPerformanceToPDF = () => {
+    const doc = new jsPDF();
+    const sections = buildPerformanceSections(performanceData);
+    sections.forEach((section, index) => {
+      if (index > 0) doc.addPage();
+      doc.text(section.title, 14, 15);
+      const rows = withFallbackRows(section);
+      const headers = section.columns;
+      const body = rows.map(row => headers.map(header => row[header] ?? ""));
+      autoTable(doc, {
+        startY: 22,
+        head: [headers],
+        body
+      });
+    });
+    doc.save("mda_performance_insights.pdf");
   };
   // Create filtered chart data based on selected status
   const getFilteredChartData = () => {
@@ -201,6 +238,16 @@ export default function TicketSummary() {
     <Button onClick={handleExport} className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
       📤 Export filtered data
     </Button>
+    {canViewPerformanceInsights && (
+      <>
+        <Button variant="secondary" onClick={exportPerformanceToExcel} className="flex items-center gap-2">
+          📈 Export MDA insights (Excel)
+        </Button>
+        <Button variant="outline" onClick={exportPerformanceToPDF} className="flex items-center gap-2">
+          📝 Export MDA insights (PDF)
+        </Button>
+      </>
+    )}
   </div>
     </div>
 

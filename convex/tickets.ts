@@ -1206,6 +1206,123 @@ export const getTopMdasByResolution = query({
   }
 });
 
+export const getMdaPerformanceInsights = query({
+  args: {},
+  handler: async ctx => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const allowedRoles = ["admin", "staff", "president", "vice_president"];
+    if (!user.role || !allowedRoles.includes(user.role)) {
+      throw new Error("Unauthorized");
+    }
+
+    const tickets = await ctx.db.query("tickets").collect();
+    if (tickets.length === 0) {
+      return {
+        topResolvedWithin72h: [],
+        leastResolvedWithin72h: [],
+        mostOverdueTickets: [],
+        leastOverdueTickets: [],
+        mostComplaints: [],
+        leastComplaints: []
+      };
+    }
+
+    const mdas = await ctx.db.query("mdas").collect();
+    const mdaNameMap: Record<string, string> = {};
+    mdas.forEach(mda => {
+      mdaNameMap[mda._id] = mda.name;
+    });
+
+    type MdaStat = {
+      mdaId: Id<"mdas">;
+      mdaName: string;
+      totalTickets: number;
+      totalResolved: number;
+      resolvedWithin72h: number;
+      overdueTickets: number;
+      openTickets: number;
+    };
+
+    const stats: Record<string, MdaStat> = {};
+    const ensureStat = (mdaId: Id<"mdas">) => {
+      if (!stats[mdaId]) {
+        stats[mdaId] = {
+          mdaId,
+          mdaName: mdaNameMap[mdaId] || "Unassigned",
+          totalTickets: 0,
+          totalResolved: 0,
+          resolvedWithin72h: 0,
+          overdueTickets: 0,
+          openTickets: 0
+        };
+      }
+      return stats[mdaId];
+    };
+
+    const now = Date.now();
+
+    for (const ticket of tickets) {
+      if (!ticket.assignedMDA) continue;
+      const mdaId = ticket.assignedMDA;
+      const stat = ensureStat(mdaId);
+      stat.totalTickets++;
+
+      if (["resolved", "closed"].includes(ticket.status)) {
+        stat.totalResolved++;
+        const updated = ticket.updatedAt ?? ticket.createdAt;
+        const hours = skipWeekendHoursCount(ticket.createdAt, updated);
+        if (hours <= 72) {
+          stat.resolvedWithin72h++;
+        }
+      }
+
+      if (["open", "in_progress"].includes(ticket.status)) {
+        stat.openTickets++;
+        const hoursOpen = skipWeekendHoursCount(ticket.createdAt, now);
+        if (hoursOpen > 72) {
+          stat.overdueTickets++;
+        }
+      }
+    }
+
+    const statsArray = Object.values(stats);
+
+    const sortDesc = <K extends keyof MdaStat>(key: K) =>
+      [...statsArray].sort((a, b) => b[key] - a[key] || b.totalTickets - a.totalTickets);
+    const sortAsc = <K extends keyof MdaStat>(key: K) =>
+      [...statsArray].sort((a, b) => a[key] - b[key] || a.totalTickets - b.totalTickets);
+
+    const toResolvedEntry = (stat: MdaStat) => ({
+      mdaId: stat.mdaId,
+      mdaName: stat.mdaName,
+      resolvedWithin72h: stat.resolvedWithin72h,
+      totalResolved: stat.totalResolved
+    });
+
+    const toOverdueEntry = (stat: MdaStat) => ({
+      mdaId: stat.mdaId,
+      mdaName: stat.mdaName,
+      overdueTickets: stat.overdueTickets,
+      openTickets: stat.openTickets
+    });
+
+    const toComplaintEntry = (stat: MdaStat) => ({
+      mdaId: stat.mdaId,
+      mdaName: stat.mdaName,
+      totalTickets: stat.totalTickets
+    });
+
+    return {
+      topResolvedWithin72h: sortDesc("resolvedWithin72h").slice(0, 5).map(toResolvedEntry),
+      leastResolvedWithin72h: sortAsc("resolvedWithin72h").slice(0, 5).map(toResolvedEntry),
+      mostOverdueTickets: sortDesc("overdueTickets").slice(0, 5).map(toOverdueEntry),
+      leastOverdueTickets: sortAsc("overdueTickets").slice(0, 5).map(toOverdueEntry),
+      mostComplaints: sortDesc("totalTickets").slice(0, 5).map(toComplaintEntry),
+      leastComplaints: sortAsc("totalTickets").slice(0, 5).map(toComplaintEntry)
+    };
+  }
+});
+
 export const getAllMdas = query({
   args: {},
   handler: async ctx => {
