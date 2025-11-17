@@ -251,7 +251,6 @@ export default function TicketSummary() {
   </div>
     </div>
 
-
       {} 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
         {[{

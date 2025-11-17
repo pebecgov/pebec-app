@@ -26,11 +26,15 @@ export default function AnalyticsDashboard() {
   const canViewPerformanceInsights = !!currentUser && privilegedRoles.includes(currentUser.role ?? "");
   const incidentsStats = useQuery(api.tickets.getIncidentsStats) || {
     total: 0,
+    open: 0,
     resolved: 0,
     in_progress: 0,
     closed: 0,
     pending: 0
   };
+  const globalResolvedTickets = incidentsStats.resolved + incidentsStats.closed;
+  const globalActiveTickets = incidentsStats.open + incidentsStats.in_progress;
+  const formatCount = (value?: number) => (value ?? 0).toLocaleString();
   const rawMdaStats = useQuery(api.tickets.getMDAIncidentsStats) || {};
   const mdaStats: Record<string, {
     total: number;
@@ -170,7 +174,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.topResolvedWithin72h}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {item.resolvedWithin72h} resolved quickly out of {item.totalResolved} total resolutions
+                {formatCount(item.resolvedWithin72h)} resolved ≤72h out of {formatCount(globalResolvedTickets)} total resolved/closed tickets
               </p>
             )}
             highlightKey="resolvedWithin72h"
@@ -180,7 +184,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.leastResolvedWithin72h}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {item.resolvedWithin72h} resolved quickly out of {item.totalResolved} total resolutions
+                {formatCount(item.resolvedWithin72h)} resolved ≤72h out of {formatCount(globalResolvedTickets)} total resolved/closed tickets
               </p>
             )}
             highlightKey="resolvedWithin72h"
@@ -193,7 +197,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.mostOverdueTickets}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {item.overdueTickets} overdue out of {item.openTickets} open tickets
+                {formatCount(item.overdueTickets)} overdue out of {formatCount(globalActiveTickets)} active tickets overall
               </p>
             )}
             highlightKey="overdueTickets"
@@ -203,7 +207,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.leastOverdueTickets}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {item.overdueTickets} overdue out of {item.openTickets} open tickets
+                {formatCount(item.overdueTickets)} overdue out of {formatCount(globalActiveTickets)} active tickets overall
               </p>
             )}
             highlightKey="overdueTickets"
@@ -216,7 +220,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.mostComplaints}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {item.totalTickets} total complaints
+                {formatCount(item.totalTickets)} complaints out of {formatCount(incidentsStats.total)} total tickets
               </p>
             )}
             highlightKey="totalTickets"
@@ -226,7 +230,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.leastComplaints}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {item.totalTickets} total complaints
+                {formatCount(item.totalTickets)} complaints out of {formatCount(incidentsStats.total)} total tickets
               </p>
             )}
             highlightKey="totalTickets"

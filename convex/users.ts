@@ -881,6 +881,14 @@ export const approveRoleRequest = mutation({
         });
       }
     }
+    const approvalEntry = {
+      adminId: admin._id,
+      adminName: `${admin.firstName ?? ""} ${admin.lastName ?? ""}`.trim() || admin.email || "Admin",
+      approvedAt: Date.now(),
+      role: args.role,
+      mdaName: args.mdaName ?? user.roleRequest.mdaName
+    };
+    const existingHistory = user.roleApprovalHistory ?? [];
     await ctx.db.patch(user._id, {
       role: args.role,
       mdaId,
@@ -892,7 +900,8 @@ export const approveRoleRequest = mutation({
       staffStream: args.staffStream,
       firstName: user.roleRequest.firstName,
       lastName: user.roleRequest.lastName,
-      roleRequest: undefined
+      roleRequest: undefined,
+      roleApprovalHistory: [...existingHistory, approvalEntry]
     });
     await ctx.scheduler.runAfter(0, api.email.sendEmail, {
       to: user.email,
