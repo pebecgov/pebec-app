@@ -48,7 +48,14 @@ export default defineSchema({
     mdaName: v.optional(v.string()),
     permissions: v.optional(v.array(v.string())),
     staffStream: v.optional(v.string()),
-    ecConfirmed: v.optional(v.boolean())
+    ecConfirmed: v.optional(v.boolean()),
+    roleApprovalHistory: v.optional(v.array(v.object({
+      adminId: v.id("users"),
+      adminName: v.optional(v.string()),
+      approvedAt: v.number(),
+      role: v.optional(v.string()),
+      mdaName: v.optional(v.string())
+    })))
   }).index("byClerkUserId", ["clerkUserId"]).index("byRole", ["role"]).index("byMdaId", ["mdaId"]).index("byState", ["state"]).index("byEmail", ["email"]),
   mdas: defineTable({
     name: v.string(),

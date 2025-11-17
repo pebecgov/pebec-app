@@ -22,6 +22,15 @@ import { toast } from "sonner";
 import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/formatters";
 import Loader from "@/components/Loader";
 
+const formatDateTime = (value?: number) => {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleString();
+  } catch (e) {
+    return "—";
+  }
+};
+
 export default function Admin() {
   const users = useQuery(api.users.getUsers);
   const mdas = useQuery(api.users.getMDAs) || [];
@@ -186,18 +195,22 @@ export default function Admin() {
     }
   };
   const handleDownloadExcel = () => {
-    // Prepare data for export (filteredUsers, not paginatedUsers)
-    const data = filteredUsers.map(user => ({
-      "First Name": user.firstName,
-      "Last Name": user.lastName,
-      "Email": user.email ?? "—",
-      "Phone": user.phoneNumber ?? "—",
-      "Role": user.role ? formatRole(user.role) : "—",
-      "Stream / MDA": user.role === "staff" ? (user.staffStream ? formatWorkstream(user.staffStream) : "—") : (user.mdaName ?? "—"),
-      ...(selectedRoleFilter === "saber_agent" ? { "State": user.state ?? "—" } : {})
-    }));
-  
-    // Create worksheet and workbook
+    const data = filteredUsers.map(user => {
+      const history = user.roleApprovalHistory ?? [];
+      const latestApproval = history.length ? history[history.length - 1] : undefined;
+      return {
+        "First Name": user.firstName,
+        "Last Name": user.lastName,
+        "Email": user.email ?? "—",
+        "Phone": user.phoneNumber ?? "—",
+        "Role": user.role ? formatRole(user.role) : "—",
+        "Stream / MDA": user.role === "staff" ? (user.staffStream ? formatWorkstream(user.staffStream) : "—") : (user.mdaName ?? "—"),
+        ...(selectedRoleFilter === "saber_agent" ? { "State": user.state ?? "—" } : {}),
+        "Last Approved By": latestApproval?.adminName ?? "—",
+        "Last Approved At": latestApproval ? formatDateTime(latestApproval.approvedAt) : "—"
+      };
+    });
+
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
@@ -205,17 +218,23 @@ export default function Admin() {
     // Download
     XLSX.writeFile(workbook, "users.xlsx");
   };
-  const filteredUsers = users?.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_")).filter(user => {
-    const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field => field?.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
-    const matchesStream = selectedStreamFilter === "all" || user.role === "staff" && user.staffStream === selectedStreamFilter;
-    const matchesMda = selectedMdaFilter === "all" || (user.mdaName && `${user.mdaName}` === selectedMdaFilter);
-    return matchesSearch && matchesRole && matchesStream && matchesMda;
-  }) || [];
+  const filteredUsers =
+    users
+      ?.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_"))
+      .filter(user => {
+        const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field =>
+          field?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
+        const matchesStream = selectedStreamFilter === "all" || (user.role === "staff" && user.staffStream === selectedStreamFilter);
+        const matchesMda = selectedMdaFilter === "all" || (user.mdaName && `${user.mdaName}` === selectedMdaFilter);
+        return matchesSearch && matchesRole && matchesStream && matchesMda;
+      }) || [];
   const totalPages = Math.ceil(filteredUsers.length / recordsPerPage);
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
-  return <div className="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-6">
-    <h1 className="text-2xl font-semibold mb-4">Manage Users</h1>
+  const content = (
+    <div className="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-6">
+      <h1 className="text-2xl font-semibold mb-4">Manage Users</h1>
 
       {}
       {}
@@ -323,12 +342,17 @@ export default function Admin() {
               <TableHead>Phone</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Stream / MDA</TableHead>
+              <TableHead>Last Approval</TableHead>
               <TableHead className="text-center">Action</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {paginatedUsers.map(user => <TableRow key={user._id} className="hover:bg-gray-50 transition-all">
+            {paginatedUsers.map(user => {
+      const approvalHistory = user.roleApprovalHistory ?? [];
+      const latestApproval = approvalHistory.length ? approvalHistory[approvalHistory.length - 1] : undefined;
+      return (
+        <TableRow key={user._id} className="hover:bg-gray-50 transition-all">
           {}
           <TableCell className="py-3 px-4 whitespace-nowrap max-w-xs">
   <div className="flex items-center gap-3">
@@ -362,14 +386,23 @@ export default function Admin() {
   : user.role ? formatRole(user.role) : "—"}
           </TableCell>
 
-          {}
           <TableCell className="text-sm text-gray-700 whitespace-nowrap max-w-xs overflow-hidden text-ellipsis">
-          {user.role === "staff"
-    ? (user.staffStream ? formatWorkstream(user.staffStream) : "—")
-    : (user.mdaName ?? "—")}
+            {user.role === "staff"
+              ? (user.staffStream ? formatWorkstream(user.staffStream) : "—")
+              : (user.mdaName ?? "—")}
           </TableCell>
 
-          {}
+          <TableCell className="text-sm text-gray-700 whitespace-nowrap">
+            {latestApproval ? (
+              <div className="flex flex-col">
+                <span className="font-medium">{latestApproval.adminName || "—"}</span>
+                <span className="text-xs text-gray-500">{formatDateTime(latestApproval.approvedAt)}</span>
+              </div>
+            ) : (
+              "—"
+            )}
+          </TableCell>
+
           <TableCell className="text-center whitespace-nowrap">
           <Dialog open={activeUserId === user.clerkUserId} onOpenChange={open => {
                 if (!open) {
@@ -670,18 +703,38 @@ export default function Admin() {
                   </p>
                 </div>}
 
+                {user.roleApprovalHistory?.length ? (
+                  <div className="mt-6 space-y-2">
+                    <h4 className="text-sm font-semibold text-gray-700">Approval History</h4>
+                    <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-md p-3 text-sm text-gray-700">
+                      {user.roleApprovalHistory.map((entry, idx) => (
+                        <div key={entry.approvedAt ?? idx} className="py-1 border-b border-gray-100 last:border-b-0">
+                          <div className="font-medium">{entry.adminName || "Admin"}</div>
+                          <div className="text-xs text-gray-500">{formatDateTime(entry.approvedAt)}</div>
+                          {entry.role && <div className="text-xs text-gray-500">Role: {formatRole(entry.role as any)}</div>}
+                          {entry.mdaName && <div className="text-xs text-gray-500">MDA: {entry.mdaName}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-6 text-sm text-gray-500">No approval history yet.</p>
+                )}
+
                 <Button onClick={handleSave} disabled={isLoading} className="mt-6 w-full">
                   {isLoading ? "Saving..." : "Save Changes"}
                 </Button>
               </DialogContent>
             </Dialog>
             <Link href={`/admin/users/${user.clerkUserId}`}>
-  <Button size="sm" variant="secondary" className="mt-2 text-xs px-3 py-1">
-    👁️ See Full Details
-  </Button>
-              </Link>
+              <Button size="sm" variant="secondary" className="mt-2 text-xs px-3 py-1">
+                👁️ See Full Details
+              </Button>
+            </Link>
           </TableCell>
-        </TableRow>)}
+        </TableRow>
+      );
+      })}
     </TableBody>
   </Table>
     </div>
@@ -698,5 +751,8 @@ export default function Admin() {
           Next
         </Button>
       </div>
-    </div>;
+    </div>
+  );
+
+  return content;
 }
