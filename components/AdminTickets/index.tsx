@@ -143,6 +143,8 @@ export default function AdminTicketsPage() {
     const endDate = dateRange.end ? new Date(dateRange.end) : null;
     return (statusFilter === "all" || ticket.status === statusFilter) && (!mdaFilter || ticket.assignedMDAName === mdaFilter) && (!startDate || ticketDate >= startDate) && (!endDate || ticketDate <= endDate) && (ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) || ticket.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) || ticket.status.toLowerCase().includes(searchQuery.toLowerCase()));
   }) || [];
+  const totalTicketCount = tickets?.length ?? 0;
+  const filtersApplied = statusFilter !== "all" || !!mdaFilter || !!searchQuery || !!dateRange.start || !!dateRange.end;
   const itemsPerPage = 20;
   const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
   const paginatedTickets = filteredTickets.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -386,6 +388,16 @@ export default function AdminTicketsPage() {
     </div>
   </div>
     </div>
+
+      {tickets && (
+        <div className="text-sm text-gray-600 mb-4">
+          {filtersApplied ? (
+            <>Showing <strong>{filteredTickets.length.toLocaleString()}</strong> of <strong>{totalTicketCount.toLocaleString()}</strong> ticket(s) based on your filters.</>
+          ) : (
+            <>Total tickets: <strong>{totalTicketCount.toLocaleString()}</strong></>
+          )}
+        </div>
+      )}
 
       {/* Export Button */}
       <div className={`w-full sm:w-64 flex items-center justify-between ${selectedTickets.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}>

@@ -57,20 +57,22 @@ export const buildPerformanceSections = (data: PerformanceData): PerformanceSect
   {
     title: "Most Overdue Tickets",
     sheetName: "MostOverdue",
-    columns: ["MDA", "Overdue Tickets", "Open Tickets"],
+    columns: ["MDA", "Overdue Tickets", "Total Tickets", "Open Tickets"],
     rows: data.mostOverdueTickets.map(item => ({
       "MDA": item.mdaName,
       "Overdue Tickets": item.overdueTickets ?? 0,
+      "Total Tickets": item.totalTickets ?? 0,
       "Open Tickets": item.openTickets ?? 0
     }))
   },
   {
     title: "Least Overdue Tickets",
     sheetName: "LeastOverdue",
-    columns: ["MDA", "Overdue Tickets", "Open Tickets"],
+    columns: ["MDA", "Overdue Tickets", "Total Tickets", "Open Tickets"],
     rows: data.leastOverdueTickets.map(item => ({
       "MDA": item.mdaName,
       "Overdue Tickets": item.overdueTickets ?? 0,
+      "Total Tickets": item.totalTickets ?? 0,
       "Open Tickets": item.openTickets ?? 0
     }))
   },

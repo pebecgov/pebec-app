@@ -33,7 +33,6 @@ export default function AnalyticsDashboard() {
     pending: 0
   };
   const globalResolvedTickets = incidentsStats.resolved + incidentsStats.closed;
-  const globalActiveTickets = incidentsStats.open + incidentsStats.in_progress;
   const formatCount = (value?: number) => (value ?? 0).toLocaleString();
   const rawMdaStats = useQuery(api.tickets.getMDAIncidentsStats) || {};
   const mdaStats: Record<string, {
@@ -197,7 +196,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.mostOverdueTickets}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {formatCount(item.overdueTickets)} overdue out of {formatCount(globalActiveTickets)} active tickets overall
+                {formatCount(item.overdueTickets)} overdue out of {formatCount(item.totalTickets ?? incidentsStats.total)} total tickets
               </p>
             )}
             highlightKey="overdueTickets"
@@ -207,7 +206,7 @@ export default function AnalyticsDashboard() {
             items={performanceData.leastOverdueTickets}
             renderDetails={item => (
               <p className="text-sm text-gray-500">
-                {formatCount(item.overdueTickets)} overdue out of {formatCount(globalActiveTickets)} active tickets overall
+                {formatCount(item.overdueTickets)} overdue out of {formatCount(item.totalTickets ?? incidentsStats.total)} total tickets
               </p>
             )}
             highlightKey="overdueTickets"

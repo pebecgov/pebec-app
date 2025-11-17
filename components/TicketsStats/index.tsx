@@ -223,6 +223,13 @@ export default function TicketSummary() {
             value: m._id
           }))} placeholder="All MDAs" isClearable className="text-sm" />
     </div>
+    <div className="mt-2 text-sm text-gray-600">
+      { (from || to || mdaId) ? (
+        <>Showing <strong>{stats.totalTickets.toLocaleString()}</strong> ticket(s) matching your filters.</>
+      ) : (
+        <>Total tickets: <strong>{stats.totalTickets.toLocaleString()}</strong></>
+      )}
+    </div>
   </div>
 
   {}

@@ -1303,7 +1303,8 @@ export const getMdaPerformanceInsights = query({
       mdaId: stat.mdaId,
       mdaName: stat.mdaName,
       overdueTickets: stat.overdueTickets,
-      openTickets: stat.openTickets
+      openTickets: stat.openTickets,
+      totalTickets: stat.totalTickets
     });
 
     const toComplaintEntry = (stat: MdaStat) => ({
