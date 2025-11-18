@@ -8,6 +8,7 @@ import {
   Briefcase,
   Building2,
   Compass,
+  Download,
   Gauge,
   Layers,
   Network,
@@ -20,12 +21,25 @@ import {
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { generateStateAnalysisPDF } from "@/lib/stateAnalysisPdfGenerator";
+
+type SubMetric = {
+  subIndicator: string;
+  label: string;
+  score: number;
+  maxScore: number;
+  value?: string;
+};
 
 type Indicator = {
   name: string;
+  indicatorKey: string;
   totalScore: number;
+  maxScore: number;
   percentage: number;
+  subMetrics?: SubMetric[];
 };
 
 type AnalysisTabProps = {
@@ -55,8 +69,11 @@ const DEFAULT_INDICATORS: Indicator[] = [
   "Market Access and Competition",
 ].map((name) => ({
   name,
+  indicatorKey: "",
   totalScore: 0,
+  maxScore: 0,
   percentage: 0,
+  subMetrics: [],
 }));
 
 const ICON_ROTATION: LucideIcon[] = [
@@ -148,6 +165,38 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
     ];
   }, [indicators]);
 
+  // Calculate overall totals for PDF
+  const overallStats = React.useMemo(() => {
+    if (!indicators || indicators.length === 0) {
+      return { totalScore: 0, maxScore: 0, percentage: 0 };
+    }
+    const totalScore = indicators.reduce((sum, ind) => sum + ind.totalScore, 0);
+    const maxScore = indicators.reduce((sum, ind) => sum + ind.maxScore, 0);
+    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+    return { totalScore, maxScore, percentage };
+  }, [indicators]);
+
+  const handleDownloadPDF = React.useCallback(async () => {
+    if (!selectedState || !indicators || indicators.length === 0) {
+      return;
+    }
+
+    await generateStateAnalysisPDF({
+      stateName: selectedState,
+      indicators: indicators.map((ind) => ({
+        indicatorKey: ind.indicatorKey,
+        indicatorName: ind.name,
+        totalScore: ind.totalScore,
+        maxScore: ind.maxScore,
+        percentage: ind.percentage,
+        subMetrics: ind.subMetrics || [],
+      })),
+      overallTotalScore: overallStats.totalScore,
+      overallMaxScore: overallStats.maxScore,
+      overallPercentage: overallStats.percentage,
+    });
+  }, [selectedState, indicators, overallStats]);
+
   if (showEmptyState) {
     return (
       <div
@@ -184,7 +233,22 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
             <h2 className="text-3xl font-semibold text-foreground">
               {selectedState ? `${selectedState} Indicators` : "Select a state"}
             </h2>
+            {selectedState && indicators && indicators.length > 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Overall Score: {formatScore(overallStats.totalScore)}/{formatScore(overallStats.maxScore)} ({formatPercentage(overallStats.percentage)})
+              </p>
+            )}
           </div>
+          {selectedState && indicators && indicators.length > 0 && (
+            <Button
+              onClick={handleDownloadPDF}
+              className="gap-2"
+              variant="outline"
+            >
+              <Download className="h-4 w-4" />
+              Download PDF Report
+            </Button>
+          )}
         </div>
       </header>
 
@@ -244,6 +308,11 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
                     <p className="text-sm text-muted-foreground">Total Score</p>
                     <p className="text-3xl font-bold tracking-tight">
                       {formatScore(indicator.totalScore)}
+                      {indicator.maxScore > 0 && (
+                        <span className="text-lg font-normal text-muted-foreground">
+                          /{formatScore(indicator.maxScore)}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -257,6 +326,28 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
                       {formatPercentage(indicator.percentage)}
                     </p>
                   </div>
+                  {indicator.subMetrics && indicator.subMetrics.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-border/50">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Sub-Metrics
+                      </p>
+                      <div className="space-y-1.5">
+                        {indicator.subMetrics.map((subMetric, subIndex) => (
+                          <div
+                            key={subIndex}
+                            className="flex items-center justify-between text-xs"
+                          >
+                            <span className="text-muted-foreground truncate flex-1 mr-2">
+                              {subMetric.label}
+                            </span>
+                            <span className="font-medium text-foreground whitespace-nowrap">
+                              {formatScore(subMetric.score)}/{formatScore(subMetric.maxScore)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

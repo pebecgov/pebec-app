@@ -84,10 +84,10 @@ const Footer = () => {
             }}>
         <h4 className="mb-4 text-green-700 font-medium text-lg">About PEBEC</h4>
         <ul>
-          <li><Link href="/overview" className="block mb-3 hover:text-primary">Overview</Link></li>
-          <li><Link href="/vision-mission" className="block mb-3 hover:text-primary">Our Milestones</Link></li>
-          <li><Link href="/members" className="block mb-3 hover:text-primary">PEBEC Members</Link></li>
-          <li><Link href="/reportgov-ng" className="block mb-3 hover:text-primary">Reportgov</Link></li>
+          <li><Link href="/overview" className="block mb-3 text-gray-700 visited:text-gray-700 hover:text-green-700 transition-colors">Overview</Link></li>
+          <li><Link href="/vision-mission" className="block mb-3 text-gray-700 visited:text-gray-700 hover:text-green-700 transition-colors">Our Milestones</Link></li>
+          <li><Link href="/members" className="block mb-3 text-gray-700 visited:text-gray-700 hover:text-green-700 transition-colors">PEBEC Members</Link></li>
+          <li><Link href="/reportgov-ng" className="block mb-3 text-gray-700 visited:text-gray-700 hover:text-green-700 transition-colors">Reportgov</Link></li>
         </ul>
       </motion.div>
 
@@ -109,10 +109,10 @@ const Footer = () => {
             }}>
         <h4 className="mb-4 text-green-700 font-medium text-lg">Resources</h4>
         <ul>
-          <li><Link href="/reports" className="block mb-3 hover:text-primary">Our Reports</Link></li>
-          <li><Link href="/portal" className="block mb-3 hover:text-primary">E-Portal</Link></li>
-          <li><Link href="/media" className="block mb-3 hover:text-primary">Media</Link></li>
-          <li><Link href="/faq" className="block mb-3 hover:text-primary">FAQ</Link></li>
+          <li><Link href="/reports" className="block mb-3 hover:text-green-700">Our Reports</Link></li>
+          <li><Link href="/portal" className="block mb-3 hover:text-green-700">E-Portal</Link></li>
+          <li><Link href="/media" className="block mb-3 hover:text-green-700">Media</Link></li>
+          <li><Link href="/faq" className="block mb-3 hover:text-green-700">FAQ</Link></li>
         </ul>
       </motion.div>
 
