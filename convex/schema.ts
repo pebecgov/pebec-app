@@ -805,6 +805,7 @@ export default defineSchema({
     subIndicator: v.string(),
     value: v.string(), // descriptive string selected from form
     score: v.float64(), // numeric score derived from value mapping
+    linkToSource: v.optional(v.string()), // optional link to source/documentation
     createdAt: v.number()
   }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byCreatedAt", ["createdAt"]),
   // SLA Data Storage

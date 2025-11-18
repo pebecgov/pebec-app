@@ -6,13 +6,21 @@ export const indicators = {
     name: "Access to Electricity",
     subIndicators: {
       "band_a_shares": {
-        label: "Select percentage of businesses connected to Band A (High supply Feeder)",
+        label: "Band A Share of Feeders",
         options: [
-          { value: "70-100", label: "70-100%", score: 10 },
-          { value: "50-69", label: "50-69%", score: 8 },
-          { value: "30-49", label: "30-49%", score: 6 },
-          { value: "10-29", label: "10-29%", score: 4 },
-          { value: "0-10", label: "0-10%", score: 2 }
+          { value: "70-100", label: "70-100% (4)", score: 4 },
+          { value: "50-69", label: "50-69% (3)", score: 3 },
+          { value: "30-49", label: "30-49% (2)", score: 2 },
+          { value: "10-29", label: "10-29% (1)", score: 1 },
+          { value: "0-10", label: "0-10% (0)", score: 0 }
+        ]
+      },
+      "state_owned_electricity_regulator": {
+        label: "State Owned Electricity Regulation",
+        options: [
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "transition", label: "Transition (3)", score: 3 },
+          { value: "no", label: "No (0)", score: 0 }
         ]
       }
     }
