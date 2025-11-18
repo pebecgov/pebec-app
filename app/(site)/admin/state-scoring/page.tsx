@@ -642,21 +642,50 @@ export default function StateScoringPage() {
       return null;
     }
 
-    const totals: Record<string, number> = {};
+    // Group scores by indicator and sub-indicator
+    const indicatorScores: Record<string, { total: number; subMetrics: Record<string, { score: number; value?: string }> }> = {};
 
     stateIndicatorScores.forEach((score) => {
-      totals[score.indicator] = (totals[score.indicator] ?? 0) + (score.score ?? 0);
+      if (!indicatorScores[score.indicator]) {
+        indicatorScores[score.indicator] = { total: 0, subMetrics: {} };
+      }
+      indicatorScores[score.indicator].total += score.score ?? 0;
+      indicatorScores[score.indicator].subMetrics[score.subIndicator] = {
+        score: score.score ?? 0,
+        value: score.value,
+      };
     });
 
     return Object.entries(indicators).map(([indicatorKey, config]) => {
-      const totalScore = totals[indicatorKey] ?? 0;
+      const indicatorData = indicatorScores[indicatorKey] || { total: 0, subMetrics: {} };
+      const totalScore = indicatorData.total;
       const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
       const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
+      // Build sub-metrics array
+      const subMetrics = Object.entries(config.subIndicators).map(([subIndicatorKey, subIndicatorConfig]) => {
+        const subMetricData = indicatorData.subMetrics[subIndicatorKey] || { score: 0 };
+        const subMetricMaxScore = Math.max(
+          ...(subIndicatorConfig.options as Array<{ score: number }>).map((opt) => opt.score),
+          0
+        );
+
+        return {
+          subIndicator: subIndicatorKey,
+          label: subIndicatorConfig.label,
+          score: subMetricData.score,
+          maxScore: subMetricMaxScore,
+          value: subMetricData.value,
+        };
+      });
+
       return {
         name: config.name,
+        indicatorKey,
         totalScore,
+        maxScore,
         percentage,
+        subMetrics,
       };
     });
   }, [stateIndicatorScores, selectedStateFilter]);

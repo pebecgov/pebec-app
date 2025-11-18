@@ -62,10 +62,10 @@ const scoreMappings = {
 - Land Registration (Updated)
 - Small Claims Courts
 - Investor Aftercare Service
-- Workforce Development
-- Crisis Resilience
-- Contract Enforcement
-- Market Access
+- Workforce Development and Social Infrastructure
+- Crisis Resilience and Business Continuity
+- Contract Enforcement and Commercial Dispute Resolution
+- Market Access and Competition
 - Getting Credit
 - Export-Import Facilitation
 - Interstate Trade

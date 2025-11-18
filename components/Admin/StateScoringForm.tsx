@@ -418,21 +418,14 @@ const indicators = {
   "grievance_redress_mechanisms": {
     name: "Grievance Redress Mechanisms",
     subIndicators: {
-      "functional_grm": {
-        label: "Does the state have a functional Grievance Redress Mechanism (GRM)?",
-        options: [
-          { value: "functional-grm-available", label: "Functional GRM available", score: 1 },
-          { value: "no-functional-grm", label: "No functional GRM", score: 0 }
-        ]
-      },
       "centralized_grm": {
         label: "Does the state have a centralized Grievance Redress Mechanism?",
         options: [
-          { value: "centralized-grm-available", label: "Centralized GRM available", score: 1 },
+          { value: "centralized-grm-available", label: "Centralized GRM available", score: 2 },
           { value: "no-centralized-grm", label: "No centralized GRM", score: 0 }
         ]
       },
-      "grm_accessibility": {
+      "accessibility_and_channels": {
         label: "How accessible is the state's Grievance Redress Mechanism?",
         options: [
           { value: "easily-accessible-multiple-channels", label: "Easily accessible via multiple channels", score: 1 },
