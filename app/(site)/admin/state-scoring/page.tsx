@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import StateScoringForm from "@/components/Admin/StateScoringForm";
+import BulkImportStateScores from "@/components/Admin/BulkImportStateScores";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -643,7 +644,7 @@ export default function StateScoringPage() {
     }
 
     // Group scores by indicator and sub-indicator
-    const indicatorScores: Record<string, { total: number; subMetrics: Record<string, { score: number; value?: string }> }> = {};
+    const indicatorScores: Record<string, { total: number; subMetrics: Record<string, { score: number; value?: string; linkToSource?: string }> }> = {};
 
     stateIndicatorScores.forEach((score) => {
       if (!indicatorScores[score.indicator]) {
@@ -653,6 +654,7 @@ export default function StateScoringPage() {
       indicatorScores[score.indicator].subMetrics[score.subIndicator] = {
         score: score.score ?? 0,
         value: score.value,
+        linkToSource: (score as any).linkToSource,
       };
     });
 
@@ -676,6 +678,7 @@ export default function StateScoringPage() {
           score: subMetricData.score,
           maxScore: subMetricMaxScore,
           value: subMetricData.value,
+          linkToSource: subMetricData.linkToSource,
         };
       });
 
@@ -785,9 +788,14 @@ export default function StateScoringPage() {
       {/* Tab Content */}
       <div className="mt-6">
         {activeTab === "scoring" && (
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Score States</h2>
-            <StateScoringForm />
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Score States</h2>
+              <div className="mb-6">
+                <BulkImportStateScores />
+              </div>
+              <StateScoringForm />
+            </div>
           </div>
         )}
 

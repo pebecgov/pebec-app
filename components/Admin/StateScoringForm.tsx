@@ -41,13 +41,21 @@ const indicators = {
     name: "Access to Electricity",
     subIndicators: {
       "band_a_shares": {
-        label: "Select percentage of businesses connected to Band A (High supply Feeder)",
+        label: "Band A Share of Feeders",
         options: [
-          { value: "70-100", label: "70-100%", score: 10 },
-          { value: "50-69", label: "50-69%", score: 8 },
-          { value: "30-49", label: "30-49%", score: 6 },
-          { value: "10-29", label: "10-29%", score: 4 },
-          { value: "0-10", label: "0-10%", score: 2 }
+          { value: "70-100", label: "70-100% (4)", score: 4 },
+          { value: "50-69", label: "50-69% (3)", score: 3 },
+          { value: "30-49", label: "30-49% (2)", score: 2 },
+          { value: "10-29", label: "10-29% (1)", score: 1 },
+          { value: "0-10", label: "0-10% (0)", score: 0 }
+        ]
+      },
+      "state_owned_electricity_regulator": {
+        label: "State Owned Electricity Regulation",
+        options: [
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "transition", label: "Transition (3)", score: 3 },
+          { value: "no", label: "No (0)", score: 0 }
         ]
       }
     }
@@ -463,6 +471,10 @@ interface StateScoreData {
   [subIndicator: string]: string;
 }
 
+interface StateLinkData {
+  [subIndicator: string]: string;
+}
+
 // Memoized State List Item Component
 const StateListItem = memo(({ 
   state, 
@@ -504,18 +516,23 @@ const StateForm = memo(({
   state, 
   indicator, 
   stateData, 
+  linkData,
   savedScores,
   onUpdate,
+  onLinkUpdate,
   onSaveComplete
 }: { 
   state: string; 
   indicator: string; 
-  stateData: StateScoreData; 
-  savedScores?: Array<{ subIndicator: string; value: string }>;
+  stateData: StateScoreData;
+  linkData: StateLinkData;
+  savedScores?: Array<{ subIndicator: string; value: string; linkToSource?: string }>;
   onUpdate: (subIndicator: string, value: string) => void;
+  onLinkUpdate: (subIndicator: string, link: string) => void;
   onSaveComplete?: () => void;
 }) => {
   const saveStateScore = useMutation(api.saveStateScore.saveStateScore);
+  const saveStateScoreLink = useMutation(api.saveStateScore.saveStateScoreLink);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = useCallback(async () => {
@@ -524,14 +541,28 @@ const StateForm = memo(({
       const indicatorConfig = indicators[indicator as keyof typeof indicators];
       if (!indicatorConfig) return;
 
-      // Save each sub-indicator
+      // Save each sub-indicator with value and optional link
       for (const [subIndicator, value] of Object.entries(stateData)) {
         if (value) {
+          const link = linkData[subIndicator] || undefined;
           await saveStateScore({
             state,
             indicator,
             subIndicator,
-            value
+            value,
+            linkToSource: link
+          });
+        }
+      }
+
+      // Save links for sub-indicators that have links but no value yet
+      for (const [subIndicator, link] of Object.entries(linkData)) {
+        if (link && !stateData[subIndicator]) {
+          await saveStateScoreLink({
+            state,
+            indicator,
+            subIndicator,
+            linkToSource: link
           });
         }
       }
@@ -545,7 +576,7 @@ const StateForm = memo(({
     } finally {
       setIsSaving(false);
     }
-  }, [state, indicator, stateData, saveStateScore, onSaveComplete]);
+  }, [state, indicator, stateData, linkData, saveStateScore, saveStateScoreLink, onSaveComplete]);
 
   const indicatorConfig = indicators[indicator as keyof typeof indicators];
   if (!indicatorConfig) return null;
@@ -597,6 +628,16 @@ const StateForm = memo(({
                 ))}
               </SelectContent>
             </Select>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Link to Source (Optional)</Label>
+              <Input
+                type="url"
+                placeholder="https://example.com/source"
+                value={linkData[subIndicator] || ""}
+                onChange={(e) => onLinkUpdate(subIndicator, e.target.value)}
+                className="text-sm"
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -618,6 +659,7 @@ export default function StateScoringForm() {
   const [selectedIndicator, setSelectedIndicator] = useState("");
   const [selectedState, setSelectedState] = useState("");
   const [stateScores, setStateScores] = useState<Record<string, StateScoreData>>({});
+  const [stateLinks, setStateLinks] = useState<Record<string, StateLinkData>>({});
   
   // Load existing scores
   const existingScores = useQuery(api.saveStateScore.getStateScores, 
@@ -626,16 +668,24 @@ export default function StateScoringForm() {
       : "skip"
   );
 
-  // Sync existing scores with local state
+  // Sync existing scores and links with local state
   useEffect(() => {
     if (existingScores && selectedState) {
       const updatedStateData: StateScoreData = {};
+      const updatedLinkData: StateLinkData = {};
       existingScores.forEach(score => {
         updatedStateData[score.subIndicator] = score.value;
+        if ((score as any).linkToSource) {
+          updatedLinkData[score.subIndicator] = (score as any).linkToSource;
+        }
       });
       setStateScores(prev => ({
         ...prev,
         [selectedState]: updatedStateData
+      }));
+      setStateLinks(prev => ({
+        ...prev,
+        [selectedState]: updatedLinkData
       }));
     }
   }, [existingScores, selectedState]);
@@ -706,10 +756,26 @@ export default function StateScoringForm() {
     }));
   }, []);
 
+  // Update link data
+  const updateLinkData = useCallback((state: string, subIndicator: string, link: string) => {
+    setStateLinks(prev => ({
+      ...prev,
+      [state]: {
+        ...prev[state],
+        [subIndicator]: link
+      }
+    }));
+  }, []);
+
   // Get current state data
   const getCurrentStateData = useCallback((state: string): StateScoreData => {
     return stateScores[state] || {};
   }, [stateScores]);
+
+  // Get current link data
+  const getCurrentLinkData = useCallback((state: string): StateLinkData => {
+    return stateLinks[state] || {};
+  }, [stateLinks]);
 
   return (
     <div className="h-screen flex flex-col">
@@ -797,8 +863,10 @@ export default function StateScoringForm() {
                       state={selectedState}
                       indicator={selectedIndicator}
                       stateData={getCurrentStateData(selectedState)}
+                      linkData={getCurrentLinkData(selectedState)}
                       savedScores={existingScores}
                       onUpdate={(subIndicator, value) => updateStateData(selectedState, subIndicator, value)}
+                      onLinkUpdate={(subIndicator, link) => updateLinkData(selectedState, subIndicator, link)}
                       onSaveComplete={handleSaveComplete}
                     />
                   </CardContent>

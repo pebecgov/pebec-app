@@ -8,6 +8,7 @@ interface SubMetricScore {
   score: number;
   maxScore: number;
   value?: string;
+  linkToSource?: string;
 }
 
 interface IndicatorData {
@@ -138,15 +139,27 @@ export async function generateStateAnalysisPDF({
 
       // Sub-metrics table
       if (indicator.subMetrics && indicator.subMetrics.length > 0) {
-        const subMetricData = indicator.subMetrics.map((subMetric) => [
-          subMetric.label,
-          `${subMetric.score.toFixed(1)}/${subMetric.maxScore.toFixed(1)}`,
-          `${((subMetric.score / subMetric.maxScore) * 100).toFixed(1)}%`,
-        ]);
+        const subMetricData = indicator.subMetrics.map((subMetric) => {
+          const percentage = subMetric.maxScore > 0 
+            ? ((subMetric.score / subMetric.maxScore) * 100).toFixed(1) 
+            : "0.0";
+          const linkText = subMetric.linkToSource 
+            ? (subMetric.linkToSource.length > 40 
+                ? subMetric.linkToSource.substring(0, 37) + "..." 
+                : subMetric.linkToSource)
+            : "N/A";
+          
+          return [
+            subMetric.label,
+            `${subMetric.score.toFixed(1)}/${subMetric.maxScore.toFixed(1)}`,
+            `${percentage}%`,
+            linkText,
+          ];
+        });
 
         autoTable(doc, {
           startY: yPosition,
-          head: [["Sub-Metric", "Score", "Percentage"]],
+          head: [["Sub-Metric", "Score", "Percentage", "Source Link"]],
           body: subMetricData,
           headStyles: {
             fillColor: [41, 128, 185],
@@ -154,20 +167,39 @@ export async function generateStateAnalysisPDF({
             fontStyle: "bold",
             fontSize: 9,
           },
-          bodyStyles: { fontSize: 8 },
-          styles: { fontSize: 8, cellPadding: 2 },
+          bodyStyles: { fontSize: 7 },
+          styles: { fontSize: 7, cellPadding: 2 },
           theme: "striped",
           margin: { left: 14, right: 14 },
           columnStyles: {
-            0: { cellWidth: 100 },
-            1: { cellWidth: 30, halign: "center" },
-            2: { cellWidth: 30, halign: "center" },
+            0: { cellWidth: 70 },
+            1: { cellWidth: 25, halign: "center" },
+            2: { cellWidth: 25, halign: "center" },
+            3: { cellWidth: 50, fontSize: 6, fontStyle: "italic" },
           },
         });
 
         // Get the final Y position after the table
         const finalY = (doc as any).lastAutoTable.finalY || yPosition + 20;
         yPosition = finalY + 5;
+
+        // Add clickable links below the table if any exist
+        let linkY = finalY + 2;
+        indicator.subMetrics.forEach((subMetric, idx) => {
+          if (subMetric.linkToSource && linkY < pageHeight - 20) {
+            doc.setFontSize(6);
+            doc.setTextColor(0, 0, 255);
+            doc.textWithLink(
+              `${subMetric.label}: ${subMetric.linkToSource}`,
+              16,
+              linkY,
+              { url: subMetric.linkToSource }
+            );
+            linkY += 4;
+          }
+        });
+        doc.setTextColor(0, 0, 0); // Reset color
+        yPosition = linkY > finalY + 2 ? linkY : finalY + 5;
       } else {
         yPosition += 5;
       }

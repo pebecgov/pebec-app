@@ -31,6 +31,7 @@ type SubMetric = {
   score: number;
   maxScore: number;
   value?: string;
+  linkToSource?: string;
 };
 
 type Indicator = {
@@ -305,7 +306,7 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
                 </CardHeader>
                 <CardContent className="space-y-4 p-6 pt-0">
                   <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Total Score</p>
+                    <p className="text-sm text-muted-foreground">Total Points</p>
                     <p className="text-3xl font-bold tracking-tight">
                       {formatScore(indicator.totalScore)}
                       {indicator.maxScore > 0 && (
@@ -335,14 +336,27 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
                         {indicator.subMetrics.map((subMetric, subIndex) => (
                           <div
                             key={subIndex}
-                            className="flex items-center justify-between text-xs"
+                            className="space-y-0.5"
                           >
-                            <span className="text-muted-foreground truncate flex-1 mr-2">
-                              {subMetric.label}
-                            </span>
-                            <span className="font-medium text-foreground whitespace-nowrap">
-                              {formatScore(subMetric.score)}/{formatScore(subMetric.maxScore)}
-                            </span>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground truncate flex-1 mr-2">
+                                {subMetric.label}
+                              </span>
+                              <span className="font-medium text-foreground whitespace-nowrap">
+                                {formatScore(subMetric.score)}/{formatScore(subMetric.maxScore)}
+                              </span>
+                            </div>
+                            {subMetric.linkToSource && (
+                              <a
+                                href={subMetric.linkToSource}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-blue-600 hover:text-blue-800 underline truncate block"
+                                title={subMetric.linkToSource}
+                              >
+                                Source
+                              </a>
+                            )}
                           </div>
                         ))}
                       </div>

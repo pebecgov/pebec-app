@@ -7,9 +7,10 @@ export const saveStateScore = mutation({
     state: v.string(),
     indicator: v.string(),
     subIndicator: v.string(),
-    value: v.string()
+    value: v.string(),
+    linkToSource: v.optional(v.string())
   },
-  handler: async (ctx, { state, indicator, subIndicator, value }) => {
+  handler: async (ctx, { state, indicator, subIndicator, value, linkToSource }) => {
     let score = 0;
 
     // Fetch score dynamically from indicators configuration
@@ -42,7 +43,8 @@ export const saveStateScore = mutation({
       // Update existing record
       await ctx.db.patch(existingRecord._id, {
         value,
-        score
+        score,
+        ...(linkToSource !== undefined && { linkToSource })
       });
       return existingRecord._id;
     } else {
@@ -53,6 +55,45 @@ export const saveStateScore = mutation({
         subIndicator,
         value,
         score,
+        linkToSource,
+        createdAt: Date.now()
+      });
+      return scoreId;
+    }
+  }
+});
+
+export const saveStateScoreLink = mutation({
+  args: {
+    state: v.string(),
+    indicator: v.string(),
+    subIndicator: v.string(),
+    linkToSource: v.string()
+  },
+  handler: async (ctx, { state, indicator, subIndicator, linkToSource }) => {
+    // Check if a record already exists for this combination
+    const existingRecord = await ctx.db
+      .query("state_scores")
+      .withIndex("byStateIndicatorSubIndicator", (q) => 
+        q.eq("state", state).eq("indicator", indicator).eq("subIndicator", subIndicator)
+      )
+      .first();
+    
+    if (existingRecord) {
+      // Update existing record with link
+      await ctx.db.patch(existingRecord._id, {
+        linkToSource
+      });
+      return existingRecord._id;
+    } else {
+      // Create new record with just the link (score will be 0)
+      const scoreId = await ctx.db.insert("state_scores", {
+        state,
+        indicator,
+        subIndicator,
+        value: "",
+        score: 0,
+        linkToSource,
         createdAt: Date.now()
       });
       return scoreId;
