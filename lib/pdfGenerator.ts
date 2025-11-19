@@ -67,14 +67,14 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   } catch (error) {
     console.error('Error loading logo:', error);
     doc.setFontSize(16);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('PEBEC', pageWidth / 2, 20, { align: 'center' });
     yPosition = 35;
   }
 
   // Title
   doc.setFontSize(18);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.text(`${data.mdaName} - Scoring Report ${data.year}`, pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 15;
 
@@ -209,7 +209,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     
     // Add summary
     doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text(slaTableData[slaTableData.length - 2][0] + ': ' + slaTableData[slaTableData.length - 2][1], 14, yPosition);
     yPosition += 6;
     doc.text(slaTableData[slaTableData.length - 1][0] + ': ' + slaTableData[slaTableData.length - 1][1], 14, yPosition);
@@ -316,7 +316,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition = (doc as any).lastAutoTable.finalY + 10;
     
     doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text(mysteryTableData[mysteryTableData.length - 1][0] + ': ' + mysteryTableData[mysteryTableData.length - 1][1], 14, yPosition);
     yPosition += 15;
   }
@@ -448,19 +448,14 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
             ? 'Yes'
             : 'No'
           : 'No data';
-        bodyRows.push([question.label, `1st Half: ${firstValue} | 2nd Half: ${secondValue}`]);
+        bodyRows.push([question.label, `${firstValue} | ${secondValue}`]);
       });
 
       if (bothSkipped) {
         bodyRows.push(['Status', '⚠️ Transparency skipped']);
       } else {
         bodyRows.push(['Combined Score', `${combinedScore.toFixed(1)}/10`]);
-        if (secondHalf?.responses?.__copiedFrom) {
-          bodyRows.push(['Note', `2nd Half mirrors ${secondHalf.responses.__copiedFrom}`]);
-        }
-        if (firstHalf?.responses?.__copiedFrom) {
-          bodyRows.push(['Note', `1st Half mirrors ${firstHalf.responses.__copiedFrom}`]);
-        }
+        // Mirror notes removed per requirement
       }
 
       autoTable(doc, {
@@ -510,7 +505,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       const hasFirstHalf = resFirst && (resFirst.totalTickets !== undefined || resFirst.score !== undefined);
       const hasSecondHalf = resSecond && (resSecond.totalTickets !== undefined || resSecond.score !== undefined);
       
-      let totalTickets, resolvedTickets, resolutionRate, avgResponseTime, avgResolutionTime, avgScore, periodLabel, originalHalfScore;
+      let totalTickets, resolvedTickets, resolutionRate, avgResponseTime, avgResolutionTime, avgScore;
       
       if (hasFirstHalf && hasSecondHalf) {
         // Both halves have data - sum tickets, average times and score
@@ -530,8 +525,6 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
           ? ((resFirst.score || 0) + (resSecond.score || 0)) / 2
           : (resFirst.score || resSecond.score || 0);
         
-        periodLabel = "Both Halves (Averaged)";
-        originalHalfScore = null;
       } else if (hasFirstHalf) {
         // Only first half has data - divide score by 2 (like table)
         totalTickets = resFirst.totalTickets || 0;
@@ -539,9 +532,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
         avgResponseTime = resFirst.averageResponseTime || 0;
         avgResolutionTime = resFirst.averageResolutionTime || 0;
-        originalHalfScore = resFirst.score || 0;
+        const originalHalfScore = resFirst.score || 0;
         avgScore = originalHalfScore / 2; // Divide by 2 when only one half
-        periodLabel = "1st Half Only";
       } else {
         // Only second half has data - divide score by 2 (like table)
         totalTickets = resSecond.totalTickets || 0;
@@ -549,13 +541,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
         avgResponseTime = resSecond.averageResponseTime || 0;
         avgResolutionTime = resSecond.averageResolutionTime || 0;
-        originalHalfScore = resSecond.score || 0;
+        const originalHalfScore = resSecond.score || 0;
         avgScore = originalHalfScore / 2; // Divide by 2 when only one half
-        periodLabel = "2nd Half Only";
       }
 
       const tableBody = [
-        ['Period', periodLabel],
         ['Total Tickets', totalTickets.toFixed(0)],
         ['Resolved Tickets', resolvedTickets.toFixed(0)],
         ['Resolution Rate', `${resolutionRate.toFixed(1)}%`],
@@ -563,11 +553,6 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         ['Avg Resolution Time', `${avgResolutionTime.toFixed(1)} hours`],
         ['Score', `${avgScore.toFixed(1)}/15`]
       ];
-      
-      // Add original half score if only one half has data
-      if (originalHalfScore !== null) {
-        tableBody.push([periodLabel.includes("1st") ? "1st Half only" : "2nd Half only", originalHalfScore.toFixed(1)]);
-      }
 
       autoTable(doc, {
         startY: yPosition,
@@ -637,7 +622,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition = (doc as any).lastAutoTable.finalY + 10;
     
     doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text(monthlyReportTableData[monthlyReportTableData.length - 2][0] + ': ' + monthlyReportTableData[monthlyReportTableData.length - 2][1], 14, yPosition);
     yPosition += 6;
     doc.text(monthlyReportTableData[monthlyReportTableData.length - 1][0] + ': ' + monthlyReportTableData[monthlyReportTableData.length - 1][1], 14, yPosition);
@@ -696,7 +681,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   yPosition = (doc as any).lastAutoTable.finalY + 10;
   
   doc.setFontSize(10);
-  doc.setFont(undefined, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
   yPosition += 6;
   doc.text(timelinessTableData[timelinessTableData.length - 1][0] + ': ' + timelinessTableData[timelinessTableData.length - 1][1], 14, yPosition);
