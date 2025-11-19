@@ -80,6 +80,24 @@ Abia     | infrastructure             | road_motorability                  | yes
 - **Batch processing**: Large files are imported in batches of 50 for better performance
 - **Error handling**: If there are errors, they'll be shown in the results section
 
+### Interstate Trade Reference
+
+To match the spreadsheet template, `interstate_trade` now has two sub-indicators:
+
+| Indicator Key | SubIndicator Key | Description | Allowed Values |
+|---------------|------------------|-------------|----------------|
+| `interstate_trade` | `haulage_fees` | Elimination of haulage fees (0–2 points) | `yes`, `no` |
+| `interstate_trade` | `state_owned_transport_assets` | Presence of state-owned airports, air carriers, rail, seaport and dry port (0–3 points) | `0`, `1.5`, `3` |
+
+Example rows:
+
+```
+State    | Indicator Key     | SubIndicator Key             | Value | Link to Source
+---------|-------------------|------------------------------|-------|------------------
+Lagos    | interstate_trade  | haulage_fees                 | yes   | https://example.com/law
+Lagos    | interstate_trade  | state_owned_transport_assets | 1.5   | https://example.com/assets
+```
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**

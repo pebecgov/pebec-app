@@ -338,38 +338,18 @@ const indicators = {
     name: "Interstate Trade",
     subIndicators: {
       "haulage_fees": {
-        label: "All haulage fees eliminated via law/executive order and enforced on ground",
+        label: "Elimination of haulage fees via law/executive order and enforcement",
         options: [
           { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       },
-      "functional_grm": {
-        label: "State has a functional GRM with multiple accessible channels",
+      "state_owned_transport_assets": {
+        label: "Presence of state owned airports, air carriers, rail, seaport and dry port (0, 1.5, 3 points)",
         options: [
-          { value: "yes", label: "Yes", score: 1.5 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "rail_dry_port": {
-        label: "State owned rail or dry port",
-        options: [
-          { value: "yes", label: "Yes", score: 0.5 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "airport": {
-        label: "State owned airport",
-        options: [
-          { value: "yes", label: "Yes", score: 0.5 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "air_carriers": {
-        label: "State owned air carriers",
-        options: [
-          { value: "yes", label: "Yes", score: 0.5 },
-          { value: "no", label: "No", score: 0 }
+          { value: "0", label: "No state owned transport assets", score: 0 },
+          { value: "1.5", label: "Some presence (equivalent to 1.5 points)", score: 1.5 },
+          { value: "3", label: "Comprehensive presence (equivalent to 3 points)", score: 3 }
         ]
       }
     }
