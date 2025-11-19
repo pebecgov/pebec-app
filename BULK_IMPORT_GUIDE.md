@@ -329,6 +329,119 @@ The latest template has three columns worth 2 points each (RoW, online governmen
 
 4. **Cleanup**: If you had older data (4G/5G + online applications), delete it (new reset migration recommended) before re-uploading to avoid mixed records.
 
+### Grievance Redress Mechanism (GRM) Conversion Guide
+
+Use the two-column sheet (Centralized GRM, Accessibility & Channels) to build the upload rows:
+
+1. **Columns**
+   - Column A: `State`
+   - Column B: `Centralized GRM (2)` – 2 or 0
+   - Column C: `Accessibility and Channels (1)` – 1 or 0
+
+2. **Map values**
+
+   | Score | SubIndicator Key           | Value to Upload                        |
+   |-------|----------------------------|----------------------------------------|
+   | `2`   | `centralized_grm`          | `centralized-grm-available`            |
+   | `0`   | `centralized_grm`          | `no-centralized-grm`                   |
+   | `1`   | `accessibility_and_channels` | `easily-accessible-multiple-channels` |
+   | `0`   | `accessibility_and_channels` | `difficult-to-find-access`            |
+
+3. **Rows**
+   ```
+   State | Indicator Key           | SubIndicator Key            | Value                             | Link
+   Abia  | grievance_redress_mechanisms | centralized_grm        | centralized-grm-available        | https://...
+   Abia  | grievance_redress_mechanisms | accessibility_and_channels | easily-accessible-multiple-channels | https://...
+   ```
+
+4. **Automation**: follow the patterns above—convert each numeric column to the correct string value before writing to Excel/CSV.
+
+### Paying Taxes Conversion Guide
+
+The sheet has three metrics (2 + 1 + 1 points) that map directly to the sub-indicators:
+
+1. **Columns**
+   - Column A: `State`
+   - Column B: `Tax payment process (2)` – 2 or 0
+   - Column C: `Compliance burden (1)` – 1 or 0
+   - Column D: `Tax incentives and exemptions (1)` – 1 or 0
+
+2. **Map scores to values**
+
+   | Score | SubIndicator Key           | Value to Upload                      |
+   |-------|----------------------------|--------------------------------------|
+   | `2`   | `tax_payment_transparency` | `digital-hybrid-e-payment`           |
+   | `0`   | `tax_payment_transparency` | `manual-cash-limited-transparency`   |
+   | `1`   | `tax_filing_burden`        | `automated-consolidated`             |
+   | `0`   | `tax_filing_burden`        | `manual-repetitive-high-burden`      |
+   | `1`   | `tax_incentive_transparency` | `transparent-accessible-programs` |
+   | `0`   | `tax_incentive_transparency` | `unclear-opaque-framework`        |
+
+3. **Sample rows**
+   ```
+   State | paying_taxes | tax_payment_transparency   | digital-hybrid-e-payment | https://...
+   State | paying_taxes | tax_filing_burden          | automated-consolidated   | https://...
+   State | paying_taxes | tax_incentive_transparency | transparent-accessible-programs | https://...
+   ```
+
+4. **Automation**: same as others—map numbers to the string values before exporting.
+
+### Contract Enforcement Conversion Guide
+
+This indicator has two yes/no checks worth 2.5 points each (commercial courts and ADR). Your sheet numbers (2.5 or 0) map directly.
+
+1. **Columns**
+   - Column A: `State`
+   - Column B: `Do they have Commercial Court (2.5)`
+   - Column C: `Have ADR (2.5)`
+
+2. **Map scores**
+
+   | Score | SubIndicator Key             | Value to Upload        |
+   |-------|------------------------------|------------------------|
+   | `2.5` | `commercial_court`           | `yes-commercial-court` |
+   | `0`   | `commercial_court`           | `no-commercial-court`  |
+   | `2.5` | `alternative_dispute_resolution` | `yes-adr`          |
+   | `0`   | `alternative_dispute_resolution` | `no-adr`           |
+
+3. **Rows**
+   ```
+   State | contract_enforcement | commercial_court           | yes-commercial-court | https://...
+   State | contract_enforcement | alternative_dispute_resolution | no-adr | https://...
+   ```
+
+4. **Automation**: same pattern—map each numeric value before exporting to CSV/XLSX.
+
+### Market Access and Competition Conversion Guide
+
+The sheet tracks two sub-indicators totaling 3 points (2 + 1). Each column maps directly to a sub-indicator in the system.
+
+1. **Spreadsheet columns**
+   - Column A: `State`
+   - Column C: `Have one stop shop (2)` – value 2 (yes) or 0 (no)
+   - Column D: `Have publish incentives?(1)` – value 1 (yes) or 0 (no)
+   - Column E: `Total` (ignore)
+   - Column F: `LINKS` (optional)
+
+2. **Map to sub-indicators**
+
+   | Spreadsheet column         | SubIndicator Key    | Allowed Values |
+   |----------------------------|---------------------|----------------|
+   | Have one stop shop (2)     | `one_stop_shop`     | `yes`, `no`    |
+   | Have publish incentives?(1)| `public_incentives` | `yes`, `no`    |
+
+   Convert numeric scores: 2 → `yes`, 0 → `no` for one stop shop; 1 → `yes`, 0 → `no` for public incentives.
+
+3. **Build rows** (two per state):
+   ```
+   State   | Indicator Key    | SubIndicator Key  | Value | Link (optional)
+   ------- |------------------|-------------------|-------|----------------
+   Lagos   | market_access    | one_stop_shop     | yes   | https://...
+   Lagos   | market_access    | public_incentives | yes   | https://...
+   ```
+
+4. **Automation**: copy the pattern used in the other conversion scripts—load the sheet, normalize the yes/no values, and emit rows for each state/sub-indicator.
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**

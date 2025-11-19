@@ -39,8 +39,10 @@ import type * as migrations_cleanupGettingCredit from "../migrations/cleanupGett
 import type * as migrations_cleanupInfrastructure from "../migrations/cleanupInfrastructure.js";
 import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
 import type * as migrations_resetAccessToSkilledLabour from "../migrations/resetAccessToSkilledLabour.js";
+import type * as migrations_resetDigitalConnectivity from "../migrations/resetDigitalConnectivity.js";
 import type * as migrations_resetInfrastructure from "../migrations/resetInfrastructure.js";
 import type * as migrations_resetInvestorAftercare from "../migrations/resetInvestorAftercare.js";
+import type * as migrations_resetMarketAccess from "../migrations/resetMarketAccess.js";
 import type * as migrations_resetStateScores from "../migrations/resetStateScores.js";
 import type * as migrations_resetWorkforceDevelopment from "../migrations/resetWorkforceDevelopment.js";
 import type * as migrations_updateCrisisResilience from "../migrations/updateCrisisResilience.js";
@@ -103,8 +105,10 @@ declare const fullApi: ApiFromModules<{
   "migrations/cleanupInfrastructure": typeof migrations_cleanupInfrastructure;
   "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
   "migrations/resetAccessToSkilledLabour": typeof migrations_resetAccessToSkilledLabour;
+  "migrations/resetDigitalConnectivity": typeof migrations_resetDigitalConnectivity;
   "migrations/resetInfrastructure": typeof migrations_resetInfrastructure;
   "migrations/resetInvestorAftercare": typeof migrations_resetInvestorAftercare;
+  "migrations/resetMarketAccess": typeof migrations_resetMarketAccess;
   "migrations/resetStateScores": typeof migrations_resetStateScores;
   "migrations/resetWorkforceDevelopment": typeof migrations_resetWorkforceDevelopment;
   "migrations/updateCrisisResilience": typeof migrations_updateCrisisResilience;
