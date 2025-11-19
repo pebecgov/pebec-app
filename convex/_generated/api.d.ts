@@ -38,6 +38,7 @@ import type * as messages from "../messages.js";
 import type * as migrations_cleanupGettingCredit from "../migrations/cleanupGettingCredit.js";
 import type * as migrations_cleanupInfrastructure from "../migrations/cleanupInfrastructure.js";
 import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
+import type * as migrations_resetAccessToSkilledLabour from "../migrations/resetAccessToSkilledLabour.js";
 import type * as migrations_resetInfrastructure from "../migrations/resetInfrastructure.js";
 import type * as migrations_resetStateScores from "../migrations/resetStateScores.js";
 import type * as migrations_resetWorkforceDevelopment from "../migrations/resetWorkforceDevelopment.js";
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/cleanupGettingCredit": typeof migrations_cleanupGettingCredit;
   "migrations/cleanupInfrastructure": typeof migrations_cleanupInfrastructure;
   "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
+  "migrations/resetAccessToSkilledLabour": typeof migrations_resetAccessToSkilledLabour;
   "migrations/resetInfrastructure": typeof migrations_resetInfrastructure;
   "migrations/resetStateScores": typeof migrations_resetStateScores;
   "migrations/resetWorkforceDevelopment": typeof migrations_resetWorkforceDevelopment;
