@@ -302,6 +302,33 @@ Abia  | investor_aftercare_service  | designated_desk  | yes   | https://...
 
 Existing multi-question data should be cleared (use a reset mutation) before uploading the new sheet.
 
+### Digital Connectivity Conversion Guide
+
+The latest template has three columns worth 2 points each (RoW, online government services, and 5G coverage).
+
+1. **Columns**
+   - Column A: `State`
+   - Column B: `Right of Way (RoW) (2)` – values: `free`, `reduced price`, `full price`
+   - Column C: `Availability of Government Services Online (2)` – `yes`, `partially`, `no`
+   - Column D: `5G Coverage (2)` – `yes`, `no`
+
+2. **Mapping**
+
+   | Column | SubIndicator Key        | Allowed Values (upload exactly) |
+   |--------|-------------------------|---------------------------------|
+   | RoW    | `right_of_way`          | `free`, `reduced-price`, `full-price` |
+   | Gov services | `gov_services_online` | `yes`, `partially`, `no` |
+   | 5G     | `coverage_5g`           | `yes`, `no` |
+
+3. **Rows**
+   ```
+   State | digital_connectivity | right_of_way        | free | https://...
+   State | digital_connectivity | gov_services_online | partially | https://...
+   State | digital_connectivity | coverage_5g         | no   | https://...
+   ```
+
+4. **Cleanup**: If you had older data (4G/5G + online applications), delete it (new reset migration recommended) before re-uploading to avoid mixed records.
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**
