@@ -40,6 +40,7 @@ import type * as migrations_cleanupInfrastructure from "../migrations/cleanupInf
 import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
 import type * as migrations_resetInfrastructure from "../migrations/resetInfrastructure.js";
 import type * as migrations_resetStateScores from "../migrations/resetStateScores.js";
+import type * as migrations_resetWorkforceDevelopment from "../migrations/resetWorkforceDevelopment.js";
 import type * as migrations_updateCrisisResilience from "../migrations/updateCrisisResilience.js";
 import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
@@ -101,6 +102,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
   "migrations/resetInfrastructure": typeof migrations_resetInfrastructure;
   "migrations/resetStateScores": typeof migrations_resetStateScores;
+  "migrations/resetWorkforceDevelopment": typeof migrations_resetWorkforceDevelopment;
   "migrations/updateCrisisResilience": typeof migrations_updateCrisisResilience;
   newsletters: typeof newsletters;
   notifications: typeof notifications;

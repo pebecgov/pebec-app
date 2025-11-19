@@ -351,21 +351,22 @@ export const indicators = {
     name: "Access to Skilled Labour",
     subIndicators: {
       "education_investment": {
-        label: "What is the level of state government investment in education infrastructure and programs?",
+        label: "Post-secondary graduates relative to population",
         options: [
-          { value: "significant-investment", label: "Significant investment", score: 1.5 },
-          { value: "moderate-investment", label: "Moderate investment", score: 1 },
-          { value: "minimal-unverified-activity", label: "Minimal or unverified activity", score: 0.5 },
-          { value: "no-evidence-data-unavailable", label: "No evidence or data unavailable", score: 0 }
+          { value: "highest-tier", label: "≫ average (733,120+)", score: 1.5 },
+          { value: "second-tier", label: "Above average (549,840-733,119)", score: 1.25 },
+          { value: "mid-tier", label: "Within average (366,560-549,839)", score: 0.75 },
+          { value: "lowest-tier", label: "Minimum average (219,936-366,559)", score: 0.5 },
+          { value: "below-average", label: "Below average (<219,936)", score: 0 }
         ]
       },
       "accredited_institutions": {
         label: "How many accredited tertiary and technical institutions are available in the state?",
         options: [
-          { value: "3-tertiary-2-technical", label: "≥3 tertiary + ≥2 technical", score: 1.5 },
-          { value: "2-tertiary-1-technical", label: "2 tertiary + 1 technical", score: 1 },
-          { value: "1-tertiary-institution", label: "1 tertiary institution", score: 0.5 },
-          { value: "none", label: "None", score: 0 }
+          { value: "seven-plus", label: "7 or more universities", score: 1.5 },
+          { value: "three-to-six", label: "3 to 6 universities", score: 1 },
+          { value: "one-to-two", label: "1 or 2 universities", score: 0.5 },
+          { value: "zero", label: "No universities", score: 0 }
         ]
       },
     }

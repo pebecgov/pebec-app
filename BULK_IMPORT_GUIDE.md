@@ -246,6 +246,45 @@ If your sheet mirrors the two-column template (Social Security Systems worth 2 p
 
 4. **Automation**: copy the earlier conversion scripts—load the sheet, normalize numbers to yes/no strings, and export the standard bulk-import layout.
 
+### Access to Skilled Labour Conversion Guide
+
+Your spreadsheet already mirrors the two 1.5-point sub-indicators (education investment + accredited institutions). Convert it like this:
+
+1. **Spreadsheet columns**
+   - Column A: `State`
+   - Column B: `Investing in Education (1.5)` – numeric score 0–1.5
+   - Column C: `Availability of Tertiary and Technical Institutions (1.5)` – numeric score 0–1.5
+   - Column D/E: totals or links (optional)
+
+2. **Map investment scores to option values**
+
+   | Numeric Score | Value to Upload                | SubIndicator Key        |
+   |---------------|--------------------------------|-------------------------|
+   | `1.5`         | `highest-tier`                 | `education_investment`  |
+   | `1.25`        | `second-tier`                  | `education_investment`  |
+   | `0.75`        | `mid-tier`                     | `education_investment`  |
+   | `0.5`         | `lowest-tier`                  | `education_investment`  |
+   | `0`           | `below-average`                | `education_investment`  |
+
+3. **Map institution scores to option values**
+
+   | Numeric Score | Value to Upload              | SubIndicator Key        |
+   |---------------|------------------------------|-------------------------|
+   | `1.5`         | `seven-plus`                 | `accredited_institutions` |
+   | `1`           | `three-to-six`               | `accredited_institutions` |
+   | `0.5`         | `one-to-two`                 | `accredited_institutions` |
+   | `0`           | `zero`                       | `accredited_institutions` |
+
+4. **Create rows**
+   ```
+   State   | Indicator Key            | SubIndicator Key         | Value                       | Link (optional)
+   ------- |--------------------------|--------------------------|-----------------------------|----------------
+   Edo     | access_to_skilled_labour | education_investment     | moderate-investment         | https://...
+   Edo     | access_to_skilled_labour | accredited_institutions  | 3-tertiary-2-technical      | https://...
+   ```
+
+5. **Automation tip**: Duplicate any of the previous conversion scripts and adjust the numeric-to-string mapping arrays to match the tables above.
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**
