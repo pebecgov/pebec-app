@@ -90,25 +90,25 @@ const indicators = {
     name: "Digital Connectivity",
     subIndicators: {
       "right_of_way": {
-        label: "Does the state have right of way?",
+        label: "Right of Way (RoW) fees",
         options: [
           { value: "free", label: "Free", score: 2 },
           { value: "reduced-price", label: "Reduced Price", score: 1 },
           { value: "full-price", label: "Full Price", score: 0 }
         ]
       },
-      "4g_5g_coverage": {
-        label: "Does this state have 4G/5G coverage?",
-        options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "online_applications": {
-        label: "Can you apply for a service online?",
+      "gov_services_online": {
+        label: "Availability of government services online",
         options: [
           { value: "yes", label: "Yes", score: 2 },
           { value: "partially", label: "Partially", score: 1 },
+          { value: "no", label: "No", score: 0 }
+        ]
+      },
+      "coverage_5g": {
+        label: "5G coverage",
+        options: [
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       }
