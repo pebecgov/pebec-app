@@ -243,14 +243,7 @@ const indicators = {
       "sema_funding": {
         label: "Is the SEMA or equivalent agency visibly funded in the current state budget?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "export_strategy": {
-        label: "Does the state have a formal export promotion or diversification strategy?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       }
