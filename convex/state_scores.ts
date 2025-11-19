@@ -2,6 +2,27 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { indicators } from "./config/indicators";
 
+// Valid Nigerian states list - used to filter out invalid entries like "Data Source" or other non-state values
+const validNigerianStates = new Set([
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", 
+  "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", 
+  "Ekiti", "Enugu", "Gombe", "Imo", "Jigawa", "Kaduna", 
+  "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", 
+  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", 
+  "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara", 
+  "Federal Capital Territory"
+]);
+
+// Normalize state names - maps variations to canonical names
+function normalizeStateName(state: string): string {
+  const trimmed = state.trim();
+  // Normalize FCT to Federal Capital Territory
+  if (trimmed === "FCT" || trimmed.toUpperCase() === "FCT") {
+    return "Federal Capital Territory";
+  }
+  return trimmed;
+}
+
 const indicatorMaxScores = Object.fromEntries(
   Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
     const maxScoreForIndicator = Object.values(indicatorConfig.subIndicators).reduce((sum, subIndicator: any) => {
@@ -41,12 +62,20 @@ export const getStateRankings = query({
       return [];
     }
 
-    // Group by state and sum scores
+    // Group by state and sum scores, filtering out invalid states and normalizing FCT
     const stateTotals = new Map<string, number>();
 
     for (const score of allScores) {
-      const currentTotal = stateTotals.get(score.state) || 0;
-      stateTotals.set(score.state, currentTotal + score.score);
+      // Normalize state name (e.g., FCT -> Federal Capital Territory)
+      const normalizedState = normalizeStateName(score.state);
+      
+      // Filter out invalid states (like "Data Source", "Data Sourc", etc.)
+      if (!validNigerianStates.has(normalizedState)) {
+        continue; // Skip invalid states
+      }
+      
+      const currentTotal = stateTotals.get(normalizedState) || 0;
+      stateTotals.set(normalizedState, currentTotal + score.score);
     }
 
     const denominator = targetMaxScore || 0;
