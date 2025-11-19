@@ -15,6 +15,7 @@ import type {
 } from "convex/server";
 import type * as ai_helper_scoring from "../ai_helper_scoring.js";
 import type * as ai_helpers from "../ai_helpers.js";
+import type * as bulkImportStateScores from "../bulkImportStateScores.js";
 import type * as business_letters from "../business_letters.js";
 import type * as chat from "../chat.js";
 import type * as cleanup from "../cleanup.js";
@@ -34,6 +35,7 @@ import type * as mda_scoring from "../mda_scoring.js";
 import type * as media from "../media.js";
 import type * as meetings from "../meetings.js";
 import type * as messages from "../messages.js";
+import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
 import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
 import type * as posts from "../posts.js";
@@ -69,6 +71,7 @@ import type * as workshop from "../workshop.js";
 declare const fullApi: ApiFromModules<{
   ai_helper_scoring: typeof ai_helper_scoring;
   ai_helpers: typeof ai_helpers;
+  bulkImportStateScores: typeof bulkImportStateScores;
   business_letters: typeof business_letters;
   chat: typeof chat;
   cleanup: typeof cleanup;
@@ -88,6 +91,7 @@ declare const fullApi: ApiFromModules<{
   media: typeof media;
   meetings: typeof meetings;
   messages: typeof messages;
+  "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
   newsletters: typeof newsletters;
   notifications: typeof notifications;
   posts: typeof posts;

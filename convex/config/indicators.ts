@@ -308,9 +308,10 @@ export const indicators = {
       "totalExporters_perState": {
         label: "Total number of exporters per state",
         options: [
-          { value: ">999", label: ">999", score: 3 },
+          { value: ">=1000", label: "≥ 1000", score: 3 },
           { value: "500-999", label: "500-999", score: 2 },
-          { value: "0-499", label: "0-499", score: 1 }
+          { value: "100-499", label: "100-499", score: 1 },
+          { value: "0-99", label: "0-99", score: 0 }
         ]
       },
       "StateChamberOfCommerce": {
