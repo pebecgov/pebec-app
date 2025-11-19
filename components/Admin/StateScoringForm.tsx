@@ -204,28 +204,18 @@ const indicators = {
   "workforce_development": {
     name: "Workforce Development and Social Infrastructure",
     subIndicators: {
-      "healthcare_budget": {
-        label: "How much expenditure does the state allocate its 2025 budget to healthcare capital projects?",
-        options: [
-          { value: "10-15", label: "10-15%", score: 2 },
-          { value: "5-9", label: "5-9%", score: 1 },
-          { value: "0-4", label: "0-4%", score: 0 }
-        ]
-      },
-      "health_insurance": {
-        label: "Has the state launched and is it actively implementing a State Health Insurance Scheme?",
+      "social_security_systems": {
+        label: "Does the state operate social security systems for vulnerable populations?",
         options: [
           { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       },
-      "female_representation": {
-        label: "Does the state have at least 35% female representation among Commissioners?",
+      "gender_inclusivity": {
+        label: "Does the state meet the gender inclusivity benchmark?",
         options: [
-          { value: "35-100", label: "35-100%", score: 1 },
-          { value: "25-34", label: "25-34%", score: 0.75 },
-          { value: "1-24", label: "1-24%", score: 0.5 },
-          { value: "0", label: "0%", score: 0 }
+          { value: "yes", label: "Yes", score: 1 },
+          { value: "no", label: "No", score: 0 }
         ]
       }
     }
