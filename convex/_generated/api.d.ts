@@ -42,6 +42,7 @@ import type * as migrations_resetAccessToSkilledLabour from "../migrations/reset
 import type * as migrations_resetDigitalConnectivity from "../migrations/resetDigitalConnectivity.js";
 import type * as migrations_resetInfrastructure from "../migrations/resetInfrastructure.js";
 import type * as migrations_resetInvestorAftercare from "../migrations/resetInvestorAftercare.js";
+import type * as migrations_resetLandRegistration from "../migrations/resetLandRegistration.js";
 import type * as migrations_resetMarketAccess from "../migrations/resetMarketAccess.js";
 import type * as migrations_resetStateScores from "../migrations/resetStateScores.js";
 import type * as migrations_resetWorkforceDevelopment from "../migrations/resetWorkforceDevelopment.js";
@@ -108,6 +109,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/resetDigitalConnectivity": typeof migrations_resetDigitalConnectivity;
   "migrations/resetInfrastructure": typeof migrations_resetInfrastructure;
   "migrations/resetInvestorAftercare": typeof migrations_resetInvestorAftercare;
+  "migrations/resetLandRegistration": typeof migrations_resetLandRegistration;
   "migrations/resetMarketAccess": typeof migrations_resetMarketAccess;
   "migrations/resetStateScores": typeof migrations_resetStateScores;
   "migrations/resetWorkforceDevelopment": typeof migrations_resetWorkforceDevelopment;

@@ -118,35 +118,35 @@ const indicators = {
     name: "Land Registration",
     subIndicators: {
       "process_automation": {
-        label: "Is the land registration process automated in the state?",
+        label: "Process type",
         options: [
-          { value: "automated", label: "Automated", score: 1 },
-          { value: "hybrid", label: "Hybrid", score: 0.5 },
+          { value: "automated", label: "Automated", score: 2 },
+          { value: "hybrid", label: "Hybrid", score: 1 },
           { value: "manual", label: "Manual", score: 0 }
         ]
       },
       "certificate_time": {
-        label: "How long does it take to obtain a Certificate of Occupancy (C of O) or Right of Occupancy (R of O) in the state?",
+        label: "Days for CofO",
         options: [
-          { value: "1-30-days", label: "1–30 days", score: 2 },
-          { value: "31-60-days", label: "31–60 days", score: 1 },
+          { value: "0-30-days", label: "0–30 days", score: 1 },
+          { value: "0-60-days", label: "0–60 days", score: 0.5 },
           { value: "over-60-days", label: ">60 days", score: 0 },
           { value: "not-available", label: "Not Available", score: 0 }
         ]
       },
       "procedures_availability": {
-        label: "Are land registration procedures and fees publicly available and accessible?",
+        label: "Procedure/fees publicly available",
         options: [
-          { value: "publicly-available-online", label: "Publicly available online", score: 1 },
-          { value: "either-fees-or-procedures", label: "Either fees or procedures are available", score: 0.5 },
-          { value: "not-publicly-available", label: "Not publicly available", score: 0 }
+          { value: "publicly-available-online", label: "Procedure/Fees", score: 1 },
+          { value: "either-fees-or-procedures", label: "Procedure only", score: 0.5 },
+          { value: "not-publicly-available", label: "None", score: 0 }
         ]
       },
       "gis_functionality": {
-        label: "Does the state have a functional and accessible Geographic Information System (GIS) for land records?",
+        label: "Availability of GIS",
         options: [
-          { value: "functional-gis-available", label: "Functional GIS available", score: 1 },
-          { value: "no-functional-gis", label: "No functional GIS", score: 0 }
+          { value: "functional-gis-available", label: "GIS available", score: 2 },
+          { value: "no-functional-gis", label: "No GIS", score: 0 }
         ]
       }
     }

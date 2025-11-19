@@ -442,6 +442,45 @@ The sheet tracks two sub-indicators totaling 3 points (2 + 1). Each column maps 
 
 4. **Automation**: copy the pattern used in the other conversion scripts—load the sheet, normalize the yes/no values, and emit rows for each state/sub-indicator.
 
+### Land Registration Conversion Guide
+
+The sheet tracks four sub-indicators totaling 6 points (2 + 1 + 1 + 2). Each column maps to a sub-indicator in the system.
+
+1. **Spreadsheet columns**
+   - Column A: `State`
+   - Column B: `PROCESS TYPE (2POINTS)` – values: "(Manual)0", "(Hybrid) 1", or "(Automated)2"
+   - Column C: `DAYS FOR CofO (1 POINT)` – values: "0-30days (1)", "0-60 days(0.5)", or empty/not available (0)
+   - Column D: `PROCEDURE/ FEES PUBLICLY AVAILABLE` – values: "Procedure/Fees (1)", "Procedure (0.5)", "None (0)"
+   - Column E: `AVAILABILITY OF GIS (2POINTS)` – values: "2" (GIS available) or "0" (No GIS)
+   - Column F: `LINKS` (optional URLs)
+
+2. **Map to sub-indicators**
+
+   | Spreadsheet column                    | SubIndicator Key          | Allowed Values                                    |
+   |---------------------------------------|---------------------------|---------------------------------------------------|
+   | PROCESS TYPE (2POINTS)                | `process_automation`      | `automated` (2), `hybrid` (1), `manual` (0)      |
+   | DAYS FOR CofO (1 POINT)               | `certificate_time`        | `0-30-days` (1), `0-60-days` (0.5), `over-60-days` or `not-available` (0) |
+   | PROCEDURE/ FEES PUBLICLY AVAILABLE    | `procedures_availability` | `publicly-available-online` (1), `either-fees-or-procedures` (0.5), `not-publicly-available` (0) |
+   | AVAILABILITY OF GIS (2POINTS)         | `gis_functionality`       | `functional-gis-available` (2), `no-functional-gis` (0) |
+
+   **Conversion mappings:**
+   - Process Type: "(Automated)2" → `automated`, "(Hybrid) 1" → `hybrid`, "(Manual)0" → `manual`
+   - Days: "0-30days (1)" → `0-30-days`, "0-60 days(0.5)" → `0-60-days`, empty/not available → `not-available`
+   - Procedure/Fees: "Procedure/Fees (1)" → `publicly-available-online`, "Procedure (0.5)" → `either-fees-or-procedures`, "None (0)" → `not-publicly-available`
+   - GIS: "2" → `functional-gis-available`, "0" → `no-functional-gis`
+
+3. **Build rows** (four per state):
+   ```
+   State   | Indicator Key       | SubIndicator Key          | Value                      | Link (optional)
+   ------- |---------------------|---------------------------|----------------------------|----------------
+   Lagos   | land_registration   | process_automation        | automated                  | https://...
+   Lagos   | land_registration   | certificate_time          | 0-30-days                  | https://...
+   Lagos   | land_registration   | procedures_availability   | publicly-available-online  | https://...
+   Lagos   | land_registration   | gis_functionality         | functional-gis-available   | https://...
+   ```
+
+4. **Automation**: copy the pattern used in the other conversion scripts—load the sheet, parse the score values from parentheses, map to the correct string values, and emit rows for each state/sub-indicator.
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**
