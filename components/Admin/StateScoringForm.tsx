@@ -177,25 +177,10 @@ const indicators = {
   "investor_aftercare_service": {
     name: "Investor Aftercare Service",
     subIndicators: {
-      "customer_treatment": {
-        label: "How are the customers treated?",
+      "designated_desk": {
+        label: "Does the state have a designated investor aftercare desk/department?",
         options: [
-          { value: "excellent", label: "Excellent", score: 1 },
-          { value: "good", label: "Good", score: 0.5 },
-          { value: "poor", label: "Poor", score: 0 }
-        ]
-      },
-      "website_number": {
-        label: "Does the number on the State website work?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "website_email": {
-        label: "Does the email on the State website work?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       }

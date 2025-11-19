@@ -285,6 +285,23 @@ Your spreadsheet already mirrors the two 1.5-point sub-indicators (education inv
 
 5. **Automation tip**: Duplicate any of the previous conversion scripts and adjust the numeric-to-string mapping arrays to match the tables above.
 
+### Investor Aftercare Service Conversion Guide
+
+The new sheet only asks whether a state has a designated aftercare desk/department worth 2 points. Bulk import needs a single row per state:
+
+| Indicator Key | SubIndicator Key | Allowed Values |
+|---------------|------------------|----------------|
+| `investor_aftercare_service` | `designated_desk` | `yes`, `no` |
+
+Example:
+```
+State | Indicator Key               | SubIndicator Key | Value | Link
+------|-----------------------------|------------------|-------|-----
+Abia  | investor_aftercare_service  | designated_desk  | yes   | https://...
+```
+
+Existing multi-question data should be cleared (use a reset mutation) before uploading the new sheet.
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**
