@@ -217,6 +217,35 @@ The latest spreadsheet version tracks two SEMA-related checks totaling 3 points 
 
 4. **Automate if helpful**: Copy the pattern used in the other conversion scripts—load the sheet, normalize the yes/no values, and emit rows for each state/sub-indicator.
 
+### Workforce Development & Social Infrastructure Conversion Guide
+
+If your sheet mirrors the two-column template (Social Security Systems worth 2 points + Gender Inclusivity worth 1 point), convert it like this:
+
+1. **Spreadsheet columns**
+   - Column A: `State`
+   - Column B: `Social Security Systems (2)` – value 2 (yes) or 0 (no)
+   - Column C (or G): `Gender Inclusivity Point (1)` – value 1 (yes) or 0 (no)
+   - Column D/E: Totals or links (optional)
+
+2. **Map to sub-indicators**
+
+   | Spreadsheet column         | SubIndicator Key          | Allowed Values |
+   |----------------------------|---------------------------|----------------|
+   | Social Security Systems    | `social_security_systems` | `yes`, `no`    |
+   | Gender Inclusivity         | `gender_inclusivity`      | `yes`, `no`    |
+
+   Convert numeric scores: 2 → `yes`, 0 → `no` for social security; 1 → `yes`, 0 → `no` for gender inclusivity.
+
+3. **Build rows**
+   ```
+   State   | Indicator Key          | SubIndicator Key         | Value | Link (optional)
+   ------- |------------------------|--------------------------|-------|----------------
+   Abia    | workforce_development  | social_security_systems  | yes   | https://...
+   Abia    | workforce_development  | gender_inclusivity       | no    | https://...
+   ```
+
+4. **Automation**: copy the earlier conversion scripts—load the sheet, normalize numbers to yes/no strings, and export the standard bulk-import layout.
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**
