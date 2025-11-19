@@ -345,7 +345,6 @@ export async function generateDashboardPDF({
           mda.controversial ? `${mda.controversial.score.toFixed(1)}/10` : '—',
           mda.innovation ? `${mda.innovation.score.toFixed(1)}/10` : '—',
           mda.stakeholder ? `${mda.stakeholder.score.toFixed(1)}/5` : '—',
-          mda.reportGovernance ? `${mda.reportGovernance.score.toFixed(1)}/5` : '—',
           mda.reportGovResolution ? (mda.reportGovResolution.isSkipped ? '0/15 (Skipped)' : `${mda.reportGovResolution.score.toFixed(1)}/15`) : '—',
           mda.monthlyReport ? `${mda.monthlyReport.score.toFixed(1)}/3` : '—',
           mda.timeliness ? `${mda.timeliness.score.toFixed(1)}/2` : '—',
