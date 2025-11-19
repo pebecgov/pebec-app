@@ -4,16 +4,17 @@ import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize Gemini AI
+// Initialize Gemini AI (temporarily optional for deployment)
 const apiKey = process.env.GOOGLE_GENAI_API_KEY;
-if (!apiKey) {
-  console.error("❌ GOOGLE_GENAI_API_KEY is missing from environment variables");
-  throw new Error("GOOGLE_GENAI_API_KEY environment variable is not set");
-}
+let genAI: GoogleGenAI | null = null;
 
-const genAI = new GoogleGenAI({
-  apiKey: apiKey,
-});
+if (apiKey) {
+  genAI = new GoogleGenAI({
+    apiKey: apiKey,
+  });
+} else {
+  console.warn("⚠️ GOOGLE_GENAI_API_KEY is missing - AI helper functions will not work");
+}
 
 export const matchExcelHeadersWithTemplate = action({
   args: {
@@ -26,6 +27,16 @@ export const matchExcelHeadersWithTemplate = action({
   },
   handler: async (ctx, args) => {
     try {
+      if (!genAI) {
+        return {
+          success: false,
+          error: "Google AI API key is not configured. AI helper functions are disabled.",
+          headerMapping: {},
+          matchedHeaders: [],
+          unmatchedTemplateHeaders: []
+        };
+      }
+
       const { excelHeaders, templateHeaders } = args;
 
       // Create a prompt for Gemini AI to match headers only

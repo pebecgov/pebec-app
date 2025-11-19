@@ -28,49 +28,39 @@ export const indicators = {
   "infrastructure": {
     name: "Infrastructure",
     subIndicators: {
-      "road_quality": {
-        label: "Are key city-centre and industrial access roads paved?",
+      "renewable_energy": {
+        label: "Renewable Energy Solution",
         options: [
-          { value: "very-good", label: "Very Good", score: 2 },
-          { value: "moderate", label: "Moderate", score: 1 },
-          { value: "very-bad", label: "Very Bad", score: 0 }
+          { value: "yes", label: "Yes", score: 1 },
+          { value: "no", label: "No", score: 0 }
         ]
       },
-      "road_motorability": {
-        label: "Are key city-centre access roads motorable?",
+      "renewable_energy_evs_cng": {
+        label: "Renewable Energy (Launch of State's EVs and CNG Transport Solutions)",
         options: [
           { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       },
-      "renewable_energy": {
-        label: "Does this state have Renewable Energy Solution?",
+      "airport": {
+        label: "Airport",
         options: [
           { value: "yes", label: "Yes", score: 1 },
           { value: "no", label: "No", score: 0 }
         ]
       },
-      "airport": {
-        label: "Does this state have an Airport?",
+      "airport_cargo_functional": {
+        label: "Airport/Cargo Airport (Functional)",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       },
       "railway": {
-        label: "Does this state have Railway?",
+        label: "Rail Line (Functional)",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "capital_budget": {
-        label: "State Budgets for Capital Projects Vs Total Expenditure (%)",
-        options: [
-          { value: "40-100", label: "40%-100%", score: 3 },
-          { value: "20-39", label: "20%-39%", score: 2 },
-          { value: "10-19", label: "10%-19%", score: 1 },
-          { value: "0-9", label: "0%-9%", score: 0 }
         ]
       }
     }
