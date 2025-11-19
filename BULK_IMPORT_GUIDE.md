@@ -98,6 +98,125 @@ Lagos    | interstate_trade  | haulage_fees                 | yes   | https://ex
 Lagos    | interstate_trade  | state_owned_transport_assets | 1.5   | https://example.com/assets
 ```
 
+### Export-Import Facilitation Conversion Guide
+
+Many legacy spreadsheets (like the one in the screenshot) list each state once with both exporter counts and chamber scores. Convert that sheet into the bulk template using the steps below.
+
+1. **Start from the legacy sheet**  
+   - Column A: `STATES`  
+   - Column B: `TOTAL NUMBER OF EXPORTERS PER STATE` (raw count)  
+   - Column C: Score column (0–3) – ignore; we recompute from the count  
+   - Column D: `State Chamber of Commerce Score (1 Point)` – value is 1 or 0  
+   - Column E: `TOTAL SCORE (4 POINTS)` – ignore
+
+2. **Map exporter count to descriptive value**  
+   Use the raw number in Column B to produce the string value required by the app:
+
+   | Raw Count | Value to Upload | SubIndicator Key |
+   |-----------|-----------------|------------------|
+   | ≥ 1000    | `>=1000`        | `totalExporters_perState` |
+   | 500–999   | `500-999`       | `totalExporters_perState` |
+   | 100–499   | `100-499`       | `totalExporters_perState` |
+   | 0–99      | `0-99`          | `totalExporters_perState` |
+
+3. **Map chamber score to yes/no**  
+   Column D contains `1` (has chamber) or `0` (no chamber). Convert to:
+
+   | Raw Value | Value to Upload | SubIndicator Key |
+   |-----------|-----------------|------------------|
+   | `1`       | `yes`           | `StateChamberOfCommerce` |
+   | `0`       | `no`            | `StateChamberOfCommerce` |
+
+4. **Build the bulk-import rows**  
+   For every state you should end up with two rows:
+
+   ```
+   State   | Indicator Key               | SubIndicator Key        | Value     | Link (optional)
+   ------- |-----------------------------|-------------------------|-----------|----------------
+   Kano    | export_import_facilitation  | totalExporters_perState | >=1000    | https://...
+   Kano    | export_import_facilitation  | StateChamberOfCommerce  | yes       | https://...
+   ```
+
+5. **Automate with the provided script (optional)**  
+   - Update the paths in `scripts/transformExportImportExcel.ts` to point to your legacy sheet.  
+   - Run `npx ts-node scripts/transformExportImportExcel.ts`.  
+   - The script reads the original layout, applies the mappings above, and writes a ready-to-upload Excel file to the output path you set.
+
+### Small Claims Courts Conversion Guide
+
+Legacy SCC spreadsheets usually have the layout in the screenshot: state name, raw SCC count, a “Point Availability SCC (3)” column, and a “Up to Date Compliance Report (2)” column. Convert it as follows:
+
+1. **Identify the columns**  
+   - Column A: `State`  
+   - Column B: `Availability of SCC` (raw number of functioning SCCs)  
+   - Column C: `Point Availability SCC (3)` – can be ignored because the system recalculates the score  
+   - Column D: `Up to Date Compliance Report (2)` – numeric score 0–2  
+   - Column E: Total – ignore
+
+2. **Map SCC count to ranges**  
+   Use the raw number in Column B to determine the descriptive value for `number_of_courts`:
+
+   | Raw Count | Value to Upload | Score | Notes |
+   |-----------|-----------------|-------|-------|
+   | 1–5       | `1-5`           | 1     | Matches sheet score 1 |
+   | 6–9       | `6-10`          | 1.5   | Sheet score 1.5 (rounds 6–9 into this bucket) |
+   | 10–14     | `11-14`         | 2     | Sheet score 2 |
+   | ≥15       | `15-and-above`  | 3     | Sheet score 3 |
+   | 0 or blank| _leave empty / skip row_ | 0 | No functioning SCCs |
+
+3. **Map compliance score to descriptive value**  
+   Column D already displays the numeric score. Convert each to the system value for `compliance_reporting`:
+
+   | Raw Score | Value to Upload       | Meaning                              |
+   |-----------|-----------------------|--------------------------------------|
+   | `2`       | `up-to-date`          | Report is current                    |
+   | `1.5`     | `6-months-old`        | Last report 4–6 months ago           |
+   | `1`       | `3-months-old`        | Last report 1–3 months ago           |
+   | `0`       | `not-published`       | No report                            |
+
+4. **Produce two rows per state**  
+   ```
+   State   | Indicator Key         | SubIndicator Key     | Value         | Link (optional)
+   ------- |-----------------------|----------------------|---------------|----------------
+   Kaduna  | small_claims_courts   | number_of_courts     | 15-and-above  | https://...
+   Kaduna  | small_claims_courts   | compliance_reporting | 6-months-old  | https://...
+   ```
+
+5. **Optional automation**  
+   Adapt the existing conversion scripts (e.g., copy `scripts/transformExportImportExcel.ts`) or build a quick script to perform the mappings above automatically.
+
+### Crisis Resilience Conversion Guide
+
+The latest spreadsheet version tracks two SEMA-related checks totaling 3 points (1 + 2). Each column maps directly to a sub-indicator in the system.
+
+1. **Spreadsheet columns** (rename as needed):
+   - Column A: `State`
+   - Column B: `Existence of State Emergency Management Agency (SEMA)` (1 point)
+   - Column C: `Funding of the Agency (Budgetary allocations)` (2 points)
+   - Column D: `Sources` (optional links)
+   - Column E: `TOTAL` (ignore)
+
+2. **Convert each column to the proper sub-indicator keys**:
+
+   | Spreadsheet column | SubIndicator Key | Allowed Values |
+   |--------------------|------------------|----------------|
+   | Existence of SEMA  | `emergency_agency` | `yes`, `no` |
+   | Funding of the agency | `sema_funding`  | `yes`, `no` |
+
+   - If the sheet uses `1`/`0`, convert `1` → `yes`, `0` → `no`.
+   - Treat blanks as `no` unless you have supporting documentation.
+
+3. **Generate the bulk rows** (two per state):
+
+   ```
+   State  | Indicator Key       | SubIndicator Key | Value | Link (optional)
+   -------|---------------------|------------------|-------|----------------
+   Abia   | crisis_resilience   | emergency_agency | yes   | https://...
+   Abia   | crisis_resilience   | sema_funding     | no    | https://...
+   ```
+
+4. **Automate if helpful**: Copy the pattern used in the other conversion scripts—load the sheet, normalize the yes/no values, and emit rows for each state/sub-indicator.
+
 ## Troubleshooting
 
 **"Invalid indicator key" error:**
