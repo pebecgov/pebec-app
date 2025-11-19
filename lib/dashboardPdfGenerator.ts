@@ -51,7 +51,11 @@ export async function generateDashboardPDF({
   }
 
   try {
-    const doc = new jsPDF();
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPosition = 30;
@@ -75,7 +79,7 @@ export async function generateDashboardPDF({
     } catch (error) {
       console.error('Error loading logo:', error);
       doc.setFontSize(16);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.text('PEBEC', pageWidth / 2, 20, { align: 'center' });
       yPosition = 35;
     }
@@ -98,11 +102,11 @@ export async function generateDashboardPDF({
 
     // Title
     doc.setFontSize(18);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text(`Live Scoring Dashboard - ${metricDisplayName}`, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 8;
     doc.setFontSize(12);
-    doc.setFont(undefined, 'normal');
+    doc.setFont('helvetica', 'normal');
     doc.text(`Year: ${dashboardYear}`, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 5;
     if (filterType === 'withData') {
@@ -367,7 +371,7 @@ export async function generateDashboardPDF({
     if (selectedMetric === 'totalScore') {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Rank', 'MDA Name', 'SLA', 'Mystery Shopping', 'Controversial', 'Innovation', 'Stakeholder', 'Report Gov', 'Report Gov Resolution', 'Monthly Report', 'Timeliness', 'Total Score']],
+        head: [['Rank', 'MDA Name', 'SLA', 'Mystery Shopping', 'Controversial', 'Innovation', 'Stakeholder', 'Report Gov Resolution', 'Monthly Report', 'Timeliness', 'Total Score']],
         body: tableData,
         headStyles: {
           fillColor: [41, 128, 185],
