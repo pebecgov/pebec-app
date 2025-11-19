@@ -249,7 +249,7 @@ const indicators = {
       "one_stop_shop": {
         label: "Does the State have a one stop shop?",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
+          { value: "yes", label: "Yes", score: 2 },
           { value: "no", label: "No", score: 0 }
         ]
       },
