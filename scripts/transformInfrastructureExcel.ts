@@ -44,22 +44,8 @@ function transformInfrastructureSheet(): void {
     scores.push({
       state,
       indicator: "infrastructure",
-      subIndicator: "renewable_energy",
-      value: normalizeYesNo(row[1]),
-    });
-
-    scores.push({
-      state,
-      indicator: "infrastructure",
       subIndicator: "renewable_energy_evs_cng",
       value: normalizeYesNo(row[2]),
-    });
-
-    scores.push({
-      state,
-      indicator: "infrastructure",
-      subIndicator: "airport",
-      value: normalizeYesNo(row[3]),
     });
 
     scores.push({
@@ -73,7 +59,7 @@ function transformInfrastructureSheet(): void {
       state,
       indicator: "infrastructure",
       subIndicator: "railway",
-      value: normalizeYesNo(row[6] ?? row[5]),
+      value: normalizeYesNo(row[6]),
     });
   });
 

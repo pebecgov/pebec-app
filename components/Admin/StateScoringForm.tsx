@@ -63,24 +63,10 @@ const indicators = {
   "infrastructure": {
     name: "Infrastructure",
     subIndicators: {
-      "renewable_energy": {
-        label: "Renewable Energy Solution",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
       "renewable_energy_evs_cng": {
         label: "Renewable Energy (Launch of State's EVs and CNG Transport Solutions)",
         options: [
           { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "airport": {
-        label: "Airport",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
           { value: "no", label: "No", score: 0 }
         ]
       },
