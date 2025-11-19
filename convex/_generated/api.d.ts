@@ -37,6 +37,8 @@ import type * as meetings from "../meetings.js";
 import type * as messages from "../messages.js";
 import type * as migrations_cleanupGettingCredit from "../migrations/cleanupGettingCredit.js";
 import type * as migrations_cleanupInfrastructure from "../migrations/cleanupInfrastructure.js";
+import type * as migrations_cleanupInvalidStates from "../migrations/cleanupInvalidStates.js";
+import type * as migrations_mergeFCTEntries from "../migrations/mergeFCTEntries.js";
 import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
 import type * as migrations_resetAccessToSkilledLabour from "../migrations/resetAccessToSkilledLabour.js";
 import type * as migrations_resetDigitalConnectivity from "../migrations/resetDigitalConnectivity.js";
@@ -104,6 +106,8 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   "migrations/cleanupGettingCredit": typeof migrations_cleanupGettingCredit;
   "migrations/cleanupInfrastructure": typeof migrations_cleanupInfrastructure;
+  "migrations/cleanupInvalidStates": typeof migrations_cleanupInvalidStates;
+  "migrations/mergeFCTEntries": typeof migrations_mergeFCTEntries;
   "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
   "migrations/resetAccessToSkilledLabour": typeof migrations_resetAccessToSkilledLabour;
   "migrations/resetDigitalConnectivity": typeof migrations_resetDigitalConnectivity;
