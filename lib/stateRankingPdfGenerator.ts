@@ -8,6 +8,7 @@ interface StateRankingRow {
   totalScore: number;
   maxScore: number;
   percentageScore: number;
+  deduction?: number;
 }
 
 interface GenerateStateRankingPDFParams {
@@ -54,21 +55,21 @@ export async function generateStateRankingPDF({
     } catch (error) {
       console.error("Error loading logo:", error);
       doc.setFontSize(16);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text("PEBEC", pageWidth / 2, 20, { align: "center" });
       yPosition = 35;
     }
 
     // Title and metadata
     doc.setFontSize(18);
-    doc.setFont(undefined, "bold");
+    doc.setFont("helvetica", "bold");
     doc.text(`State Rankings - ${indicatorLabel}`, pageWidth / 2, yPosition, {
       align: "center",
     });
     yPosition += 8;
 
     doc.setFontSize(12);
-    doc.setFont(undefined, "normal");
+    doc.setFont("helvetica", "normal");
     doc.text(
       `Generated: ${generatedAt.toLocaleDateString(undefined, {
         year: "numeric",
@@ -94,13 +95,14 @@ export async function generateStateRankingPDF({
     const tableData = rankings.map((row) => [
       `#${row.rank}`,
       row.state,
+      row.deduction && row.deduction > 0 ? `- ${row.deduction.toFixed(1)}` : "—",
       `${row.totalScore.toFixed(1)}/${row.maxScore.toFixed(1)}`,
       `${row.percentageScore.toFixed(1)}%`,
     ]);
 
     autoTable(doc, {
       startY: yPosition,
-      head: [["Rank", "State", "Score", "% Score"]],
+      head: [["Rank", "State", "Deductions", "Score", "% Score"]],
       body: tableData,
       headStyles: {
         fillColor: [41, 128, 185],

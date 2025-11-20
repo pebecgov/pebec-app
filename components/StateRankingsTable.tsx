@@ -154,6 +154,7 @@ export function StateRankingsTable() {
                 <TableRow>
                   <TableHead className="w-[80px]">Rank</TableHead>
                   <TableHead>State</TableHead>
+                  <TableHead className="text-right">Deductions</TableHead>
                   <TableHead className="text-right">Indicator Score</TableHead>
                   <TableHead className="text-right">% Score</TableHead>
                 </TableRow>
@@ -172,6 +173,11 @@ export function StateRankingsTable() {
                     <TableCell className="font-medium">
                       {ranking.state}
                     </TableCell>
+                    <TableCell className="text-right font-mono text-red-600">
+                      {ranking.deduction && ranking.deduction > 0
+                        ? `- ${ranking.deduction.toFixed(1)}`
+                        : "0"}
+                    </TableCell>
                     <TableCell className="text-right font-mono">
                       {ranking.totalScore.toFixed(1)}/{ranking.maxScore.toFixed(1)}
                     </TableCell>
@@ -187,7 +193,10 @@ export function StateRankingsTable() {
         
         {rankings.length > 0 && (
           <div className="mt-4 text-sm text-muted-foreground">
-            Showing {rankings.length} states with available scores
+            Showing {rankings.length} states with available scores.
+            <span className="ml-1">
+              Totals already reflect any deductions (e.g. Ogun −6 points this cycle).
+            </span>
           </div>
         )}
       </CardContent>

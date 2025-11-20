@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { indicators } from "@/convex/config/indicators";
+import { getStateDeduction, normalizeStateName } from "@/convex/stateUtils";
 
 export interface StateRanking {
   state: string;
@@ -9,6 +10,7 @@ export interface StateRanking {
   percentageScore: number;
   rank: number;
   maxScore: number;
+  deduction?: number;
 }
 
 const indicatorMaxScores = Object.fromEntries(
@@ -34,6 +36,32 @@ const overallMaxScore = Object.values(indicatorMaxScores).reduce(
   0
 );
 
+function applyDeductions(
+  items: Array<{ state: string; totalScore: number; percentageScore: number; maxScore: number }>
+): StateRanking[] {
+  return items
+    .map((item) => {
+      const normalizedState = normalizeStateName(item.state);
+      const deduction = getStateDeduction(normalizedState);
+      const adjustedScore = Math.max(item.totalScore - deduction, 0);
+      const adjustedPercentage =
+        item.maxScore > 0 ? (adjustedScore / item.maxScore) * 100 : 0;
+
+      return {
+        state: normalizedState,
+        totalScore: adjustedScore,
+        percentageScore: adjustedPercentage,
+        maxScore: item.maxScore,
+        deduction,
+      };
+    })
+    .sort((a, b) => b.percentageScore - a.percentageScore)
+    .map((item, index) => ({
+      ...item,
+      rank: index + 1,
+    }));
+}
+
 export function useStateRankings(indicator?: string) {
   const baseRankings = useQuery(api.state_scores.getStateRankings, undefined);
   const stateScores = useQuery(api.saveStateScore.getStateScores, {});
@@ -49,44 +77,43 @@ export function useStateRankings(indicator?: string) {
 
       const stateTotals = new Map<string, number>();
       filtered.forEach((score) => {
-        const currentTotal = stateTotals.get(score.state) || 0;
-        stateTotals.set(score.state, currentTotal + (score.score || 0));
+        const normalizedState = normalizeStateName(score.state);
+        const currentTotal = stateTotals.get(normalizedState) || 0;
+        stateTotals.set(normalizedState, currentTotal + (score.score || 0));
       });
 
       const maxScore = indicatorMaxScores[indicator] ?? 0;
-      return Array.from(stateTotals.entries())
-        .map(([state, totalScore]) => {
-          const percentageScore = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
-          return {
-            state,
-            totalScore,
-            percentageScore,
-            maxScore,
-          };
-        })
-        .sort((a, b) => b.percentageScore - a.percentageScore)
-        .map((item, index) => ({
-          ...item,
-          rank: index + 1,
-        }));
+      const baseItems = Array.from(stateTotals.entries()).map(([state, totalScore]) => {
+        const percentageScore = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+        return {
+          state,
+          totalScore,
+          percentageScore,
+          maxScore,
+        };
+      });
+
+      return applyDeductions(baseItems);
     }
 
     if (!baseRankings) return undefined;
 
-    return baseRankings.map((ranking, index) => {
+    const normalizedBase = baseRankings.map((ranking) => {
+      const state = normalizeStateName(ranking.state);
       const totalScore = ranking.totalScore ?? 0;
       const percentageScore =
         ranking.percentageScore ??
         (overallMaxScore > 0 ? (totalScore / overallMaxScore) * 100 : 0);
 
       return {
-        state: ranking.state,
+        state,
         totalScore,
         percentageScore,
-        rank: ranking.rank ?? index + 1,
         maxScore: ranking.maxScore ?? overallMaxScore,
       };
     });
+
+    return applyDeductions(normalizedBase);
   }, [indicator, baseRankings, stateScores]);
 
   return {

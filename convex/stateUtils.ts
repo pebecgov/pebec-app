@@ -13,6 +13,10 @@ const STATE_ALIASES: Record<string, string> = {
   "FEDERAL CAPITAL TERRITORY": "Federal Capital Territory",
 };
 
+export const STATE_DEDUCTIONS: Record<string, number> = {
+  Ogun: 6,
+};
+
 export const VALID_NIGERIAN_STATES = new Set(STATE_LIST);
 
 export function normalizeStateName(state: string): string {
@@ -30,5 +34,10 @@ export function normalizeStateName(state: string): string {
 
 export function isValidNigerianState(state: string): boolean {
   return VALID_NIGERIAN_STATES.has(state);
+}
+
+export function getStateDeduction(state: string): number {
+  const normalized = normalizeStateName(state);
+  return STATE_DEDUCTIONS[normalized] ?? 0;
 }
 
