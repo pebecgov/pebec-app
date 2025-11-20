@@ -1,4 +1,5 @@
 import { mutation } from "../_generated/server";
+import { normalizeStateName } from "../stateUtils";
 
 /**
  * Merges all "FCT" entries to "Federal Capital Territory" to consolidate data.
@@ -11,7 +12,7 @@ export const mergeFCTEntries = mutation({
     const allScores = await ctx.db.query("state_scores").collect();
     
     const fctScores = allScores.filter(
-      (score) => score.state.trim() === "FCT" || score.state.trim().toUpperCase() === "FCT"
+      (score) => normalizeStateName(score.state) === "Federal Capital Territory" && score.state.trim().toUpperCase() === "FCT"
     );
 
     if (fctScores.length === 0) {

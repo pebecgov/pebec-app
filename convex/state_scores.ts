@@ -1,27 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { indicators } from "./config/indicators";
-
-// Valid Nigerian states list - used to filter out invalid entries like "Data Source" or other non-state values
-const validNigerianStates = new Set([
-  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", 
-  "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", 
-  "Ekiti", "Enugu", "Gombe", "Imo", "Jigawa", "Kaduna", 
-  "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", 
-  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", 
-  "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara", 
-  "Federal Capital Territory"
-]);
-
-// Normalize state names - maps variations to canonical names
-function normalizeStateName(state: string): string {
-  const trimmed = state.trim();
-  // Normalize FCT to Federal Capital Territory
-  if (trimmed === "FCT" || trimmed.toUpperCase() === "FCT") {
-    return "Federal Capital Territory";
-  }
-  return trimmed;
-}
+import { normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
 
 const indicatorMaxScores = Object.fromEntries(
   Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
@@ -70,7 +50,7 @@ export const getStateRankings = query({
       const normalizedState = normalizeStateName(score.state);
       
       // Filter out invalid states (like "Data Source", "Data Sourc", etc.)
-      if (!validNigerianStates.has(normalizedState)) {
+      if (!VALID_NIGERIAN_STATES.has(normalizedState)) {
         continue; // Skip invalid states
       }
       
