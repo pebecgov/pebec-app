@@ -16,6 +16,10 @@ interface MdaDetailedData {
     firstHalf: any;
     secondHalf: any;
   };
+  toutingRentseeking: {
+    firstHalf: any;
+    secondHalf: any;
+  };
   innovation: {
     firstHalf: any;
     secondHalf: any;
@@ -325,7 +329,13 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   if (data.controversial.firstHalf || data.controversial.secondHalf) {
     const contFirst = data.controversial.firstHalf || { isControversial: false, score: 0 };
     const contSecond = data.controversial.secondHalf || { isControversial: false, score: 0 };
-    const avgScore = ((contFirst.score || 0) + (contSecond.score || 0)) / 2;
+    let avgScore = ((contFirst.score || 0) + (contSecond.score || 0)) / 2;
+    // Handle both old and new data formats
+    const isOldFormat = avgScore >= 0 && avgScore <= 5;
+    if (isOldFormat) {
+      const isControversial = contFirst.isControversial || contSecond.isControversial;
+      avgScore = isControversial ? -5 : 0;
+    }
     const isControversial = contFirst.isControversial || contSecond.isControversial;
 
     if (yPosition > pageHeight - 50) {
@@ -335,10 +345,40 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['3. Controversial (10 points)', '']],
+      head: [['3. Controversial (Penalty: -5 points if Yes)', '']],
       body: [
-        ['Answer', isControversial ? 'Yes' : 'No'],
-        ['Score', `${avgScore.toFixed(1)}/10`]
+        ['Answer', isControversial ? 'Yes (Controversial)' : 'No (Not Controversial)'],
+        ['Penalty', `${avgScore.toFixed(1)} points`]
+      ],
+      headStyles: {
+        fillColor: [156, 39, 176],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: { fontSize: 9 },
+      theme: 'grid'
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 15;
+  }
+
+  // Touting & Rentseeking - average both halves
+  if (data.toutingRentseeking?.firstHalf || data.toutingRentseeking?.secondHalf) {
+    const toutingFirst = data.toutingRentseeking.firstHalf || { isToutingRentseeking: false, score: 0 };
+    const toutingSecond = data.toutingRentseeking.secondHalf || { isToutingRentseeking: false, score: 0 };
+    const avgScore = ((toutingFirst.score || 0) + (toutingSecond.score || 0)) / 2;
+    const isToutingRentseeking = toutingFirst.isToutingRentseeking || toutingSecond.isToutingRentseeking;
+
+    if (yPosition > pageHeight - 50) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['4. Touting & Rentseeking (Penalty: -10 points if Yes)', '']],
+      body: [
+        ['Answer', isToutingRentseeking ? 'Yes (Touting & Rentseeking)' : 'No (Not Touting & Rentseeking)'],
+        ['Penalty', `${avgScore.toFixed(1)} points`]
       ],
       headStyles: {
         fillColor: [156, 39, 176],
@@ -365,10 +405,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['4. Innovation (10 points)', '']],
+      head: [['5. Innovation (5 points)', '']],
       body: [
         ['Answer', isInnovative ? 'Yes' : 'No'],
-        ['Score', `${avgScore.toFixed(1)}/10`]
+        ['Score', `${avgScore.toFixed(1)}/5`]
       ],
       headStyles: {
         fillColor: [156, 39, 176],
@@ -395,10 +435,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['5. Stakeholder Engagement (5 points)', '']],
+      head: [['6. Stakeholder Engagement (10 points)', '']],
       body: [
         ['Rate', `${avgRate.toFixed(1)}/10`],
-        ['Score', `${avgScore.toFixed(1)}/5`]
+        ['Score', `${avgScore.toFixed(1)}/10`]
       ],
       headStyles: {
         fillColor: [255, 152, 0],
@@ -454,13 +494,13 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       if (bothSkipped) {
         bodyRows.push(['Status', '⚠️ Transparency skipped']);
       } else {
-        bodyRows.push(['Combined Score', `${combinedScore.toFixed(1)}/10`]);
+        bodyRows.push(['Combined Score', `${combinedScore.toFixed(1)}/5`]);
         // Mirror notes removed per requirement
       }
 
       autoTable(doc, {
         startY: yPosition,
-        head: [['5. Transparency (10 points)', '']],
+        head: [['7. Transparency (5 points)', '']],
         body: bodyRows,
         headStyles: {
           fillColor: [233, 30, 99],
@@ -489,7 +529,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     if (isSkipped) {
       autoTable(doc, {
         startY: yPosition,
-        head: [['6. Report Gov Resolution (15 points)', '']],
+        head: [['8. Report Gov Resolution (15 points)', '']],
         body: [['Status', 'Skipped']],
         headStyles: {
           fillColor: [63, 81, 181],
@@ -556,7 +596,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
       autoTable(doc, {
         startY: yPosition,
-        head: [['6. Report Gov Resolution (15 points)', '']],
+        head: [['8. Report Gov Resolution (15 points)', '']],
         body: tableBody,
         headStyles: {
           fillColor: [63, 81, 181],
@@ -609,7 +649,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['7. Monthly Report Submission (3 points)', 'Status']],
+      head: [['9. Monthly Report Submission (3 points)', 'Status']],
       body: monthlyReportTableData.slice(0, -2),
       headStyles: {
         fillColor: [0, 150, 136],
@@ -668,7 +708,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
   autoTable(doc, {
     startY: yPosition,
-    head: [['8. Timeliness in Submitting Report (2 points)', 'Status']],
+    head: [['10. Timeliness in Submitting Report (2 points)', 'Status']],
     body: timelinessTableData.slice(0, -2),
     headStyles: {
       fillColor: [121, 85, 72],
@@ -692,8 +732,35 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const slaScore = slaFinalScore;
 
   const mysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
-  const controversialScore = data.controversial.firstHalf || data.controversial.secondHalf ?
+  
+  // Controversial: Handle both old and new data formats
+  let controversialScore = data.controversial.firstHalf || data.controversial.secondHalf ?
     ((data.controversial.firstHalf?.score || 0) + (data.controversial.secondHalf?.score || 0)) / 2 : 0;
+  if (data.controversial.firstHalf || data.controversial.secondHalf) {
+    const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
+    if (isOldFormat) {
+      const isControversial = data.controversial.firstHalf?.isControversial || data.controversial.secondHalf?.isControversial;
+      controversialScore = isControversial ? -5 : 0;
+    }
+  }
+
+  // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
+  let toutingRentseekingScore = 0;
+  if (data.toutingRentseeking?.firstHalf || data.toutingRentseeking?.secondHalf) {
+    const toutingFirst = data.toutingRentseeking?.firstHalf;
+    const toutingSecond = data.toutingRentseeking?.secondHalf;
+    if (toutingFirst && toutingSecond) {
+      // Both halves have data - average
+      toutingRentseekingScore = ((toutingFirst.score || 0) + (toutingSecond.score || 0)) / 2;
+    } else if (toutingFirst) {
+      // Only first half
+      toutingRentseekingScore = toutingFirst.score || 0;
+    } else if (toutingSecond) {
+      // Only second half
+      toutingRentseekingScore = toutingSecond.score || 0;
+    }
+  }
+
   const innovationScore = data.innovation.firstHalf || data.innovation.secondHalf ?
     ((data.innovation.firstHalf?.score || 0) + (data.innovation.secondHalf?.score || 0)) / 2 : 0;
   const stakeholderScore = data.stakeholder.firstHalf || data.stakeholder.secondHalf ?
@@ -737,12 +804,18 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
+  // Calculate base total score (all metrics except controversial and touting & rentseeking)
+  const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore + 
                     transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
+  // Calculate penalties (convert negative scores to positive penalty values)
+  const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+  const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+  const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
   
-  let maxPossiblePoints = 100;
+  let maxPossiblePoints = 90;
   if (isTransparencySkipped) {
-    maxPossiblePoints -= 10;
+    maxPossiblePoints -= 5;
   }
   if (isReportGovSkipped) {
     maxPossiblePoints -= 15;
@@ -759,17 +832,20 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const summaryBody = [
     ['SLA', `${slaScore.toFixed(1)}/30`],
     ['Mystery Shopping', `${mysteryScore.toFixed(1)}/20`],
-    ['Controversial', `${controversialScore.toFixed(1)}/10`],
-    ['Innovation', `${innovationScore.toFixed(1)}/10`],
-    ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/5`],
-    ['Transparency', isTransparencySkipped ? 'Skipped' : `${transparencyScore.toFixed(1)}/10`],
+    ['Innovation', `${innovationScore.toFixed(1)}/5`],
+    ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/10`],
+    ['Transparency', isTransparencySkipped ? 'Skipped' : `${transparencyScore.toFixed(1)}/5`],
     ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`],
     ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
     ['Timeliness', `${timelinessScore.toFixed(1)}/2`],
     ['', ''],
-    maxPossiblePoints !== 100
-      ? ['OVERALL TOTAL', `${totalPercentage.toFixed(1)}/100 Using ${maxPossiblePoints}`]
-      : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/100 (${totalPercentage.toFixed(1)}%)`]
+    ['Base Total Score', `${baseTotalScore.toFixed(1)}/${maxPossiblePoints}`],
+    ['Controversial (Penalty)', `${controversialScore.toFixed(1)} points`],
+    ['Touting & Rentseeking (Penalty)', `${toutingRentseekingScore.toFixed(1)} points`],
+    ['', ''],
+    maxPossiblePoints !== 90
+      ? ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%) - Normalized`]
+      : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
   ];
 
   autoTable(doc, {

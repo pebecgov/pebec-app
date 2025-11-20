@@ -65,7 +65,7 @@ export default defineSchema({
     assignedUsers: v.array(v.id("users")),
     createdAt: v.number()
   }).index("byName", ["name"]),
-  
+
   // New table for scoring history
   mda_scoring_history: defineTable({
     mdaId: v.optional(v.id("mdas")),
@@ -100,7 +100,7 @@ export default defineSchema({
     notes: v.optional(v.string()),
     recommendations: v.optional(v.string())
   }).index("byMda", ["mdaId"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]).index("byDate", ["scoredAt"]),
-  
+
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
     mdaId: v.id("mdas"),
@@ -299,7 +299,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     isVip: v.optional(v.boolean())
   }).index("byEvent", ["eventId"]).index("byUser", ["userId"]).index("byTicketNumber", ["ticketNumber"]),
-  
+
   // Workshop registrations for Strategic Engagement event
   workshop_registrations: defineTable({
     name: v.string(),
@@ -621,9 +621,9 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
   }).index("byCreatedBy", ["createdBy"])
-   .index("byPrimaryWorkstream", ["primaryWorkstream"])
-   .index("byVisibility", ["visibility"])
-   .index("byCollaborator", ["collaborators"]),
+    .index("byPrimaryWorkstream", ["primaryWorkstream"])
+    .index("byVisibility", ["visibility"])
+    .index("byCollaborator", ["collaborators"]),
   availability: defineTable({
     userId: v.id("users"),
     day: v.string(),
@@ -667,8 +667,8 @@ export default defineSchema({
     meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
     attendees: v.optional(v.array(v.id("users")))
   })
-    .index("byDate", ["date"]) 
-    .index("byRoomAndDate", ["room", "date"]) 
+    .index("byDate", ["date"])
+    .index("byRoomAndDate", ["room", "date"])
     .index("byCreatedBy", ["createdBy"]),
   media: defineTable({
     userId: v.id("users"),
@@ -732,7 +732,7 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     comments: v.optional(v.string())
   }).index("bySubmittedBy", ["submittedBy"]).index("byState", ["state"]).index("byStatus", ["status"]).index("byDate", ["submittedAt"]),
-  
+
   // SABER Deadline Management Tables
   saber_deadlines: defineTable({
     dliCategory: v.string(), // "BERAP", "DLI4", "DLI5", "DLI6", "DLI8"
@@ -742,8 +742,8 @@ export default defineSchema({
     comments: v.optional(v.string()), // Additional comments about the deadline
     isRecurring: v.boolean(), // Whether this is a recurring deadline (like monthly reports)
     recurringType: v.optional(v.union(
-      v.literal("monthly"), 
-      v.literal("quarterly"), 
+      v.literal("monthly"),
+      v.literal("quarterly"),
       v.literal("yearly")
     )),
     states: v.array(v.string()), // Which states this deadline applies to (empty array = all states)
@@ -753,15 +753,15 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     isActive: v.boolean() // Whether this deadline is currently active
   }).index("byCategory", ["dliCategory"]).index("byDeadline", ["deadline"]).index("byActive", ["isActive"]),
-  
+
   deadline_reminders: defineTable({
     deadlineId: v.id("saber_deadlines"),
     userId: v.id("users"), // SABER agent who should receive the reminder
     state: v.string(), // State the SABER agent is responsible for
     reminderType: v.union(
-      v.literal("30_days"), 
-      v.literal("14_days"), 
-      v.literal("7_days"), 
+      v.literal("30_days"),
+      v.literal("14_days"),
+      v.literal("7_days"),
       v.literal("3_days")
     ),
     scheduledFor: v.number(), // When the reminder should be sent
@@ -770,7 +770,7 @@ export default defineSchema({
     notificationSent: v.boolean(), // Whether in-app notification was sent
     createdAt: v.number()
   }).index("byDeadline", ["deadlineId"]).index("byUser", ["userId"]).index("byScheduled", ["scheduledFor"]).index("byState", ["state"]),
-  
+
   // Excel Upload Tables
   excelData: defineTable({
     data: v.any(), // Raw Excel row data
@@ -781,7 +781,7 @@ export default defineSchema({
     uploadedAt: v.number(), // When this chunk was uploaded
     processed: v.boolean(), // Whether this data has been processed
   }).index("byBatchId", ["batchId"]).index("byProcessed", ["processed"]).index("byUploadedAt", ["uploadedAt"]).index("byTemplateId", ["templateId"]),
-  
+
   processedExcelData: defineTable({
     originalData: v.any(), // Original Excel data
     processedAt: v.number(), // When this data was processed
@@ -925,6 +925,17 @@ export default defineSchema({
     manualTimeliness: v.any(), // Object with month keys and boolean values
     useManual: v.boolean(),
     score: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users"),
+    updatedBy: v.id("users")
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+  // Touting & Rentseeking Data Storage (Yes = -10 points, No = 0 points)
+  mda_touting_rentseeking_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    isToutingRentseeking: v.boolean(), // true = Yes (-10 points), false = No (0 points)
+    score: v.number(), // Calculated score
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.id("users"),
