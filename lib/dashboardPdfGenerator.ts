@@ -91,8 +91,8 @@ export async function generateDashboardPDF({
       'sla': 'Service Level Agreement',
       'controversial': 'Controversial',
       'innovation': 'Innovation',
-  'stakeholder': 'Stakeholder Engagement',
-  'transparency': 'Transparency',
+      'stakeholder': 'Stakeholder Engagement',
+      'transparency': 'Transparency',
       'reportGovResolution': 'Report Gov Resolution',
       'monthlyReport': 'Monthly Report Submission',
       'timeliness': 'Timeliness'
@@ -119,7 +119,7 @@ export async function generateDashboardPDF({
     // Process data - if filterType is 'withData', use the filtered data directly
     // Otherwise, merge with all MDAs from mdasList
     let allMdasArray: any[];
-    
+
     if (filterType === 'withData') {
       // Use filtered data directly - it's already processed and filtered
       allMdasArray = liveDashboardData.map((mda: any) => {
@@ -133,10 +133,10 @@ export async function generateDashboardPDF({
         const reportGovResScore = mda.reportGovResolution?.score || 0;
         const monthlyReportScore = mda.monthlyReport?.score || 0;
         const timelinessScore = mda.timeliness?.score || 0;
-        
-        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
-                          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
-        
+
+        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore +
+          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
         const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
         const isTransparencySkipped = mda.transparency?.isSkipped || false;
         let maxPossiblePoints = 100;
@@ -146,11 +146,11 @@ export async function generateDashboardPDF({
         if (isReportGovSkipped) {
           maxPossiblePoints -= 15;
         }
-        
+
         const totalPercentage = maxPossiblePoints > 0
           ? (totalScore / maxPossiblePoints) * 100
           : 0;
-        
+
         return {
           ...mda,
           totalScore,
@@ -209,10 +209,10 @@ export async function generateDashboardPDF({
         const reportGovResScore = mda.reportGovResolution?.score || 0;
         const monthlyReportScore = mda.monthlyReport?.score || 0;
         const timelinessScore = mda.timeliness?.score || 0;
-        
-        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore + 
-                          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
-        
+
+        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore +
+          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
         // Check if optional metrics are skipped
         const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
         const isTransparencySkipped = mda.transparency?.isSkipped || false;
@@ -223,12 +223,12 @@ export async function generateDashboardPDF({
         if (isReportGovSkipped) {
           maxPossiblePoints -= 15;
         }
-        
+
         // Normalize percentage using adjusted max points
         const totalPercentage = maxPossiblePoints > 0
           ? (totalScore / maxPossiblePoints) * 100
           : 0;
-        
+
         return {
           ...mda,
           totalScore,
@@ -244,7 +244,7 @@ export async function generateDashboardPDF({
     const sortedData = [...allMdasArray].sort((a: any, b: any) => {
       let aValue: any = 0;
       let bValue: any = 0;
-      
+
       if (selectedMetric === 'totalScore') {
         aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
         bValue = b.totalPercentage || 0;
@@ -276,7 +276,7 @@ export async function generateDashboardPDF({
         aValue = a.timeliness?.score || 0;
         bValue = b.timeliness?.score || 0;
       }
-      
+
       return bValue - aValue;
     });
 
@@ -293,7 +293,7 @@ export async function generateDashboardPDF({
       let score = 0;
       let maxScore = 100;
       let overallPercentage = 0;
-      
+
       if (selectedMetric === 'totalScore') {
         score = mda.totalScore || 0;
         maxScore = 100;
@@ -345,18 +345,19 @@ export async function generateDashboardPDF({
           mda.controversial ? `${mda.controversial.score.toFixed(1)}/10` : '—',
           mda.innovation ? `${mda.innovation.score.toFixed(1)}/10` : '—',
           mda.stakeholder ? `${mda.stakeholder.score.toFixed(1)}/5` : '—',
+          mda.transparency ? `${mda.transparency.score.toFixed(1)}/10` : '—',
           mda.reportGovResolution ? (mda.reportGovResolution.isSkipped ? '0/15 (Skipped)' : `${mda.reportGovResolution.score.toFixed(1)}/15`) : '—',
           mda.monthlyReport ? `${mda.monthlyReport.score.toFixed(1)}/3` : '—',
           mda.timeliness ? `${mda.timeliness.score.toFixed(1)}/2` : '—',
-          mda.isReportGovSkipped 
+          mda.isReportGovSkipped
             ? `${mda.totalPercentage.toFixed(1)}/100 Using 85%`
             : `${mda.totalScore.toFixed(1)}/100 (${mda.totalPercentage.toFixed(1)}%)`
         ]);
       } else {
-        const displayValue = score > 0 
-          ? (mda.isReportGovSkipped 
-              ? `${overallPercentage.toFixed(1)}/100 Using 85%`
-              : `${overallPercentage.toFixed(1)}%`)
+        const displayValue = score > 0
+          ? (mda.isReportGovSkipped
+            ? `${overallPercentage.toFixed(1)}/100 Using 85%`
+            : `${overallPercentage.toFixed(1)}%`)
           : '—';
         tableData.push([
           `#${rank}`,
@@ -370,7 +371,7 @@ export async function generateDashboardPDF({
     if (selectedMetric === 'totalScore') {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Rank', 'MDA Name', 'SLA', 'Mystery Shopping', 'Controversial', 'Innovation', 'Stakeholder', 'Report Gov Resolution', 'Monthly Report', 'Timeliness', 'Total Score']],
+        head: [['Rank', 'MDA Name', 'SLA', 'Mystery Shopping', 'Controversial', 'Innovation', 'Stakeholder', 'Transparency', 'Report Gov Resolution', 'Monthly Report', 'Timeliness', 'Total Score']],
         body: tableData,
         headStyles: {
           fillColor: [41, 128, 185],
