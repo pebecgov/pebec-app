@@ -347,39 +347,6 @@ const AnalyticsDashboard = () => {
         )}
       </div>
 
-      {/* Indicator Performance */}
-      {Object.keys(indicatorPerformance).length > 0 && (
-        <Card className="rounded-2xl shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700">Indicator Performance Averages</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
-                data={Object.entries(indicatorPerformance)
-                  .sort(([,a], [,b]) => b - a)
-                  .map(([indicator, average]) => ({
-                    id: indicator, // Unique identifier
-                    name: indicator.replace(/([A-Z])/g, ' $1').trim(),
-                    value: Number(average.toFixed(2)), // Ensure consistent number format
-                    fill: '#3b82f6'
-                  }))
-                  .filter((item, index, self) => 
-                    index === self.findIndex((t) => t.id === item.id)
-                  )}
-                layout="horizontal"
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={120} />
-                <Tooltip formatter={(value) => [typeof value === 'number' ? value.toFixed(1) : value, 'Average Score']} />
-                <Bar dataKey="value" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Score Trend Chart */}
       <Card className="rounded-2xl shadow-sm">
         <CardHeader>
