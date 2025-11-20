@@ -71,7 +71,7 @@ const calculateAnalytics = (allScores: any[]) => {
       highestScoringState: null,
       lowestScoringState: null,
       lastUpdated: null,
-      gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 },
+      gradeDistribution: { topTier: 0, middleTier: 0, bottomTier: 0 },
       indicatorPerformance: {},
       totalPossiblePoints: overallMaxScore
     };
@@ -112,16 +112,15 @@ const calculateAnalytics = (allScores: any[]) => {
   const nationalAverage = scores.reduce((sum, score) => sum + score, 0) / scores.length;
   const nationalAveragePercentage = (nationalAverage / TOTAL_POSSIBLE_POINTS) * 100;
 
-  // Performance categories based on percentage scores
-  const topPerformers = scores.filter(score => (score / TOTAL_POSSIBLE_POINTS) * 100 >= 70).length;
-  const midPerformers = scores.filter(score => {
-    const percentage = (score / TOTAL_POSSIBLE_POINTS) * 100;
-    return percentage >= 50 && percentage < 70;
-  }).length;
-  const lowPerformers = scores.filter(score => (score / TOTAL_POSSIBLE_POINTS) * 100 < 50).length;
-
-  // Highest and lowest scoring states
+  // Highest and lowest scoring states (sorted ranking)
   const sortedStates = states.sort((a, b) => stateTotals[b] - stateTotals[a]);
+  const totalStates = sortedStates.length;
+  const topTierLimit = Math.min(10, totalStates);
+  const middleTierLimit = Math.min(22, totalStates);
+
+  const topPerformers = topTierLimit;
+  const midPerformers = Math.max(0, middleTierLimit - topTierLimit);
+  const lowPerformers = Math.max(0, totalStates - middleTierLimit);
   const highestScoringState = sortedStates[0] ? {
     state: sortedStates[0],
     score: stateTotals[sortedStates[0]],
@@ -136,16 +135,12 @@ const calculateAnalytics = (allScores: any[]) => {
   // Last updated
   const lastUpdated = Math.max(...Object.values(stateTimestamps));
 
-  // Grade distribution based on percentage scores (A: 85-100%, B: 70-84%, C: 55-69%, D: 40-54%, F: <40%)
-  const gradeDistribution = { A: 0, B: 0, C: 0, D: 0, F: 0 };
-  scores.forEach(score => {
-    const percentage = (score / TOTAL_POSSIBLE_POINTS) * 100;
-    if (percentage >= 85) gradeDistribution.A++;
-    else if (percentage >= 70) gradeDistribution.B++;
-    else if (percentage >= 55) gradeDistribution.C++;
-    else if (percentage >= 40) gradeDistribution.D++;
-    else gradeDistribution.F++;
-  });
+  // Grade distribution (tier-based counts)
+  const gradeDistribution = {
+    topTier: topPerformers,
+    middleTier: midPerformers,
+    bottomTier: lowPerformers
+  };
 
   // Indicator performance averages
   const indicatorPerformance: Record<string, number> = {};
@@ -208,6 +203,12 @@ const AnalyticsDashboard = () => {
     indicatorPerformance
   } = analytics;
 
+  const gradePieData = [
+    { key: 'topTier', name: 'Top Tier (1-10)', value: gradeDistribution.topTier, fill: '#10b981' },
+    { key: 'middleTier', name: 'Middle Tier (11-22)', value: gradeDistribution.middleTier, fill: '#f59e0b' },
+    { key: 'bottomTier', name: 'Bottom Tier (23+)', value: gradeDistribution.bottomTier, fill: '#ef4444' },
+  ];
+
   return (
   <div className="py-3 bg-white">
   <div className="space-y-8">
@@ -220,12 +221,10 @@ const AnalyticsDashboard = () => {
               • All States ranked by their available score (fair comparison)
             </span>
           </p>
-          <p><strong>Grade A (85%+):</strong> Excellent performance - Meeting all standards</p>
-          <p><strong>Grade B (70-84%):</strong> Good performance - Meeting most standards</p>
-          <p><strong>Grade C (55-69%):</strong> Satisfactory performance - Meeting basic standards</p>
-          <p><strong>Grade D (40-54%):</strong> Below average - Needs improvement</p>
-          <p><strong>Grade F (Below 40%):</strong> Poor performance - Requires immediate attention</p>
-          <p><strong>Meeting Standards (70%+):</strong> States performing at acceptable level or better</p>
+          <p><strong>Top Tier (Ranks 1-10):</strong> Highest performers leading national reforms</p>
+          <p><strong>Middle Tier (Ranks 11-22):</strong> Solid momentum with room to climb</p>
+          <p><strong>Bottom Tier (Ranks 23+):</strong> Priority states requiring additional support</p>
+          <p><strong>Note:</strong> Tiers are rank-based to keep the focus on relative position each cycle.</p>
           <p><strong>Below Standards (Below 70%):</strong> States that need improvement to meet requirements</p>
           <p><strong>Scoring Methods:</strong> 
             <span className="ml-1">
@@ -248,7 +247,7 @@ const AnalyticsDashboard = () => {
           <CardContent className="p-6">
             <div className="text-lg font-semibold text-gray-700 mb-2">Top Performers</div>
             <div className="text-3xl font-bold text-green-600">{topPerformers}</div>
-            <div className="text-sm text-gray-600">Score ≥ 70%</div>
+            <div className="text-sm text-gray-600">Top Tier (Ranks 1-10)</div>
           </CardContent>
         </Card>
 
@@ -279,9 +278,9 @@ const AnalyticsDashboard = () => {
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={[
-                { name: 'Top (≥70%)', value: topPerformers, fill: '#10b981' },
-                { name: 'Mid (50-69%)', value: midPerformers, fill: '#f59e0b' },
-                { name: 'Low (<50%)', value: lowPerformers, fill: '#ef4444' }
+                { name: 'Top Tier (1-10)', value: topPerformers, fill: '#10b981' },
+                { name: 'Middle Tier (11-22)', value: midPerformers, fill: '#f59e0b' },
+                { name: 'Bottom Tier (23+)', value: lowPerformers, fill: '#ef4444' }
               ]}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
@@ -301,11 +300,7 @@ const AnalyticsDashboard = () => {
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie
-                  data={Object.entries(gradeDistribution).map(([grade, count]) => ({
-                    name: `Grade ${grade}`,
-                    value: count,
-                    fill: grade === 'A' ? '#10b981' : grade === 'B' ? '#3b82f6' : grade === 'C' ? '#f59e0b' : grade === 'D' ? '#f97316' : '#ef4444'
-                  }))}
+                  data={gradePieData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -314,16 +309,11 @@ const AnalyticsDashboard = () => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {Object.entries(gradeDistribution).map(([grade, count], index) => (
-                    <Cell key={`cell-${index}`} fill={
-                      grade === 'A' ? '#10b981' : 
-                      grade === 'B' ? '#3b82f6' : 
-                      grade === 'C' ? '#f59e0b' : 
-                      grade === 'D' ? '#f97316' : '#ef4444'
-                    } />
+                  {gradePieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(value, name) => [value, name]} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -357,39 +347,6 @@ const AnalyticsDashboard = () => {
         )}
       </div>
 
-      {/* Indicator Performance */}
-      {Object.keys(indicatorPerformance).length > 0 && (
-        <Card className="rounded-2xl shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700">Indicator Performance Averages</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
-                data={Object.entries(indicatorPerformance)
-                  .sort(([,a], [,b]) => b - a)
-                  .map(([indicator, average]) => ({
-                    id: indicator, // Unique identifier
-                    name: indicator.replace(/([A-Z])/g, ' $1').trim(),
-                    value: Number(average.toFixed(2)), // Ensure consistent number format
-                    fill: '#3b82f6'
-                  }))
-                  .filter((item, index, self) => 
-                    index === self.findIndex((t) => t.id === item.id)
-                  )}
-                layout="horizontal"
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis dataKey="name" type="category" width={120} />
-                <Tooltip formatter={(value) => [typeof value === 'number' ? value.toFixed(1) : value, 'Average Score']} />
-                <Bar dataKey="value" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Score Trend Chart */}
       <Card className="rounded-2xl shadow-sm">
         <CardHeader>
@@ -399,12 +356,9 @@ const AnalyticsDashboard = () => {
           <ResponsiveContainer width="100%" height={250}>
             <BarChart 
               data={[
-                { range: '0-20', count: analytics?.gradeDistribution.F || 0, fill: '#ef4444' },
-                { range: '20-40', count: 0, fill: '#f97316' },
-                { range: '40-55', count: analytics?.gradeDistribution.D || 0, fill: '#f97316' },
-                { range: '55-70', count: analytics?.gradeDistribution.C || 0, fill: '#f59e0b' },
-                { range: '70-85', count: analytics?.gradeDistribution.B || 0, fill: '#3b82f6' },
-                { range: '85-100', count: analytics?.gradeDistribution.A || 0, fill: '#10b981' }
+                { range: 'Top Tier (1-10)', count: gradeDistribution.topTier, fill: '#10b981' },
+                { range: 'Middle Tier (11-22)', count: gradeDistribution.middleTier, fill: '#3b82f6' },
+                { range: 'Bottom Tier (23+)', count: gradeDistribution.bottomTier, fill: '#ef4444' },
               ]}
             >
               <CartesianGrid strokeDasharray="3 3" />

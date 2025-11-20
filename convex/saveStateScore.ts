@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { indicators } from "./config/indicators";
+import { normalizeStateName } from "./stateUtils";
 
 export const saveStateScore = mutation({
   args: {
@@ -11,6 +12,7 @@ export const saveStateScore = mutation({
     linkToSource: v.optional(v.string())
   },
   handler: async (ctx, { state, indicator, subIndicator, value, linkToSource }) => {
+    const normalizedState = normalizeStateName(state);
     let score = 0;
 
     // Fetch score dynamically from indicators configuration
@@ -35,7 +37,7 @@ export const saveStateScore = mutation({
     const existingRecord = await ctx.db
       .query("state_scores")
       .withIndex("byStateIndicatorSubIndicator", (q) => 
-        q.eq("state", state).eq("indicator", indicator).eq("subIndicator", subIndicator)
+        q.eq("state", normalizedState).eq("indicator", indicator).eq("subIndicator", subIndicator)
       )
       .first();
     
@@ -50,7 +52,7 @@ export const saveStateScore = mutation({
     } else {
       // Create new record
       const scoreId = await ctx.db.insert("state_scores", {
-        state,
+        state: normalizedState,
         indicator,
         subIndicator,
         value,
@@ -108,14 +110,15 @@ export const getStateScores = query({
   },
   handler: async (ctx, { state, indicator }) => {
     let query = ctx.db.query("state_scores");
+    const normalizedState = state ? normalizeStateName(state) : undefined;
     
-    if (state && indicator) {
+    if (normalizedState && indicator) {
       return await query
-        .withIndex("byStateAndIndicator", (q) => q.eq("state", state).eq("indicator", indicator))
+        .withIndex("byStateAndIndicator", (q) => q.eq("state", normalizedState).eq("indicator", indicator))
         .collect();
-    } else if (state) {
+    } else if (normalizedState) {
       return await query
-        .withIndex("byState", (q) => q.eq("state", state))
+        .withIndex("byState", (q) => q.eq("state", normalizedState))
         .collect();
     } else if (indicator) {
       return await query
