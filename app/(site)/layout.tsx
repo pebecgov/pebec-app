@@ -42,7 +42,8 @@ export default function RootLayout({
     pathname.startsWith("/vice_president") || 
     pathname.startsWith("/president") || 
     pathname.startsWith("/saber_agent") ||
-    pathname.startsWith("/world_bank");
+    pathname.startsWith("/world_bank") ||
+    pathname.startsWith("/dmo");
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 1500);
     return () => clearTimeout(timer);

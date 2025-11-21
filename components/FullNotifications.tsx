@@ -27,6 +27,8 @@ export default function FullNotifications() {
       case "mda":
       case "president":
       case "vice_president":
+      case "dmo":
+      case "saber_agent":
         return role;
       default:
         return "user";
@@ -56,6 +58,9 @@ export default function FullNotifications() {
                   </Link>}
                 {notification.postId && <Link href={`/posts/${notification.postId}`} className="text-blue-600 text-sm hover:underline">
                     Go to Post →
+                  </Link>}
+                {notification.dmoReportId && <Link href={`/dmo/reports`} className="text-blue-600 text-sm hover:underline">
+                    Go to DMO Reports →
                   </Link>}
               </div>
 

@@ -58,6 +58,12 @@ export default function WorldBankSidebar({
       showFor: ["world_bank", "ngf", "dmo"] // Show for all roles
     },
     {
+      name: "DMO Reports",
+      icon: "/images/saber_icon.png",
+      path: "/dmo/reports",
+      showFor: ["dmo"] // Only show for DMO
+    },
+    {
       name: "Send Letters",
       icon: "/images/saber_icon.png",
       path: "/world_bank/send-letters",

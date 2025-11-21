@@ -180,6 +180,7 @@ export default defineSchema({
     taskId: v.optional(v.id("tasks")),
     postId: v.optional(v.id("posts")),
     businessLetterId: v.optional(v.id("business_letters")),
+    dmoReportId: v.optional(v.id("dmo_reports")),
     message: v.string(),
     isRead: v.boolean(),
     eventId: v.optional(v.id("events")),
@@ -197,9 +198,13 @@ export default defineSchema({
       deadline: v.optional(v.string()),
       state: v.optional(v.string()),
       status: v.optional(v.string()),
-      reminderType: v.optional(v.string())
+      reminderType: v.optional(v.string()),
+      reportId: v.optional(v.string()),
+      submittedBy: v.optional(v.string()),
+      assessment: v.optional(v.string()),
+      assessedBy: v.optional(v.string())
     }))
-  }).index("byUser", ["userId"]).index("byType", ["type"]).index("byMeeting", ["meetingId"]).index("byTicket", ["ticketId"]).index("byTask", ["taskId"]).index("byUserAndTicket", ["userId", "ticketId"]),
+  }).index("byUser", ["userId"]).index("byType", ["type"]).index("byMeeting", ["meetingId"]).index("byTicket", ["ticketId"]).index("byTask", ["taskId"]).index("byUserAndTicket", ["userId", "ticketId"]).index("byDmoReport", ["dmoReportId"]),
   comments: defineTable({
     content: v.string(),
     postId: v.id("posts"),
@@ -732,6 +737,21 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     comments: v.optional(v.string())
   }).index("bySubmittedBy", ["submittedBy"]).index("byState", ["state"]).index("byStatus", ["status"]).index("byDate", ["submittedAt"]),
+
+  // DMO Reports - SABER agents submit DSA/DMS publication info for DMO review
+  dmo_reports: defineTable({
+    submittedBy: v.id("users"), // SABER agent who submitted
+    state: v.string(), // Inferred from SABER agent's profile
+    linkPublished: v.union(v.literal("yes"), v.literal("no")), // Whether link has been published
+    webLink: v.optional(v.string()), // The published weblink
+    publishedDate: v.optional(v.number()), // Date when link was published (timestamp)
+    dmoAssessment: v.optional(v.union(v.literal("met"), v.literal("unmet"))), // DMO's assessment
+    assessedBy: v.optional(v.id("users")), // DMO user who assessed
+    assessedAt: v.optional(v.number()), // When DMO assessed (timestamp)
+    deadline: v.number(), // Deadline timestamp (Nov 30, 2025)
+    submittedAt: v.number(), // When SABER agent submitted
+    updatedAt: v.optional(v.number())
+  }).index("bySubmittedBy", ["submittedBy"]).index("byState", ["state"]).index("byAssessment", ["dmoAssessment"]).index("byDeadline", ["deadline"]).index("byDate", ["submittedAt"]),
 
   // SABER Deadline Management Tables
   saber_deadlines: defineTable({

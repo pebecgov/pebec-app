@@ -56,6 +56,11 @@ export default function Sidebar({
     path: "/saber_agent/reports"
   },
   {
+    name: "DMO Report",
+    icon: <DocumentTextIcon className="w-5 h-5" />,
+    path: "/saber_agent/dmo-report"
+  },
+  {
     name: "Send a Letter/Files",
     icon: <EnvelopeIcon className="w-5 h-5" />,
     path: "/saber_agent/send-letters"
