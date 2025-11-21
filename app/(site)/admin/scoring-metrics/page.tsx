@@ -352,6 +352,9 @@ export default function ScoringMetricsPage() {
   // Live Dashboard query
   const liveDashboardData = useQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, { year: dashboardYear });
 
+  // Mystery Shopping Status query for Excel export
+  const mysteryShoppingStatus = useQuery(api.mda_scoring.getAllMdasMysteryShoppingStatus, { year: dashboardYear });
+
   // Detailed data query for view modal
   const detailedScoringData = useQuery(
     api.mda_scoring.getMdaDetailedScoringData,
@@ -578,6 +581,49 @@ export default function ScoringMetricsPage() {
       mdasList,
       filterType: mdaFilter
     });
+  };
+
+  // Handle Excel export for Mystery Shopping status
+  const handleExportMysteryShoppingExcel = () => {
+    if (!mysteryShoppingStatus || !Array.isArray(mysteryShoppingStatus)) {
+      toast.error("No data available to export");
+      return;
+    }
+
+    try {
+      // Prepare data for Excel
+      const excelData = mysteryShoppingStatus.map((item: any) => ({
+        "MDA Name": item.mdaName,
+        "Status": item.status,
+        "Mystery Type": item.mysteryType || "N/A",
+        "Has Mystery Shopping Data": item.hasMysteryShoppingData ? "Yes" : "No"
+      }));
+
+      // Create workbook and worksheet
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Mystery Shopping Status");
+
+      // Set column widths
+      const columnWidths = [
+        { wch: 50 }, // MDA Name
+        { wch: 30 }, // Status
+        { wch: 20 }, // Mystery Type
+        { wch: 25 }  // Has Mystery Shopping Data
+      ];
+      worksheet['!cols'] = columnWidths;
+
+      // Generate filename with current date
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `MDA_Mystery_Shopping_Status_${dashboardYear}_${dateStr}.xlsx`;
+
+      // Write file
+      XLSX.writeFile(workbook, filename);
+      toast.success("Excel file downloaded successfully!");
+    } catch (error: any) {
+      console.error("Error exporting Excel:", error);
+      toast.error("Failed to export Excel file: " + (error.message || "Unknown error"));
+    }
   };
 
   // Helper function to sanitize MDA names (same as backend)
@@ -2037,6 +2083,13 @@ export default function ScoringMetricsPage() {
                     className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     📥 Download PDF
+                  </button>
+                  <button
+                    onClick={handleExportMysteryShoppingExcel}
+                    disabled={mysteryShoppingStatus === undefined || !Array.isArray(mysteryShoppingStatus) || mysteryShoppingStatus.length === 0}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    📊 Download Mystery Shopping Excel
                   </button>
                 </div>
               </div>

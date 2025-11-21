@@ -2552,3 +2552,71 @@ export const saveToutingRentseekingData = mutation({
     return { success: true, message: "Touting & Rentseeking data saved successfully" };
   }
 });
+
+// Get all MDAs with their mystery shopping data status for Excel export
+export const getAllMdasMysteryShoppingStatus = query({
+  args: {
+    year: v.number()
+  },
+  handler: async (ctx, { year }) => {
+    const firstHalfPeriod = `1st Half ${year}`;
+    const secondHalfPeriod = `2nd Half ${year}`;
+
+    // Get all MDAs from database and from scoring history to get complete list
+    const allMdas = await ctx.db.query("mdas").collect();
+    const allScoringHistory = await ctx.db.query("mda_scoring_history").collect();
+    const uniqueMdaNamesFromHistory = [...new Set(allScoringHistory.map(s => s.mdaName))];
+
+    // Combine and deduplicate
+    const allMdaNames = [...new Set([...allMdas.map(m => m.name), ...uniqueMdaNamesFromHistory])];
+
+    // Get all mystery shopping data for both periods
+    const [mysteryFirstHalf, mysterySecondHalf] = await Promise.all([
+      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
+      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+    ]);
+    const allMysteryData = [...mysteryFirstHalf, ...mysterySecondHalf];
+
+    // Create a map of MDA name to mystery shopping data
+    const mysteryDataMap = new Map<string, { mysteryType: string; hasData: boolean }>();
+    
+    allMysteryData.forEach(data => {
+      if (!mysteryDataMap.has(data.mdaName)) {
+        mysteryDataMap.set(data.mdaName, {
+          mysteryType: data.mysteryType,
+          hasData: true
+        });
+      } else {
+        // If already exists, keep the existing entry (both halves should have same type)
+        const existing = mysteryDataMap.get(data.mdaName)!;
+        mysteryDataMap.set(data.mdaName, {
+          mysteryType: existing.mysteryType || data.mysteryType,
+          hasData: true
+        });
+      }
+    });
+
+    // Build result array with all MDAs
+    const result = allMdaNames.map(mdaName => {
+      const mysteryData = mysteryDataMap.get(mdaName);
+      
+      let status = "No Mystery Shopping Scores";
+      if (mysteryData?.hasData) {
+        if (mysteryData.mysteryType === "hasReportGov") {
+          status = "Has ReportGov";
+        } else if (mysteryData.mysteryType === "noReportGov") {
+          status = "No ReportGov";
+        }
+      }
+
+      return {
+        mdaName,
+        status,
+        mysteryType: mysteryData?.mysteryType || null,
+        hasMysteryShoppingData: mysteryData?.hasData || false
+      };
+    });
+
+    return result;
+  }
+});

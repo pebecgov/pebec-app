@@ -129,7 +129,7 @@ export default function DmoReportPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label>Has the link been published? *</Label>
+              <Label>Has the link been published on your state website? *</Label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -171,7 +171,7 @@ export default function DmoReportPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="publishedDate">Published Date *</Label>
+                  <Label htmlFor="publishedDate">Date the link was published on your state website *</Label>
                   <Input
                     id="publishedDate"
                     type="date"
