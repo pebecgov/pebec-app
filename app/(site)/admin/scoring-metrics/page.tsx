@@ -121,6 +121,20 @@ export default function ScoringMetricsPage() {
     { value: 1, label: 'Yes' }
   ];
 
+  const satisfactionOptions = [
+    { value: 0, label: '0' },
+    { value: 1, label: '1' },
+    { value: 2, label: '2' },
+    { value: 3, label: '3' },
+    { value: 4, label: '4' },
+    { value: 5, label: '5' },
+    { value: 6, label: '6' },
+    { value: 7, label: '7' },
+    { value: 8, label: '8' },
+    { value: 9, label: '9' },
+    { value: 10, label: '10' }
+  ];
+
   // Questions for different mystery shopping types
   const hasReportGovQuestions = [
     { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
@@ -159,26 +173,62 @@ export default function ScoringMetricsPage() {
   const calculateMysteryScore = () => {
     const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
 
-    let totalScore = 0;
-    let maxPossibleScore = 0;
+    // Check if satisfaction question exists in current set
+    const hasSatisfaction = questions.some(q => q.key === 'satisfaction');
 
-    questions.forEach(question => {
-      const rating = mysteryRatings[question.key] || 0;
+    if (hasSatisfaction) {
+      let otherQuestionsScore = 0;
+      let otherQuestionsMaxPossible = 0;
+      let satisfactionScore = 0;
 
-      if (question.type === 'rating') {
-        // Rating questions: scale 0-5 to 0-1 point each
-        totalScore += (rating / 5) * 1;
-        maxPossibleScore += 1;
-      } else {
-        // Yes/No questions: 1 point for Yes, 0 for No
-        totalScore += rating;
-        maxPossibleScore += 1;
-      }
-    });
+      questions.forEach(question => {
+        const rating = mysteryRatings[question.key] || 0;
 
-    // Scale to 20 points total
-    const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
-    return Math.min(scaledScore, 20); // Cap at 20
+        if (question.key === 'satisfaction') {
+          satisfactionScore = rating; // Assumes 0-10 input
+        } else {
+          if (question.type === 'rating') {
+            // Rating questions: scale 0-5 to 0-1 point each
+            otherQuestionsScore += (rating / 5) * 1;
+            otherQuestionsMaxPossible += 1;
+          } else {
+            // Yes/No questions: 1 point for Yes, 0 for No
+            otherQuestionsScore += rating;
+            otherQuestionsMaxPossible += 1;
+          }
+        }
+      });
+
+      // Scale other questions to 10 points total
+      const scaledOtherScore = otherQuestionsMaxPossible > 0 ? (otherQuestionsScore / otherQuestionsMaxPossible) * 10 : 0;
+
+      // Total score = Satisfaction (max 10) + Others (max 10) = 20
+      const finalSatisfactionScore = Math.min(satisfactionScore, 10);
+      const totalScore = finalSatisfactionScore + scaledOtherScore;
+      return Math.min(totalScore, 20);
+    } else {
+      // Fallback to old logic if satisfaction is not present
+      let totalScore = 0;
+      let maxPossibleScore = 0;
+
+      questions.forEach(question => {
+        const rating = mysteryRatings[question.key] || 0;
+
+        if (question.type === 'rating') {
+          // Rating questions: scale 0-5 to 0-1 point each
+          totalScore += (rating / 5) * 1;
+          maxPossibleScore += 1;
+        } else {
+          // Yes/No questions: 1 point for Yes, 0 for No
+          totalScore += rating;
+          maxPossibleScore += 1;
+        }
+      });
+
+      // Scale to 20 points total
+      const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
+      return Math.min(scaledScore, 20); // Cap at 20
+    }
   };
 
   // Handle mystery rating change
@@ -2489,12 +2539,12 @@ export default function ScoringMetricsPage() {
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                      selectedMetric === 'transparency' ? 'Transparency' :
-                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                            selectedMetric === 'timeliness' ? 'Timeliness' :
-                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                        selectedMetric === 'transparency' ? 'Transparency' :
+                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                              selectedMetric === 'timeliness' ? 'Timeliness' :
+                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
@@ -2636,12 +2686,12 @@ export default function ScoringMetricsPage() {
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                      selectedMetric === 'transparency' ? 'Transparency' :
-                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                            selectedMetric === 'timeliness' ? 'Timeliness' :
-                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                        selectedMetric === 'transparency' ? 'Transparency' :
+                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                              selectedMetric === 'timeliness' ? 'Timeliness' :
+                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
@@ -3380,7 +3430,7 @@ export default function ScoringMetricsPage() {
 
                             const mysteryScore = viewDetailsData.mysteryShopping?.firstHalf || viewDetailsData.mysteryShopping?.secondHalf ?
                               ((viewDetailsData.mysteryShopping?.firstHalf?.totalScore || 0) + (viewDetailsData.mysteryShopping?.secondHalf?.totalScore || 0)) / 2 : 0;
-                            
+
                             // Controversial: Handle both old and new data formats
                             let controversialScore = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf ?
                               ((viewDetailsData.controversial?.firstHalf?.score || 0) + (viewDetailsData.controversial?.secondHalf?.score || 0)) / 2 : 0;
@@ -5310,8 +5360,8 @@ export default function ScoringMetricsPage() {
                     <h3 className="font-medium text-gray-900 mb-3">
                       {index + 1}. {question.label}
                     </h3>
-                    <div className={`grid gap-2 ${question.type === 'rating' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2'}`}>
-                      {(question.type === 'rating' ? ratingOptions : yesNoOptions).map((option) => (
+                    <div className={`grid gap-2 ${question.key === 'satisfaction' ? 'grid-cols-3 md:grid-cols-6' : (question.type === 'rating' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2')}`}>
+                      {(question.key === 'satisfaction' ? satisfactionOptions : (question.type === 'rating' ? ratingOptions : yesNoOptions)).map((option) => (
                         <label key={option.value} className="flex items-center p-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer">
                           <input
                             type="radio"
@@ -5322,7 +5372,7 @@ export default function ScoringMetricsPage() {
                             className="mr-2"
                           />
                           <span className="text-sm">
-                            {question.type === 'rating' ? `${option.value} - ${option.label}` : option.label}
+                            {question.type === 'rating' && question.key !== 'satisfaction' ? `${option.value} - ${option.label}` : option.label}
                           </span>
                         </label>
                       ))}
