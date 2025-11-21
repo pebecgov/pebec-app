@@ -21,7 +21,8 @@ interface DashboardData {
   mdaName: string;
   sla?: { score: number; monthsWithData?: number };
   mysteryShopping?: { score: number };
-  controversial?: { score: number };
+  controversial?: { score: number; isControversial?: boolean };
+  toutingRentseeking?: { score: number };
   innovation?: { score: number };
   stakeholder?: { score: number };
   transparency?: { score: number; isSkipped?: boolean };
@@ -90,6 +91,7 @@ export async function generateDashboardPDF({
       'mysteryShopping': 'Mystery Shopping',
       'sla': 'Service Level Agreement',
       'controversial': 'Controversial',
+      'toutingRentseeking': 'Touting & Rentseeking',
       'innovation': 'Innovation',
       'stakeholder': 'Stakeholder Engagement',
       'transparency': 'Transparency',
@@ -123,25 +125,47 @@ export async function generateDashboardPDF({
     if (filterType === 'withData') {
       // Use filtered data directly - it's already processed and filtered
       allMdasArray = liveDashboardData.map((mda: any) => {
-        // Calculate total score for each MDA
+        // Use scores directly as they are already processed
         const slaScore = mda.sla?.score || 0;
+        const monthlyReportScore = mda.monthlyReport?.score || 0;
+        const timelinessScore = mda.timeliness?.score || 0;
+
         const mysteryScore = mda.mysteryShopping?.score || 0;
-        const controversialScore = mda.controversial?.score || 0;
         const innovationScore = mda.innovation?.score || 0;
         const stakeholderScore = mda.stakeholder?.score || 0;
         const transparencyScore = mda.transparency?.score || 0;
         const reportGovResScore = mda.reportGovResolution?.score || 0;
-        const monthlyReportScore = mda.monthlyReport?.score || 0;
-        const timelinessScore = mda.timeliness?.score || 0;
 
-        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore +
+        // Calculate base total score (all metrics except controversial and touting & rentseeking)
+        const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
           transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
+        // Controversial: Handle both old and new data formats
+        let controversialScore = mda.controversial?.score || 0;
+        if (mda.controversial) {
+          const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
+          if (isOldFormat) {
+            if (mda.controversial.isControversial) {
+              controversialScore = -5;
+            } else {
+              controversialScore = 0;
+            }
+          }
+        }
+
+        // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
+        let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
+
+        // Calculate penalties (convert negative scores to positive penalty values)
+        const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+        const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+        const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
 
         const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
         const isTransparencySkipped = mda.transparency?.isSkipped || false;
-        let maxPossiblePoints = 100;
+        let maxPossiblePoints = 90;
         if (isTransparencySkipped) {
-          maxPossiblePoints -= 10;
+          maxPossiblePoints -= 5;
         }
         if (isReportGovSkipped) {
           maxPossiblePoints -= 15;
@@ -153,6 +177,10 @@ export async function generateDashboardPDF({
 
         return {
           ...mda,
+          sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
+          monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
+          timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
+          baseTotalScore,
           totalScore,
           totalPercentage,
           isReportGovSkipped,
@@ -169,9 +197,10 @@ export async function generateDashboardPDF({
           sla: null,
           mysteryShopping: null,
           controversial: null,
+          toutingRentseeking: null,
           innovation: null,
           stakeholder: null,
-          reportGovernance: null,
+          transparency: null,
           reportGovResolution: null,
           monthlyReport: null,
           timeliness: null,
@@ -200,25 +229,48 @@ export async function generateDashboardPDF({
       });
 
       allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
+        // Use scores directly as they are already processed
         const slaScore = mda.sla?.score || 0;
+        const monthlyReportScore = mda.monthlyReport?.score || 0;
+        const timelinessScore = mda.timeliness?.score || 0;
+
         const mysteryScore = mda.mysteryShopping?.score || 0;
-        const controversialScore = mda.controversial?.score || 0;
         const innovationScore = mda.innovation?.score || 0;
         const stakeholderScore = mda.stakeholder?.score || 0;
         const transparencyScore = mda.transparency?.score || 0;
         const reportGovResScore = mda.reportGovResolution?.score || 0;
-        const monthlyReportScore = mda.monthlyReport?.score || 0;
-        const timelinessScore = mda.timeliness?.score || 0;
 
-        const totalScore = slaScore + mysteryScore + controversialScore + innovationScore + stakeholderScore +
+        // Calculate base total score (all metrics except controversial and touting & rentseeking)
+        const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
           transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
+        // Controversial: Handle both old and new data formats
+        let controversialScore = mda.controversial?.score || 0;
+        if (mda.controversial) {
+          const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
+          if (isOldFormat) {
+            if (mda.controversial.isControversial) {
+              controversialScore = -5;
+            } else {
+              controversialScore = 0;
+            }
+          }
+        }
+
+        // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
+        let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
+
+        // Calculate penalties (convert negative scores to positive penalty values)
+        const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+        const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+        const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
 
         // Check if optional metrics are skipped
         const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
         const isTransparencySkipped = mda.transparency?.isSkipped || false;
-        let maxPossiblePoints = 100;
+        let maxPossiblePoints = 90;
         if (isTransparencySkipped) {
-          maxPossiblePoints -= 10;
+          maxPossiblePoints -= 5;
         }
         if (isReportGovSkipped) {
           maxPossiblePoints -= 15;
@@ -231,6 +283,10 @@ export async function generateDashboardPDF({
 
         return {
           ...mda,
+          sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
+          monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
+          timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
+          baseTotalScore,
           totalScore,
           totalPercentage,
           isReportGovSkipped,
@@ -257,6 +313,9 @@ export async function generateDashboardPDF({
       } else if (selectedMetric === 'controversial') {
         aValue = a.controversial?.score || 0;
         bValue = b.controversial?.score || 0;
+      } else if (selectedMetric === 'toutingRentseeking') {
+        aValue = a.toutingRentseeking?.score || 0;
+        bValue = b.toutingRentseeking?.score || 0;
       } else if (selectedMetric === 'innovation') {
         aValue = a.innovation?.score || 0;
         bValue = b.innovation?.score || 0;
@@ -308,19 +367,23 @@ export async function generateDashboardPDF({
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
       } else if (selectedMetric === 'controversial') {
         score = mda.controversial?.score || 0;
-        maxScore = 10;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+        // Controversial is a penalty (-5 to 0), display as-is
+        overallPercentage = score; // Display raw penalty value
+      } else if (selectedMetric === 'toutingRentseeking') {
+        score = mda.toutingRentseeking?.score || 0;
+        // Touting & Rentseeking is a penalty (-10 to 0), display as-is
+        overallPercentage = score; // Display raw penalty value
       } else if (selectedMetric === 'innovation') {
         score = mda.innovation?.score || 0;
-        maxScore = 10;
+        maxScore = 5;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
       } else if (selectedMetric === 'stakeholder') {
         score = mda.stakeholder?.score || 0;
-        maxScore = 5;
+        maxScore = 10;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
       } else if (selectedMetric === 'transparency') {
         score = mda.transparency?.score || 0;
-        maxScore = 10;
+        maxScore = 5;
         overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
       } else if (selectedMetric === 'reportGovResolution') {
         score = mda.reportGovResolution?.score || 0;
@@ -337,28 +400,94 @@ export async function generateDashboardPDF({
       }
 
       if (selectedMetric === 'totalScore') {
+        // Handle controversial score (old and new format)
+        let controversialDisplay = '0.0';
+        if (mda.controversial) {
+          let controversialScore = mda.controversial.score || 0;
+          if (mda.controversial) {
+            const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
+            if (isOldFormat) {
+              if (mda.controversial.isControversial) {
+                controversialScore = -5;
+              } else {
+                controversialScore = 0;
+              }
+            }
+          }
+          controversialDisplay = controversialScore.toFixed(1);
+        }
+
+        // Handle touting & rentseeking score
+        const toutingRentseekingDisplay = mda.toutingRentseeking ? mda.toutingRentseeking.score.toFixed(1) : '0.0';
+
+        // Format SLA with months info if available
+        let slaDisplay = '—';
+        if (mda.sla) {
+          if (mda.sla.monthsWithData !== undefined) {
+            slaDisplay = `${mda.sla.score.toFixed(1)}/30\n${mda.sla.monthsWithData}/10 months`;
+          } else {
+            slaDisplay = `${mda.sla.score.toFixed(1)}/30`;
+          }
+        }
+
+        // Format Monthly Report with months info if available
+        let monthlyReportDisplay = '—';
+        if (mda.monthlyReport) {
+          if (mda.monthlyReport.monthsWithData !== undefined) {
+            monthlyReportDisplay = `${mda.monthlyReport.score.toFixed(1)}/3\n${mda.monthlyReport.monthsWithData}/10 months`;
+          } else {
+            monthlyReportDisplay = `${mda.monthlyReport.score.toFixed(1)}/3`;
+          }
+        }
+
+        // Format Timeliness with months info if available
+        let timelinessDisplay = '—';
+        if (mda.timeliness) {
+          if (mda.timeliness.monthsWithData !== undefined) {
+            timelinessDisplay = `${mda.timeliness.score.toFixed(1)}/2\n${mda.timeliness.monthsWithData}/10 months`;
+          } else {
+            timelinessDisplay = `${mda.timeliness.score.toFixed(1)}/2`;
+          }
+        }
+
+        // Format Report Gov Resolution
+        let reportGovDisplay = '—';
+        if (mda.reportGovResolution) {
+          if (mda.reportGovResolution.isSkipped) {
+            reportGovDisplay = '0/15\n(Skipped)';
+          } else {
+            reportGovDisplay = `${mda.reportGovResolution.score.toFixed(1)}/15`;
+          }
+        }
+
         tableData.push([
           `#${rank}`,
           mda.mdaName,
-          mda.sla ? `${mda.sla.score.toFixed(1)}/30` : '—',
+          slaDisplay,
           mda.mysteryShopping ? `${mda.mysteryShopping.score.toFixed(1)}/20` : '—',
-          mda.controversial ? `${mda.controversial.score.toFixed(1)}/10` : '—',
-          mda.innovation ? `${mda.innovation.score.toFixed(1)}/10` : '—',
-          mda.stakeholder ? `${mda.stakeholder.score.toFixed(1)}/5` : '—',
-          mda.transparency ? `${mda.transparency.score.toFixed(1)}/10` : '—',
-          mda.reportGovResolution ? (mda.reportGovResolution.isSkipped ? '0/15 (Skipped)' : `${mda.reportGovResolution.score.toFixed(1)}/15`) : '—',
-          mda.monthlyReport ? `${mda.monthlyReport.score.toFixed(1)}/3` : '—',
-          mda.timeliness ? `${mda.timeliness.score.toFixed(1)}/2` : '—',
-          mda.isReportGovSkipped
-            ? `${mda.totalPercentage.toFixed(1)}/100 Using 85%`
-            : `${mda.totalScore.toFixed(1)}/100 (${mda.totalPercentage.toFixed(1)}%)`
+          mda.innovation ? `${mda.innovation.score.toFixed(1)}/5` : '—',
+          mda.stakeholder ? `${mda.stakeholder.score.toFixed(1)}/10` : '—',
+          mda.transparency ? `${mda.transparency.score.toFixed(1)}/5` : '—',
+          reportGovDisplay,
+          monthlyReportDisplay,
+          timelinessDisplay,
+          mda.baseTotalScore ? `${mda.baseTotalScore.toFixed(1)}/${mda.maxPossiblePoints}` : `${mda.totalScore.toFixed(1)}/${mda.maxPossiblePoints}`,
+          controversialDisplay,
+          toutingRentseekingDisplay,
+          `${mda.totalScore.toFixed(1)}\n(${mda.totalPercentage.toFixed(1)}%)`
         ]);
       } else {
-        const displayValue = score > 0
-          ? (mda.isReportGovSkipped
-            ? `${overallPercentage.toFixed(1)}/100 Using 85%`
-            : `${overallPercentage.toFixed(1)}%`)
-          : '—';
+        let displayValue: string;
+        if (selectedMetric === 'controversial' || selectedMetric === 'toutingRentseeking') {
+          // For penalties, show raw score value
+          displayValue = score !== 0 ? score.toFixed(1) : '0.0';
+        } else {
+          displayValue = score > 0
+            ? (mda.isReportGovSkipped
+              ? `${overallPercentage.toFixed(1)}% (max: ${mda.maxPossiblePoints})`
+              : `${overallPercentage.toFixed(1)}%`)
+            : '—';
+        }
         tableData.push([
           `#${rank}`,
           mda.mdaName,
@@ -371,7 +500,7 @@ export async function generateDashboardPDF({
     if (selectedMetric === 'totalScore') {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Rank', 'MDA Name', 'SLA', 'Mystery Shopping', 'Controversial', 'Innovation', 'Stakeholder', 'Transparency', 'Report Gov Resolution', 'Monthly Report', 'Timeliness', 'Total Score']],
+        head: [['Rank', 'MDA Name', 'Efficiency', 'Mystery Shopping', 'Innovation', 'Stakeholder', 'Transparency', 'Report Gov Resolution', 'Report Submission', 'Timeliness', 'Total Score', 'Controversial', 'Touting & Rentseeking', 'Final Score']],
         body: tableData,
         headStyles: {
           fillColor: [41, 128, 185],
