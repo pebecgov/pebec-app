@@ -25,6 +25,8 @@ const clerkUserId = user?.id;
       case "mda":
       case "president":
       case "vice_president":
+      case "dmo":
+      case "saber_agent":
         return role;
       default:
         return "user";
@@ -84,6 +86,12 @@ const clerkUserId = user?.id;
           {notification.postId && <Link href={`/posts/${notification.postId}`} passHref>
               <Button variant="link" className="text-blue-600 text-xs hover:underline">
                 Go to Post →
+              </Button>
+            </Link>}
+
+          {notification.dmoReportId && <Link href={`/dmo/reports`} passHref>
+              <Button variant="link" className="text-blue-600 text-xs hover:underline">
+                Go to DMO Reports →
               </Button>
             </Link>}
         </div>

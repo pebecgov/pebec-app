@@ -17,6 +17,7 @@ const isPresidentRoute = createRouteMatcher(["/president(.*)"]);
 const isVicePresidentRoute = createRouteMatcher(["/vice_president(.*)"]);
 const issaberAgent = createRouteMatcher(["/saber_agent(.*)"]);
 const isWorldBankRoute = createRouteMatcher(["/world_bank(.*)"]);
+const isDmoRoute = createRouteMatcher(["/dmo(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
  const session = await auth();
@@ -50,8 +51,8 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // World Bank, NGF, and DMO roles: restrict to /world_bank only
-  if ((role === "world_bank" || role === "ngf" || role === "dmo") && !isWorldBankRoute(req)) {
+  // World Bank, NGF, and DMO roles: restrict to /world_bank and /dmo routes
+  if ((role === "world_bank" || role === "ngf" || role === "dmo") && !isWorldBankRoute(req) && !isDmoRoute(req)) {
     return NextResponse.redirect(new URL("/world_bank", req.url));
   }
   
