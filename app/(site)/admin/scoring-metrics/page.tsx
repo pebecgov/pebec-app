@@ -641,13 +641,31 @@ export default function ScoringMetricsPage() {
     }
 
     try {
-      // Prepare data for Excel
-      const excelData = mysteryShoppingStatus.map((item: any) => ({
-        "MDA Name": item.mdaName,
-        "Status": item.status,
-        "Mystery Type": item.mysteryType || "N/A",
-        "Has Mystery Shopping Data": item.hasMysteryShoppingData ? "Yes" : "No"
-      }));
+      // Merge with mdasList to ensure all 70 MDAs are included (same approach as dashboard)
+      const excelData = mdasList.map((mda) => {
+        // Find matching status data from query results
+        // First try exact match
+        let matchedStatus = mysteryShoppingStatus.find((item: any) => {
+          const matchingName = findMatchingMdaName(item.mdaName);
+          return matchingName === mda.name || item.mdaName === mda.name;
+        });
+
+        // If not found, try normalized matching
+        if (!matchedStatus) {
+          const normalizedMdaName = normalizeMdaName(mda.name);
+          matchedStatus = mysteryShoppingStatus.find((item: any) => {
+            const backendName = findMatchingMdaName(item.mdaName) || item.mdaName;
+            return normalizeMdaName(backendName) === normalizedMdaName;
+          });
+        }
+
+        return {
+          "MDA Name": mda.name,
+          "Status": matchedStatus?.status || "No Mystery Shopping Scores",
+          "Mystery Type": matchedStatus?.mysteryType || "N/A",
+          "Has Mystery Shopping Data": matchedStatus?.hasMysteryShoppingData ? "Yes" : "No"
+        };
+      });
 
       // Create workbook and worksheet
       const worksheet = XLSX.utils.json_to_sheet(excelData);

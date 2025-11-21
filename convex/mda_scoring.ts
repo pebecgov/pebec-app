@@ -2553,6 +2553,19 @@ export const saveToutingRentseekingData = mutation({
   }
 });
 
+// Helper function to normalize MDA names for matching (handles abbreviation prefixes)
+function normalizeMdaNameForMatching(mdaName: string): string {
+  if (!mdaName) return '';
+  // Remove abbreviation prefix (e.g., "BPP - Bureau for Public Procurement" -> "Bureau for Public Procurement")
+  const withoutPrefix = mdaName.replace(/^[A-Z]+ - /, '').trim();
+  // Normalize: lowercase, remove extra spaces, normalize dashes
+  return withoutPrefix
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[–—]/g, '-')
+    .trim();
+}
+
 // Get all MDAs with their mystery shopping data status for Excel export
 export const getAllMdasMysteryShoppingStatus = query({
   args: {
@@ -2567,7 +2580,7 @@ export const getAllMdasMysteryShoppingStatus = query({
     const allScoringHistory = await ctx.db.query("mda_scoring_history").collect();
     const uniqueMdaNamesFromHistory = [...new Set(allScoringHistory.map(s => s.mdaName))];
 
-    // Combine and deduplicate
+    // Combine and deduplicate - use the actual names as stored
     const allMdaNames = [...new Set([...allMdas.map(m => m.name), ...uniqueMdaNamesFromHistory])];
 
     // Get all mystery shopping data for both periods
@@ -2577,19 +2590,23 @@ export const getAllMdasMysteryShoppingStatus = query({
     ]);
     const allMysteryData = [...mysteryFirstHalf, ...mysterySecondHalf];
 
-    // Create a map of MDA name to mystery shopping data
-    const mysteryDataMap = new Map<string, { mysteryType: string; hasData: boolean }>();
+    // Create a map using normalized names as keys, but store the original name and data
+    // This allows us to match MDAs even if one has an abbreviation prefix and the other doesn't
+    const mysteryDataMap = new Map<string, { originalName: string; mysteryType: string; hasData: boolean }>();
     
     allMysteryData.forEach(data => {
-      if (!mysteryDataMap.has(data.mdaName)) {
-        mysteryDataMap.set(data.mdaName, {
+      const normalizedKey = normalizeMdaNameForMatching(data.mdaName);
+      if (!mysteryDataMap.has(normalizedKey)) {
+        mysteryDataMap.set(normalizedKey, {
+          originalName: data.mdaName,
           mysteryType: data.mysteryType,
           hasData: true
         });
       } else {
         // If already exists, keep the existing entry (both halves should have same type)
-        const existing = mysteryDataMap.get(data.mdaName)!;
-        mysteryDataMap.set(data.mdaName, {
+        const existing = mysteryDataMap.get(normalizedKey)!;
+        mysteryDataMap.set(normalizedKey, {
+          originalName: existing.originalName || data.mdaName,
           mysteryType: existing.mysteryType || data.mysteryType,
           hasData: true
         });
@@ -2598,7 +2615,8 @@ export const getAllMdasMysteryShoppingStatus = query({
 
     // Build result array with all MDAs
     const result = allMdaNames.map(mdaName => {
-      const mysteryData = mysteryDataMap.get(mdaName);
+      const normalizedKey = normalizeMdaNameForMatching(mdaName);
+      const mysteryData = mysteryDataMap.get(normalizedKey);
       
       let status = "No Mystery Shopping Scores";
       if (mysteryData?.hasData) {
