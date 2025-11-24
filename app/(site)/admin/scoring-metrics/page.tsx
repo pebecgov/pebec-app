@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
@@ -8,11 +8,35 @@ import { useUserRole } from "@/lib/useUserRole";
 import { useRouter } from "next/navigation";
 import { mdasList } from "@/components/mdaList";
 import { FormControl, InputLabel, MenuItem, Select } from "@mui/material";
-import * as XLSX from 'xlsx';
 import { toast } from "sonner";
 import ScoringMetricsDashboard from "@/components/Admin/ScoringMetricsDashboard";
 import { generateMdaScoringPDF } from "@/lib/pdfGenerator";
 import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
+import { indicators } from "@/convex/config/indicators";
+import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
+import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
+
+const stateIndicatorMaxScores: Record<string, number> = Object.fromEntries(
+  Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
+    const maxScoreForIndicator = Object.values(indicatorConfig.subIndicators).reduce(
+      (sum, subIndicator: any) => {
+        const options = (subIndicator.options as Array<{ score: number }>) || [];
+        const maxOptionScore = options.reduce(
+          (max, option) => Math.max(max, option.score ?? 0),
+          0
+        );
+        return sum + maxOptionScore;
+      },
+      0
+    );
+    return [indicatorKey, maxScoreForIndicator];
+  })
+);
+
+const STATE_OVERALL_MAX_SCORE = Object.values(stateIndicatorMaxScores).reduce(
+  (sum, value) => sum + value,
+  0
+);
 
 // Result Table Component
 const ResultTable = ({ results, overallPercentage }: { results: any[], overallPercentage: number | null }) => {
@@ -402,8 +426,8 @@ export default function ScoringMetricsPage() {
   // Live Dashboard query
   const liveDashboardData = useQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, { year: dashboardYear });
 
-  // Mystery Shopping Status query for Excel export
-  const mysteryShoppingStatus = useQuery(api.mda_scoring.getAllMdasMysteryShoppingStatus, { year: dashboardYear });
+  // State scores (used for regional average PDF)
+  const stateScores = useQuery(api.saveStateScore.getStateScores, {});
 
   // Detailed data query for view modal
   const detailedScoringData = useQuery(
@@ -425,6 +449,86 @@ export default function ScoringMetricsPage() {
       setIsLoadingDetails(false);
     }
   }, [detailedScoringData, viewDetailsMda]);
+
+  const regionalAverages = useMemo<RegionalAverageRow[] | null>(() => {
+    if (stateScores === undefined) {
+      return null;
+    }
+
+    const stateTotals: Record<string, number> = {};
+    if (Array.isArray(stateScores)) {
+      stateScores.forEach((entry: any) => {
+        if (!entry?.state) return;
+        const normalizedState = entry.state;
+        stateTotals[normalizedState] = (stateTotals[normalizedState] ?? 0) + (entry.score || 0);
+      });
+    }
+
+    const regionBuckets: Record<
+      string,
+      { states: string[]; totalScore: number; statesWithData: number }
+    > = {};
+    geopoliticalRegions.forEach((region) => {
+      regionBuckets[region] = { states: [], totalScore: 0, statesWithData: 0 };
+    });
+
+    Object.entries(stateRegions).forEach(([state, region]) => {
+      if (!regionBuckets[region]) {
+        regionBuckets[region] = { states: [], totalScore: 0, statesWithData: 0 };
+      }
+      const bucket = regionBuckets[region];
+      bucket.states.push(state);
+      const hasRecord = Object.prototype.hasOwnProperty.call(stateTotals, state);
+      const stateScore = hasRecord ? stateTotals[state] : 0;
+      bucket.totalScore += stateScore;
+      if (hasRecord) {
+        bucket.statesWithData += 1;
+      }
+    });
+
+    const results: RegionalAverageRow[] = geopoliticalRegions
+      .map((region) => {
+        const bucket = regionBuckets[region];
+        if (!bucket) return null;
+        const totalStates = bucket.states.length;
+        const averageScore = totalStates > 0 ? bucket.totalScore / totalStates : 0;
+        const averagePercentage =
+          STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
+
+        return {
+          region,
+          averageScore,
+          averagePercentage,
+          states: bucket.states,
+          statesWithData: bucket.statesWithData,
+          totalScore: bucket.totalScore,
+        };
+      })
+      .filter((row): row is RegionalAverageRow => Boolean(row));
+
+    // Capture any states present in data but not mapped (should be none, but keeps the report complete)
+    if (Array.isArray(stateScores)) {
+      const unmappedStates = Object.keys(stateTotals).filter((state) => !stateRegions[state]);
+      if (unmappedStates.length > 0) {
+        const totalScore = unmappedStates.reduce(
+          (sum, state) => sum + (stateTotals[state] || 0),
+          0
+        );
+        const averageScore = totalScore / unmappedStates.length;
+        results.push({
+          region: "Unassigned",
+          averageScore,
+          averagePercentage:
+            STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0,
+          states: unmappedStates,
+          statesWithData: unmappedStates.length,
+          totalScore,
+        });
+      }
+    }
+
+    return results;
+  }, [stateScores]);
 
   // Helper function to process and filter MDA data for dashboard
   const processDashboardMdaData = (filter: 'all' | 'withData' = 'all') => {
@@ -633,65 +737,17 @@ export default function ScoringMetricsPage() {
     });
   };
 
-  // Handle Excel export for Mystery Shopping status
-  const handleExportMysteryShoppingExcel = () => {
-    if (!mysteryShoppingStatus || !Array.isArray(mysteryShoppingStatus)) {
-      toast.error("No data available to export");
+  const handleGenerateRegionalAveragesPDF = async () => {
+    if (!regionalAverages) {
+      toast.error("Regional data is still loading");
       return;
     }
 
-    try {
-      // Merge with mdasList to ensure all 70 MDAs are included (same approach as dashboard)
-      const excelData = mdasList.map((mda) => {
-        // Find matching status data from query results
-        // First try exact match
-        let matchedStatus = mysteryShoppingStatus.find((item: any) => {
-          const matchingName = findMatchingMdaName(item.mdaName);
-          return matchingName === mda.name || item.mdaName === mda.name;
-        });
-
-        // If not found, try normalized matching
-        if (!matchedStatus) {
-          const normalizedMdaName = normalizeMdaName(mda.name);
-          matchedStatus = mysteryShoppingStatus.find((item: any) => {
-            const backendName = findMatchingMdaName(item.mdaName) || item.mdaName;
-            return normalizeMdaName(backendName) === normalizedMdaName;
-          });
-        }
-
-        return {
-          "MDA Name": mda.name,
-          "Status": matchedStatus?.status || "No Mystery Shopping Scores",
-          "Mystery Type": matchedStatus?.mysteryType || "N/A",
-          "Has Mystery Shopping Data": matchedStatus?.hasMysteryShoppingData ? "Yes" : "No"
-        };
-      });
-
-      // Create workbook and worksheet
-      const worksheet = XLSX.utils.json_to_sheet(excelData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Mystery Shopping Status");
-
-      // Set column widths
-      const columnWidths = [
-        { wch: 50 }, // MDA Name
-        { wch: 30 }, // Status
-        { wch: 20 }, // Mystery Type
-        { wch: 25 }  // Has Mystery Shopping Data
-      ];
-      worksheet['!cols'] = columnWidths;
-
-      // Generate filename with current date
-      const dateStr = new Date().toISOString().split('T')[0];
-      const filename = `MDA_Mystery_Shopping_Status_${dashboardYear}_${dateStr}.xlsx`;
-
-      // Write file
-      XLSX.writeFile(workbook, filename);
-      toast.success("Excel file downloaded successfully!");
-    } catch (error: any) {
-      console.error("Error exporting Excel:", error);
-      toast.error("Failed to export Excel file: " + (error.message || "Unknown error"));
-    }
+    await generateRegionalAveragesPDF({
+      data: regionalAverages,
+      year: dashboardYear,
+      overallMaxScore: STATE_OVERALL_MAX_SCORE
+    });
   };
 
   // Helper function to sanitize MDA names (same as backend)
@@ -2153,11 +2209,11 @@ export default function ScoringMetricsPage() {
                     📥 Download PDF
                   </button>
                   <button
-                    onClick={handleExportMysteryShoppingExcel}
-                    disabled={mysteryShoppingStatus === undefined || !Array.isArray(mysteryShoppingStatus) || mysteryShoppingStatus.length === 0}
+                    onClick={handleGenerateRegionalAveragesPDF}
+                    disabled={!regionalAverages}
                     className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    📊 Download Mystery Shopping Excel
+                    🗺️ Regional Averages PDF
                   </button>
                 </div>
               </div>
