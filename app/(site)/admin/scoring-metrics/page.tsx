@@ -38,6 +38,41 @@ const STATE_OVERALL_MAX_SCORE = Object.values(stateIndicatorMaxScores).reduce(
   0
 );
 
+const STATE_ALIAS_MAP: Record<string, string> = {
+  FCT: "Federal Capital Territory",
+  "FEDERAL CAPITAL TERRITORY": "Federal Capital Territory",
+  ABUJA: "Federal Capital Territory",
+};
+
+const INVALID_STATE_LABELS = new Set([
+  "DATA SOURCES",
+  "DATA SOURCE",
+  "SOURCES",
+  "SOURCE",
+  "N/A",
+  "NOT APPLICABLE",
+]);
+
+const normalizeStateLabel = (raw?: string): string | null => {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const normalizedWhitespace = trimmed.replace(/\s+/g, " ");
+  const upper = normalizedWhitespace.toUpperCase();
+
+  if (INVALID_STATE_LABELS.has(upper)) {
+    return null;
+  }
+
+  if (STATE_ALIAS_MAP[upper]) {
+    return STATE_ALIAS_MAP[upper];
+  }
+
+  const lower = normalizedWhitespace.toLowerCase();
+  return lower.replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 // Result Table Component
 const ResultTable = ({ results, overallPercentage }: { results: any[], overallPercentage: number | null }) => {
   if (!results || results.length === 0) return null;
@@ -408,8 +443,8 @@ export default function ScoringMetricsPage() {
     const stateTotals: Record<string, number> = {};
     if (Array.isArray(stateScores)) {
       stateScores.forEach((entry: any) => {
-        if (!entry?.state) return;
-        const normalizedState = entry.state;
+        const normalizedState = normalizeStateLabel(entry?.state);
+        if (!normalizedState) return;
         stateTotals[normalizedState] = (stateTotals[normalizedState] ?? 0) + (entry.score || 0);
       });
     }
@@ -457,26 +492,6 @@ export default function ScoringMetricsPage() {
       .filter((row): row is RegionalAverageRow => Boolean(row));
 
     // Capture any states present in data but not mapped (should be none, but keeps the report complete)
-    if (Array.isArray(stateScores)) {
-      const unmappedStates = Object.keys(stateTotals).filter((state) => !stateRegions[state]);
-      if (unmappedStates.length > 0) {
-        const totalScore = unmappedStates.reduce(
-          (sum, state) => sum + (stateTotals[state] || 0),
-          0
-        );
-        const averageScore = totalScore / unmappedStates.length;
-        results.push({
-          region: "Unassigned",
-          averageScore,
-          averagePercentage:
-            STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0,
-          states: unmappedStates,
-          statesWithData: unmappedStates.length,
-          totalScore,
-        });
-      }
-    }
-
     return results;
   }, [stateScores]);
 
