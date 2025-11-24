@@ -38,11 +38,24 @@ const STATE_OVERALL_MAX_SCORE = Object.values(stateIndicatorMaxScores).reduce(
   0
 );
 
-const STATE_ALIAS_MAP: Record<string, string> = {
+const STATE_ALIAS_OVERRIDES: Record<string, string> = {
   FCT: "Federal Capital Territory",
   "FEDERAL CAPITAL TERRITORY": "Federal Capital Territory",
   ABUJA: "Federal Capital Territory",
+  "F.C.T": "Federal Capital Territory",
 };
+
+const STATE_ALIAS_MAP: Record<string, string> = (() => {
+  const map: Record<string, string> = { ...STATE_ALIAS_OVERRIDES };
+  Object.keys(stateRegions).forEach((state) => {
+    const upper = state.toUpperCase();
+    map[upper] = state;
+    map[`${upper} STATE`] = state;
+    map[upper.replace(/\s+/g, "")] = state;
+    map[upper.replace(/\s+/g, "-")] = state;
+  });
+  return map;
+})();
 
 const INVALID_STATE_LABELS = new Set([
   "DATA SOURCES",
@@ -55,10 +68,15 @@ const INVALID_STATE_LABELS = new Set([
 
 const normalizeStateLabel = (raw?: string): string | null => {
   if (!raw) return null;
-  const trimmed = raw.trim();
+  const trimmed = raw.replace(/[–—]/g, "-").trim();
   if (!trimmed) return null;
 
-  const normalizedWhitespace = trimmed.replace(/\s+/g, " ");
+  const normalizedWhitespace = trimmed
+    .replace(/\bstate of\s+/i, "")
+    .replace(/\bthe state of\s+/i, "")
+    .replace(/\bstate\b$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
   const upper = normalizedWhitespace.toUpperCase();
 
   if (INVALID_STATE_LABELS.has(upper)) {
@@ -70,7 +88,8 @@ const normalizeStateLabel = (raw?: string): string | null => {
   }
 
   const lower = normalizedWhitespace.toLowerCase();
-  return lower.replace(/\b\w/g, (char) => char.toUpperCase());
+  const titleCased = lower.replace(/\b\w/g, (char) => char.toUpperCase());
+  return stateRegions[titleCased] ? titleCased : null;
 };
 
 // Result Table Component
