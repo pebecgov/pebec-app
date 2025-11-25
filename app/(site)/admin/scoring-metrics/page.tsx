@@ -518,34 +518,35 @@ export default function ScoringMetricsPage() {
       });
     }
 
-    const regionBuckets: Record<
-      string,
-      { states: string[]; totalScore: number; statesWithData: number }
-    > = {};
+    const regionBuckets: Record<string, { statesDetailed: RegionalAverageRow["statesDetailed"] }> =
+      {};
     geopoliticalRegions.forEach((region) => {
-      regionBuckets[region] = { states: [], totalScore: 0, statesWithData: 0 };
+      regionBuckets[region] = { statesDetailed: [] };
     });
 
     Object.entries(stateRegions).forEach(([state, region]) => {
       if (!regionBuckets[region]) {
-        regionBuckets[region] = { states: [], totalScore: 0, statesWithData: 0 };
+        regionBuckets[region] = { statesDetailed: [] };
       }
-      const bucket = regionBuckets[region];
-      bucket.states.push(state);
       const hasRecord = Object.prototype.hasOwnProperty.call(stateTotals, state);
       const stateScore = hasRecord ? stateTotals[state] : 0;
-      bucket.totalScore += stateScore;
-      if (hasRecord) {
-        bucket.statesWithData += 1;
-      }
+      const statePercentage =
+        STATE_OVERALL_MAX_SCORE > 0 ? (stateScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
+      regionBuckets[region].statesDetailed.push({
+        state,
+        score: stateScore,
+        percentage: statePercentage,
+        hasData: hasRecord,
+      });
     });
 
     const results: RegionalAverageRow[] = geopoliticalRegions
       .map((region) => {
         const bucket = regionBuckets[region];
         if (!bucket) return null;
-        const totalStates = bucket.states.length;
-        const averageScore = totalStates > 0 ? bucket.totalScore / totalStates : 0;
+        const totalStates = bucket.statesDetailed.length;
+        const totalScore = bucket.statesDetailed.reduce((sum, state) => sum + state.score, 0);
+        const averageScore = totalStates > 0 ? totalScore / totalStates : 0;
         const averagePercentage =
           STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
 
@@ -553,9 +554,8 @@ export default function ScoringMetricsPage() {
           region,
           averageScore,
           averagePercentage,
-          states: bucket.states,
-          statesWithData: bucket.statesWithData,
-          totalScore: bucket.totalScore,
+          totalScore,
+          statesDetailed: bucket.statesDetailed,
         };
       })
       .filter((row): row is RegionalAverageRow => Boolean(row));
