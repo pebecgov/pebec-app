@@ -760,39 +760,29 @@ export default function ScoringMetricsPage() {
     return allMdasArray;
   };
 
-  // Handle dashboard PDF generation
+  // Handle dashboard PDF generation - use existing table data with simple filtering
   const handleGenerateDashboardPDF = async () => {
     if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
       return;
     }
 
-    // Process and filter data based on current filters
-    const processedData = processDashboardMdaData(mdaFilter, rankingView);
+    // Use the same data that's displayed in the table
+    let tableData = processDashboardMdaData(mdaFilter, 'all'); // Get all data first
 
-    // Convert to the format expected by the new PDF generator
-    const pdfData = processedData.map((mda: any) => ({
-      mdaName: mda.mdaName,
-      totalScore: mda.totalScore || 0,
-      totalPercentage: mda.totalPercentage || 0,
-      grade: mda.grade || "F",
-      status: mda.status || "Non-Compliant",
-      sla: mda.sla,
-      mysteryShopping: mda.mysteryShopping,
-      controversial: mda.controversial,
-      innovation: mda.innovation,
-      stakeholder: mda.stakeholder,
-      transparency: mda.transparency,
-      reportGovResolution: mda.reportGovResolution,
-      monthlyReport: mda.monthlyReport,
-      timeliness: mda.timeliness,
-      maxPossiblePoints: mda.maxPossiblePoints || 90
-    }));
+    // Apply ministry filter to match the current ranking view
+    if (rankingView === 'without-ministries') {
+      tableData = tableData.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingView === 'ministries-only') {
+      tableData = tableData.filter((mda: any) => isMinistry(mda.mdaName));
+    }
 
-    await generateRankingPDF({
-      data: pdfData,
-      year: dashboardYear,
-      rankingType: rankingView,
-      selectedMetric
+    // Use the original dashboard PDF generator with filtered data
+    await generateDashboardPDF({
+      liveDashboardData: tableData,
+      selectedMetric,
+      dashboardYear,
+      mdasList,
+      filterType: mdaFilter
     });
   };
 
@@ -872,6 +862,7 @@ export default function ScoringMetricsPage() {
 
       const finalMda = {
         ...processedMda,
+        baseTotalScore,
         totalScore,
         totalPercentage,
         grade: totalPercentage >= 90 ? "A" : totalPercentage >= 80 ? "B" : totalPercentage >= 70 ? "C" : totalPercentage >= 60 ? "D" : "F",
