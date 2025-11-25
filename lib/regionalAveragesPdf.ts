@@ -6,9 +6,13 @@ export interface RegionalAverageRow {
   region: string;
   averageScore: number;
   averagePercentage: number;
-  states: string[];
-  statesWithData: number;
   totalScore: number;
+  statesDetailed: Array<{
+    state: string;
+    score: number;
+    percentage: number;
+    hasData: boolean;
+  }>;
 }
 
 interface GenerateRegionalAveragesPDFParams {
@@ -35,6 +39,7 @@ export async function generateRegionalAveragesPDF({
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     let currentY = 25;
 
     // Header
@@ -76,39 +81,107 @@ export async function generateRegionalAveragesPDF({
     currentY += 8;
 
     // Build table
-    const tableRows = data.map((row) => [
-      row.region,
-      `${row.averageScore.toFixed(1)} / ${overallMaxScore.toFixed(1)}`,
-      `${row.averagePercentage.toFixed(1)}%`,
-      `${row.statesWithData}/${row.states.length}`,
-      row.states.join(", "),
-    ]);
+    const tableRows = data.map((row) => {
+      const statesWithData = row.statesDetailed.filter((s) => s.hasData).length;
+      const statesList = row.statesDetailed
+        .map((state) => `${state.state}: ${state.score.toFixed(1)} pts`)
+        .join("\n");
+      return [
+        row.region,
+        `${row.totalScore.toFixed(1)} ÷ ${row.statesDetailed.length}`,
+        `${row.averageScore.toFixed(1)} / ${overallMaxScore.toFixed(1)}`,
+        `${row.averagePercentage.toFixed(1)}%`,
+        `${statesWithData}/${row.statesDetailed.length}`,
+        statesList,
+      ];
+    });
 
     autoTable(doc, {
-      head: [["Region", "Avg Score", "Avg Percentage", "States w/ Data", "States Covered"]],
+      head: [
+        ["Region", "Σ Score ÷ States", "Avg Score", "Avg Percentage", "States w/ Data", "State Scores (pts)"],
+      ],
       body: tableRows,
       startY: currentY,
       styles: { fontSize: 9, cellPadding: 2 },
       headStyles: { fillColor: [15, 76, 129], halign: "center" },
       columnStyles: {
-        0: { cellWidth: 32 },
-        1: { cellWidth: 30 },
-        2: { cellWidth: 30 },
-        3: { cellWidth: 32, halign: "center" },
-        4: { cellWidth: 70 },
+        0: { cellWidth: 30 },
+        1: { cellWidth: 32, halign: "center" },
+        2: { cellWidth: 30, halign: "center" },
+        3: { cellWidth: 28, halign: "center" },
+        4: { cellWidth: 28, halign: "center" },
+        5: { cellWidth: 50 },
       },
     });
 
-    const finalY = (doc as any).lastAutoTable?.finalY || currentY;
+    let detailY = (doc as any).lastAutoTable?.finalY || currentY;
+    detailY += 12;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("Per-Region Breakdown", pageWidth / 2, detailY, { align: "center" });
+    detailY += 6;
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "italic");
     doc.text(
-      "*States without submitted scores count as zero in the regional average. 'States w/ Data' shows how many states currently have records.",
+      "Average = Sum of state scores ÷ number of states in the region. States without data count as 0.",
       pageWidth / 2,
-      finalY + 8,
+      detailY,
       { align: "center" },
     );
+    detailY += 10;
+
+    data.forEach((row, index) => {
+      if (detailY > pageHeight - 20 || index === 0) {
+        if (detailY > pageHeight - 20) {
+          doc.addPage();
+          detailY = 20;
+        }
+      }
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${row.region}`, pageWidth / 2, detailY, { align: "center" });
+      detailY += 5;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Average = ${row.totalScore.toFixed(1)} ÷ ${row.statesDetailed.length} = ${row.averageScore.toFixed(
+          2,
+        )} pts (${row.averagePercentage.toFixed(1)}%)`,
+        pageWidth / 2,
+        detailY,
+        { align: "center" },
+      );
+      detailY += 6;
+
+      autoTable(doc, {
+        head: [["State", "Score (pts)", "Percentage", "Has Data?"]],
+        body: row.statesDetailed.map((state) => [
+          state.state,
+          state.score.toFixed(1),
+          `${state.percentage.toFixed(1)}%`,
+          state.hasData ? "Yes" : "No (counts as 0)",
+        ]),
+        startY: detailY,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], halign: "center" },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 30, halign: "center" },
+          2: { cellWidth: 30, halign: "center" },
+          3: { cellWidth: 50, halign: "center" },
+        },
+      });
+
+      detailY = (doc as any).lastAutoTable.finalY + 10;
+      if (detailY > pageHeight - 20 && index !== data.length - 1) {
+        doc.addPage();
+        detailY = 20;
+      }
+    });
 
     doc.save(`Regional_Averages_${year}.pdf`);
     toast.success("Regional averages PDF downloaded");
