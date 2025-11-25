@@ -507,64 +507,76 @@ export default function ScoringMetricsPage() {
     }
   }, [detailedScoringData, viewDetailsMda]);
 
-  const regionalAverages = useMemo<RegionalAverageRow[] | null>(() => {
+  // Regional averages using useState and useEffect
+  const [regionalAverages, setRegionalAverages] = useState<RegionalAverageRow[] | null>(null);
+
+  useEffect(() => {
     if (stateScores === undefined) {
-      return null;
+      setRegionalAverages(null);
+      return;
     }
 
     const stateTotals: Record<string, number> = {};
     if (Array.isArray(stateScores)) {
-      stateScores.forEach((entry: any) => {
+      for (let i = 0; i < stateScores.length; i++) {
+        const entry = stateScores[i];
         const normalizedState = normalizeStateLabel(entry?.state);
-        if (!normalizedState) return;
+        if (!normalizedState) continue;
         stateTotals[normalizedState] = (stateTotals[normalizedState] ?? 0) + (entry.score || 0);
-      });
+      }
     }
 
-    const regionBuckets: Record<string, { statesDetailed: RegionalAverageRow["statesDetailed"] }> =
-      {};
-    geopoliticalRegions.forEach((region) => {
+    const regionBuckets: Record<string, { statesDetailed: RegionalAverageRow["statesDetailed"] }> = {};
+    
+    // Initialize region buckets
+    for (let i = 0; i < geopoliticalRegions.length; i++) {
+      const region = geopoliticalRegions[i];
       regionBuckets[region] = { statesDetailed: [] };
-    });
+    }
 
-    Object.entries(stateRegions).forEach(([state, region]) => {
+    // Process state regions
+    const stateRegionEntries = Object.entries(stateRegions);
+    for (let i = 0; i < stateRegionEntries.length; i++) {
+      const [state, region] = stateRegionEntries[i];
       if (!regionBuckets[region]) {
         regionBuckets[region] = { statesDetailed: [] };
       }
       const hasRecord = Object.prototype.hasOwnProperty.call(stateTotals, state);
       const stateScore = hasRecord ? stateTotals[state] : 0;
-      const statePercentage =
-        STATE_OVERALL_MAX_SCORE > 0 ? (stateScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
+      const statePercentage = STATE_OVERALL_MAX_SCORE > 0 ? (stateScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
       regionBuckets[region].statesDetailed.push({
         state,
         score: stateScore,
         percentage: statePercentage,
         hasData: hasRecord,
       });
-    });
+    }
 
-    const results: RegionalAverageRow[] = geopoliticalRegions
-      .map((region) => {
-        const bucket = regionBuckets[region];
-        if (!bucket) return null;
-        const totalStates = bucket.statesDetailed.length;
-        const totalScore = bucket.statesDetailed.reduce((sum, state) => sum + state.score, 0);
-        const averageScore = totalStates > 0 ? totalScore / totalStates : 0;
-        const averagePercentage =
-          STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
+    const results: RegionalAverageRow[] = [];
+    for (let i = 0; i < geopoliticalRegions.length; i++) {
+      const region = geopoliticalRegions[i];
+      const bucket = regionBuckets[region];
+      if (!bucket) continue;
+      
+      const totalStates = bucket.statesDetailed.length;
+      let totalScore = 0;
+      for (let j = 0; j < bucket.statesDetailed.length; j++) {
+        totalScore += bucket.statesDetailed[j].score;
+      }
+      
+      const averageScore = totalStates > 0 ? totalScore / totalStates : 0;
+      const averagePercentage = STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
 
-        return {
-          region,
-          averageScore,
-          averagePercentage,
-          totalScore,
-          statesDetailed: bucket.statesDetailed,
-        };
-      })
-      .filter((row): row is RegionalAverageRow => Boolean(row));
+      results.push({
+        region,
+        averageScore,
+        averagePercentage,
+        totalScore,
+        statesDetailed: bucket.statesDetailed,
+      });
+    }
 
-    // Capture any states present in data but not mapped (should be none, but keeps the report complete)
-    return results;
+    setRegionalAverages(results);
   }, [stateScores]);
 
   // Helper function to process and filter MDA data for dashboard
@@ -797,18 +809,22 @@ export default function ScoringMetricsPage() {
     });
   };
 
-  // Computed MDA data based on current filters - using stable approach
-  const mdaData = useMemo(() => {
+  // Computed MDA data using useState and useEffect to avoid useMemo issues
+  const [mdaData, setMdaData] = useState<any[]>([]);
+
+  useEffect(() => {
     if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
-      return [];
+      setMdaData([]);
+      return;
     }
+
+    // Process MDA data without complex useMemo
+    const processedData = [];
     
-    // Create a stable mapping using for...of instead of forEach
-    const allMdasMap = new Map<string, any>();
-    
-    // Initialize with mdasList using for...of loop
-    for (const mda of mdasList) {
-      allMdasMap.set(mda.name, {
+    // Start with mdasList
+    for (let i = 0; i < mdasList.length; i++) {
+      const mda = mdasList[i];
+      let processedMda = {
         mdaName: mda.name,
         sla: null,
         mysteryShopping: null,
@@ -820,33 +836,29 @@ export default function ScoringMetricsPage() {
         reportGovResolution: null,
         monthlyReport: null,
         timeliness: null
-      });
-    }
+      };
 
-    // Merge with saved data using for...of loop
-    for (const mda of liveDashboardData) {
-      const matchingMdaName = findMatchingMdaName(mda.mdaName);
-      if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
-        const existing = allMdasMap.get(matchingMdaName);
-        allMdasMap.set(matchingMdaName, {
-          ...existing,
-          ...mda
-        });
+      // Find matching data from liveDashboardData
+      for (let j = 0; j < liveDashboardData.length; j++) {
+        const liveData = liveDashboardData[j];
+        const matchingMdaName = findMatchingMdaName(liveData.mdaName);
+        if (matchingMdaName === mda.name) {
+          processedMda = { ...processedMda, ...liveData };
+          break;
+        }
       }
-    }
 
-    // Convert to array and calculate scores
-    const allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
-      const slaScore = mda.sla?.score || 0;
-      const mysteryScore = mda.mysteryShopping?.score || 0;
-      const innovationScore = mda.innovation?.score || 0;
-      const stakeholderScore = mda.stakeholder?.score || 0;
-      const transparencyScore = mda.transparency?.score || 0;
-      const reportGovResScore = mda.reportGovResolution?.score || 0;
-      const monthlyReportScore = mda.monthlyReport?.score || 0;
-      const timelinessScore = mda.timeliness?.score || 0;
-      const controversialScore = mda.controversial?.score || 0;
-      const toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
+      // Calculate scores
+      const slaScore = processedMda.sla?.score || 0;
+      const mysteryScore = processedMda.mysteryShopping?.score || 0;
+      const innovationScore = processedMda.innovation?.score || 0;
+      const stakeholderScore = processedMda.stakeholder?.score || 0;
+      const transparencyScore = processedMda.transparency?.score || 0;
+      const reportGovResScore = processedMda.reportGovResolution?.score || 0;
+      const monthlyReportScore = processedMda.monthlyReport?.score || 0;
+      const timelinessScore = processedMda.timeliness?.score || 0;
+      const controversialScore = processedMda.controversial?.score || 0;
+      const toutingRentseekingScore = processedMda.toutingRentseeking?.score || 0;
 
       const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
         transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
@@ -858,114 +870,51 @@ export default function ScoringMetricsPage() {
       const maxPossiblePoints = 90;
       const totalPercentage = maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0;
 
-      return {
-        ...mda,
+      const finalMda = {
+        ...processedMda,
         totalScore,
         totalPercentage,
         grade: totalPercentage >= 90 ? "A" : totalPercentage >= 80 ? "B" : totalPercentage >= 70 ? "C" : totalPercentage >= 60 ? "D" : "F",
         status: totalPercentage >= 70 ? "Compliant" : "Non-Compliant",
         maxPossiblePoints
       };
-    });
 
-    // Filter based on data availability if needed
-    if (mdaFilter === 'withData') {
-      return allMdasArray.filter((mda: any) => {
-        return mda.sla || mda.mysteryShopping || mda.controversial || mda.toutingRentseeking ||
-          mda.innovation || mda.stakeholder || mda.transparency || mda.reportGovResolution ||
-          mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
-      });
+      // Apply filter
+      if (mdaFilter === 'withData') {
+        const hasData = finalMda.sla || finalMda.mysteryShopping || finalMda.controversial || finalMda.toutingRentseeking ||
+          finalMda.innovation || finalMda.stakeholder || finalMda.transparency || finalMda.reportGovResolution ||
+          finalMda.monthlyReport || finalMda.timeliness || finalMda.totalScore > 0;
+        if (hasData) {
+          processedData.push(finalMda);
+        }
+      } else {
+        processedData.push(finalMda);
+      }
     }
 
-    return allMdasArray;
+    setMdaData(processedData);
   }, [liveDashboardData, mdaFilter]);
 
-  // Computed current view data for summary - avoid function call in useMemo
-  const currentViewData = useMemo(() => {
-    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
-      return [];
+  // Computed current view data using useState and useEffect
+  const [currentViewData, setCurrentViewData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!mdaData || mdaData.length === 0) {
+      setCurrentViewData([]);
+      return;
     }
 
-    // Use the same logic as mdaData but with ranking filter
-    const allMdasMap = new Map<string, any>();
-    
-    for (const mda of mdasList) {
-      allMdasMap.set(mda.name, {
-        mdaName: mda.name,
-        sla: null,
-        mysteryShopping: null,
-        controversial: null,
-        toutingRentseeking: null,
-        innovation: null,
-        stakeholder: null,
-        transparency: null,
-        reportGovResolution: null,
-        monthlyReport: null,
-        timeliness: null
-      });
-    }
+    // Apply ranking view filter to existing mdaData
+    let filteredData = [...mdaData];
 
-    for (const mda of liveDashboardData) {
-      const matchingMdaName = findMatchingMdaName(mda.mdaName);
-      if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
-        const existing = allMdasMap.get(matchingMdaName);
-        allMdasMap.set(matchingMdaName, {
-          ...existing,
-          ...mda
-        });
-      }
-    }
-
-    let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
-      const slaScore = mda.sla?.score || 0;
-      const mysteryScore = mda.mysteryShopping?.score || 0;
-      const innovationScore = mda.innovation?.score || 0;
-      const stakeholderScore = mda.stakeholder?.score || 0;
-      const transparencyScore = mda.transparency?.score || 0;
-      const reportGovResScore = mda.reportGovResolution?.score || 0;
-      const monthlyReportScore = mda.monthlyReport?.score || 0;
-      const timelinessScore = mda.timeliness?.score || 0;
-      const controversialScore = mda.controversial?.score || 0;
-      const toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
-
-      const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
-        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
-
-      const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
-      const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
-      const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
-
-      const maxPossiblePoints = 90;
-      const totalPercentage = maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0;
-
-      return {
-        ...mda,
-        totalScore,
-        totalPercentage,
-        grade: totalPercentage >= 90 ? "A" : totalPercentage >= 80 ? "B" : totalPercentage >= 70 ? "C" : totalPercentage >= 60 ? "D" : "F",
-        status: totalPercentage >= 70 ? "Compliant" : "Non-Compliant",
-        maxPossiblePoints
-      };
-    });
-
-    // Apply data filter
-    if (mdaFilter === 'withData') {
-      allMdasArray = allMdasArray.filter((mda: any) => {
-        return mda.sla || mda.mysteryShopping || mda.controversial || mda.toutingRentseeking ||
-          mda.innovation || mda.stakeholder || mda.transparency || mda.reportGovResolution ||
-          mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
-      });
-    }
-
-    // Apply ranking view filter
     if (rankingView === 'without-ministries') {
-      return allMdasArray.filter((mda: any) => !isMinistry(mda.mdaName));
+      filteredData = filteredData.filter((mda: any) => !isMinistry(mda.mdaName));
     } else if (rankingView === 'ministries-only') {
-      return allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
+      filteredData = filteredData.filter((mda: any) => isMinistry(mda.mdaName));
     }
 
-    return allMdasArray;
-  }, [mdaFilter, rankingView, liveDashboardData]);
+    setCurrentViewData(filteredData);
+  }, [mdaData, rankingView]);
 
   const handleGenerateMinistryAnalysisPDF = async () => {
     if (!mdaData || mdaData.length === 0) {
