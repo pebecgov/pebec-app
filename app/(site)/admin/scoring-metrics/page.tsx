@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import ScoringMetricsDashboard from "@/components/Admin/ScoringMetricsDashboard";
 import { generateMdaScoringPDF } from "@/lib/pdfGenerator";
 import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
+import { generateScorecardPdf } from "@/lib/scorecardPdfGenerator";
 import { indicators } from "@/convex/config/indicators";
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
@@ -39,6 +40,9 @@ const STATE_OVERALL_MAX_SCORE = Object.values(stateIndicatorMaxScores).reduce(
   (sum, value) => sum + value,
   0
 );
+
+const SCORECARD_AVERAGE_TICKET_WEIGHT = 29;
+const SCORECARD_MULTIPLIER = 6;
 
 const STATE_ALIAS_OVERRIDES: Record<string, string> = {
   FCT: "Federal Capital Territory",
@@ -167,6 +171,13 @@ export default function ScoringMetricsPage() {
 
   // State variables
   const [activeTab, setActiveTab] = useState('live-dashboard');
+  const [scorecardTab, setScorecardTab] = useState<'ranked' | 'calculation'>('ranked');
+  const [scorecardSelectedMda, setScorecardSelectedMda] = useState('');
+  const [scorecardManualReceived, setScorecardManualReceived] = useState('');
+  const [scorecardManualResolved, setScorecardManualResolved] = useState('');
+  const [scorecardCalculatedScore, setScorecardCalculatedScore] = useState<number | null>(null);
+  const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
+  const [isSavingScorecard, setIsSavingScorecard] = useState(false);
   const [selectedMda, setSelectedMda] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [overallPercentage, setOverallPercentage] = useState<number | null>(null);
@@ -393,6 +404,7 @@ export default function ScoringMetricsPage() {
   const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics, {});
   const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
   const mdaLeaderboard = useQuery(api.mda_scoring.getMDALeaderboard, { limit: 20 });
+  const scorecardEntries = useQuery(api.mda_scoring.getScorecardEntries, { scoringPeriod });
   const matchHeaders = useAction(api.ai_helper_scoring.matchHeaders);
   const processSlaData = useAction(api.ai_helper_scoring.processSlaData);
   const mdaScoringStatus = useQuery(
@@ -474,6 +486,7 @@ export default function ScoringMetricsPage() {
   const saveTransparencyData = useMutation(mdaScoringApi.saveTransparencyData);
   const saveMonthlyReportData = useMutation(api.mda_scoring.saveMonthlyReportData);
   const saveTimelinessData = useMutation(api.mda_scoring.saveTimelinessData);
+  const saveScorecardEntry = useMutation(api.mda_scoring.saveScorecardEntry);
 
   // Ranking queries
   const mysteryRankings = useQuery(api.mda_scoring.getAllMysteryShoppingRankings, { scoringPeriod });
@@ -1664,6 +1677,138 @@ export default function ScoringMetricsPage() {
   const periodTicketData = useQuery(api.mda_scoring.getPeriodTicketData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
+  const scorecardTicketData = useQuery(api.mda_scoring.getPeriodTicketData,
+    scorecardSelectedMda ? { mdaName: scorecardSelectedMda, scoringPeriod } : "skip"
+  );
+  const scorecardSystemReceived = scorecardTicketData?.totalTickets || 0;
+  const scorecardSystemResolved = scorecardTicketData?.resolvedTickets || 0;
+  const manualReceivedValue = Number(scorecardManualReceived) || 0;
+  const manualResolvedValue = Number(scorecardManualResolved) || 0;
+  const scorecardTotalReceived = scorecardSystemReceived + manualReceivedValue;
+  const scorecardTotalResolvedUncapped = scorecardSystemResolved + manualResolvedValue;
+  const scorecardTotalResolved = Math.min(scorecardTotalResolvedUncapped, scorecardTotalReceived);
+  const scorecardResolvedRate = scorecardTotalReceived > 0
+    ? (scorecardTotalResolved / scorecardTotalReceived) * 100
+    : 0;
+  const scorecardTableData = useMemo(() => {
+    if (scorecardEntries === undefined) {
+      return [];
+    }
+
+    const entryMap = new Map<string, any>();
+    scorecardEntries.forEach((entry: any) => {
+      entryMap.set(normalizeMdaName(stripAbbreviation(entry.mdaName)), entry);
+    });
+
+    const allMdas = mdasList.map((mda) => {
+      const normalizedName = normalizeMdaName(stripAbbreviation(mda.name));
+      const entry = entryMap.get(normalizedName);
+      const platformMda = mdasWithScores?.find((platform) =>
+        normalizeMdaName(stripAbbreviation(platform.name)) === normalizedName
+      );
+
+      return {
+        name: mda.name,
+        entry,
+        totalTickets: entry?.totalTickets ?? 0,
+        resolvedTickets: entry?.resolvedTickets ?? 0,
+        scorePercentage: entry?.scorePercentage ?? null,
+        calculatedAt: entry?.calculatedAt ?? null,
+        source: entry ? (platformMda ? 'Platform Data' : 'Manual Only') : 'No Entry'
+      };
+    });
+
+    allMdas.sort((a, b) => {
+      const scoreA = a.scorePercentage ?? 0;
+      const scoreB = b.scorePercentage ?? 0;
+      return scoreB - scoreA;
+    });
+
+    return allMdas;
+  }, [scorecardEntries, mdasList, mdasWithScores]);
+  const handleScorecardCalculation = () => {
+    if (!scorecardSelectedMda) {
+      toast.error("Please select an MDA before calculating");
+      return;
+    }
+    if (scorecardTotalReceived === 0) {
+      toast.error("Total complaint tickets must be greater than zero");
+      return;
+    }
+    const numerator = (scorecardTotalReceived * scorecardResolvedRate) + (SCORECARD_MULTIPLIER * SCORECARD_AVERAGE_TICKET_WEIGHT);
+    const denominator = scorecardTotalReceived + SCORECARD_MULTIPLIER;
+    const finalScore = denominator > 0 ? numerator / denominator : 0;
+    setScorecardCalculatedScore(Number.isFinite(finalScore) ? finalScore : 0);
+  };
+
+  const handleSaveScorecardEntry = async () => {
+    if (!scorecardSelectedMda) {
+      toast.error("Please select an MDA before saving");
+      return;
+    }
+    if (scorecardTotalReceived === 0) {
+      toast.error("Cannot save a scorecard without any tickets");
+      return;
+    }
+    if (scorecardCalculatedScore === null) {
+      toast.error("Please calculate the score before saving");
+      return;
+    }
+
+    try {
+      setIsSavingScorecard(true);
+      await saveScorecardEntry({
+        mdaName: scorecardSelectedMda,
+        scoringPeriod,
+        systemTotalTickets: scorecardSystemReceived,
+        systemResolvedTickets: scorecardSystemResolved,
+        manualTotalTickets: manualReceivedValue,
+        manualResolvedTickets: manualResolvedValue,
+        totalTickets: scorecardTotalReceived,
+        resolvedTickets: scorecardTotalResolved,
+        resolvedRate: scorecardResolvedRate,
+        scorePercentage: scorecardCalculatedScore
+      });
+      toast.success("Scorecard saved successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to save scorecard");
+    } finally {
+      setIsSavingScorecard(false);
+    }
+  };
+
+  const handleGenerateScorecardPDF = async () => {
+    if (scorecardEntries === undefined) {
+      toast.error("Scorecard data is still loading");
+      return;
+    }
+    if (scorecardTableData.length === 0) {
+      toast.error("No scorecard entries to export");
+      return;
+    }
+
+    try {
+      setIsDownloadingScorecard(true);
+      const rows = scorecardTableData.map((row: any, index: number) => ({
+        rank: index + 1,
+        mdaName: row.name,
+        source: row.source,
+        totalTickets: row.totalTickets,
+        resolvedTickets: row.resolvedTickets,
+        scorePercentage: row.scorePercentage,
+      }));
+      await generateScorecardPdf({
+        rows,
+        scoringPeriod,
+      });
+    } catch (error) {
+      console.error("Scorecard PDF error:", error);
+      toast.error("Failed to generate scorecard PDF");
+    } finally {
+      setIsDownloadingScorecard(false);
+    }
+  };
 
   // Check authorization
   useEffect(() => {
@@ -1679,6 +1824,10 @@ export default function ScoringMetricsPage() {
     setMysteryType('hasReportGov');
     setMysteryRatings({});
     setMysteryRate(0);
+    setScorecardSelectedMda('');
+    setScorecardManualReceived('');
+    setScorecardManualResolved('');
+    setScorecardCalculatedScore(null);
   }, [scoringPeriod]);
 
   // Reset state when MDA changes
@@ -1706,6 +1855,20 @@ export default function ScoringMetricsPage() {
       setIsToutingRentseeking(false);
     }
   }, [selectedMda]);
+
+useEffect(() => {
+  setScorecardManualReceived('');
+  setScorecardManualResolved('');
+  setScorecardCalculatedScore(null);
+}, [scorecardSelectedMda]);
+
+  useEffect(() => {
+    const manualReceivedNum = Number(scorecardManualReceived) || 0;
+    const manualResolvedNum = Number(scorecardManualResolved) || 0;
+    if (manualResolvedNum > manualReceivedNum) {
+      setScorecardManualResolved(String(manualReceivedNum));
+    }
+  }, [scorecardManualReceived, scorecardManualResolved]);
 
   // Ensure resolved tickets never exceed total tickets
   useEffect(() => {
@@ -2738,6 +2901,15 @@ export default function ScoringMetricsPage() {
               >
                 Score MDAs
               </button>
+              <button
+                onClick={() => setActiveTab('mda-scorecard')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'mda-scorecard'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+              >
+                MDA Scorecard
+              </button>
             </nav>
           </div>
         </div>
@@ -2843,6 +3015,7 @@ export default function ScoringMetricsPage() {
             </div>
           </div>
         ) : */}
+       
         {activeTab === 'live-dashboard' ? (
           <div className="w-full space-y-6">
             {/* Live Dashboard Header */}
@@ -4492,6 +4665,291 @@ export default function ScoringMetricsPage() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'mda-scorecard' ? (
+          <div className="w-full space-y-6">
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">MDA ReportGov Resolution</h2>
+                  <p className="text-sm text-gray-500">
+                    Review leaderboard standings and compute fresh reportgov resolution for {scoringPeriod}.
+                  </p>
+                </div>
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                  <button
+                    onClick={() => setScorecardTab('ranked')}
+                    className={`px-4 py-2 text-sm font-medium ${scorecardTab === 'ranked'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                      }`}
+                  >
+                    Ranked Score Table
+                  </button>
+                  <button
+                    onClick={() => setScorecardTab('calculation')}
+                    className={`px-4 py-2 text-sm font-medium border-l border-gray-200 ${scorecardTab === 'calculation'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                      }`}
+                  >
+                    Score Calculation
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {scorecardTab === 'ranked' ? (
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-800">Saved ReportGov Resolution Table</h3>
+                    <p className="text-sm text-gray-500">Shows every score saved via the Score Calculation tool for {scoringPeriod}.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-500">
+                      {scorecardEntries === undefined ? 'Loading…' : `${scorecardTableData.length} MDAs`}
+                    </span>
+                    <button
+                      onClick={handleGenerateScorecardPDF}
+                      disabled={scorecardEntries === undefined || scorecardTableData.length === 0 || isDownloadingScorecard}
+                      className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      {isDownloadingScorecard ? 'Generating…' : '📄 Download PDF'}
+                    </button>
+                  </div>
+                </div>
+                {scorecardEntries === undefined ? (
+                  <div className="text-center text-gray-500 py-10">Loading reportgov resolution entries...</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Tickets</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resolved Tickets</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {scorecardTableData.map((row: any, index: number) => {
+                          return (
+                            <tr key={`${row.name}-${index}`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{index + 1}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <span>{row.name}</span>
+                                  {/* <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    row.source === 'Platform Data'
+                                      ? 'bg-green-100 text-green-800'
+                                      : row.source === 'Manual Only'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-gray-100 text-gray-500'
+                                  }`}>
+                                    {row.source}
+                                  </span> */}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div className="font-semibold">
+                                  {row.totalTickets ? row.totalTickets.toLocaleString() : '—'}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div className="font-semibold">
+                                  {row.resolvedTickets ? row.resolvedTickets.toLocaleString() : '—'}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <span className={`font-bold ${row.scorePercentage !== null && row.scorePercentage >= 80 ? 'text-green-600' :
+                                  row.scorePercentage !== null && row.scorePercentage >= 60 ? 'text-blue-600' :
+                                    row.scorePercentage !== null && row.scorePercentage >= 40 ? 'text-yellow-600' : 'text-gray-500'
+                                  }`}>
+                                  {row.scorePercentage !== null ? `${row.scorePercentage.toFixed(2)}%` : '—'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormControl sx={{ width: '100%' }} variant="outlined">
+                    <InputLabel id="scorecard-mda-label">Select MDA</InputLabel>
+                    <Select
+                      labelId="scorecard-mda-label"
+                      id="scorecard-mda-select"
+                      value={scorecardSelectedMda}
+                      onChange={(e) => setScorecardSelectedMda(e.target.value)}
+                      label="Select MDA"
+                    >
+                      <MenuItem value="">
+                        <em>None</em>
+                      </MenuItem>
+                      {mdasList.map((mda) => (
+                        <MenuItem key={`scorecard-${mda.name}`} value={mda.name}>
+                          {mda.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
+                    <p className="font-semibold mb-1">Scoring Formula</p>
+                    <p>
+                      Score% = ((C<sub>total</sub> × Resolved Rate) + (6 × 29)) / (C<sub>total</sub> + 6)
+                    </p>
+                    <p className="mt-2 text-xs text-blue-700">
+                      Resolved Rate = (R<sub>total</sub> / C<sub>total</sub>) × 100. Both C<sub>total</sub> and R<sub>total</sub> automatically combine system + manual entries.
+                    </p>
+                  </div>
+                </div>
+
+                {!scorecardSelectedMda ? (
+                  <div className="text-center text-gray-500 py-10 border border-dashed border-gray-300 rounded-lg">
+                    Select an MDA to fetch ticket data and begin the calculation process.
+                  </div>
+                ) : scorecardTicketData === undefined ? (
+                  <div className="text-center text-gray-500 py-10 border border-dashed border-gray-300 rounded-lg">
+                    Fetching system ticket data...
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-lg font-semibold text-gray-800 mb-4">System Data (Read-only)</h4>
+                        <div className="space-y-3 text-sm">
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500">Total Complaint Tickets</span>
+                            <span className="text-gray-900 font-semibold">
+                              {scorecardSystemReceived.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-500">Total Resolved Tickets</span>
+                            <span className="text-gray-900 font-semibold">
+                              {scorecardSystemResolved.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <h4 className="text-lg font-semibold text-gray-800 mb-4">Manual / External Entries</h4>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">
+                              Total Complaint Tickets (Manual)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={scorecardManualReceived}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '') {
+                                  setScorecardManualReceived('');
+                                  return;
+                                }
+                                const parsed = Number(value);
+                                if (!Number.isNaN(parsed) && parsed >= 0) {
+                                  setScorecardManualReceived(String(Math.floor(parsed)));
+                                }
+                              }}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Enter manual ticket total"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">
+                              Total Resolved Tickets (Manual)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max={scorecardManualReceived ? Number(scorecardManualReceived) : undefined}
+                              value={scorecardManualResolved}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === '') {
+                                  setScorecardManualResolved('');
+                                  return;
+                                }
+                                const parsed = Number(value);
+                                if (!Number.isNaN(parsed) && parsed >= 0) {
+                                  setScorecardManualResolved(String(Math.floor(parsed)));
+                                }
+                              }}
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Enter manual resolved total"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-gray-600">
+                      System data is automatically combined with manual inputs—no extra steps needed.
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-500 mb-1">C<sub>total</sub> (Complaints)</p>
+                        <p className="text-2xl font-bold text-gray-800">{scorecardTotalReceived.toLocaleString()}</p>
+                      </div>
+                      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-500 mb-1">R<sub>total</sub> (Resolved)</p>
+                        <p className="text-2xl font-bold text-gray-800">{scorecardTotalResolved.toLocaleString()}</p>
+                      </div>
+                      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                        <p className="text-sm text-gray-500 mb-1">Resolved Rate</p>
+                        <p className="text-2xl font-bold text-gray-800">
+                          {scorecardTotalReceived > 0 ? `${scorecardResolvedRate.toFixed(2)}%` : '--'}
+                        </p>
+                      </div>
+                      <div className="p-4 border border-blue-200 rounded-lg bg-blue-50 md:col-span-1">
+                        <p className="text-sm text-blue-700 mb-1">Calculated Score %</p>
+                        <input
+                          readOnly
+                          value={scorecardCalculatedScore !== null ? `${scorecardCalculatedScore.toFixed(2)}%` : '--'}
+                          className="w-full bg-transparent text-2xl font-bold text-blue-900 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={handleScorecardCalculation}
+                        className="px-5 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300"
+                        disabled={!scorecardSelectedMda}
+                      >
+                        Calculate Score
+                      </button>
+                      <button
+                        onClick={handleSaveScorecardEntry}
+                        className="px-5 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:bg-gray-300"
+                        disabled={
+                          !scorecardSelectedMda ||
+                          scorecardCalculatedScore === null ||
+                          scorecardTotalReceived === 0 ||
+                          isSavingScorecard
+                        }
+                      >
+                        {isSavingScorecard ? 'Saving…' : 'Save Score'}
+                      </button>
+                      <span className="text-xs text-gray-500">
+                        Ensure C<sub>total</sub> &gt; 0 before calculating. System and manual values are already combined in the totals above.
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -101,6 +101,21 @@ export default defineSchema({
     recommendations: v.optional(v.string())
   }).index("byMda", ["mdaId"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]).index("byDate", ["scoredAt"]),
 
+  mda_scorecard_entries: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    systemTotalTickets: v.number(),
+    systemResolvedTickets: v.number(),
+    manualTotalTickets: v.number(),
+    manualResolvedTickets: v.number(),
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    resolvedRate: v.number(),
+    scorePercentage: v.number(),
+    calculatedBy: v.id("users"),
+    calculatedAt: v.number()
+  }).index("byPeriod", ["scoringPeriod"]).index("byMdaPeriod", ["mdaName", "scoringPeriod"]),
+
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
     mdaId: v.id("mdas"),
