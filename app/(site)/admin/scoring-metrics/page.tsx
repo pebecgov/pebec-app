@@ -579,6 +579,149 @@ export default function ScoringMetricsPage() {
     setRegionalAverages(results);
   }, [stateScores]);
 
+  // Helper function to process and filter MDA data for dashboard (restored original function)
+  const processDashboardMdaData = (filter: 'all' | 'withData' = 'all', rankingFilter: 'all' | 'without-ministries' | 'ministries-only' = 'all') => {
+    // Initialize all MDAs from mdasList with null data
+    const allMdasMap = new Map<string, any>();
+    mdasList.forEach(mda => {
+      allMdasMap.set(mda.name, {
+        mdaName: mda.name,
+        sla: null,
+        mysteryShopping: null,
+        controversial: null,
+        toutingRentseeking: null,
+        innovation: null,
+        stakeholder: null,
+        transparency: null,
+        reportGovResolution: null,
+        monthlyReport: null,
+        timeliness: null
+      });
+    });
+
+    // Merge with saved data from backend
+    if (liveDashboardData && Array.isArray(liveDashboardData)) {
+      liveDashboardData.forEach((mda: any) => {
+        // Find matching MDA name from mdasList
+        const matchingMdaName = findMatchingMdaName(mda.mdaName);
+
+        // Only include MDAs that are in mdasList
+        if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
+          const existing = allMdasMap.get(matchingMdaName);
+          allMdasMap.set(matchingMdaName, {
+            ...existing,
+            ...mda,
+            mdaName: matchingMdaName // Use the standardized name from mdasList
+          });
+        }
+      });
+    }
+
+    let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
+      // Recalculate SLA score based on 10 months instead of 12
+      let slaScore = mda.sla?.score || 0;
+      if (mda.sla && mda.sla.monthsWithData) {
+        const pointsPerMonth10 = 30 / 10; // 3 points per month for 10 months
+        const pointsPerMonth12 = 30 / 12; // 2.5 points per month for 12 months (backend calculation)
+        slaScore = mda.sla.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+
+      // Recalculate Monthly Report score based on 10 months instead of 12
+      let monthlyReportScore = mda.monthlyReport?.score || 0;
+      if (mda.monthlyReport && mda.monthlyReport.monthsWithData) {
+        const pointsPerMonth10 = 3 / 10; // 0.3 points per month
+        const pointsPerMonth12 = 3 / 12; // 0.25 points per month (backend calculation)
+        monthlyReportScore = mda.monthlyReport.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+
+      // Recalculate Timeliness score based on 10 months instead of 12
+      let timelinessScore = mda.timeliness?.score || 0;
+      if (mda.timeliness && mda.timeliness.monthsWithData) {
+        const pointsPerMonth10 = 2 / 10; // 0.2 points per month
+        const pointsPerMonth12 = 2 / 12; // 0.167 points per month (backend calculation)
+        timelinessScore = mda.timeliness.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+
+      const mysteryScore = mda.mysteryShopping?.score || 0;
+      const innovationScore = mda.innovation?.score || 0;
+      const stakeholderScore = mda.stakeholder?.score || 0;
+      const transparencyScore = mda.transparency?.score || 0;
+      const reportGovResScore = mda.reportGovResolution?.score || 0;
+
+      // Calculate base total score (all metrics except controversial and touting & rentseeking)
+      const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
+        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
+      // Controversial: Handle both old and new data formats
+      let controversialScore = mda.controversial?.score || 0;
+      if (mda.controversial) {
+        const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
+        if (isOldFormat) {
+          if (mda.controversial.isControversial) {
+            controversialScore = -5;
+          } else {
+            controversialScore = 0;
+          }
+        }
+      }
+
+      // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
+      let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
+
+      // Calculate penalties (convert negative scores to positive penalty values)
+      const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+      const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+      const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
+
+      // Check if optional metrics are skipped
+      const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
+      const isTransparencySkipped = mda.transparency?.isSkipped || false;
+      let maxPossiblePoints = 90;
+      if (isTransparencySkipped) {
+        maxPossiblePoints -= 5;
+      }
+      if (isReportGovSkipped) {
+        maxPossiblePoints -= 15;
+      }
+
+      const totalPercentage = maxPossiblePoints > 0
+        ? (totalScore / maxPossiblePoints) * 100
+        : 0;
+
+      return {
+        ...mda,
+        sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
+        monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
+        timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
+        baseTotalScore,
+        totalScore,
+        totalPercentage,
+        isReportGovSkipped,
+        isTransparencySkipped,
+        maxPossiblePoints
+      };
+    });
+
+    // Filter based on selected filter
+    if (filter === 'withData') {
+      allMdasArray = allMdasArray.filter((mda: any) => {
+        // Check if MDA has at least one metric with data
+        return mda.sla || mda.mysteryShopping || mda.controversial || mda.toutingRentseeking ||
+          mda.innovation || mda.stakeholder || mda.transparency || mda.reportGovResolution ||
+          mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
+      });
+    }
+
+    // Apply ranking view filter
+    if (rankingFilter === 'without-ministries') {
+      allMdasArray = allMdasArray.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingFilter === 'ministries-only') {
+      allMdasArray = allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
+    return allMdasArray;
+  };
+
   // Helper function to process and filter MDA data for dashboard
   const processDashboardMdaData = (filter: 'all' | 'withData' = 'all', rankingFilter: 'all' | 'without-ministries' | 'ministries-only' = 'all') => {
     // Initialize all MDAs from mdasList with null data
