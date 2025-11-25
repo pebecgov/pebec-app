@@ -732,7 +732,7 @@ export default function ScoringMetricsPage() {
       selectedMetric,
       dashboardYear,
       mdasList,
-      filterType: mdaFilter
+      filterType: mdaFilter === 'withData' || ministryFilter !== 'all' ? 'withData' : 'all'
     });
   };
 
