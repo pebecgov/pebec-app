@@ -729,12 +729,14 @@ export default function ScoringMetricsPage() {
       sla: mda.sla,
       mysteryShopping: mda.mysteryShopping,
       controversial: mda.controversial,
+      toutingRentseeking: mda.toutingRentseeking, // <- This was missing!
       innovation: mda.innovation,
       stakeholder: mda.stakeholder,
       transparency: mda.transparency,
       reportGovResolution: mda.reportGovResolution,
       monthlyReport: mda.monthlyReport,
       timeliness: mda.timeliness,
+      baseTotalScore: mda.baseTotalScore, // <- This was missing too!
       maxPossiblePoints: mda.maxPossiblePoints || 90
     }));
 
@@ -822,6 +824,7 @@ export default function ScoringMetricsPage() {
 
       const finalMda = {
         ...processedMda,
+        baseTotalScore,
         totalScore,
         totalPercentage,
         grade: totalPercentage >= 90 ? "A" : totalPercentage >= 80 ? "B" : totalPercentage >= 70 ? "C" : totalPercentage >= 60 ? "D" : "F",
