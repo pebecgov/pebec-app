@@ -156,13 +156,21 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
       return DEFAULT_INDICATORS.slice(0, MAX_CARD_COUNT);
     }
 
-    if (indicators.length >= MAX_CARD_COUNT) {
-      return indicators.slice(0, MAX_CARD_COUNT);
+    const sortedIndicators = [...indicators].sort((a, b) => {
+      const aPerc = Number.isFinite(a.percentage) ? a.percentage : 0;
+      const bPerc = Number.isFinite(b.percentage) ? b.percentage : 0;
+      return bPerc - aPerc;
+    });
+
+    const limited = sortedIndicators.slice(0, MAX_CARD_COUNT);
+
+    if (limited.length >= MAX_CARD_COUNT) {
+      return limited;
     }
 
     return [
-      ...indicators,
-      ...DEFAULT_INDICATORS.slice(0, MAX_CARD_COUNT - indicators.length),
+      ...limited,
+      ...DEFAULT_INDICATORS.slice(0, MAX_CARD_COUNT - limited.length),
     ];
   }, [indicators]);
 
@@ -184,7 +192,7 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
 
     await generateStateAnalysisPDF({
       stateName: selectedState,
-      indicators: indicators.map((ind) => ({
+      indicators: preparedIndicators.map((ind) => ({
         indicatorKey: ind.indicatorKey,
         indicatorName: ind.name,
         totalScore: ind.totalScore,
@@ -196,7 +204,7 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
       overallMaxScore: overallStats.maxScore,
       overallPercentage: overallStats.percentage,
     });
-  }, [selectedState, indicators, overallStats]);
+  }, [selectedState, indicators, overallStats, preparedIndicators]);
 
   if (showEmptyState) {
     return (
@@ -228,6 +236,15 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
         className,
       )}
     >
+      {selectedState && indicators && indicators.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <Button onClick={handleDownloadPDF} className="gap-2" variant="outline">
+            <Download className="h-4 w-4" />
+            Download PDF Report
+          </Button>
+        </div>
+      )}
+
       <header className="mb-8 flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -240,16 +257,6 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
               </p>
             )}
           </div>
-          {selectedState && indicators && indicators.length > 0 && (
-            <Button
-              onClick={handleDownloadPDF}
-              className="gap-2"
-              variant="outline"
-            >
-              <Download className="h-4 w-4" />
-              Download PDF Report
-            </Button>
-          )}
         </div>
       </header>
 
