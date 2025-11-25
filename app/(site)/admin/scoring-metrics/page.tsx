@@ -15,7 +15,7 @@ import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
 import { indicators } from "@/convex/config/indicators";
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
-import { analyzeMinistryImpact, generateMinistryImpactPDF, isMinistry } from "@/lib/ministryAnalysis";
+import { isMinistry, analyzeMinistryImpact } from "@/lib/ministryAnalysis";
 import { generateRankingPDF } from "@/lib/rankingPdfGenerator";
 
 const stateIndicatorMaxScores: Record<string, number> = Object.fromEntries(
@@ -579,7 +579,7 @@ export default function ScoringMetricsPage() {
     setRegionalAverages(results);
   }, [stateScores]);
 
-  // Helper function to process and filter MDA data for dashboard (restored original function)
+  // Helper function to process and filter MDA data for dashboard
   const processDashboardMdaData = (filter: 'all' | 'withData' = 'all', rankingFilter: 'all' | 'without-ministries' | 'ministries-only' = 'all') => {
     // Initialize all MDAs from mdasList with null data
     const allMdasMap = new Map<string, any>();
@@ -1273,6 +1273,9 @@ export default function ScoringMetricsPage() {
       allMdasArray = allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
     }
 
+    return allMdasArray;
+  };
+
 
   // Handle dashboard PDF generation - use existing table data with simple filtering
   const handleGenerateDashboardPDF = async () => {
@@ -1280,23 +1283,36 @@ export default function ScoringMetricsPage() {
       return;
     }
 
-    // Use the same data that's displayed in the table
-    let tableData = processDashboardMdaData(mdaFilter, 'all'); // Get all data first
+    // Process and filter data based on current filters including ministry filter
+    const processedData = processDashboardMdaData(mdaFilter, rankingView);
 
-    // Apply ministry filter to match the current ranking view
-    if (rankingView === 'without-ministries') {
-      tableData = tableData.filter((mda: any) => !isMinistry(mda.mdaName));
-    } else if (rankingView === 'ministries-only') {
-      tableData = tableData.filter((mda: any) => isMinistry(mda.mdaName));
-    }
+    // Map to the format expected by the ranking PDF generator (includes ALL metrics)
+    const pdfData = processedData.map((mda: any) => ({
+      mdaName: mda.mdaName,
+      sla: mda.sla?.score || 0,
+      mysteryShopping: mda.mysteryShopping?.score || 0,
+      controversial: mda.controversial?.score || 0,
+      toutingRentseeking: mda.toutingRentseeking?.score || 0,
+      innovation: mda.innovation?.score || 0,
+      stakeholder: mda.stakeholder?.score || 0,
+      transparency: mda.transparency?.score || 0,
+      reportGovResolution: mda.reportGovResolution?.score || 0,
+      monthlyReport: mda.monthlyReport?.score || 0,
+      timeliness: mda.timeliness?.score || 0,
+      baseTotalScore: mda.baseTotalScore || 0,
+      totalScore: mda.totalScore || 0,
+      totalPercentage: mda.totalPercentage || 0,
+      isReportGovSkipped: mda.isReportGovSkipped || false,
+      isTransparencySkipped: mda.isTransparencySkipped || false,
+      maxPossiblePoints: mda.maxPossiblePoints || 90
+    }));
 
-    // Use the original dashboard PDF generator with filtered data
-    await generateDashboardPDF({
-      liveDashboardData: tableData,
-      selectedMetric,
-      dashboardYear,
-      mdasList,
-      filterType: mdaFilter
+    // Use the new ranking PDF generator that includes all metrics
+    await generateRankingPDF({
+      data: pdfData,
+      year: dashboardYear,
+      filter: mdaFilter,
+      ministryFilter: rankingView
     });
   };
 
@@ -2869,13 +2885,13 @@ export default function ScoringMetricsPage() {
                     </Select>
                   </FormControl>
                   <FormControl sx={{ minWidth: 200 }} variant="outlined">
-                    <InputLabel id="ranking-view-label">Ranking View</InputLabel>
+                    <InputLabel id="ministry-filter-label">Ministry Filter</InputLabel>
                     <Select
-                      labelId="ranking-view-label"
-                      id="ranking-view-select"
+                      labelId="ministry-filter-label"
+                      id="ministry-filter-select"
                       value={rankingView}
                       onChange={(e) => setRankingView(e.target.value as 'all' | 'without-ministries' | 'ministries-only')}
-                      label="Ranking View"
+                      label="Ministry Filter"
                     >
                       <MenuItem value="all">All MDAs</MenuItem>
                       <MenuItem value="without-ministries">Without Ministries</MenuItem>
