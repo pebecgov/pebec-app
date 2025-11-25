@@ -95,57 +95,124 @@ export async function generateRankingPDF({
       return b.totalPercentage - a.totalPercentage;
     });
 
-    // Create table data
+    // Create comprehensive table data with all metrics (like original dashboard PDF)
     const tableData = sortedData.map((mda, index) => {
       const rank = index + 1;
       const isMin = isMinistry(mda.mdaName);
       
+      // Handle controversial score (old and new format)
+      let controversialDisplay = '0.0';
+      if (mda.controversial) {
+        let controversialScore = mda.controversial.score || 0;
+        if (mda.controversial) {
+          const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
+          if (isOldFormat) {
+            if (mda.controversial.isControversial) {
+              controversialScore = -5;
+            } else {
+              controversialScore = 0;
+            }
+          }
+        }
+        controversialDisplay = controversialScore.toFixed(1);
+      }
+
+      // Handle touting & rentseeking score
+      const toutingRentseekingDisplay = mda.toutingRentseeking ? mda.toutingRentseeking.score.toFixed(1) : '0.0';
+
+      // Format SLA with months info if available
+      let slaDisplay = '—';
+      if (mda.sla) {
+        if (mda.sla.monthsWithData !== undefined) {
+          slaDisplay = `${mda.sla.score.toFixed(1)}/30\n${mda.sla.monthsWithData}/10 months`;
+        } else {
+          slaDisplay = `${mda.sla.score.toFixed(1)}/30`;
+        }
+      }
+
+      // Format Monthly Report with months info if available
+      let monthlyReportDisplay = '—';
+      if (mda.monthlyReport) {
+        if (mda.monthlyReport.monthsWithData !== undefined) {
+          monthlyReportDisplay = `${mda.monthlyReport.score.toFixed(1)}/3\n${mda.monthlyReport.monthsWithData}/10 months`;
+        } else {
+          monthlyReportDisplay = `${mda.monthlyReport.score.toFixed(1)}/3`;
+        }
+      }
+
+      // Format Timeliness with months info if available
+      let timelinessDisplay = '—';
+      if (mda.timeliness) {
+        if (mda.timeliness.monthsWithData !== undefined) {
+          timelinessDisplay = `${mda.timeliness.score.toFixed(1)}/2\n${mda.timeliness.monthsWithData}/10 months`;
+        } else {
+          timelinessDisplay = `${mda.timeliness.score.toFixed(1)}/2`;
+        }
+      }
+
+      // Format Report Gov Resolution
+      let reportGovDisplay = '—';
+      if (mda.reportGovResolution) {
+        if (mda.reportGovResolution.isSkipped) {
+          reportGovDisplay = '0/15\n(Skipped)';
+        } else {
+          reportGovDisplay = `${mda.reportGovResolution.score.toFixed(1)}/15`;
+        }
+      }
+
       return [
-        rank.toString(),
+        `#${rank}`,
         mda.mdaName + (isMin ? " (M)" : ""),
-        mda.totalScore.toFixed(1),
-        `${mda.totalPercentage.toFixed(1)}%`,
-        mda.grade,
-        mda.status,
-        mda.sla?.score.toFixed(1) || "0.0",
-        mda.mysteryShopping?.score.toFixed(1) || "0.0",
-        mda.innovation?.score.toFixed(1) || "0.0",
-        mda.stakeholder?.score.toFixed(1) || "0.0",
-        mda.transparency?.score.toFixed(1) || "0.0"
+        slaDisplay,
+        mda.mysteryShopping ? `${mda.mysteryShopping.score.toFixed(1)}/20` : '—',
+        mda.innovation ? (mda.innovation.score === 0 ? '0/5' : `${mda.innovation.score.toFixed(0)}/5`) : '—',
+        mda.stakeholder ? (mda.stakeholder.score === 0 ? '0/10' : `${mda.stakeholder.score.toFixed(0)}/10`) : '—',
+        mda.transparency ? (mda.transparency.score === 0 ? '0/5' : `${mda.transparency.score.toFixed(0)}/5`) : '—',
+        reportGovDisplay,
+        monthlyReportDisplay,
+        timelinessDisplay,
+        mda.baseTotalScore ? `${mda.baseTotalScore.toFixed(1)}/${mda.maxPossiblePoints}` : `${mda.totalScore.toFixed(1)}/${mda.maxPossiblePoints}`,
+        controversialDisplay,
+        toutingRentseekingDisplay,
+        `${mda.totalScore.toFixed(1)}\n(${mda.totalPercentage.toFixed(1)}%)`
       ];
     });
 
-    // Generate table
+    // Generate comprehensive table with all metrics
     autoTable(doc, {
-      head: [["Rank", "MDA Name", "Score", "Percentage", "Grade", "Status", "SLA", "Mystery", "Innovation", "Stakeholder", "Transparency"]],
+      head: [["Rank", "MDA Name", "SLA", "Mystery Shopping", "Innovation", "Stakeholder", "Transparency", "Report Gov", "Monthly Report", "Timeliness", "Base Total", "Controversial", "Touting & Rent", "Final Total"]],
       body: tableData,
       startY: currentY,
       styles: { 
-        fontSize: 7, 
-        cellPadding: 1.5,
+        fontSize: 6, 
+        cellPadding: 1,
         overflow: 'linebreak'
       },
       headStyles: { 
         fillColor: rankingType === 'all' ? [52, 152, 219] : 
                    rankingType === 'without-ministries' ? [46, 204, 113] : [155, 89, 182],
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        fontSize: 6
       },
       columnStyles: {
         0: { cellWidth: 15, halign: "center" },
-        1: { cellWidth: 80 },
-        2: { cellWidth: 20, halign: "center" },
-        3: { cellWidth: 20, halign: "center" },
+        1: { cellWidth: 50 },
+        2: { cellWidth: 18, halign: "center" },
+        3: { cellWidth: 18, halign: "center" },
         4: { cellWidth: 15, halign: "center" },
-        5: { cellWidth: 25, halign: "center" },
-        6: { cellWidth: 18, halign: "center" },
+        5: { cellWidth: 18, halign: "center" },
+        6: { cellWidth: 15, halign: "center" },
         7: { cellWidth: 18, halign: "center" },
         8: { cellWidth: 18, halign: "center" },
-        9: { cellWidth: 18, halign: "center" },
-        10: { cellWidth: 18, halign: "center" }
+        9: { cellWidth: 15, halign: "center" },
+        10: { cellWidth: 20, halign: "center" },
+        11: { cellWidth: 15, halign: "center" },
+        12: { cellWidth: 15, halign: "center" },
+        13: { cellWidth: 20, halign: "center" }
       },
       alternateRowStyles: { fillColor: [245, 245, 245] },
-      margin: { left: 10, right: 10 }
+      margin: { left: 5, right: 5 }
     });
 
     // Add legend if showing all MDAs
