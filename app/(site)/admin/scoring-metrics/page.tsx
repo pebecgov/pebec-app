@@ -201,6 +201,20 @@ export default function ScoringMetricsPage() {
     { value: 1, label: 'Yes' }
   ];
 
+  const satisfactionOptions = [
+    { value: 0, label: '0' },
+    { value: 1, label: '1' },
+    { value: 2, label: '2' },
+    { value: 3, label: '3' },
+    { value: 4, label: '4' },
+    { value: 5, label: '5' },
+    { value: 6, label: '6' },
+    { value: 7, label: '7' },
+    { value: 8, label: '8' },
+    { value: 9, label: '9' },
+    { value: 10, label: '10' }
+  ];
+
   // Questions for different mystery shopping types
   const hasReportGovQuestions = [
     { key: 'callResponse', label: 'CALL RESPOND RATING', type: 'rating' },
@@ -239,26 +253,62 @@ export default function ScoringMetricsPage() {
   const calculateMysteryScore = () => {
     const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
 
-    let totalScore = 0;
-    let maxPossibleScore = 0;
+    // Check if satisfaction question exists in current set
+    const hasSatisfaction = questions.some(q => q.key === 'satisfaction');
 
-    questions.forEach(question => {
-      const rating = mysteryRatings[question.key] || 0;
+    if (hasSatisfaction) {
+      let otherQuestionsScore = 0;
+      let otherQuestionsMaxPossible = 0;
+      let satisfactionScore = 0;
 
-      if (question.type === 'rating') {
-        // Rating questions: scale 0-5 to 0-1 point each
-        totalScore += (rating / 5) * 1;
-        maxPossibleScore += 1;
-      } else {
-        // Yes/No questions: 1 point for Yes, 0 for No
-        totalScore += rating;
-        maxPossibleScore += 1;
-      }
-    });
+      questions.forEach(question => {
+        const rating = mysteryRatings[question.key] || 0;
 
-    // Scale to 20 points total
-    const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
-    return Math.min(scaledScore, 20); // Cap at 20
+        if (question.key === 'satisfaction') {
+          satisfactionScore = rating; // Assumes 0-10 input
+        } else {
+          if (question.type === 'rating') {
+            // Rating questions: scale 0-5 to 0-1 point each
+            otherQuestionsScore += (rating / 5) * 1;
+            otherQuestionsMaxPossible += 1;
+          } else {
+            // Yes/No questions: 1 point for Yes, 0 for No
+            otherQuestionsScore += rating;
+            otherQuestionsMaxPossible += 1;
+          }
+        }
+      });
+
+      // Scale other questions to 10 points total
+      const scaledOtherScore = otherQuestionsMaxPossible > 0 ? (otherQuestionsScore / otherQuestionsMaxPossible) * 10 : 0;
+
+      // Total score = Satisfaction (max 10) + Others (max 10) = 20
+      const finalSatisfactionScore = Math.min(satisfactionScore, 10);
+      const totalScore = finalSatisfactionScore + scaledOtherScore;
+      return Math.min(totalScore, 20);
+    } else {
+      // Fallback to old logic if satisfaction is not present
+      let totalScore = 0;
+      let maxPossibleScore = 0;
+
+      questions.forEach(question => {
+        const rating = mysteryRatings[question.key] || 0;
+
+        if (question.type === 'rating') {
+          // Rating questions: scale 0-5 to 0-1 point each
+          totalScore += (rating / 5) * 1;
+          maxPossibleScore += 1;
+        } else {
+          // Yes/No questions: 1 point for Yes, 0 for No
+          totalScore += rating;
+          maxPossibleScore += 1;
+        }
+      });
+
+      // Scale to 20 points total
+      const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
+      return Math.min(scaledScore, 20); // Cap at 20
+    }
   };
 
   // Handle mystery rating change
@@ -457,64 +507,76 @@ export default function ScoringMetricsPage() {
     }
   }, [detailedScoringData, viewDetailsMda]);
 
-  const regionalAverages = useMemo<RegionalAverageRow[] | null>(() => {
+  // Regional averages using useState and useEffect
+  const [regionalAverages, setRegionalAverages] = useState<RegionalAverageRow[] | null>(null);
+
+  useEffect(() => {
     if (stateScores === undefined) {
-      return null;
+      setRegionalAverages(null);
+      return;
     }
 
     const stateTotals: Record<string, number> = {};
     if (Array.isArray(stateScores)) {
-      stateScores.forEach((entry: any) => {
+      for (let i = 0; i < stateScores.length; i++) {
+        const entry = stateScores[i];
         const normalizedState = normalizeStateLabel(entry?.state);
-        if (!normalizedState) return;
+        if (!normalizedState) continue;
         stateTotals[normalizedState] = (stateTotals[normalizedState] ?? 0) + (entry.score || 0);
-      });
+      }
     }
 
-    const regionBuckets: Record<string, { statesDetailed: RegionalAverageRow["statesDetailed"] }> =
-      {};
-    geopoliticalRegions.forEach((region) => {
+    const regionBuckets: Record<string, { statesDetailed: RegionalAverageRow["statesDetailed"] }> = {};
+    
+    // Initialize region buckets
+    for (let i = 0; i < geopoliticalRegions.length; i++) {
+      const region = geopoliticalRegions[i];
       regionBuckets[region] = { statesDetailed: [] };
-    });
+    }
 
-    Object.entries(stateRegions).forEach(([state, region]) => {
+    // Process state regions
+    const stateRegionEntries = Object.entries(stateRegions);
+    for (let i = 0; i < stateRegionEntries.length; i++) {
+      const [state, region] = stateRegionEntries[i];
       if (!regionBuckets[region]) {
         regionBuckets[region] = { statesDetailed: [] };
       }
       const hasRecord = Object.prototype.hasOwnProperty.call(stateTotals, state);
       const stateScore = hasRecord ? stateTotals[state] : 0;
-      const statePercentage =
-        STATE_OVERALL_MAX_SCORE > 0 ? (stateScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
+      const statePercentage = STATE_OVERALL_MAX_SCORE > 0 ? (stateScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
       regionBuckets[region].statesDetailed.push({
         state,
         score: stateScore,
         percentage: statePercentage,
         hasData: hasRecord,
       });
-    });
+    }
 
-    const results: RegionalAverageRow[] = geopoliticalRegions
-      .map((region) => {
-        const bucket = regionBuckets[region];
-        if (!bucket) return null;
-        const totalStates = bucket.statesDetailed.length;
-        const totalScore = bucket.statesDetailed.reduce((sum, state) => sum + state.score, 0);
-        const averageScore = totalStates > 0 ? totalScore / totalStates : 0;
-        const averagePercentage =
-          STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
+    const results: RegionalAverageRow[] = [];
+    for (let i = 0; i < geopoliticalRegions.length; i++) {
+      const region = geopoliticalRegions[i];
+      const bucket = regionBuckets[region];
+      if (!bucket) continue;
+      
+      const totalStates = bucket.statesDetailed.length;
+      let totalScore = 0;
+      for (let j = 0; j < bucket.statesDetailed.length; j++) {
+        totalScore += bucket.statesDetailed[j].score;
+      }
+      
+      const averageScore = totalStates > 0 ? totalScore / totalStates : 0;
+      const averagePercentage = STATE_OVERALL_MAX_SCORE > 0 ? (averageScore / STATE_OVERALL_MAX_SCORE) * 100 : 0;
 
-        return {
-          region,
-          averageScore,
-          averagePercentage,
-          totalScore,
-          statesDetailed: bucket.statesDetailed,
-        };
-      })
-      .filter((row): row is RegionalAverageRow => Boolean(row));
+      results.push({
+        region,
+        averageScore,
+        averagePercentage,
+        totalScore,
+        statesDetailed: bucket.statesDetailed,
+      });
+    }
 
-    // Capture any states present in data but not mapped (should be none, but keeps the report complete)
-    return results;
+    setRegionalAverages(results);
   }, [stateScores]);
 
   // Helper function to process and filter MDA data for dashboard
@@ -533,9 +595,7 @@ export default function ScoringMetricsPage() {
         transparency: null,
         reportGovResolution: null,
         monthlyReport: null,
-        timeliness: null,
-        totalScore: 0,
-        totalPercentage: 0
+        timeliness: null
       });
     });
 
@@ -548,32 +608,550 @@ export default function ScoringMetricsPage() {
         // Only include MDAs that are in mdasList
         if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
           const existing = allMdasMap.get(matchingMdaName);
-
-          // Merge metric data intelligently - prefer non-null values, new data takes precedence if both exist
-          const merged = {
+          allMdasMap.set(matchingMdaName, {
             ...existing,
-            mdaName: matchingMdaName, // Use the canonical name from mdasList
-            sla: mda.sla != null ? mda.sla : existing.sla,
-            mysteryShopping: mda.mysteryShopping != null ? mda.mysteryShopping : existing.mysteryShopping,
-            controversial: mda.controversial != null ? mda.controversial : existing.controversial,
-            toutingRentseeking: mda.toutingRentseeking != null ? mda.toutingRentseeking : existing.toutingRentseeking,
-            innovation: mda.innovation != null ? mda.innovation : existing.innovation,
-            stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
-            transparency: mda.transparency != null ? mda.transparency : existing.transparency,
-            reportGovResolution: mda.reportGovResolution != null ? {
-              ...mda.reportGovResolution,
-              // Preserve all fields including hasFirstHalf, hasSecondHalf, firstHalfScore, secondHalfScore
-            } : existing.reportGovResolution,
-            monthlyReport: mda.monthlyReport != null ? mda.monthlyReport : existing.monthlyReport,
-            timeliness: mda.timeliness != null ? mda.timeliness : existing.timeliness,
-          };
-
-          allMdasMap.set(matchingMdaName, merged);
+            ...mda,
+            mdaName: matchingMdaName // Use the standardized name from mdasList
+          });
         }
       });
     }
 
-    // Convert to array and calculate total scores
+    let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
+      // Recalculate SLA score based on 10 months instead of 12
+      let slaScore = mda.sla?.score || 0;
+      if (mda.sla && mda.sla.monthsWithData) {
+        const pointsPerMonth10 = 30 / 10; // 3 points per month for 10 months
+        const pointsPerMonth12 = 30 / 12; // 2.5 points per month for 12 months (backend calculation)
+        slaScore = mda.sla.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+
+      // Recalculate Monthly Report score based on 10 months instead of 12
+      let monthlyReportScore = mda.monthlyReport?.score || 0;
+      if (mda.monthlyReport && mda.monthlyReport.monthsWithData) {
+        const pointsPerMonth10 = 3 / 10; // 0.3 points per month
+        const pointsPerMonth12 = 3 / 12; // 0.25 points per month (backend calculation)
+        monthlyReportScore = mda.monthlyReport.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+
+      // Recalculate Timeliness score based on 10 months instead of 12
+      let timelinessScore = mda.timeliness?.score || 0;
+      if (mda.timeliness && mda.timeliness.monthsWithData) {
+        const pointsPerMonth10 = 2 / 10; // 0.2 points per month
+        const pointsPerMonth12 = 2 / 12; // 0.167 points per month (backend calculation)
+        timelinessScore = mda.timeliness.score * (pointsPerMonth10 / pointsPerMonth12);
+      }
+
+      const mysteryScore = mda.mysteryShopping?.score || 0;
+      const innovationScore = mda.innovation?.score || 0;
+      const stakeholderScore = mda.stakeholder?.score || 0;
+      const transparencyScore = mda.transparency?.score || 0;
+      const reportGovResScore = mda.reportGovResolution?.score || 0;
+
+      // Calculate base total score (all metrics except controversial and touting & rentseeking)
+      const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
+        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
+      // Controversial: Handle both old and new data formats
+      let controversialScore = mda.controversial?.score || 0;
+      if (mda.controversial) {
+        const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
+        if (isOldFormat) {
+          if (mda.controversial.isControversial) {
+            controversialScore = -5;
+          } else {
+            controversialScore = 0;
+          }
+        }
+      }
+
+      // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
+      let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
+
+      // Calculate penalties (convert negative scores to positive penalty values)
+      const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+      const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+      const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
+
+      // Check if optional metrics are skipped
+      const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
+      const isTransparencySkipped = mda.transparency?.isSkipped || false;
+      let maxPossiblePoints = 90;
+      if (isTransparencySkipped) {
+        maxPossiblePoints -= 5;
+      }
+      if (isReportGovSkipped) {
+        maxPossiblePoints -= 15;
+      }
+
+      const totalPercentage = maxPossiblePoints > 0
+        ? (totalScore / maxPossiblePoints) * 100
+        : 0;
+
+      return {
+        ...mda,
+        sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
+        monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
+        timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
+        baseTotalScore,
+        totalScore,
+        totalPercentage,
+        isReportGovSkipped,
+        isTransparencySkipped,
+        maxPossiblePoints
+      };
+    });
+
+    // Filter based on selected filter
+    if (filter === 'withData') {
+      allMdasArray = allMdasArray.filter((mda: any) => {
+        // Check if MDA has at least one metric with data
+        return mda.sla || mda.mysteryShopping || mda.controversial || mda.toutingRentseeking ||
+          mda.innovation || mda.stakeholder || mda.transparency || mda.reportGovResolution ||
+          mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
+      });
+    }
+
+    // Apply ranking view filter
+    if (rankingFilter === 'without-ministries') {
+      allMdasArray = allMdasArray.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingFilter === 'ministries-only') {
+      allMdasArray = allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
+
+  // Handle dashboard PDF generation - use existing table data with simple filtering
+  const handleGenerateDashboardPDF = async () => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      return;
+    }
+
+    // Use the same data that's displayed in the table
+    let tableData = processDashboardMdaData(mdaFilter, 'all'); // Get all data first
+
+    // Apply ministry filter to match the current ranking view
+    if (rankingView === 'without-ministries') {
+      tableData = tableData.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingView === 'ministries-only') {
+      tableData = tableData.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
+    // Map to the format expected by the PDF generator
+    const pdfData = tableData.map((mda: any) => ({
+      mdaName: mda.mdaName,
+      sla: mda.sla?.score || 0,
+      mysteryShopping: mda.mysteryShopping?.score || 0,
+      controversial: mda.controversial?.score || 0,
+      toutingRentseeking: mda.toutingRentseeking?.score || 0,
+      innovation: mda.innovation?.score || 0,
+      stakeholder: mda.stakeholder?.score || 0,
+      transparency: mda.transparency?.score || 0,
+      reportGovResolution: mda.reportGovResolution?.score || 0,
+      monthlyReport: mda.monthlyReport?.score || 0,
+      timeliness: mda.timeliness?.score || 0,
+      baseTotalScore: mda.baseTotalScore || 0,
+      totalScore: mda.totalScore || 0,
+      totalPercentage: mda.totalPercentage || 0,
+      isReportGovSkipped: mda.isReportGovSkipped || false,
+      isTransparencySkipped: mda.isTransparencySkipped || false,
+      maxPossiblePoints: mda.maxPossiblePoints || 90
+    }));
+
+    await generateDashboardPDF({
+      data: pdfData,
+      year: dashboardYear,
+      filter: mdaFilter,
+      ministryFilter: rankingView
+    });
+  };
+
+  const handleGenerateRegionalAveragesPDF = async () => {
+    if (!regionalAverages) {
+      toast.error("Regional data is still loading");
+      return;
+    }
+
+    await generateRegionalAveragesPDF({
+      data: regionalAverages,
+      year: dashboardYear,
+      overallMaxScore: 90
+    });
+  };
+
+  const handleGenerateMinistryAnalysisPDF = async () => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      return;
+    }
+
+    // Use the same data that's displayed in the table
+    let tableData = processDashboardMdaData(mdaFilter, 'all'); // Get all data first
+
+    // Apply ministry filter to match the current ranking view
+    if (rankingView === 'without-ministries') {
+      tableData = tableData.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingView === 'ministries-only') {
+      tableData = tableData.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
+    // Map to the format expected by the PDF generator
+    const pdfData = tableData.map((mda: any) => ({
+      mdaName: mda.mdaName,
+      sla: mda.sla?.score || 0,
+      mysteryShopping: mda.mysteryShopping?.score || 0,
+      controversial: mda.controversial?.score || 0,
+      toutingRentseeking: mda.toutingRentseeking?.score || 0,
+      innovation: mda.innovation?.score || 0,
+      stakeholder: mda.stakeholder?.score || 0,
+      transparency: mda.transparency?.score || 0,
+      reportGovResolution: mda.reportGovResolution?.score || 0,
+      monthlyReport: mda.monthlyReport?.score || 0,
+      timeliness: mda.timeliness?.score || 0,
+      baseTotalScore: mda.baseTotalScore || 0,
+      totalScore: mda.totalScore || 0,
+      totalPercentage: mda.totalPercentage || 0,
+      isReportGovSkipped: mda.isReportGovSkipped || false,
+      isTransparencySkipped: mda.isTransparencySkipped || false,
+      maxPossiblePoints: mda.maxPossiblePoints || 90
+    }));
+
+    await generateDashboardPDF({
+      data: pdfData,
+      year: dashboardYear,
+      filter: mdaFilter,
+      ministryFilter: rankingView
+    });
+  };
+
+  // Computed MDA data using useState and useEffect for production stability
+  useEffect(() => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      setMdaData([]);
+      return;
+    }
+
+    const processedData = processDashboardMdaData(mdaFilter, rankingView);
+    setMdaData(processedData);
+  }, [liveDashboardData, mdaFilter, rankingView]);
+
+  // Current view data based on ranking view
+  useEffect(() => {
+    setCurrentViewData(mdaData);
+  }, [mdaData]);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <div className="sm:flex sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  MDA Scoring Metrics Dashboard
+                </h3>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                  Comprehensive scoring metrics for all MDAs
+                </p>
+              </div>
+            </div>
+
+            {/* Year and Filter Controls */}
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label htmlFor="year" className="block text-sm font-medium text-gray-700">
+                  Year
+                </label>
+                <select
+                  id="year"
+                  value={dashboardYear}
+                  onChange={(e) => setDashboardYear(parseInt(e.target.value))}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value={2024}>2024</option>
+                  <option value={2023}>2023</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="filter" className="block text-sm font-medium text-gray-700">
+                  Data Filter
+                </label>
+                <select
+                  id="filter"
+                  value={mdaFilter}
+                  onChange={(e) => setMdaFilter(e.target.value as 'all' | 'withData')}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value="all">All MDAs</option>
+                  <option value="withData">MDAs with Data Only</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="rankingView" className="block text-sm font-medium text-gray-700">
+                  Ranking View
+                </label>
+                <select
+                  id="rankingView"
+                  value={rankingView}
+                  onChange={(e) => setRankingView(e.target.value as 'all' | 'without-ministries' | 'ministries-only')}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value="all">All MDAs</option>
+                  <option value="without-ministries">Without Ministries</option>
+                  <option value="ministries-only">Ministries Only</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-6 flex flex-wrap gap-4">
+              <button
+                onClick={handleGenerateDashboardPDF}
+                disabled={!currentViewData || currentViewData.length === 0}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
+                Download {rankingView === 'all' ? 'All MDAs' : rankingView === 'without-ministries' ? 'Without Ministries' : 'Ministries Only'} PDF
+              </button>
+
+              <button
+                onClick={handleGenerateRegionalAveragesPDF}
+                disabled={!regionalAverages || regionalAverages.length === 0}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
+                Download Regional Averages PDF
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="mt-8">
+              <div className="sm:hidden">
+                <label htmlFor="tabs" className="sr-only">
+                  Select a tab
+                </label>
+                <select
+                  id="tabs"
+                  name="tabs"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                  value={activeTab}
+                  onChange={(e) => setActiveTab(e.target.value as 'dashboard' | 'rankings' | 'analysis')}
+                >
+                  <option value="dashboard">Dashboard</option>
+                  <option value="rankings">Rankings</option>
+                  <option value="analysis">Analysis</option>
+                </select>
+              </div>
+              <div className="hidden sm:block">
+                <div className="border-b border-gray-200">
+                  <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                    {[
+                      { key: 'dashboard', name: 'Dashboard' },
+                      { key: 'rankings', name: 'Rankings' },
+                      { key: 'analysis', name: 'Analysis' }
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key as 'dashboard' | 'rankings' | 'analysis')}
+                        className={`${activeTab === tab.key
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
+                      >
+                        {tab.name}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="mt-6">
+              {activeTab === 'dashboard' && (
+                <DashboardTab
+                  data={currentViewData}
+                  year={dashboardYear}
+                  filter={mdaFilter}
+                  onMetricClick={(metric) => {
+                    setSelectedMetric(metric);
+                    setActiveTab('rankings');
+                  }}
+                />
+              )}
+
+              {activeTab === 'rankings' && (
+                <RankingsTable
+                  data={currentViewData}
+                  selectedMetric={selectedMetric}
+                  onMetricChange={setSelectedMetric}
+                  year={dashboardYear}
+                />
+              )}
+
+              {activeTab === 'analysis' && (
+                <AnalysisTab
+                  stateScores={stateScores}
+                  year={dashboardYear}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SLA Ranking Modal */}
+      {showSlaRanking && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-5xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowSlaRanking(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">SLA Rankings - {dashboardYear}</h2>
+
+              {slaRankings && slaRankings.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Rank
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          MDA Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Score
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Percentage
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Months with Data
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(slaRankings || []).map((item: any, index: number) => (
+                        <tr key={item.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.mdaName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="font-semibold">{item.totalScore.toFixed(1)}/30</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${item.percentage >= 90 ? 'text-green-600' :
+                              item.percentage >= 80 ? 'text-blue-600' :
+                                item.percentage >= 70 ? 'text-yellow-600' :
+                                  'text-red-600'
+                              }`}>
+                              {item.percentage.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.monthsWithData}/{item.totalMonths}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No SLA rankings available for this period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Gov Ranking Modal */}
+      {showReportGovRanking && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-5xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowReportGovRanking(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Report Gov Rankings - {dashboardYear}</h2>
+
+              {reportGovRankings && reportGovRankings.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Rank
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          MDA Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Score
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Percentage
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Has Data
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(reportGovRankings || []).map((item: any, index: number) => (
+                        <tr key={item.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.mdaName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="font-semibold">{item.totalScore.toFixed(1)}/15</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${item.percentage >= 90 ? 'text-green-600' :
+                              item.percentage >= 80 ? 'text-blue-600' :
+                                item.percentage >= 70 ? 'text-yellow-600' :
+                                  'text-red-600'
+                              }`}>
+                              {item.percentage.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.hasData ? 'Yes' : 'No'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No Report Gov rankings available for this period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
     let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
       // Recalculate SLA score based on 10 months instead of 12
       let slaScore = mda.sla?.score || 0;
@@ -698,7 +1276,8 @@ export default function ScoringMetricsPage() {
     return allMdasArray;
   };
 
-  // Handle dashboard PDF generation
+
+  // Handle dashboard PDF generation - use existing table data with simple filtering
   const handleGenerateDashboardPDF = async () => {
     if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
       return;
@@ -748,6 +1327,124 @@ export default function ScoringMetricsPage() {
       year: dashboardYear,
       overallMaxScore: STATE_OVERALL_MAX_SCORE
     });
+  };
+
+  // Computed MDA data using useState and useEffect to avoid useMemo issues
+  const [mdaData, setMdaData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      setMdaData([]);
+      return;
+    }
+
+    // Process MDA data without complex useMemo
+    const processedData = [];
+    
+    // Start with mdasList
+    for (let i = 0; i < mdasList.length; i++) {
+      const mda = mdasList[i];
+      let processedMda = {
+        mdaName: mda.name,
+        sla: null,
+        mysteryShopping: null,
+        controversial: null,
+        toutingRentseeking: null,
+        innovation: null,
+        stakeholder: null,
+        transparency: null,
+        reportGovResolution: null,
+        monthlyReport: null,
+        timeliness: null
+      };
+
+      // Find matching data from liveDashboardData
+      for (let j = 0; j < liveDashboardData.length; j++) {
+        const liveData = liveDashboardData[j];
+        const matchingMdaName = findMatchingMdaName(liveData.mdaName);
+        if (matchingMdaName === mda.name) {
+          processedMda = { ...processedMda, ...liveData };
+          break;
+        }
+      }
+
+      // Calculate scores
+      const slaScore = processedMda.sla?.score || 0;
+      const mysteryScore = processedMda.mysteryShopping?.score || 0;
+      const innovationScore = processedMda.innovation?.score || 0;
+      const stakeholderScore = processedMda.stakeholder?.score || 0;
+      const transparencyScore = processedMda.transparency?.score || 0;
+      const reportGovResScore = processedMda.reportGovResolution?.score || 0;
+      const monthlyReportScore = processedMda.monthlyReport?.score || 0;
+      const timelinessScore = processedMda.timeliness?.score || 0;
+      const controversialScore = processedMda.controversial?.score || 0;
+      const toutingRentseekingScore = processedMda.toutingRentseeking?.score || 0;
+
+      const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
+        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
+      const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+      const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+      const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
+
+      const maxPossiblePoints = 90;
+      const totalPercentage = maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0;
+
+      const finalMda = {
+        ...processedMda,
+        baseTotalScore,
+        totalScore,
+        totalPercentage,
+        grade: totalPercentage >= 90 ? "A" : totalPercentage >= 80 ? "B" : totalPercentage >= 70 ? "C" : totalPercentage >= 60 ? "D" : "F",
+        status: totalPercentage >= 70 ? "Compliant" : "Non-Compliant",
+        maxPossiblePoints
+      };
+
+      // Apply filter
+      if (mdaFilter === 'withData') {
+        const hasData = finalMda.sla || finalMda.mysteryShopping || finalMda.controversial || finalMda.toutingRentseeking ||
+          finalMda.innovation || finalMda.stakeholder || finalMda.transparency || finalMda.reportGovResolution ||
+          finalMda.monthlyReport || finalMda.timeliness || finalMda.totalScore > 0;
+        if (hasData) {
+          processedData.push(finalMda);
+        }
+      } else {
+        processedData.push(finalMda);
+      }
+    }
+
+    setMdaData(processedData);
+  }, [liveDashboardData, mdaFilter]);
+
+  // Computed current view data using useState and useEffect
+  const [currentViewData, setCurrentViewData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!mdaData || mdaData.length === 0) {
+      setCurrentViewData([]);
+      return;
+    }
+
+    // Apply ranking view filter to existing mdaData
+    let filteredData = [...mdaData];
+
+    if (rankingView === 'without-ministries') {
+      filteredData = filteredData.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingView === 'ministries-only') {
+      filteredData = filteredData.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
+    setCurrentViewData(filteredData);
+  }, [mdaData, rankingView]);
+
+  const handleGenerateMinistryAnalysisPDF = async () => {
+    if (!mdaData || mdaData.length === 0) {
+      toast.error("MDA data is not available");
+      return;
+    }
+
+    const analysis = analyzeMinistryImpact(mdaData);
+    await generateMinistryImpactPDF(analysis, dashboardYear);
   };
 
   // Helper function to sanitize MDA names (same as backend)
@@ -2229,11 +2926,57 @@ export default function ScoringMetricsPage() {
                   >
                     🗺️ Regional Averages PDF
                   </button>
+                  <button
+                    onClick={handleGenerateMinistryAnalysisPDF}
+                    disabled={!mdaData || mdaData.length === 0}
+                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    🏛️ Ministry Impact Analysis
+                  </button>
                 </div>
               </div>
               <p className="text-sm text-gray-600">
                 View {mdaFilter === 'all' ? 'all' : 'MDAs with data'} with their saved metric scores. Data is averaged across both halves (1st Half & 2nd Half) for the selected year.
               </p>
+              
+              {/* Current Ranking Summary */}
+              {(() => {
+                const totalCount = currentViewData.length;
+                const compliantCount = currentViewData.filter((mda: any) => mda.status === "Compliant").length;
+                const ministryCount = currentViewData.filter((mda: any) => isMinistry(mda.mdaName)).length;
+                
+                return (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-blue-800 mb-2">
+                      Current View: {rankingView === 'all' ? 'All MDAs' : 
+                                   rankingView === 'without-ministries' ? 'Agencies & Departments (No Ministries)' : 
+                                   'Ministries Only'}
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Total MDAs:</span>
+                        <span className="ml-2 text-blue-600 font-bold">{totalCount}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Compliant:</span>
+                        <span className="ml-2 text-green-600 font-bold">{compliantCount} ({totalCount > 0 ? ((compliantCount/totalCount)*100).toFixed(1) : 0}%)</span>
+                      </div>
+                      {rankingView === 'all' && (
+                        <>
+                          <div>
+                            <span className="font-medium text-gray-700">Ministries:</span>
+                            <span className="ml-2 text-purple-600 font-bold">{ministryCount}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Agencies/Depts:</span>
+                            <span className="ml-2 text-indigo-600 font-bold">{totalCount - ministryCount}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Live Dashboard Table */}
@@ -2680,19 +3423,19 @@ export default function ScoringMetricsPage() {
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                      selectedMetric === 'transparency' ? 'Transparency' :
-                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                            selectedMetric === 'timeliness' ? 'Timeliness' :
-                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                        selectedMetric === 'transparency' ? 'Transparency' :
+                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                              selectedMetric === 'timeliness' ? 'Timeliness' :
+                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {(() => {
                           // Use same processed and filtered data
-                          const allMdasArray = processDashboardMdaData(mdaFilter);
+                          const allMdasArray = processDashboardMdaData(mdaFilter, rankingView);
 
                           // Sort by selected metric
                           const sortedData = [...allMdasArray].sort((a: any, b: any) => {
@@ -2827,19 +3570,19 @@ export default function ScoringMetricsPage() {
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                      selectedMetric === 'transparency' ? 'Transparency' :
-                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                            selectedMetric === 'timeliness' ? 'Timeliness' :
-                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                        selectedMetric === 'transparency' ? 'Transparency' :
+                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                              selectedMetric === 'timeliness' ? 'Timeliness' :
+                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {(() => {
                           // Use same processed and filtered data
-                          const allMdasArray = processDashboardMdaData(mdaFilter);
+                          const allMdasArray = processDashboardMdaData(mdaFilter, rankingView);
 
                           // Sort by selected metric
                           const sortedData = [...allMdasArray].sort((a: any, b: any) => {
@@ -3571,7 +4314,7 @@ export default function ScoringMetricsPage() {
 
                             const mysteryScore = viewDetailsData.mysteryShopping?.firstHalf || viewDetailsData.mysteryShopping?.secondHalf ?
                               ((viewDetailsData.mysteryShopping?.firstHalf?.totalScore || 0) + (viewDetailsData.mysteryShopping?.secondHalf?.totalScore || 0)) / 2 : 0;
-                            
+
                             // Controversial: Handle both old and new data formats
                             let controversialScore = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf ?
                               ((viewDetailsData.controversial?.firstHalf?.score || 0) + (viewDetailsData.controversial?.secondHalf?.score || 0)) / 2 : 0;
@@ -5501,8 +6244,8 @@ export default function ScoringMetricsPage() {
                     <h3 className="font-medium text-gray-900 mb-3">
                       {index + 1}. {question.label}
                     </h3>
-                    <div className={`grid gap-2 ${question.type === 'rating' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2'}`}>
-                      {(question.type === 'rating' ? ratingOptions : yesNoOptions).map((option) => (
+                    <div className={`grid gap-2 ${question.key === 'satisfaction' ? 'grid-cols-3 md:grid-cols-6' : (question.type === 'rating' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2')}`}>
+                      {(question.key === 'satisfaction' ? satisfactionOptions : (question.type === 'rating' ? ratingOptions : yesNoOptions)).map((option) => (
                         <label key={option.value} className="flex items-center p-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer">
                           <input
                             type="radio"
@@ -5513,7 +6256,7 @@ export default function ScoringMetricsPage() {
                             className="mr-2"
                           />
                           <span className="text-sm">
-                            {question.type === 'rating' ? `${option.value} - ${option.label}` : option.label}
+                            {question.type === 'rating' && question.key !== 'satisfaction' ? `${option.value} - ${option.label}` : option.label}
                           </span>
                         </label>
                       ))}

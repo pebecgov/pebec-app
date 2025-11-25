@@ -16,6 +16,8 @@ import { useStateRankings } from "@/hooks/useStateRankings";
 import { indicators } from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 import AnalysisTab from "@/components/Admin/AnalysisTab";
+import { generateStateIndicatorPDF, processStateScoresForIndicator } from "@/lib/stateIndicatorPdfGenerator";
+import { toast } from "sonner";
 
 // Grade calculation function
 const indicatorMaxScores: Record<string, number> = Object.fromEntries(
@@ -587,10 +589,14 @@ export default function StateScoringPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("scoring");
   const [selectedStateFilter, setSelectedStateFilter] = useState("");
+  const [selectedIndicatorFilter, setSelectedIndicatorFilter] = useState("");
   const stateIndicatorScores = useQuery(
     api.saveStateScore.getStateScores,
     selectedStateFilter ? { state: selectedStateFilter } : "skip",
   );
+
+  // Get all state scores for indicator analysis
+  const allStateScores = useQuery(api.saveStateScore.getStateScores, {});
 
   const analysisIndicators = useMemo(() => {
     if (!selectedStateFilter || !stateIndicatorScores) {
@@ -611,6 +617,33 @@ export default function StateScoringPage() {
         linkToSource: (score as any).linkToSource,
       };
     });
+
+  // Memoized state data for selected indicator
+  const selectedIndicatorData = useMemo(() => {
+    if (!selectedIndicatorFilter || !allStateScores) {
+      return null;
+    }
+    return processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
+  }, [selectedIndicatorFilter, allStateScores]);
+
+  const handleGenerateIndicatorPDF = async () => {
+    if (!selectedIndicatorFilter || !selectedIndicatorData) {
+      toast.error("Please select an indicator and ensure data is loaded");
+      return;
+    }
+
+    const indicatorConfig = indicators[selectedIndicatorFilter as keyof typeof indicators];
+    if (!indicatorConfig) {
+      toast.error("Invalid indicator selected");
+      return;
+    }
+    
+    await generateStateIndicatorPDF({
+      indicatorKey: selectedIndicatorFilter,
+      indicatorName: indicatorConfig.name,
+      stateData: selectedIndicatorData
+    });
+  };
 
     return Object.entries(indicators).map(([indicatorKey, config]) => {
       const indicatorData = indicatorScores[indicatorKey] || { total: 0, subMetrics: {} };
@@ -735,6 +768,16 @@ export default function StateScoringPage() {
             >
               Analysis
             </button>
+            <button
+              onClick={() => setActiveTab("indicator-analysis")}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "indicator-analysis"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Indicator Analysis
+            </button>
           </nav>
         </div>
       </div>
@@ -775,6 +818,151 @@ export default function StateScoringPage() {
               selectedState={selectedStateFilter || undefined}
               indicators={analysisIndicators ?? undefined}
             />
+          </div>
+        )}
+
+        {activeTab === "indicator-analysis" && (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Indicator Analysis</h2>
+              <p className="text-gray-600 mb-6">
+                Select an indicator to view detailed performance analysis across all states, including sub-indicator breakdowns.
+              </p>
+
+              {/* Indicator Filter and Download */}
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end mb-6">
+                <div className="flex-1">
+                  <label htmlFor="indicator-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Indicator
+                  </label>
+                  <Select value={selectedIndicatorFilter} onValueChange={setSelectedIndicatorFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose an indicator to analyze..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(indicators).map(([key, config]) => (
+                        <SelectItem key={key} value={key}>
+                          {config.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <Button 
+                  onClick={handleGenerateIndicatorPDF}
+                  disabled={!selectedIndicatorFilter || !selectedIndicatorData}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+                >
+                  📊 Download Analysis PDF
+                </Button>
+              </div>
+
+              {/* Indicator Summary */}
+              {selectedIndicatorFilter && selectedIndicatorData && (() => {
+                const indicatorConfig = indicators[selectedIndicatorFilter as keyof typeof indicators];
+                const totalStates = selectedIndicatorData.length;
+                const averageScore = totalStates > 0 ? selectedIndicatorData.reduce((sum, state) => sum + state.percentage, 0) / totalStates : 0;
+                const maxScore = selectedIndicatorData[0]?.maxScore || 0;
+
+                return (
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h3 className="font-semibold text-blue-800 mb-3">{indicatorConfig.name} - Overview</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">States with Data:</span>
+                        <span className="ml-2 text-blue-600 font-bold">{totalStates}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Average Performance:</span>
+                        <span className="ml-2 text-blue-600 font-bold">{averageScore.toFixed(1)}%</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Max Possible Score:</span>
+                        <span className="ml-2 text-blue-600 font-bold">{maxScore} pts</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Sub-Indicators:</span>
+                        <span className="ml-2 text-blue-600 font-bold">{Object.keys(indicatorConfig.subIndicators).length}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* State Performance Table */}
+              {selectedIndicatorFilter && selectedIndicatorData && (() => {
+                const sortedStates = [...selectedIndicatorData].sort((a, b) => b.percentage - a.percentage);
+
+                return (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4">State Performance Rankings</h3>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sub-Indicators</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {sortedStates.map((state, index) => (
+                            <tr key={state.state} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                #{index + 1}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {state.state}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {state.totalScore.toFixed(1)} / {state.maxScore}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  state.percentage >= 80 ? 'bg-green-100 text-green-800' :
+                                  state.percentage >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {state.percentage.toFixed(1)}%
+                                </span>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {state.percentage >= 90 ? 'A+' :
+                                 state.percentage >= 80 ? 'A' :
+                                 state.percentage >= 70 ? 'B' :
+                                 state.percentage >= 60 ? 'C' :
+                                 state.percentage >= 50 ? 'D' : 'F'}
+                              </td>
+                              <td className="px-4 py-4 text-sm text-gray-500">
+                                <div className="flex flex-wrap gap-1">
+                                  {state.subIndicatorScores.map((sub, subIndex) => (
+                                    <span
+                                      key={subIndex}
+                                      className={`inline-flex px-2 py-1 text-xs rounded ${
+                                        sub.percentage >= 80 ? 'bg-green-100 text-green-700' :
+                                        sub.percentage >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                                        'bg-red-100 text-red-700'
+                                      }`}
+                                      title={`${sub.label}: ${sub.score}/${sub.maxScore} (${sub.percentage.toFixed(1)}%)`}
+                                    >
+                                      {sub.score}/{sub.maxScore}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
       </div>
