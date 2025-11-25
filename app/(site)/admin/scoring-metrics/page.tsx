@@ -1014,7 +1014,7 @@ export default function ScoringMetricsPage() {
   const periodTicketData = useQuery(api.mda_scoring.getPeriodTicketData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
-  const scorecardTicketData = useQuery(api.mda_scoring.getPeriodTicketData,
+  const scorecardTicketData = useQuery(api.mda_scoring.getScorecardTicketData,
     scorecardSelectedMda ? { mdaName: scorecardSelectedMda, scoringPeriod } : "skip"
   );
   const scorecardSystemReceived = scorecardTicketData?.totalTickets || 0;
