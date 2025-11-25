@@ -102,6 +102,65 @@ export const getMDAScoringHistory = query({
   }
 });
 
+export const getScorecardEntries = query({
+  args: {
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { scoringPeriod }) => {
+    const entries = await ctx.db.query("mda_scorecard_entries")
+      .withIndex("byPeriod", q => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+
+    return entries.sort((a, b) => b.scorePercentage - a.scorePercentage);
+  }
+});
+
+export const saveScorecardEntry = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    systemTotalTickets: v.number(),
+    systemResolvedTickets: v.number(),
+    manualTotalTickets: v.number(),
+    manualResolvedTickets: v.number(),
+    totalTickets: v.number(),
+    resolvedTickets: v.number(),
+    resolvedRate: v.number(),
+    scorePercentage: v.number()
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized: Only admins and staff can save scorecard entries");
+    }
+
+    const now = Date.now();
+
+    const existing = await ctx.db.query("mda_scorecard_entries")
+      .withIndex("byMdaPeriod", q => q.eq("mdaName", args.mdaName).eq("scoringPeriod", args.scoringPeriod))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        ...args,
+        calculatedBy: user._id,
+        calculatedAt: now
+      });
+
+      return { success: true, entryId: existing._id, isUpdate: true };
+    }
+
+    const entryId = await ctx.db.insert("mda_scorecard_entries", {
+      ...args,
+      calculatedBy: user._id,
+      calculatedAt: now
+    });
+
+    return { success: true, entryId, isUpdate: false };
+  }
+});
+
 // Get monthly reports for a specific MDA
 export const getMDAMonthlyReports = query({
   args: { mdaId: v.id("mdas") },
