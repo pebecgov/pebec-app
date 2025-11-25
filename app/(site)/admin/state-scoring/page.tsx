@@ -618,8 +618,16 @@ export default function StateScoringPage() {
       };
     });
 
-  const handleGenerateIndicatorPDF = async () => {
+  // Memoized state data for selected indicator
+  const selectedIndicatorData = useMemo(() => {
     if (!selectedIndicatorFilter || !allStateScores) {
+      return null;
+    }
+    return processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
+  }, [selectedIndicatorFilter, allStateScores]);
+
+  const handleGenerateIndicatorPDF = async () => {
+    if (!selectedIndicatorFilter || !selectedIndicatorData) {
       toast.error("Please select an indicator and ensure data is loaded");
       return;
     }
@@ -629,13 +637,11 @@ export default function StateScoringPage() {
       toast.error("Invalid indicator selected");
       return;
     }
-
-    const stateData = processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
     
     await generateStateIndicatorPDF({
       indicatorKey: selectedIndicatorFilter,
       indicatorName: indicatorConfig.name,
-      stateData
+      stateData: selectedIndicatorData
     });
   };
 
@@ -845,7 +851,7 @@ export default function StateScoringPage() {
                 
                 <Button 
                   onClick={handleGenerateIndicatorPDF}
-                  disabled={!selectedIndicatorFilter || !allStateScores}
+                  disabled={!selectedIndicatorFilter || !selectedIndicatorData}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
                 >
                   📊 Download Analysis PDF
@@ -853,12 +859,11 @@ export default function StateScoringPage() {
               </div>
 
               {/* Indicator Summary */}
-              {selectedIndicatorFilter && allStateScores && (() => {
+              {selectedIndicatorFilter && selectedIndicatorData && (() => {
                 const indicatorConfig = indicators[selectedIndicatorFilter as keyof typeof indicators];
-                const stateData = processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
-                const totalStates = stateData.length;
-                const averageScore = totalStates > 0 ? stateData.reduce((sum, state) => sum + state.percentage, 0) / totalStates : 0;
-                const maxScore = stateData[0]?.maxScore || 0;
+                const totalStates = selectedIndicatorData.length;
+                const averageScore = totalStates > 0 ? selectedIndicatorData.reduce((sum, state) => sum + state.percentage, 0) / totalStates : 0;
+                const maxScore = selectedIndicatorData[0]?.maxScore || 0;
 
                 return (
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
@@ -886,9 +891,8 @@ export default function StateScoringPage() {
               })()}
 
               {/* State Performance Table */}
-              {selectedIndicatorFilter && allStateScores && (() => {
-                const stateData = processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
-                const sortedStates = [...stateData].sort((a, b) => b.percentage - a.percentage);
+              {selectedIndicatorFilter && selectedIndicatorData && (() => {
+                const sortedStates = [...selectedIndicatorData].sort((a, b) => b.percentage - a.percentage);
 
                 return (
                   <div className="mt-6">

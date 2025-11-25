@@ -802,8 +802,88 @@ export default function ScoringMetricsPage() {
     if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
       return [];
     }
-    return processDashboardMdaData(mdaFilter, 'all'); // Always use 'all' for analysis to get complete picture
+    
+    // Initialize all MDAs from mdasList with null data
+    const allMdasMap = new Map<string, any>();
+    mdasList.forEach(mda => {
+      allMdasMap.set(mda.name, {
+        mdaName: mda.name,
+        sla: null,
+        mysteryShopping: null,
+        controversial: null,
+        toutingRentseeking: null,
+        innovation: null,
+        stakeholder: null,
+        transparency: null,
+        reportGovResolution: null,
+        monthlyReport: null,
+        timeliness: null
+      });
+    });
+
+    // Merge with saved data from backend
+    if (liveDashboardData && Array.isArray(liveDashboardData)) {
+      liveDashboardData.forEach((mda: any) => {
+        // Find matching MDA name from mdasList
+        const matchingMdaName = findMatchingMdaName(mda.mdaName);
+        if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
+          allMdasMap.set(matchingMdaName, {
+            ...allMdasMap.get(matchingMdaName),
+            ...mda
+          });
+        }
+      });
+    }
+
+    let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
+      // Calculate scores (simplified version for analysis)
+      const slaScore = mda.sla?.score || 0;
+      const mysteryScore = mda.mysteryShopping?.score || 0;
+      const innovationScore = mda.innovation?.score || 0;
+      const stakeholderScore = mda.stakeholder?.score || 0;
+      const transparencyScore = mda.transparency?.score || 0;
+      const reportGovResScore = mda.reportGovResolution?.score || 0;
+      const monthlyReportScore = mda.monthlyReport?.score || 0;
+      const timelinessScore = mda.timeliness?.score || 0;
+      const controversialScore = mda.controversial?.score || 0;
+      const toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
+
+      const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
+        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+
+      const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+      const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+      const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
+
+      const maxPossiblePoints = 90;
+      const totalPercentage = maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0;
+
+      return {
+        ...mda,
+        totalScore,
+        totalPercentage,
+        grade: totalPercentage >= 90 ? "A" : totalPercentage >= 80 ? "B" : totalPercentage >= 70 ? "C" : totalPercentage >= 60 ? "D" : "F",
+        status: totalPercentage >= 70 ? "Compliant" : "Non-Compliant",
+        maxPossiblePoints
+      };
+    });
+
+    // Filter based on data availability if needed
+    if (mdaFilter === 'withData') {
+      allMdasArray = allMdasArray.filter((mda: any) => {
+        return mda.sla || mda.mysteryShopping || mda.controversial || mda.toutingRentseeking ||
+          mda.innovation || mda.stakeholder || mda.transparency || mda.reportGovResolution ||
+          mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
+      });
+    }
+
+    return allMdasArray;
   }, [liveDashboardData, mdaFilter]);
+
+  // Computed current view data for summary
+  const currentViewData = useMemo(() => {
+    return processDashboardMdaData(mdaFilter, rankingView);
+  }, [mdaFilter, rankingView, liveDashboardData]);
 
   const handleGenerateMinistryAnalysisPDF = async () => {
     if (!mdaData || mdaData.length === 0) {
@@ -2309,10 +2389,9 @@ export default function ScoringMetricsPage() {
               
               {/* Current Ranking Summary */}
               {(() => {
-                const currentData = processDashboardMdaData(mdaFilter, rankingView);
-                const totalCount = currentData.length;
-                const compliantCount = currentData.filter((mda: any) => mda.status === "Compliant").length;
-                const ministryCount = currentData.filter((mda: any) => isMinistry(mda.mdaName)).length;
+                const totalCount = currentViewData.length;
+                const compliantCount = currentViewData.filter((mda: any) => mda.status === "Compliant").length;
+                const ministryCount = currentViewData.filter((mda: any) => isMinistry(mda.mdaName)).length;
                 
                 return (
                   <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
