@@ -15,6 +15,8 @@ import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
 import { indicators } from "@/convex/config/indicators";
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
+import { analyzeMinistryImpact, generateMinistryImpactPDF, isMinistry } from "@/lib/ministryAnalysis";
+import { generateRankingPDF } from "@/lib/rankingPdfGenerator";
 
 const stateIndicatorMaxScores: Record<string, number> = Object.fromEntries(
   Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
@@ -369,6 +371,7 @@ export default function ScoringMetricsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedMetric, setSelectedMetric] = useState<string>('totalScore');
   const [mdaFilter, setMdaFilter] = useState<'all' | 'withData'>('all');
+  const [rankingView, setRankingView] = useState<'all' | 'without-ministries' | 'ministries-only'>('all');
 
   // View Details Modal state
   const [viewDetailsMda, setViewDetailsMda] = useState<string | null>(null);
@@ -565,7 +568,7 @@ export default function ScoringMetricsPage() {
   }, [stateScores]);
 
   // Helper function to process and filter MDA data for dashboard
-  const processDashboardMdaData = (filter: 'all' | 'withData' = 'all') => {
+  const processDashboardMdaData = (filter: 'all' | 'withData' = 'all', rankingFilter: 'all' | 'without-ministries' | 'ministries-only' = 'all') => {
     // Initialize all MDAs from mdasList with null data
     const allMdasMap = new Map<string, any>();
     mdasList.forEach(mda => {
@@ -735,6 +738,13 @@ export default function ScoringMetricsPage() {
       });
     }
 
+    // Apply ranking view filter
+    if (rankingFilter === 'without-ministries') {
+      allMdasArray = allMdasArray.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingFilter === 'ministries-only') {
+      allMdasArray = allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
     return allMdasArray;
   };
 
@@ -744,30 +754,33 @@ export default function ScoringMetricsPage() {
       return;
     }
 
-    // Process and filter data based on current filter
-    const processedData = processDashboardMdaData(mdaFilter);
+    // Process and filter data based on current filters
+    const processedData = processDashboardMdaData(mdaFilter, rankingView);
 
-    // Convert back to the format expected by PDF generator
-    const filteredLiveData = processedData.map((mda: any) => ({
+    // Convert to the format expected by the new PDF generator
+    const pdfData = processedData.map((mda: any) => ({
       mdaName: mda.mdaName,
+      totalScore: mda.totalScore || 0,
+      totalPercentage: mda.totalPercentage || 0,
+      grade: mda.grade || "F",
+      status: mda.status || "Non-Compliant",
       sla: mda.sla,
       mysteryShopping: mda.mysteryShopping,
       controversial: mda.controversial,
-      toutingRentseeking: mda.toutingRentseeking,
       innovation: mda.innovation,
       stakeholder: mda.stakeholder,
       transparency: mda.transparency,
       reportGovResolution: mda.reportGovResolution,
       monthlyReport: mda.monthlyReport,
-      timeliness: mda.timeliness
+      timeliness: mda.timeliness,
+      maxPossiblePoints: mda.maxPossiblePoints || 90
     }));
 
-    await generateDashboardPDF({
-      liveDashboardData: filteredLiveData,
-      selectedMetric,
-      dashboardYear,
-      mdasList,
-      filterType: mdaFilter
+    await generateRankingPDF({
+      data: pdfData,
+      year: dashboardYear,
+      rankingType: rankingView,
+      selectedMetric
     });
   };
 
@@ -782,6 +795,24 @@ export default function ScoringMetricsPage() {
       year: dashboardYear,
       overallMaxScore: STATE_OVERALL_MAX_SCORE
     });
+  };
+
+  // Computed MDA data based on current filters
+  const mdaData = useMemo(() => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      return [];
+    }
+    return processDashboardMdaData(mdaFilter, 'all'); // Always use 'all' for analysis to get complete picture
+  }, [liveDashboardData, mdaFilter]);
+
+  const handleGenerateMinistryAnalysisPDF = async () => {
+    if (!mdaData || mdaData.length === 0) {
+      toast.error("MDA data is not available");
+      return;
+    }
+
+    const analysis = analyzeMinistryImpact(mdaData);
+    await generateMinistryImpactPDF(analysis, dashboardYear);
   };
 
   // Helper function to sanitize MDA names (same as backend)
@@ -2221,6 +2252,20 @@ export default function ScoringMetricsPage() {
                       <MenuItem value="withData">MDAs with Data</MenuItem>
                     </Select>
                   </FormControl>
+                  <FormControl sx={{ minWidth: 200 }} variant="outlined">
+                    <InputLabel id="ranking-view-label">Ranking View</InputLabel>
+                    <Select
+                      labelId="ranking-view-label"
+                      id="ranking-view-select"
+                      value={rankingView}
+                      onChange={(e) => setRankingView(e.target.value as 'all' | 'without-ministries' | 'ministries-only')}
+                      label="Ranking View"
+                    >
+                      <MenuItem value="all">All MDAs</MenuItem>
+                      <MenuItem value="without-ministries">Without Ministries</MenuItem>
+                      <MenuItem value="ministries-only">Ministries Only</MenuItem>
+                    </Select>
+                  </FormControl>
                   <FormControl sx={{ minWidth: 150 }} variant="outlined">
                     <InputLabel id="year-label">Year</InputLabel>
                     <Select
@@ -2240,7 +2285,7 @@ export default function ScoringMetricsPage() {
                     disabled={liveDashboardData === undefined || !Array.isArray(liveDashboardData) || liveDashboardData.length === 0}
                     className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    📥 Download PDF
+                    📥 Download {rankingView === 'all' ? 'All MDAs' : rankingView === 'without-ministries' ? 'Without Ministries' : 'Ministries Only'} PDF
                   </button>
                   <button
                     onClick={handleGenerateRegionalAveragesPDF}
@@ -2249,11 +2294,58 @@ export default function ScoringMetricsPage() {
                   >
                     🗺️ Regional Averages PDF
                   </button>
+                  <button
+                    onClick={handleGenerateMinistryAnalysisPDF}
+                    disabled={!mdaData || mdaData.length === 0}
+                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    🏛️ Ministry Impact Analysis
+                  </button>
                 </div>
               </div>
               <p className="text-sm text-gray-600">
                 View {mdaFilter === 'all' ? 'all' : 'MDAs with data'} with their saved metric scores. Data is averaged across both halves (1st Half & 2nd Half) for the selected year.
               </p>
+              
+              {/* Current Ranking Summary */}
+              {(() => {
+                const currentData = processDashboardMdaData(mdaFilter, rankingView);
+                const totalCount = currentData.length;
+                const compliantCount = currentData.filter((mda: any) => mda.status === "Compliant").length;
+                const ministryCount = currentData.filter((mda: any) => isMinistry(mda.mdaName)).length;
+                
+                return (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-blue-800 mb-2">
+                      Current View: {rankingView === 'all' ? 'All MDAs' : 
+                                   rankingView === 'without-ministries' ? 'Agencies & Departments (No Ministries)' : 
+                                   'Ministries Only'}
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Total MDAs:</span>
+                        <span className="ml-2 text-blue-600 font-bold">{totalCount}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Compliant:</span>
+                        <span className="ml-2 text-green-600 font-bold">{compliantCount} ({totalCount > 0 ? ((compliantCount/totalCount)*100).toFixed(1) : 0}%)</span>
+                      </div>
+                      {rankingView === 'all' && (
+                        <>
+                          <div>
+                            <span className="font-medium text-gray-700">Ministries:</span>
+                            <span className="ml-2 text-purple-600 font-bold">{ministryCount}</span>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Agencies/Depts:</span>
+                            <span className="ml-2 text-indigo-600 font-bold">{totalCount - ministryCount}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Live Dashboard Table */}
@@ -2312,7 +2404,7 @@ export default function ScoringMetricsPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {(() => {
                         // Get processed and filtered MDA data
-                        const allMdasArray = processDashboardMdaData(mdaFilter);
+                        const allMdasArray = processDashboardMdaData(mdaFilter, rankingView);
 
                         // Sort data by selected metric
                         const sortedData = Array.isArray(allMdasArray) ? [...allMdasArray].sort((a: any, b: any) => {
@@ -2712,7 +2804,7 @@ export default function ScoringMetricsPage() {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {(() => {
                           // Use same processed and filtered data
-                          const allMdasArray = processDashboardMdaData(mdaFilter);
+                          const allMdasArray = processDashboardMdaData(mdaFilter, rankingView);
 
                           // Sort by selected metric
                           const sortedData = [...allMdasArray].sort((a: any, b: any) => {
@@ -2859,7 +2951,7 @@ export default function ScoringMetricsPage() {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {(() => {
                           // Use same processed and filtered data
-                          const allMdasArray = processDashboardMdaData(mdaFilter);
+                          const allMdasArray = processDashboardMdaData(mdaFilter, rankingView);
 
                           // Sort by selected metric
                           const sortedData = [...allMdasArray].sort((a: any, b: any) => {
