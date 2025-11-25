@@ -669,66 +669,439 @@ export default function ScoringMetricsPage() {
       allMdasArray = allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
     }
 
-    return allMdasArray;
-  };
 
-  // Helper function to process and filter MDA data for dashboard
-  const processDashboardMdaData = (filter: 'all' | 'withData' = 'all', rankingFilter: 'all' | 'without-ministries' | 'ministries-only' = 'all') => {
-    // Initialize all MDAs from mdasList with null data
-    const allMdasMap = new Map<string, any>();
-    mdasList.forEach(mda => {
-      allMdasMap.set(mda.name, {
-        mdaName: mda.name,
-        sla: null,
-        mysteryShopping: null,
-        controversial: null,
-        toutingRentseeking: null,
-        innovation: null,
-        stakeholder: null,
-        transparency: null,
-        reportGovResolution: null,
-        monthlyReport: null,
-        timeliness: null,
-        totalScore: 0,
-        totalPercentage: 0
-      });
-    });
-
-    // Merge with saved data from backend
-    if (liveDashboardData && Array.isArray(liveDashboardData)) {
-      liveDashboardData.forEach((mda: any) => {
-        // Find matching MDA name from mdasList
-        const matchingMdaName = findMatchingMdaName(mda.mdaName);
-
-        // Only include MDAs that are in mdasList
-        if (matchingMdaName && allMdasMap.has(matchingMdaName)) {
-          const existing = allMdasMap.get(matchingMdaName);
-
-          // Merge metric data intelligently - prefer non-null values, new data takes precedence if both exist
-          const merged = {
-            ...existing,
-            mdaName: matchingMdaName, // Use the canonical name from mdasList
-            sla: mda.sla != null ? mda.sla : existing.sla,
-            mysteryShopping: mda.mysteryShopping != null ? mda.mysteryShopping : existing.mysteryShopping,
-            controversial: mda.controversial != null ? mda.controversial : existing.controversial,
-            toutingRentseeking: mda.toutingRentseeking != null ? mda.toutingRentseeking : existing.toutingRentseeking,
-            innovation: mda.innovation != null ? mda.innovation : existing.innovation,
-            stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
-            transparency: mda.transparency != null ? mda.transparency : existing.transparency,
-            reportGovResolution: mda.reportGovResolution != null ? {
-              ...mda.reportGovResolution,
-              // Preserve all fields including hasFirstHalf, hasSecondHalf, firstHalfScore, secondHalfScore
-            } : existing.reportGovResolution,
-            monthlyReport: mda.monthlyReport != null ? mda.monthlyReport : existing.monthlyReport,
-            timeliness: mda.timeliness != null ? mda.timeliness : existing.timeliness,
-          };
-
-          allMdasMap.set(matchingMdaName, merged);
-        }
-      });
+  // Handle dashboard PDF generation - use existing table data with simple filtering
+  const handleGenerateDashboardPDF = async () => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      return;
     }
 
-    // Convert to array and calculate total scores
+    // Use the same data that's displayed in the table
+    let tableData = processDashboardMdaData(mdaFilter, 'all'); // Get all data first
+
+    // Apply ministry filter to match the current ranking view
+    if (rankingView === 'without-ministries') {
+      tableData = tableData.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingView === 'ministries-only') {
+      tableData = tableData.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
+    // Map to the format expected by the PDF generator
+    const pdfData = tableData.map((mda: any) => ({
+      mdaName: mda.mdaName,
+      sla: mda.sla?.score || 0,
+      mysteryShopping: mda.mysteryShopping?.score || 0,
+      controversial: mda.controversial?.score || 0,
+      toutingRentseeking: mda.toutingRentseeking?.score || 0,
+      innovation: mda.innovation?.score || 0,
+      stakeholder: mda.stakeholder?.score || 0,
+      transparency: mda.transparency?.score || 0,
+      reportGovResolution: mda.reportGovResolution?.score || 0,
+      monthlyReport: mda.monthlyReport?.score || 0,
+      timeliness: mda.timeliness?.score || 0,
+      baseTotalScore: mda.baseTotalScore || 0,
+      totalScore: mda.totalScore || 0,
+      totalPercentage: mda.totalPercentage || 0,
+      isReportGovSkipped: mda.isReportGovSkipped || false,
+      isTransparencySkipped: mda.isTransparencySkipped || false,
+      maxPossiblePoints: mda.maxPossiblePoints || 90
+    }));
+
+    await generateDashboardPDF({
+      data: pdfData,
+      year: dashboardYear,
+      filter: mdaFilter,
+      ministryFilter: rankingView
+    });
+  };
+
+  const handleGenerateRegionalAveragesPDF = async () => {
+    if (!regionalAverages) {
+      toast.error("Regional data is still loading");
+      return;
+    }
+
+    await generateRegionalAveragesPDF({
+      data: regionalAverages,
+      year: dashboardYear,
+      overallMaxScore: 90
+    });
+  };
+
+  const handleGenerateMinistryAnalysisPDF = async () => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      return;
+    }
+
+    // Use the same data that's displayed in the table
+    let tableData = processDashboardMdaData(mdaFilter, 'all'); // Get all data first
+
+    // Apply ministry filter to match the current ranking view
+    if (rankingView === 'without-ministries') {
+      tableData = tableData.filter((mda: any) => !isMinistry(mda.mdaName));
+    } else if (rankingView === 'ministries-only') {
+      tableData = tableData.filter((mda: any) => isMinistry(mda.mdaName));
+    }
+
+    // Map to the format expected by the PDF generator
+    const pdfData = tableData.map((mda: any) => ({
+      mdaName: mda.mdaName,
+      sla: mda.sla?.score || 0,
+      mysteryShopping: mda.mysteryShopping?.score || 0,
+      controversial: mda.controversial?.score || 0,
+      toutingRentseeking: mda.toutingRentseeking?.score || 0,
+      innovation: mda.innovation?.score || 0,
+      stakeholder: mda.stakeholder?.score || 0,
+      transparency: mda.transparency?.score || 0,
+      reportGovResolution: mda.reportGovResolution?.score || 0,
+      monthlyReport: mda.monthlyReport?.score || 0,
+      timeliness: mda.timeliness?.score || 0,
+      baseTotalScore: mda.baseTotalScore || 0,
+      totalScore: mda.totalScore || 0,
+      totalPercentage: mda.totalPercentage || 0,
+      isReportGovSkipped: mda.isReportGovSkipped || false,
+      isTransparencySkipped: mda.isTransparencySkipped || false,
+      maxPossiblePoints: mda.maxPossiblePoints || 90
+    }));
+
+    await generateDashboardPDF({
+      data: pdfData,
+      year: dashboardYear,
+      filter: mdaFilter,
+      ministryFilter: rankingView
+    });
+  };
+
+  // Computed MDA data using useState and useEffect for production stability
+  useEffect(() => {
+    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+      setMdaData([]);
+      return;
+    }
+
+    const processedData = processDashboardMdaData(mdaFilter, rankingView);
+    setMdaData(processedData);
+  }, [liveDashboardData, mdaFilter, rankingView]);
+
+  // Current view data based on ranking view
+  useEffect(() => {
+    setCurrentViewData(mdaData);
+  }, [mdaData]);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <div className="sm:flex sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  MDA Scoring Metrics Dashboard
+                </h3>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                  Comprehensive scoring metrics for all MDAs
+                </p>
+              </div>
+            </div>
+
+            {/* Year and Filter Controls */}
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label htmlFor="year" className="block text-sm font-medium text-gray-700">
+                  Year
+                </label>
+                <select
+                  id="year"
+                  value={dashboardYear}
+                  onChange={(e) => setDashboardYear(parseInt(e.target.value))}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value={2024}>2024</option>
+                  <option value={2023}>2023</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="filter" className="block text-sm font-medium text-gray-700">
+                  Data Filter
+                </label>
+                <select
+                  id="filter"
+                  value={mdaFilter}
+                  onChange={(e) => setMdaFilter(e.target.value as 'all' | 'withData')}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value="all">All MDAs</option>
+                  <option value="withData">MDAs with Data Only</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="rankingView" className="block text-sm font-medium text-gray-700">
+                  Ranking View
+                </label>
+                <select
+                  id="rankingView"
+                  value={rankingView}
+                  onChange={(e) => setRankingView(e.target.value as 'all' | 'without-ministries' | 'ministries-only')}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value="all">All MDAs</option>
+                  <option value="without-ministries">Without Ministries</option>
+                  <option value="ministries-only">Ministries Only</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="mt-6 flex flex-wrap gap-4">
+              <button
+                onClick={handleGenerateDashboardPDF}
+                disabled={!currentViewData || currentViewData.length === 0}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
+                Download {rankingView === 'all' ? 'All MDAs' : rankingView === 'without-ministries' ? 'Without Ministries' : 'Ministries Only'} PDF
+              </button>
+
+              <button
+                onClick={handleGenerateRegionalAveragesPDF}
+                disabled={!regionalAverages || regionalAverages.length === 0}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
+                Download Regional Averages PDF
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="mt-8">
+              <div className="sm:hidden">
+                <label htmlFor="tabs" className="sr-only">
+                  Select a tab
+                </label>
+                <select
+                  id="tabs"
+                  name="tabs"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                  value={activeTab}
+                  onChange={(e) => setActiveTab(e.target.value as 'dashboard' | 'rankings' | 'analysis')}
+                >
+                  <option value="dashboard">Dashboard</option>
+                  <option value="rankings">Rankings</option>
+                  <option value="analysis">Analysis</option>
+                </select>
+              </div>
+              <div className="hidden sm:block">
+                <div className="border-b border-gray-200">
+                  <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                    {[
+                      { key: 'dashboard', name: 'Dashboard' },
+                      { key: 'rankings', name: 'Rankings' },
+                      { key: 'analysis', name: 'Analysis' }
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key as 'dashboard' | 'rankings' | 'analysis')}
+                        className={`${activeTab === tab.key
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
+                      >
+                        {tab.name}
+                      </button>
+                    ))}
+                  </nav>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="mt-6">
+              {activeTab === 'dashboard' && (
+                <DashboardTab
+                  data={currentViewData}
+                  year={dashboardYear}
+                  filter={mdaFilter}
+                  onMetricClick={(metric) => {
+                    setSelectedMetric(metric);
+                    setActiveTab('rankings');
+                  }}
+                />
+              )}
+
+              {activeTab === 'rankings' && (
+                <RankingsTable
+                  data={currentViewData}
+                  selectedMetric={selectedMetric}
+                  onMetricChange={setSelectedMetric}
+                  year={dashboardYear}
+                />
+              )}
+
+              {activeTab === 'analysis' && (
+                <AnalysisTab
+                  stateScores={stateScores}
+                  year={dashboardYear}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SLA Ranking Modal */}
+      {showSlaRanking && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-5xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowSlaRanking(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">SLA Rankings - {dashboardYear}</h2>
+
+              {slaRankings && slaRankings.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Rank
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          MDA Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Score
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Percentage
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Months with Data
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(slaRankings || []).map((item: any, index: number) => (
+                        <tr key={item.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.mdaName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="font-semibold">{item.totalScore.toFixed(1)}/30</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${item.percentage >= 90 ? 'text-green-600' :
+                              item.percentage >= 80 ? 'text-blue-600' :
+                                item.percentage >= 70 ? 'text-yellow-600' :
+                                  'text-red-600'
+                              }`}>
+                              {item.percentage.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.monthsWithData}/{item.totalMonths}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No SLA rankings available for this period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Gov Ranking Modal */}
+      {showReportGovRanking && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-5xl max-h-screen overflow-y-auto bg-white rounded-lg shadow-xl">
+            <button
+              onClick={() => setShowReportGovRanking(false)}
+              className="absolute top-4 right-4 text-gray-700 hover:text-black text-2xl font-bold z-10"
+            >
+              &times;
+            </button>
+
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Report Gov Rankings - {dashboardYear}</h2>
+
+              {reportGovRankings && reportGovRankings.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Rank
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          MDA Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Score
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Percentage
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Has Data
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {(reportGovRankings || []).map((item: any, index: number) => (
+                        <tr key={item.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.mdaName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="font-semibold">{item.totalScore.toFixed(1)}/15</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-semibold ${item.percentage >= 90 ? 'text-green-600' :
+                              item.percentage >= 80 ? 'text-blue-600' :
+                                item.percentage >= 70 ? 'text-yellow-600' :
+                                  'text-red-600'
+                              }`}>
+                              {item.percentage.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {item.hasData ? 'Yes' : 'No'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No Report Gov rankings available for this period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
     let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
       // Recalculate SLA score based on 10 months instead of 12
       let slaScore = mda.sla?.score || 0;
@@ -850,8 +1223,6 @@ export default function ScoringMetricsPage() {
       allMdasArray = allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
     }
 
-    return allMdasArray;
-  };
 
   // Handle dashboard PDF generation - use existing table data with simple filtering
   const handleGenerateDashboardPDF = async () => {
