@@ -1,15 +1,5 @@
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-
-interface SubMetricScore {
-  subIndicator: string;
-  label: string;
-  score: number;
-  maxScore: number;
-  value?: string;
-  linkToSource?: string;
-}
 
 interface IndicatorData {
   indicatorKey: string;
@@ -17,7 +7,14 @@ interface IndicatorData {
   totalScore: number;
   maxScore: number;
   percentage: number;
-  subMetrics: SubMetricScore[];
+  subMetrics?: Array<{
+    subIndicator: string;
+    label: string;
+    score: number;
+    maxScore: number;
+    value?: string;
+    linkToSource?: string;
+  }>;
 }
 
 interface GenerateStateAnalysisPDFParams {
@@ -28,6 +25,28 @@ interface GenerateStateAnalysisPDFParams {
   overallPercentage: number;
   generatedAt?: Date;
 }
+
+const CARD_BANDS = [
+  { threshold: 85, background: "#ecfdf5", accent: "#059669", text: "#064e3b" },
+  { threshold: 70, background: "#eff6ff", accent: "#1d4ed8", text: "#1e3a8a" },
+  { threshold: 55, background: "#fffbeb", accent: "#b45309", text: "#92400e" },
+  { threshold: 40, background: "#fff7ed", accent: "#c2410c", text: "#9a3412" },
+  { threshold: 0, background: "#fef2f2", accent: "#dc2626", text: "#991b1b" },
+];
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const sanitized = hex.replace("#", "");
+  const bigint = parseInt(sanitized, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return [r, g, b];
+};
+
+const getCardColors = (percentage: number) => {
+  const band = CARD_BANDS.find((entry) => percentage >= entry.threshold) ?? CARD_BANDS[CARD_BANDS.length - 1];
+  return band;
+};
 
 export async function generateStateAnalysisPDF({
   stateName,
@@ -43,10 +62,12 @@ export async function generateStateAnalysisPDF({
   }
 
   try {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 30;
+    const marginX = 14;
+    const marginY = 16;
+    let yPosition = marginY + 10;
 
     // Attempt to add logo
     try {
@@ -64,25 +85,21 @@ export async function generateStateAnalysisPDF({
       const logoHeight = 18;
       const logoX = (pageWidth - logoWidth) / 2;
       doc.addImage(img, "PNG", logoX, 10, logoWidth, logoHeight);
-      yPosition = 40;
+      yPosition = marginY + 20;
     } catch (error) {
       console.error("Error loading logo:", error);
       doc.setFontSize(16);
       doc.setFont(undefined, "bold");
       doc.text("PEBEC", pageWidth / 2, 20, { align: "center" });
-      yPosition = 35;
+      yPosition = marginY + 15;
     }
 
-    // Title
-    doc.setFontSize(18);
+    doc.setFontSize(20);
     doc.setFont(undefined, "bold");
-    doc.text(`${stateName} - State Analysis Report`, pageWidth / 2, yPosition, {
-      align: "center",
-    });
+    doc.text(stateName, pageWidth / 2, yPosition, { align: "center" });
     yPosition += 8;
 
-    // Overall Summary
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont(undefined, "normal");
     doc.text(
       `Overall Score: ${overallTotalScore.toFixed(1)}/${overallMaxScore.toFixed(1)} (${overallPercentage.toFixed(1)}%)`,
@@ -92,140 +109,82 @@ export async function generateStateAnalysisPDF({
     );
     yPosition += 6;
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
+    doc.setTextColor(100);
     doc.text(
       `Generated: ${generatedAt.toLocaleDateString(undefined, {
         year: "numeric",
         month: "short",
         day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
       })}`,
       pageWidth / 2,
       yPosition,
       { align: "center" }
     );
-    yPosition += 10;
+    doc.setTextColor(0);
+    yPosition += 12;
 
-    // Process each indicator
-    for (let i = 0; i < indicators.length; i++) {
-      const indicator = indicators[i];
+    const maxCards = 16;
+    const cards = indicators.slice(0, maxCards);
+    const columns = 4;
+    const rows = 4;
+    const gapX = 6;
+    const gapY = 8;
+    const cardAreaTop = yPosition;
+    const availableHeight = pageHeight - cardAreaTop - marginY;
+    const cardWidth = (pageWidth - marginX * 2 - gapX * (columns - 1)) / columns;
+    const cardHeight = (availableHeight - gapY * (rows - 1)) / rows;
 
-      // Check if we need a new page
-      if (yPosition > pageHeight - 60) {
-        doc.addPage();
-        yPosition = 20;
-      }
+    cards.forEach((indicator, index) => {
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const x = marginX + col * (cardWidth + gapX);
+      const y = cardAreaTop + row * (cardHeight + gapY);
 
-      // Indicator Header
-      doc.setFontSize(14);
+      const { background, accent, text } = getCardColors(isFinite(indicator.percentage) ? indicator.percentage : 0);
+      const [bgR, bgG, bgB] = hexToRgb(background);
+      const [accentR, accentG, accentB] = hexToRgb(accent);
+      const [textR, textG, textB] = hexToRgb(text);
+
+      doc.setDrawColor(bgR, bgG, bgB);
+      doc.setFillColor(bgR, bgG, bgB);
+      doc.roundedRect(x, y, cardWidth, cardHeight, 4, 4, "FD");
+
+      doc.setFillColor(accentR, accentG, accentB);
+      doc.circle(x + 9, y + 10, 5, "F");
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
       doc.setFont(undefined, "bold");
+      doc.text(`${index + 1}`, x + 9, y + 10, { align: "center", baseline: "middle" });
+
+      doc.setFontSize(11);
+      doc.setFont(undefined, "bold");
+      doc.setTextColor(textR, textG, textB);
+      const titleLines = doc.splitTextToSize(indicator.indicatorName || "Indicator", cardWidth - 18);
+      doc.text(titleLines, x + 16, y + 18);
+
+      const percentage = isFinite(indicator.percentage) ? indicator.percentage : 0;
+      doc.setFontSize(20);
+      doc.setFont(undefined, "bold");
+      doc.setTextColor(accentR, accentG, accentB);
       doc.text(
-        `${i + 1}. ${indicator.indicatorName}`,
-        14,
-        yPosition
+        `${percentage.toFixed(1)}%`,
+        x + cardWidth / 2,
+        y + cardHeight / 2 + 2,
+        { align: "center", baseline: "middle" }
       );
-      yPosition += 6;
 
-      // Indicator Summary
-      doc.setFontSize(10);
-      doc.setFont(undefined, "normal");
-      doc.text(
-        `Score: ${indicator.totalScore.toFixed(1)}/${indicator.maxScore.toFixed(1)} | Percentage: ${indicator.percentage.toFixed(1)}%`,
-        14,
-        yPosition
-      );
-      yPosition += 8;
-
-      // Sub-metrics table
-      if (indicator.subMetrics && indicator.subMetrics.length > 0) {
-        const subMetricData = indicator.subMetrics.map((subMetric) => {
-          const percentage = subMetric.maxScore > 0 
-            ? ((subMetric.score / subMetric.maxScore) * 100).toFixed(1) 
-            : "0.0";
-          const linkText = subMetric.linkToSource 
-            ? (subMetric.linkToSource.length > 40 
-                ? subMetric.linkToSource.substring(0, 37) + "..." 
-                : subMetric.linkToSource)
-            : "N/A";
-          
-          return [
-            subMetric.label,
-            `${subMetric.score.toFixed(1)}/${subMetric.maxScore.toFixed(1)}`,
-            `${percentage}%`,
-            linkText,
-          ];
-        });
-
-        autoTable(doc, {
-          startY: yPosition,
-          head: [["Sub-Metric", "Score", "Percentage", "Source Link"]],
-          body: subMetricData,
-          headStyles: {
-            fillColor: [41, 128, 185],
-            textColor: [255, 255, 255],
-            fontStyle: "bold",
-            fontSize: 9,
-          },
-          bodyStyles: { fontSize: 7 },
-          styles: { fontSize: 7, cellPadding: 2 },
-          theme: "striped",
-          margin: { left: 14, right: 14 },
-          columnStyles: {
-            0: { cellWidth: 70 },
-            1: { cellWidth: 25, halign: "center" },
-            2: { cellWidth: 25, halign: "center" },
-            3: { cellWidth: 50, fontSize: 6, fontStyle: "italic" },
-          },
-        });
-
-        // Get the final Y position after the table
-        const finalY = (doc as any).lastAutoTable.finalY || yPosition + 20;
-        yPosition = finalY + 5;
-
-        // Add clickable links below the table if any exist
-        let linkY = finalY + 2;
-        indicator.subMetrics.forEach((subMetric, idx) => {
-          if (subMetric.linkToSource && linkY < pageHeight - 20) {
-            doc.setFontSize(6);
-            doc.setTextColor(0, 0, 255);
-            doc.textWithLink(
-              `${subMetric.label}: ${subMetric.linkToSource}`,
-              16,
-              linkY,
-              { url: subMetric.linkToSource }
-            );
-            linkY += 4;
-          }
-        });
-        doc.setTextColor(0, 0, 0); // Reset color
-        yPosition = linkY > finalY + 2 ? linkY : finalY + 5;
-      } else {
-        yPosition += 5;
-      }
-
-      // Add spacing between indicators
-      yPosition += 3;
-    }
-
-    // Add footer to all pages
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
       doc.setFontSize(9);
+      doc.setFont(undefined, "normal");
+      doc.setTextColor(textR, textG, textB);
+      const maxScore = indicator.maxScore || 0;
       doc.text(
-        `Generated by PEBEC State Analysis System`,
-        pageWidth / 2,
-        pageHeight - 10,
+        `Score: ${indicator.totalScore.toFixed(1)}/${maxScore.toFixed(1)}`,
+        x + cardWidth / 2,
+        y + cardHeight - 8,
         { align: "center" }
       );
-      doc.text(
-        `Page ${i} of ${totalPages}`,
-        pageWidth - 20,
-        pageHeight - 10,
-        { align: "right" }
-      );
-    }
+    });
 
     const isoDate = generatedAt.toISOString().split("T")[0];
     const fileName = `state-analysis-${stateName.replace(/\s+/g, "-")}-${isoDate}.pdf`;
