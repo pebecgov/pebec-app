@@ -967,6 +967,140 @@ export default function ScoringMetricsPage() {
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
 
+  const scorecardTicketData = useQuery(api.mda_scoring.getScorecardTicketData,
+    scorecardSelectedMda ? { mdaName: scorecardSelectedMda, scoringPeriod } : "skip"
+  );
+  const scorecardSystemReceived = scorecardTicketData?.totalTickets || 0;
+  const scorecardSystemResolved = scorecardTicketData?.resolvedTickets || 0;
+  const manualReceivedValue = Number(scorecardManualReceived) || 0;
+  const manualResolvedValue = Number(scorecardManualResolved) || 0;
+  const scorecardTotalReceived = scorecardSystemReceived + manualReceivedValue;
+  const scorecardTotalResolvedUncapped = scorecardSystemResolved + manualResolvedValue;
+  const scorecardTotalResolved = Math.min(scorecardTotalResolvedUncapped, scorecardTotalReceived);
+  const scorecardResolvedRate = scorecardTotalReceived > 0
+    ? (scorecardTotalResolved / scorecardTotalReceived) * 100
+    : 0;
+  const scorecardTableData = useMemo(() => {
+    if (scorecardEntries === undefined) {
+      return [];
+    }
+
+    const entryMap = new Map<string, any>();
+    scorecardEntries.forEach((entry: any) => {
+      entryMap.set(normalizeMdaName(stripAbbreviation(entry.mdaName)), entry);
+    });
+
+    const allMdas = mdasList.map((mda) => {
+      const normalizedName = normalizeMdaName(stripAbbreviation(mda.name));
+      const entry = entryMap.get(normalizedName);
+      const platformMda = mdasWithScores?.find((platform) =>
+        normalizeMdaName(stripAbbreviation(platform.name)) === normalizedName
+      );
+
+      return {
+        name: mda.name,
+        entry,
+        totalTickets: entry?.totalTickets ?? 0,
+        resolvedTickets: entry?.resolvedTickets ?? 0,
+        scorePercentage: entry?.scorePercentage ?? null,
+        calculatedAt: entry?.calculatedAt ?? null,
+        source: entry ? (platformMda ? 'Platform Data' : 'Manual Only') : 'No Entry'
+      };
+    });
+
+    allMdas.sort((a, b) => {
+      const scoreA = a.scorePercentage ?? 0;
+      const scoreB = b.scorePercentage ?? 0;
+      return scoreB - scoreA;
+    });
+
+    return allMdas;
+  }, [scorecardEntries, mdasList, mdasWithScores]);
+  const handleScorecardCalculation = () => {
+    if (!scorecardSelectedMda) {
+      toast.error("Please select an MDA before calculating");
+      return;
+    }
+    if (scorecardTotalReceived === 0) {
+      toast.error("Total complaint tickets must be greater than zero");
+      return;
+    }
+    const numerator = (scorecardTotalReceived * scorecardResolvedRate) + (SCORECARD_MULTIPLIER * SCORECARD_AVERAGE_TICKET_WEIGHT);
+    const denominator = scorecardTotalReceived + SCORECARD_MULTIPLIER;
+    const finalScore = denominator > 0 ? numerator / denominator : 0;
+    setScorecardCalculatedScore(Number.isFinite(finalScore) ? finalScore : 0);
+  };
+
+  const handleSaveScorecardEntry = async () => {
+    if (!scorecardSelectedMda) {
+      toast.error("Please select an MDA before saving");
+      return;
+    }
+    if (scorecardTotalReceived === 0) {
+      toast.error("Cannot save a scorecard without any tickets");
+      return;
+    }
+    if (scorecardCalculatedScore === null) {
+      toast.error("Please calculate the score before saving");
+      return;
+    }
+
+    try {
+      setIsSavingScorecard(true);
+      await saveScorecardEntry({
+        mdaName: scorecardSelectedMda,
+        scoringPeriod,
+        systemTotalTickets: scorecardSystemReceived,
+        systemResolvedTickets: scorecardSystemResolved,
+        manualTotalTickets: manualReceivedValue,
+        manualResolvedTickets: manualResolvedValue,
+        totalTickets: scorecardTotalReceived,
+        resolvedTickets: scorecardTotalResolved,
+        resolvedRate: scorecardResolvedRate,
+        scorePercentage: scorecardCalculatedScore
+      });
+      toast.success("Scorecard saved successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to save scorecard");
+    } finally {
+      setIsSavingScorecard(false);
+    }
+  };
+
+  const handleGenerateScorecardPDF = async () => {
+    if (scorecardEntries === undefined) {
+      toast.error("Scorecard data is still loading");
+      return;
+    }
+    if (scorecardTableData.length === 0) {
+      toast.error("No scorecard entries to export");
+      return;
+    }
+
+    try {
+      setIsDownloadingScorecard(true);
+      const rows = scorecardTableData.map((row: any, index: number) => ({
+        rank: index + 1,
+        mdaName: row.name,
+        source: row.source,
+        totalTickets: row.totalTickets,
+        resolvedTickets: row.resolvedTickets,
+        scorePercentage: row.scorePercentage,
+      }));
+      await generateScorecardPdf({
+        rows,
+        scoringPeriod,
+      });
+    } catch (error) {
+      console.error("Scorecard PDF error:", error);
+      toast.error("Failed to generate scorecard PDF");
+    } finally {
+      setIsDownloadingScorecard(false);
+    }
+  };
+
+
   // Check authorization
   useEffect(() => {
     if (!isLoading && role !== "admin" && role !== "staff") {

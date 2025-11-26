@@ -2612,6 +2612,64 @@ export const saveToutingRentseekingData = mutation({
   }
 });
 
+// Get period-specific ticket data for scorecard (resolved only, no closed)
+export const getScorecardTicketData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    const mda = await findMdaByName(ctx, mdaName);
+
+    if (!mda) {
+      return null;
+    }
+
+    const currentYear = new Date().getFullYear();
+    let startDate: number, endDate: number;
+
+    const yearMatch = scoringPeriod.match(/\d{4}/);
+    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
+
+    if (scoringPeriod.includes("1st Half")) {
+      startDate = new Date(targetYear, 0, 1).getTime();
+      endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();
+    } else if (scoringPeriod.includes("2nd Half")) {
+      startDate = new Date(targetYear, 6, 1).getTime();
+      endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
+    } else {
+      const now = new Date();
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+    }
+
+    const allTickets = await ctx.db.query("tickets")
+      .withIndex("byMDA", q => q.eq("assignedMDA", mda._id))
+      .collect();
+
+    const filteredTickets = allTickets.filter(ticket =>
+      ticket.createdAt >= startDate && ticket.createdAt <= endDate
+    );
+
+    const totalTickets = filteredTickets.length;
+    // ONLY count "resolved" status, NOT "closed"
+    const resolvedTickets = filteredTickets.filter(t => t.status === "resolved").length;
+    const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
+
+    return {
+      totalTickets,
+      resolvedTickets,
+      resolutionRate,
+      period: scoringPeriod,
+      startDate,
+      endDate,
+      dateRange: {
+        start: new Date(startDate).toLocaleDateString(),
+        end: new Date(endDate).toLocaleDateString()
+      }
+    };
+  }
+});
 // Helper function to normalize MDA names for matching (handles abbreviation prefixes)
 function normalizeMdaNameForMatching(mdaName: string): string {
   if (!mdaName) return '';
