@@ -20,7 +20,6 @@ export default function PressReleaseMarquee() {
                 Event Date: Friday, 28th November 2025 by 5pm | Dress code: Afro-Glam or Black-Tie | 
                 This decision follows an overwhelming level of interest and confirmation from stakeholders across government, the private sector, the diplomatic community, and development partners | 
                 For further details or confirmation, please contact: 0803 362 0898 or 0701 244 4706 | 
-                Princess Zahrah Mustapha Audu - Director General, Presidential Enabling Business Environment Council (PEBEC) 
               </span>
             </div>
           </div>
@@ -43,13 +42,13 @@ export default function PressReleaseMarquee() {
         
         .marquee-content {
           display: inline-block;
-          animation: marquee 60s linear infinite;
+          animation: marquee 90s linear infinite;
           padding-left: 0;
         }
         
         @keyframes marquee {
           0% {
-            transform: translate3d(100%, 0, 0);
+            transform: translate3d(50%, 0, 0);
           }
           100% {
             transform: translate3d(-100%, 0, 0);
@@ -62,7 +61,7 @@ export default function PressReleaseMarquee() {
         
         @media (max-width: 768px) {
           .marquee-content {
-            animation-duration: 45s;
+            animation-duration: 70s;
           }
         }
       `}</style>
