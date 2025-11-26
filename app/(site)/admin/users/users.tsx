@@ -547,6 +547,34 @@ export default function Admin() {
                         </div>
                       </div>
 
+                      {/* State Scoring Access */}
+                      <div className="border-b border-gray-100 pb-2">
+                        <h4 className="font-medium text-gray-800 mb-2">State Scoring</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm">
+                          {[
+                            { label: "State Rankings", value: "/admin/state-scoring-rankings" },
+                            { label: "State Analysis", value: "/admin/state-scoring-analysis" },
+                            { label: "Indicator Analysis", value: "/admin/state-scoring-indicator-analysis" }
+                          ].map(item => (
+                            <label key={item.value} className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" 
+                                checked={permissions.includes(item.value)} 
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setPermissions(prev => 
+                                    checked 
+                                      ? [...prev, item.value] 
+                                      : prev.filter(p => p !== item.value)
+                                  );
+                                }} 
+                              />
+                              {item.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
                       {/* User & System Management */}
                       <div className="border-b border-gray-100 pb-2">
                         <h4 className="font-medium text-gray-800 mb-2">👥 User & System Management</h4>
