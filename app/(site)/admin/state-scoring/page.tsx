@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useSearchParams } from "next/navigation";
 import StateScoringForm from "@/components/Admin/StateScoringForm";
 import BulkImportStateScores from "@/components/Admin/BulkImportStateScores";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -587,7 +588,40 @@ const RankingsTable = () => {
 export default function StateScoringPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("scoring");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  
+  // Get current user data to check permissions
+  const currentUser = useQuery(api.users.getCurrentUsers, {});
+  const userPermissions = currentUser?.permissions || [];
+  
+  // Check if user has permission to score states (admin only)
+  const canScoreStates = currentUser?.role === 'admin';
+  
+  // Check specific tab permissions for staff
+  const canViewRankings = canScoreStates || userPermissions.includes('/admin/state-scoring-rankings');
+  const canViewAnalysis = canScoreStates || userPermissions.includes('/admin/state-scoring-analysis');
+  const canViewIndicatorAnalysis = canScoreStates || userPermissions.includes('/admin/state-scoring-indicator-analysis');
+  
+  // Set initial tab based on URL param or permissions
+  const getInitialTab = () => {
+    if (tabParam) {
+      // Check if user has permission for the requested tab
+      switch (tabParam) {
+        case 'rankings':
+          return canViewRankings ? 'rankings' : (canScoreStates ? 'scoring' : 'rankings');
+        case 'analysis':
+          return canViewAnalysis ? 'analysis' : (canScoreStates ? 'scoring' : 'rankings');
+        case 'indicator-analysis':
+          return canViewIndicatorAnalysis ? 'indicator-analysis' : (canScoreStates ? 'scoring' : 'rankings');
+        default:
+          return canScoreStates ? 'scoring' : 'rankings';
+      }
+    }
+    return canScoreStates ? 'scoring' : 'rankings';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getInitialTab());
   const [selectedStateFilter, setSelectedStateFilter] = useState("");
   const [selectedIndicatorFilter, setSelectedIndicatorFilter] = useState("");
   const stateIndicatorScores = useQuery(
@@ -738,53 +772,61 @@ export default function StateScoringPage() {
       <div className="w-full mb-6">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab("scoring")}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "scoring"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Score States
-            </button>
-            <button
-              onClick={() => setActiveTab("rankings")}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "rankings"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Rankings
-            </button>
-            <button
-              onClick={() => setActiveTab("analysis")}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "analysis"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Analysis
-            </button>
-            <button
-              onClick={() => setActiveTab("indicator-analysis")}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === "indicator-analysis"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Indicator Analysis
-            </button>
+            {canScoreStates && (
+              <button
+                onClick={() => setActiveTab("scoring")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "scoring"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Score States
+              </button>
+            )}
+            {canViewRankings && (
+              <button
+                onClick={() => setActiveTab("rankings")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "rankings"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Rankings
+              </button>
+            )}
+            {canViewAnalysis && (
+              <button
+                onClick={() => setActiveTab("analysis")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "analysis"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Analysis
+              </button>
+            )}
+            {canViewIndicatorAnalysis && (
+              <button
+                onClick={() => setActiveTab("indicator-analysis")}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === "indicator-analysis"
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                Indicator Analysis
+              </button>
+            )}
           </nav>
         </div>
       </div>
 
       {/* Tab Content */}
       <div className="mt-6">
-        {activeTab === "scoring" && (
+        {activeTab === "scoring" && canScoreStates && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Score States</h2>
@@ -796,7 +838,7 @@ export default function StateScoringPage() {
           </div>
         )}
 
-        {activeTab === "rankings" && (
+        {activeTab === "rankings" && canViewRankings && (
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-6">State Rankings & Analytics</h2>
             
@@ -811,7 +853,7 @@ export default function StateScoringPage() {
           </div>
         )}
 
-        {activeTab === "analysis" && (
+        {activeTab === "analysis" && canViewAnalysis && (
           <div className="space-y-6">
          
             <AnalysisTab
@@ -821,7 +863,7 @@ export default function StateScoringPage() {
           </div>
         )}
 
-        {activeTab === "indicator-analysis" && (
+        {activeTab === "indicator-analysis" && canViewIndicatorAnalysis && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Indicator Analysis</h2>
@@ -962,6 +1004,19 @@ export default function StateScoringPage() {
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* Unauthorized Access Message */}
+        {!canScoreStates && !canViewRankings && !canViewAnalysis && !canViewIndicatorAnalysis && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+            <div className="text-yellow-800">
+              <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
+              <p className="text-sm">
+                You don't have permission to access state scoring features. 
+                Please contact your administrator to request access to specific state scoring modules.
+              </p>
             </div>
           </div>
         )}

@@ -215,6 +215,31 @@ export default function Sidebar({
       }
     }
 
+    // State Scoring section
+    const stateScoringPermissions = adminPermissions.filter(p => 
+      p.includes('state-scoring')
+    );
+    if (stateScoringPermissions.length > 0) {
+      const stateScoringItems: MenuItemChild[] = [];
+      if (allowed.includes('/admin/state-scoring-rankings')) {
+        stateScoringItems.push({ name: "State Rankings", path: "/admin/state-scoring?tab=rankings" });
+      }
+      if (allowed.includes('/admin/state-scoring-analysis')) {
+        stateScoringItems.push({ name: "State Analysis", path: "/admin/state-scoring?tab=analysis" });
+      }
+      if (allowed.includes('/admin/state-scoring-indicator-analysis')) {
+        stateScoringItems.push({ name: "Indicator Analysis", path: "/admin/state-scoring?tab=indicator-analysis" });
+      }
+      
+      if (stateScoringItems.length > 0) {
+        adminMenuItems.push({
+          name: "State Scoring",
+          icon: <ChartBarIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+          children: stateScoringItems
+        });
+      }
+    }
+
     // Reports & Analytics section
     const reportsPermissions = adminPermissions.filter(p => 
       p.includes('reports') || p.includes('tickets') || p.includes('analytics') || p === '/admin'
