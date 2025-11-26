@@ -618,33 +618,6 @@ export default function StateScoringPage() {
       };
     });
 
-  // Memoized state data for selected indicator
-  const selectedIndicatorData = useMemo(() => {
-    if (!selectedIndicatorFilter || !allStateScores) {
-      return null;
-    }
-    return processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
-  }, [selectedIndicatorFilter, allStateScores]);
-
-  const handleGenerateIndicatorPDF = async () => {
-    if (!selectedIndicatorFilter || !selectedIndicatorData) {
-      toast.error("Please select an indicator and ensure data is loaded");
-      return;
-    }
-
-    const indicatorConfig = indicators[selectedIndicatorFilter as keyof typeof indicators];
-    if (!indicatorConfig) {
-      toast.error("Invalid indicator selected");
-      return;
-    }
-    
-    await generateStateIndicatorPDF({
-      indicatorKey: selectedIndicatorFilter,
-      indicatorName: indicatorConfig.name,
-      stateData: selectedIndicatorData
-    });
-  };
-
     return Object.entries(indicators).map(([indicatorKey, config]) => {
       const indicatorData = indicatorScores[indicatorKey] || { total: 0, subMetrics: {} };
       const totalScore = indicatorData.total;
@@ -679,6 +652,33 @@ export default function StateScoringPage() {
       };
     });
   }, [stateIndicatorScores, selectedStateFilter]);
+
+  // Memoized state data for selected indicator
+  const selectedIndicatorData = useMemo(() => {
+    if (!selectedIndicatorFilter || !allStateScores) {
+      return null;
+    }
+    return processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
+  }, [selectedIndicatorFilter, allStateScores]);
+
+  const handleGenerateIndicatorPDF = async () => {
+    if (!selectedIndicatorFilter || !selectedIndicatorData) {
+      toast.error("Please select an indicator and ensure data is loaded");
+      return;
+    }
+
+    const indicatorConfig = indicators[selectedIndicatorFilter as keyof typeof indicators];
+    if (!indicatorConfig) {
+      toast.error("Invalid indicator selected");
+      return;
+    }
+    
+    await generateStateIndicatorPDF({
+      indicatorKey: selectedIndicatorFilter,
+      indicatorName: indicatorConfig.name,
+      stateData: selectedIndicatorData
+    });
+  };
 
   useEffect(() => {
     if (isLoaded && !user) {
