@@ -106,7 +106,7 @@ const Header = () => {
   const handleReportGovClick = () => {
     window.location.href = "/reportgov-ng";
   };
-  return <header className={`fixed left-0 top-0 w-full py-6 transition duration-200 ${stickyMenu ? "bg-white !py-4 shadow dark:bg-black" : "bg-transparent"} ${modalOpen ? "pointer-events-none opacity-50" : "z-50"}`}>
+  return <header className={`fixed left-0 top-0 w-full py-14 transition duration-200 ${stickyMenu ? "bg-white !py-4 shadow dark:bg-black" : "bg-transparent"} ${modalOpen ? "pointer-events-none opacity-50" : "z-50"}`}>
       <div className="relative mx-auto max-w-7xl flex items-center justify-between px-4 md:px-8 xl:px-0">
         {}
         <a href="/" className="flex items-center gap-3">
