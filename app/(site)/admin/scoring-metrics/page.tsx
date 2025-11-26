@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import ScoringMetricsDashboard from "@/components/Admin/ScoringMetricsDashboard";
 import { generateMdaScoringPDF } from "@/lib/pdfGenerator";
 import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
-import { generateScorecardPdf } from "@/lib/scorecardPdfGenerator";
 import { indicators } from "@/convex/config/indicators";
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
@@ -38,9 +37,6 @@ const STATE_OVERALL_MAX_SCORE = Object.values(stateIndicatorMaxScores).reduce(
   (sum, value) => sum + value,
   0
 );
-
-const SCORECARD_AVERAGE_TICKET_WEIGHT = 29;
-const SCORECARD_MULTIPLIER = 6;
 
 const STATE_ALIAS_OVERRIDES: Record<string, string> = {
   FCT: "Federal Capital Territory",
@@ -169,13 +165,6 @@ export default function ScoringMetricsPage() {
 
   // State variables
   const [activeTab, setActiveTab] = useState('live-dashboard');
-  const [scorecardTab, setScorecardTab] = useState<'ranked' | 'calculation'>('ranked');
-  const [scorecardSelectedMda, setScorecardSelectedMda] = useState('');
-  const [scorecardManualReceived, setScorecardManualReceived] = useState('');
-  const [scorecardManualResolved, setScorecardManualResolved] = useState('');
-  const [scorecardCalculatedScore, setScorecardCalculatedScore] = useState<number | null>(null);
-  const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
-  const [isSavingScorecard, setIsSavingScorecard] = useState(false);
   const [selectedMda, setSelectedMda] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [overallPercentage, setOverallPercentage] = useState<number | null>(null);
@@ -208,20 +197,6 @@ export default function ScoringMetricsPage() {
   const yesNoOptions = [
     { value: 0, label: 'No' },
     { value: 1, label: 'Yes' }
-  ];
-
-  const satisfactionOptions = [
-    { value: 0, label: '0' },
-    { value: 1, label: '1' },
-    { value: 2, label: '2' },
-    { value: 3, label: '3' },
-    { value: 4, label: '4' },
-    { value: 5, label: '5' },
-    { value: 6, label: '6' },
-    { value: 7, label: '7' },
-    { value: 8, label: '8' },
-    { value: 9, label: '9' },
-    { value: 10, label: '10' }
   ];
 
   // Questions for different mystery shopping types
@@ -262,62 +237,26 @@ export default function ScoringMetricsPage() {
   const calculateMysteryScore = () => {
     const questions = mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
 
-    // Check if satisfaction question exists in current set
-    const hasSatisfaction = questions.some(q => q.key === 'satisfaction');
+    let totalScore = 0;
+    let maxPossibleScore = 0;
 
-    if (hasSatisfaction) {
-      let otherQuestionsScore = 0;
-      let otherQuestionsMaxPossible = 0;
-      let satisfactionScore = 0;
+    questions.forEach(question => {
+      const rating = mysteryRatings[question.key] || 0;
 
-      questions.forEach(question => {
-        const rating = mysteryRatings[question.key] || 0;
+      if (question.type === 'rating') {
+        // Rating questions: scale 0-5 to 0-1 point each
+        totalScore += (rating / 5) * 1;
+        maxPossibleScore += 1;
+      } else {
+        // Yes/No questions: 1 point for Yes, 0 for No
+        totalScore += rating;
+        maxPossibleScore += 1;
+      }
+    });
 
-        if (question.key === 'satisfaction') {
-          satisfactionScore = rating; // Assumes 0-10 input
-        } else {
-          if (question.type === 'rating') {
-            // Rating questions: scale 0-5 to 0-1 point each
-            otherQuestionsScore += (rating / 5) * 1;
-            otherQuestionsMaxPossible += 1;
-          } else {
-            // Yes/No questions: 1 point for Yes, 0 for No
-            otherQuestionsScore += rating;
-            otherQuestionsMaxPossible += 1;
-          }
-        }
-      });
-
-      // Scale other questions to 10 points total
-      const scaledOtherScore = otherQuestionsMaxPossible > 0 ? (otherQuestionsScore / otherQuestionsMaxPossible) * 10 : 0;
-
-      // Total score = Satisfaction (max 10) + Others (max 10) = 20
-      const finalSatisfactionScore = Math.min(satisfactionScore, 10);
-      const totalScore = finalSatisfactionScore + scaledOtherScore;
-      return Math.min(totalScore, 20);
-    } else {
-      // Fallback to old logic if satisfaction is not present
-      let totalScore = 0;
-      let maxPossibleScore = 0;
-
-      questions.forEach(question => {
-        const rating = mysteryRatings[question.key] || 0;
-
-        if (question.type === 'rating') {
-          // Rating questions: scale 0-5 to 0-1 point each
-          totalScore += (rating / 5) * 1;
-          maxPossibleScore += 1;
-        } else {
-          // Yes/No questions: 1 point for Yes, 0 for No
-          totalScore += rating;
-          maxPossibleScore += 1;
-        }
-      });
-
-      // Scale to 20 points total
-      const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
-      return Math.min(scaledScore, 20); // Cap at 20
-    }
+    // Scale to 20 points total
+    const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
+    return Math.min(scaledScore, 20); // Cap at 20
   };
 
   // Handle mystery rating change
@@ -380,6 +319,7 @@ export default function ScoringMetricsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedMetric, setSelectedMetric] = useState<string>('totalScore');
   const [mdaFilter, setMdaFilter] = useState<'all' | 'withData'>('all');
+  const [ministryFilter, setMinistryFilter] = useState<'all' | 'ministries-only' | 'without-ministries'>('all');
 
   // View Details Modal state
   const [viewDetailsMda, setViewDetailsMda] = useState<string | null>(null);
@@ -401,7 +341,6 @@ export default function ScoringMetricsPage() {
   const scoringAnalytics = useQuery(api.mda_scoring.getScoringAnalytics, {});
   const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
   const mdaLeaderboard = useQuery(api.mda_scoring.getMDALeaderboard, { limit: 20 });
-  const scorecardEntries = useQuery(api.mda_scoring.getScorecardEntries, { scoringPeriod });
   const matchHeaders = useAction(api.ai_helper_scoring.matchHeaders);
   const processSlaData = useAction(api.ai_helper_scoring.processSlaData);
   const mdaScoringStatus = useQuery(
@@ -483,7 +422,6 @@ export default function ScoringMetricsPage() {
   const saveTransparencyData = useMutation(mdaScoringApi.saveTransparencyData);
   const saveMonthlyReportData = useMutation(api.mda_scoring.saveMonthlyReportData);
   const saveTimelinessData = useMutation(api.mda_scoring.saveTimelinessData);
-  const saveScorecardEntry = useMutation(api.mda_scoring.saveScorecardEntry);
 
   // Ranking queries
   const mysteryRankings = useQuery(api.mda_scoring.getAllMysteryShoppingRankings, { scoringPeriod });
@@ -577,8 +515,15 @@ export default function ScoringMetricsPage() {
     return results;
   }, [stateScores]);
 
+  // Helper function to check if an MDA is a ministry
+  const isMinistry = (mdaName: string): boolean => {
+    if (!mdaName) return false;
+    const lowerName = mdaName.toLowerCase();
+    return lowerName.includes('ministry') || lowerName.includes('minister');
+  };
+
   // Helper function to process and filter MDA data for dashboard
-  const processDashboardMdaData = (filter: 'all' | 'withData' = 'all') => {
+  const processDashboardMdaData = (filter: 'all' | 'withData' = 'all', ministryFilterType: 'all' | 'ministries-only' | 'without-ministries' = 'all') => {
     // Initialize all MDAs from mdasList with null data
     const allMdasMap = new Map<string, any>();
     mdasList.forEach(mda => {
@@ -748,6 +693,13 @@ export default function ScoringMetricsPage() {
       });
     }
 
+    // Filter based on ministry filter
+    if (ministryFilterType === 'ministries-only') {
+      allMdasArray = allMdasArray.filter((mda: any) => isMinistry(mda.mdaName));
+    } else if (ministryFilterType === 'without-ministries') {
+      allMdasArray = allMdasArray.filter((mda: any) => !isMinistry(mda.mdaName));
+    }
+
     return allMdasArray;
   };
 
@@ -758,7 +710,7 @@ export default function ScoringMetricsPage() {
     }
 
     // Process and filter data based on current filter
-    const processedData = processDashboardMdaData(mdaFilter);
+    const processedData = processDashboardMdaData(mdaFilter, ministryFilter);
 
     // Convert back to the format expected by PDF generator
     const filteredLiveData = processedData.map((mda: any) => ({
@@ -780,7 +732,7 @@ export default function ScoringMetricsPage() {
       selectedMetric,
       dashboardYear,
       mdasList,
-      filterType: mdaFilter
+      filterType: mdaFilter === 'withData' || ministryFilter !== 'all' ? 'withData' : 'all'
     });
   };
 
@@ -1014,6 +966,7 @@ export default function ScoringMetricsPage() {
   const periodTicketData = useQuery(api.mda_scoring.getPeriodTicketData,
     selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
   );
+
   const scorecardTicketData = useQuery(api.mda_scoring.getScorecardTicketData,
     scorecardSelectedMda ? { mdaName: scorecardSelectedMda, scoringPeriod } : "skip"
   );
@@ -1147,6 +1100,7 @@ export default function ScoringMetricsPage() {
     }
   };
 
+
   // Check authorization
   useEffect(() => {
     if (!isLoading && role !== "admin" && role !== "staff") {
@@ -1161,10 +1115,6 @@ export default function ScoringMetricsPage() {
     setMysteryType('hasReportGov');
     setMysteryRatings({});
     setMysteryRate(0);
-    setScorecardSelectedMda('');
-    setScorecardManualReceived('');
-    setScorecardManualResolved('');
-    setScorecardCalculatedScore(null);
   }, [scoringPeriod]);
 
   // Reset state when MDA changes
@@ -1192,20 +1142,6 @@ export default function ScoringMetricsPage() {
       setIsToutingRentseeking(false);
     }
   }, [selectedMda]);
-
-useEffect(() => {
-  setScorecardManualReceived('');
-  setScorecardManualResolved('');
-  setScorecardCalculatedScore(null);
-}, [scorecardSelectedMda]);
-
-  useEffect(() => {
-    const manualReceivedNum = Number(scorecardManualReceived) || 0;
-    const manualResolvedNum = Number(scorecardManualResolved) || 0;
-    if (manualResolvedNum > manualReceivedNum) {
-      setScorecardManualResolved(String(manualReceivedNum));
-    }
-  }, [scorecardManualReceived, scorecardManualResolved]);
 
   // Ensure resolved tickets never exceed total tickets
   useEffect(() => {
@@ -2238,15 +2174,6 @@ useEffect(() => {
               >
                 Score MDAs
               </button>
-              <button
-                onClick={() => setActiveTab('mda-scorecard')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'mda-scorecard'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                MDA Scorecard
-              </button>
             </nav>
           </div>
         </div>
@@ -2352,7 +2279,6 @@ useEffect(() => {
             </div>
           </div>
         ) : */}
-       
         {activeTab === 'live-dashboard' ? (
           <div className="w-full space-y-6">
             {/* Live Dashboard Header */}
@@ -2394,6 +2320,20 @@ useEffect(() => {
                       <MenuItem value="withData">MDAs with Data</MenuItem>
                     </Select>
                   </FormControl>
+                  <FormControl sx={{ minWidth: 200 }} variant="outlined">
+                    <InputLabel id="ministry-filter-label">Ministry Filter</InputLabel>
+                    <Select
+                      labelId="ministry-filter-label"
+                      id="ministry-filter-select"
+                      value={ministryFilter}
+                      onChange={(e) => setMinistryFilter(e.target.value as 'all' | 'ministries-only' | 'without-ministries')}
+                      label="Ministry Filter"
+                    >
+                      <MenuItem value="all">All Organizations</MenuItem>
+                      <MenuItem value="ministries-only">Ministries Only</MenuItem>
+                      <MenuItem value="without-ministries">Exclude Ministries</MenuItem>
+                    </Select>
+                  </FormControl>
                   <FormControl sx={{ minWidth: 150 }} variant="outlined">
                     <InputLabel id="year-label">Year</InputLabel>
                     <Select
@@ -2425,7 +2365,11 @@ useEffect(() => {
                 </div>
               </div>
               <p className="text-sm text-gray-600">
-                View {mdaFilter === 'all' ? 'all' : 'MDAs with data'} with their saved metric scores. Data is averaged across both halves (1st Half & 2nd Half) for the selected year.
+                View {mdaFilter === 'all' ? 'all' : 'MDAs with data'} {
+                  ministryFilter === 'ministries-only' ? 'ministries' : 
+                  ministryFilter === 'without-ministries' ? 'non-ministry organizations' : 
+                  'organizations'
+                } with their saved metric scores. Data is averaged across both halves (1st Half & 2nd Half) for the selected year.
               </p>
             </div>
 
@@ -2485,7 +2429,7 @@ useEffect(() => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {(() => {
                         // Get processed and filtered MDA data
-                        const allMdasArray = processDashboardMdaData(mdaFilter);
+                        const allMdasArray = processDashboardMdaData(mdaFilter, ministryFilter);
 
                         // Sort data by selected metric
                         const sortedData = Array.isArray(allMdasArray) ? [...allMdasArray].sort((a: any, b: any) => {
@@ -2873,19 +2817,19 @@ useEffect(() => {
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                        selectedMetric === 'transparency' ? 'Transparency' :
-                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                              selectedMetric === 'timeliness' ? 'Timeliness' :
-                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                      selectedMetric === 'transparency' ? 'Transparency' :
+                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                            selectedMetric === 'timeliness' ? 'Timeliness' :
+                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {(() => {
                           // Use same processed and filtered data
-                          const allMdasArray = processDashboardMdaData(mdaFilter);
+                          const allMdasArray = processDashboardMdaData(mdaFilter, ministryFilter);
 
                           // Sort by selected metric
                           const sortedData = [...allMdasArray].sort((a: any, b: any) => {
@@ -3020,19 +2964,19 @@ useEffect(() => {
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                        selectedMetric === 'transparency' ? 'Transparency' :
-                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                              selectedMetric === 'timeliness' ? 'Timeliness' :
-                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                      selectedMetric === 'transparency' ? 'Transparency' :
+                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                            selectedMetric === 'timeliness' ? 'Timeliness' :
+                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {(() => {
                           // Use same processed and filtered data
-                          const allMdasArray = processDashboardMdaData(mdaFilter);
+                          const allMdasArray = processDashboardMdaData(mdaFilter, ministryFilter);
 
                           // Sort by selected metric
                           const sortedData = [...allMdasArray].sort((a: any, b: any) => {
@@ -3764,7 +3708,7 @@ useEffect(() => {
 
                             const mysteryScore = viewDetailsData.mysteryShopping?.firstHalf || viewDetailsData.mysteryShopping?.secondHalf ?
                               ((viewDetailsData.mysteryShopping?.firstHalf?.totalScore || 0) + (viewDetailsData.mysteryShopping?.secondHalf?.totalScore || 0)) / 2 : 0;
-
+                            
                             // Controversial: Handle both old and new data formats
                             let controversialScore = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf ?
                               ((viewDetailsData.controversial?.firstHalf?.score || 0) + (viewDetailsData.controversial?.secondHalf?.score || 0)) / 2 : 0;
@@ -3942,291 +3886,6 @@ useEffect(() => {
                     )}
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        ) : activeTab === 'mda-scorecard' ? (
-          <div className="w-full space-y-6">
-            <div className="bg-white p-4 rounded-lg shadow-md">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-800">MDA ReportGov Resolution</h2>
-                  <p className="text-sm text-gray-500">
-                    Review leaderboard standings and compute fresh reportgov resolution for {scoringPeriod}.
-                  </p>
-                </div>
-                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
-                  <button
-                    onClick={() => setScorecardTab('ranked')}
-                    className={`px-4 py-2 text-sm font-medium ${scorecardTab === 'ranked'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-white text-gray-600 hover:bg-gray-50'
-                      }`}
-                  >
-                    Ranked Score Table
-                  </button>
-                  <button
-                    onClick={() => setScorecardTab('calculation')}
-                    className={`px-4 py-2 text-sm font-medium border-l border-gray-200 ${scorecardTab === 'calculation'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-white text-gray-600 hover:bg-gray-50'
-                      }`}
-                  >
-                    Score Calculation
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {scorecardTab === 'ranked' ? (
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-800">Saved ReportGov Resolution Table</h3>
-                    <p className="text-sm text-gray-500">Shows every score saved via the Score Calculation tool for {scoringPeriod}.</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-500">
-                      {scorecardEntries === undefined ? 'Loading…' : `${scorecardTableData.length} MDAs`}
-                    </span>
-                    <button
-                      onClick={handleGenerateScorecardPDF}
-                      disabled={scorecardEntries === undefined || scorecardTableData.length === 0 || isDownloadingScorecard}
-                      className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    >
-                      {isDownloadingScorecard ? 'Generating…' : '📄 Download PDF'}
-                    </button>
-                  </div>
-                </div>
-                {scorecardEntries === undefined ? (
-                  <div className="text-center text-gray-500 py-10">Loading reportgov resolution entries...</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MDA Name</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Tickets</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resolved Tickets</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score %</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {scorecardTableData.map((row: any, index: number) => {
-                          return (
-                            <tr key={`${row.name}-${index}`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{index + 1}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="flex items-center gap-2">
-                                  <span>{row.name}</span>
-                                  {/* <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                    row.source === 'Platform Data'
-                                      ? 'bg-green-100 text-green-800'
-                                      : row.source === 'Manual Only'
-                                        ? 'bg-yellow-100 text-yellow-800'
-                                        : 'bg-gray-100 text-gray-500'
-                                  }`}>
-                                    {row.source}
-                                  </span> */}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="font-semibold">
-                                  {row.totalTickets ? row.totalTickets.toLocaleString() : '—'}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="font-semibold">
-                                  {row.resolvedTickets ? row.resolvedTickets.toLocaleString() : '—'}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <span className={`font-bold ${row.scorePercentage !== null && row.scorePercentage >= 80 ? 'text-green-600' :
-                                  row.scorePercentage !== null && row.scorePercentage >= 60 ? 'text-blue-600' :
-                                    row.scorePercentage !== null && row.scorePercentage >= 40 ? 'text-yellow-600' : 'text-gray-500'
-                                  }`}>
-                                  {row.scorePercentage !== null ? `${row.scorePercentage.toFixed(2)}%` : '—'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormControl sx={{ width: '100%' }} variant="outlined">
-                    <InputLabel id="scorecard-mda-label">Select MDA</InputLabel>
-                    <Select
-                      labelId="scorecard-mda-label"
-                      id="scorecard-mda-select"
-                      value={scorecardSelectedMda}
-                      onChange={(e) => setScorecardSelectedMda(e.target.value)}
-                      label="Select MDA"
-                    >
-                      <MenuItem value="">
-                        <em>None</em>
-                      </MenuItem>
-                      {mdasList.map((mda) => (
-                        <MenuItem key={`scorecard-${mda.name}`} value={mda.name}>
-                          {mda.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800">
-                    <p className="font-semibold mb-1">Scoring Formula</p>
-                    <p>
-                      Score% = ((C<sub>total</sub> × Resolved Rate) + (6 × 29)) / (C<sub>total</sub> + 6)
-                    </p>
-                    <p className="mt-2 text-xs text-blue-700">
-                      Resolved Rate = (R<sub>total</sub> / C<sub>total</sub>) × 100. Both C<sub>total</sub> and R<sub>total</sub> automatically combine system + manual entries.
-                    </p>
-                  </div>
-                </div>
-
-                {!scorecardSelectedMda ? (
-                  <div className="text-center text-gray-500 py-10 border border-dashed border-gray-300 rounded-lg">
-                    Select an MDA to fetch ticket data and begin the calculation process.
-                  </div>
-                ) : scorecardTicketData === undefined ? (
-                  <div className="text-center text-gray-500 py-10 border border-dashed border-gray-300 rounded-lg">
-                    Fetching system ticket data...
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="border border-gray-200 rounded-lg p-4">
-                        <h4 className="text-lg font-semibold text-gray-800 mb-4">System Data (Read-only)</h4>
-                        <div className="space-y-3 text-sm">
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Total Complaint Tickets</span>
-                            <span className="text-gray-900 font-semibold">
-                              {scorecardSystemReceived.toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Total Resolved Tickets</span>
-                            <span className="text-gray-900 font-semibold">
-                              {scorecardSystemResolved.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="border border-gray-200 rounded-lg p-4">
-                        <h4 className="text-lg font-semibold text-gray-800 mb-4">Manual / External Entries</h4>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">
-                              Total Complaint Tickets (Manual)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={scorecardManualReceived}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '') {
-                                  setScorecardManualReceived('');
-                                  return;
-                                }
-                                const parsed = Number(value);
-                                if (!Number.isNaN(parsed) && parsed >= 0) {
-                                  setScorecardManualReceived(String(Math.floor(parsed)));
-                                }
-                              }}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Enter manual ticket total"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">
-                              Total Resolved Tickets (Manual)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max={scorecardManualReceived ? Number(scorecardManualReceived) : undefined}
-                              value={scorecardManualResolved}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                if (value === '') {
-                                  setScorecardManualResolved('');
-                                  return;
-                                }
-                                const parsed = Number(value);
-                                if (!Number.isNaN(parsed) && parsed >= 0) {
-                                  setScorecardManualResolved(String(Math.floor(parsed)));
-                                }
-                              }}
-                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Enter manual resolved total"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-sm text-gray-600">
-                      System data is automatically combined with manual inputs—no extra steps needed.
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                        <p className="text-sm text-gray-500 mb-1">C<sub>total</sub> (Complaints)</p>
-                        <p className="text-2xl font-bold text-gray-800">{scorecardTotalReceived.toLocaleString()}</p>
-                      </div>
-                      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                        <p className="text-sm text-gray-500 mb-1">R<sub>total</sub> (Resolved)</p>
-                        <p className="text-2xl font-bold text-gray-800">{scorecardTotalResolved.toLocaleString()}</p>
-                      </div>
-                      <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                        <p className="text-sm text-gray-500 mb-1">Resolved Rate</p>
-                        <p className="text-2xl font-bold text-gray-800">
-                          {scorecardTotalReceived > 0 ? `${scorecardResolvedRate.toFixed(2)}%` : '--'}
-                        </p>
-                      </div>
-                      <div className="p-4 border border-blue-200 rounded-lg bg-blue-50 md:col-span-1">
-                        <p className="text-sm text-blue-700 mb-1">Calculated Score %</p>
-                        <input
-                          readOnly
-                          value={scorecardCalculatedScore !== null ? `${scorecardCalculatedScore.toFixed(2)}%` : '--'}
-                          className="w-full bg-transparent text-2xl font-bold text-blue-900 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button
-                        onClick={handleScorecardCalculation}
-                        className="px-5 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300"
-                        disabled={!scorecardSelectedMda}
-                      >
-                        Calculate Score
-                      </button>
-                      <button
-                        onClick={handleSaveScorecardEntry}
-                        className="px-5 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:bg-gray-300"
-                        disabled={
-                          !scorecardSelectedMda ||
-                          scorecardCalculatedScore === null ||
-                          scorecardTotalReceived === 0 ||
-                          isSavingScorecard
-                        }
-                      >
-                        {isSavingScorecard ? 'Saving…' : 'Save Score'}
-                      </button>
-                      <span className="text-xs text-gray-500">
-                        Ensure C<sub>total</sub> &gt; 0 before calculating. System and manual values are already combined in the totals above.
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -5979,8 +5638,8 @@ useEffect(() => {
                     <h3 className="font-medium text-gray-900 mb-3">
                       {index + 1}. {question.label}
                     </h3>
-                    <div className={`grid gap-2 ${question.key === 'satisfaction' ? 'grid-cols-3 md:grid-cols-6' : (question.type === 'rating' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2')}`}>
-                      {(question.key === 'satisfaction' ? satisfactionOptions : (question.type === 'rating' ? ratingOptions : yesNoOptions)).map((option) => (
+                    <div className={`grid gap-2 ${question.type === 'rating' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2'}`}>
+                      {(question.type === 'rating' ? ratingOptions : yesNoOptions).map((option) => (
                         <label key={option.value} className="flex items-center p-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer">
                           <input
                             type="radio"
@@ -5991,7 +5650,7 @@ useEffect(() => {
                             className="mr-2"
                           />
                           <span className="text-sm">
-                            {question.type === 'rating' && question.key !== 'satisfaction' ? `${option.value} - ${option.label}` : option.label}
+                            {question.type === 'rating' ? `${option.value} - ${option.label}` : option.label}
                           </span>
                         </label>
                       ))}
