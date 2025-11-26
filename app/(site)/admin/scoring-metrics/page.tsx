@@ -179,6 +179,13 @@ export default function ScoringMetricsPage() {
   const [slaMethod, setSlaMethod] = useState<'file' | 'rating'>('file');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+
+  const [scorecardSelectedMda, setScorecardSelectedMda] = useState('');
+const [scorecardManualReceived, setScorecardManualReceived] = useState('');
+const [scorecardManualResolved, setScorecardManualResolved] = useState('');
+const [scorecardCalculatedScore, setScorecardCalculatedScore] = useState<number | null>(null);
+const [isSavingScorecard, setIsSavingScorecard] = useState(false);
+const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
   // Mystery Shopping Modal States
   const [showMysteryModal, setShowMysteryModal] = useState(false);
   const [mysteryType, setMysteryType] = useState<'hasReportGov' | 'noReportGov'>('hasReportGov');
@@ -969,7 +976,8 @@ export default function ScoringMetricsPage() {
 
   const scorecardTicketData = useQuery(api.mda_scoring.getScorecardTicketData,
     scorecardSelectedMda ? { mdaName: scorecardSelectedMda, scoringPeriod } : "skip"
-  );
+  ); 
+   const scorecardEntries = useQuery(api.mda_scoring.getScorecardEntries, { scoringPeriod });
   const scorecardSystemReceived = scorecardTicketData?.totalTickets || 0;
   const scorecardSystemResolved = scorecardTicketData?.resolvedTickets || 0;
   const manualReceivedValue = Number(scorecardManualReceived) || 0;
