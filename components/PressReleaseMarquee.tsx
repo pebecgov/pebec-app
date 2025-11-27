@@ -16,8 +16,8 @@ export default function PressReleaseMarquee() {
             <div className="marquee-content">
               <span className="font-semibold text-sm md:text-base">
                 PRESS RELEASE 26 November 2025 | PEBEC Announces Change of Venue for the 2025 PEBEC Awards & Gala Night | 
-                Originally scheduled at the Banquet Hall, State House, Abuja, the event will now take place at the Bola Ahmed Tinubu Conference Center (Former International Conference Center), Abuja | 
-                Event Date: Friday, 28th November 2025 by 5pm | Dress code: Afro-Glam or Black-Tie | 
+                Originally scheduled at the Bola Ahmed Tinubu Conference Center (Former International Conference Center), Abuja, the event will now take place at the Banquet Hall, State House, Abuja | 
+                Event Date: Tuesday, 2nd December 2025 by 5pm | Dress code: Afro-Glam or Black-Tie | 
                 This decision follows an overwhelming level of interest and confirmation from stakeholders across government, the private sector, the diplomatic community, and development partners | 
                 For further details or confirmation, please contact: 0803 362 0898 or 0701 244 4706 | 
               </span>

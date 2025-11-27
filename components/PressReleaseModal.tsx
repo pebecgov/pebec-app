@@ -77,10 +77,10 @@ export default function PressReleaseModal() {
                     <div>
                       <p className="font-semibold text-red-800 mb-1">Venue Change:</p>
                       <p className="text-red-700 line-through text-sm mb-1">
-                        <strong>Originally:</strong> Banquet Hall, State House, Abuja
+                        <strong>Originally:</strong> Bola Ahmed Tinubu Conference Center (Former International Conference Center), Abuja
                       </p>
                       <p className="text-green-700 font-semibold">
-                        <strong>New Venue:</strong> Bola Ahmed Tinubu Conference Center (Former International Conference Center), Abuja
+                        <strong>New Venue:</strong> Banquet Hall, State House, Abuja
                       </p>
                     </div>
                   </div>
@@ -93,7 +93,7 @@ export default function PressReleaseModal() {
                     <div>
                       <p className="font-semibold text-green-800 mb-2">Event Details:</p>
                       <ul className="space-y-1 text-green-700">
-                        <li><strong>Date:</strong> Friday, 28th November 2025</li>
+                        <li><strong>Date:</strong> Tuesday, 2nd December 2025</li>
                         <li><strong>Time:</strong> 5:00 PM</li>
                         <li><strong>Dress Code:</strong> Afro-Glam or Black-Tie</li>
                       </ul>
@@ -139,8 +139,8 @@ export default function PressReleaseModal() {
                   onClick={() => {
                     // Copy to clipboard
                     const text = `PEBEC Awards & Gala Night - VENUE CHANGE
-Date: Friday, 28th November 2025, 5:00 PM
-New Venue: Bola Ahmed Tinubu Conference Center, Abuja
+Date: Tuesday, 2nd December 2025, 5:00 PM
+New Venue: Banquet Hall, State House, Abuja
 Dress Code: Afro-Glam or Black-Tie
 Contact: 0803 362 0898 or 0701 244 4706`;
                     navigator.clipboard.writeText(text);
