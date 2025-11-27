@@ -64,7 +64,7 @@ const calculateGrade = (totalScore: number, maxPossibleScore: number = overallMa
 };
 
 // Analytics calculation function
-const calculateAnalytics = (allScores: any[]) => {
+const calculateAnalytics = (allScores: any[], selectedIndicator?: string) => {
   if (!allScores || allScores.length === 0) {
     return {
       activeStates: 0,
@@ -77,13 +77,22 @@ const calculateAnalytics = (allScores: any[]) => {
       lowestScoringState: null,
       lastUpdated: null,
       gradeDistribution: { topTier: 0, middleTier: 0, bottomTier: 0 },
+      regionalDistribution: {},
       indicatorPerformance: {},
-      totalPossiblePoints: overallMaxScore
+      totalPossiblePoints: overallMaxScore,
+      selectedIndicator
     };
   }
 
-  // Total possible points across all indicators
-  const TOTAL_POSSIBLE_POINTS = overallMaxScore;
+  // Filter scores by selected indicator if provided
+  const filteredScores = selectedIndicator 
+    ? allScores.filter(score => score.indicator === selectedIndicator)
+    : allScores;
+
+  // Total possible points - adjust based on selected indicator
+  const TOTAL_POSSIBLE_POINTS = selectedIndicator 
+    ? (indicatorMaxScores[selectedIndicator] || 0)
+    : overallMaxScore;
 
   // Group by state and calculate totals
   const stateTotals: Record<string, number> = {};
@@ -91,7 +100,7 @@ const calculateAnalytics = (allScores: any[]) => {
   const indicatorTotals: Record<string, number> = {};
   const indicatorCounts: Record<string, number> = {};
 
-  allScores.forEach(score => {
+  filteredScores.forEach(score => {
     // State totals
     if (!stateTotals[score.state]) {
       stateTotals[score.state] = 0;
@@ -191,60 +200,157 @@ const calculateAnalytics = (allScores: any[]) => {
     gradeDistribution,
     regionalDistribution,
     indicatorPerformance,
-    totalPossiblePoints: TOTAL_POSSIBLE_POINTS
+    totalPossiblePoints: TOTAL_POSSIBLE_POINTS,
+    selectedIndicator
   };
 };
 
 // Analytics Dashboard Component
 const AnalyticsDashboard = () => {
+  const [selectedIndicatorFilter, setSelectedIndicatorFilter] = useState<string>("all");
+  const [selectedRegionFilter, setSelectedRegionFilter] = useState<string>("all");
   const allScores = useQuery(api.saveStateScore.getStateScores, {});
   
   const analytics = useMemo(() => {
     if (!allScores) return null;
-    return calculateAnalytics(allScores);
-  }, [allScores]);
+    return calculateAnalytics(allScores, selectedIndicatorFilter === "all" ? undefined : selectedIndicatorFilter);
+  }, [allScores, selectedIndicatorFilter]);
+
+  // Get state-level data for selected region and indicator
+  const stateData = useMemo(() => {
+    if (!allScores || selectedRegionFilter === "all") return null;
+
+    // Filter by indicator if selected
+    let filteredScores = selectedIndicatorFilter === "all" 
+      ? allScores 
+      : allScores.filter(score => score.indicator === selectedIndicatorFilter);
+
+    // Get states in the selected region
+    const statesInRegion = Object.keys(stateRegions).filter(
+      state => stateRegions[state] === selectedRegionFilter
+    );
+
+    // Group scores by state for the selected region
+    const stateScores: Record<string, number> = {};
+    const stateDetails: Record<string, any[]> = {};
+
+    filteredScores.forEach(score => {
+      if (statesInRegion.includes(score.state)) {
+        if (!stateScores[score.state]) {
+          stateScores[score.state] = 0;
+          stateDetails[score.state] = [];
+        }
+        stateScores[score.state] += score.score || 0;
+        stateDetails[score.state].push(score);
+      }
+    });
+
+    // Convert to chart data format
+    const chartData = statesInRegion.map(state => ({
+      state,
+      score: stateScores[state] || 0,
+      details: stateDetails[state] || []
+    })).sort((a, b) => b.score - a.score);
+
+    return {
+      chartData,
+      totalStates: statesInRegion.length,
+      statesWithData: Object.keys(stateScores).length,
+      maxScore: selectedIndicatorFilter === "all" 
+        ? overallMaxScore 
+        : (indicatorMaxScores[selectedIndicatorFilter] || 0)
+    };
+  }, [allScores, selectedRegionFilter, selectedIndicatorFilter]);
 
   const exportRegionalDataToExcel = useCallback(() => {
     if (!analytics) return;
 
     const { regionalDistribution } = analytics;
-
-    // Prepare regional summary data
-    const regionalSummary = geopoliticalRegions.map(region => ({
-      Region: region,
-      'Number of States': regionalDistribution[region]?.count || 0,
-      'Total Score': regionalDistribution[region]?.totalScore?.toFixed(1) || '0.0',
-      'Average Score': regionalDistribution[region]?.averageScore?.toFixed(1) || '0.0',
-      'States': regionalDistribution[region]?.states?.join(', ') || 'None'
-    }));
-
-    // Prepare detailed state data with regions
-    const stateDetails = allScores?.map(score => ({
-      State: score.state,
-      Region: stateRegions[score.state] || 'Unknown',
-      Indicator: score.indicator,
-      'Sub-Indicator': score.subIndicator,
-      Score: score.score,
-      Value: score.value || '',
-      'Created At': new Date(score.createdAt).toLocaleDateString()
-    })) || [];
-
-    // Create workbook
     const workbook = XLSX.utils.book_new();
 
-    // Add regional summary sheet
-    const summarySheet = XLSX.utils.json_to_sheet(regionalSummary);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Regional Summary');
+    // If a specific region is selected, export state-level data for that region
+    if (selectedRegionFilter !== "all" && stateData) {
+      const stateExportData = stateData.chartData.map((state, index) => ({
+        Rank: index + 1,
+        State: state.state,
+        Region: selectedRegionFilter,
+        Score: state.score.toFixed(1),
+        'Max Possible': stateData.maxScore,
+        'Percentage': ((state.score / stateData.maxScore) * 100).toFixed(1) + '%',
+        'Indicator Filter': selectedIndicatorFilter === "all" ? "All Indicators" : 
+          (indicators[selectedIndicatorFilter as keyof typeof indicators]?.name || selectedIndicatorFilter)
+      }));
 
-    // Add detailed state data sheet
-    const detailsSheet = XLSX.utils.json_to_sheet(stateDetails);
-    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'State Details');
+      const stateSheet = XLSX.utils.json_to_sheet(stateExportData);
+      XLSX.utils.book_append_sheet(workbook, stateSheet, `${selectedRegionFilter} States`);
 
-    // Download file
-    XLSX.writeFile(workbook, `regional_state_analysis_${new Date().toISOString().split('T')[0]}.xlsx`);
-    
+      // Add detailed sub-indicator breakdown if specific indicator is selected
+      if (selectedIndicatorFilter !== "all") {
+        const detailedData: any[] = [];
+        stateData.chartData.forEach(state => {
+          state.details.forEach(detail => {
+            detailedData.push({
+              State: state.state,
+              Region: selectedRegionFilter,
+              Indicator: detail.indicator,
+              'Sub-Indicator': detail.subIndicator,
+              Score: detail.score,
+              Value: detail.value || '',
+              'Created At': new Date(detail.createdAt).toLocaleDateString()
+            });
+          });
+        });
+        
+        if (detailedData.length > 0) {
+          const detailSheet = XLSX.utils.json_to_sheet(detailedData);
+          XLSX.utils.book_append_sheet(workbook, detailSheet, 'Detailed Breakdown');
+        }
+      }
+    } else {
+      // Export regional summary data (existing functionality)
+      const regionalSummary = geopoliticalRegions.map(region => ({
+        Region: region,
+        'Number of States': regionalDistribution[region]?.count || 0,
+        'Total Score': regionalDistribution[region]?.totalScore?.toFixed(1) || '0.0',
+        'Average Score': regionalDistribution[region]?.averageScore?.toFixed(1) || '0.0',
+        'States': regionalDistribution[region]?.states?.join(', ') || 'None'
+      }));
+
+      const summarySheet = XLSX.utils.json_to_sheet(regionalSummary);
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Regional Summary');
+
+      // Add detailed state data with regions (filtered by selected indicator if any)
+      const filteredScores = selectedIndicatorFilter && selectedIndicatorFilter !== "all"
+        ? allScores?.filter(score => score.indicator === selectedIndicatorFilter) || []
+        : allScores || [];
+        
+      const stateDetails = filteredScores.map(score => ({
+        State: score.state,
+        Region: stateRegions[score.state] || 'Unknown',
+        Indicator: score.indicator,
+        'Sub-Indicator': score.subIndicator,
+        Score: score.score,
+        Value: score.value || '',
+        'Created At': new Date(score.createdAt).toLocaleDateString()
+      }));
+
+      const detailsSheet = XLSX.utils.json_to_sheet(stateDetails);
+      XLSX.utils.book_append_sheet(workbook, detailsSheet, 'State Details');
+    }
+
+    // Generate filename
+    let fileName = 'regional_analysis';
+    if (selectedRegionFilter !== "all") {
+      fileName += `_${selectedRegionFilter.replace(/\s+/g, '')}`;
+    }
+    if (selectedIndicatorFilter !== "all") {
+      fileName += `_${selectedIndicatorFilter}`;
+    }
+    fileName += `_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
     toast.success('Excel file downloaded successfully!');
-  }, [analytics, allScores]);
+  }, [analytics, allScores, selectedIndicatorFilter, selectedRegionFilter, stateData]);
 
   if (!analytics) {
     return (
@@ -274,8 +380,14 @@ const AnalyticsDashboard = () => {
     lastUpdated,
     gradeDistribution,
     regionalDistribution,
-    indicatorPerformance
+    indicatorPerformance,
+    selectedIndicator
   } = analytics;
+
+  // Get indicator name for display
+  const selectedIndicatorName = selectedIndicator 
+    ? indicators[selectedIndicator as keyof typeof indicators]?.name 
+    : null;
 
   // Regional data for charts
   const regionalChartData = geopoliticalRegions.map((region, index) => {
@@ -321,14 +433,54 @@ const AnalyticsDashboard = () => {
         </div>
       </div>
 
-      {/* Export Controls */}
-      <div className="flex justify-end mb-6">
-        <Button 
-          onClick={exportRegionalDataToExcel}
-          className="bg-green-600 hover:bg-green-700 text-white px-6 py-2"
-        >
-          📊 Export Regional Analysis to Excel
-        </Button>
+      {/* Filter and Export Controls */}
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+          <div className="flex-1 max-w-md">
+            <label htmlFor="indicator-filter" className="block text-sm font-medium text-gray-700 mb-2">
+              Filter by Indicator
+            </label>
+            <Select value={selectedIndicatorFilter} onValueChange={setSelectedIndicatorFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All Indicators" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Indicators</SelectItem>
+                {Object.entries(indicators).map(([key, config]) => (
+                  <SelectItem key={key} value={key}>
+                    {config.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex-1 max-w-md">
+            <label htmlFor="region-filter" className="block text-sm font-medium text-gray-700 mb-2">
+              Filter by Region
+            </label>
+            <Select value={selectedRegionFilter} onValueChange={setSelectedRegionFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All Regions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Regions</SelectItem>
+                {geopoliticalRegions.map((region) => (
+                  <SelectItem key={region} value={region}>
+                    {region}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <Button 
+            onClick={exportRegionalDataToExcel}
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2"
+          >
+            📊 Export to Excel
+          </Button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -366,11 +518,64 @@ const AnalyticsDashboard = () => {
         </Card>
       </div>
 
+      {/* State-Level Chart for Selected Region */}
+      {selectedRegionFilter !== "all" && stateData && (
+        <Card className="rounded-2xl shadow-sm mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold text-gray-700">
+              {selectedRegionFilter} States Performance
+              {selectedIndicatorName && (
+                <span className="block text-sm font-normal text-blue-600 mt-1">
+                  Indicator: {selectedIndicatorName}
+                </span>
+              )}
+            </CardTitle>
+            <p className="text-sm text-gray-500">
+              Showing {stateData.statesWithData} of {stateData.totalStates} states with data
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stateData.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="state" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  height={80}
+                  fontSize={12}
+                />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value: any) => [
+                    `${Number(value).toFixed(1)} / ${stateData.maxScore}`,
+                    'Score'
+                  ]}
+                  labelFormatter={(label) => `State: ${label}`}
+                />
+                <Bar 
+                  dataKey="score" 
+                  fill="#3b82f6"
+                  name="Score"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Performance Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="rounded-2xl shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700">Regional Distribution (States Count)</CardTitle>
+            <CardTitle className="text-lg font-semibold text-gray-700">
+              Regional Distribution (States Count)
+              {selectedIndicatorName && (
+                <span className="block text-sm font-normal text-blue-600 mt-1">
+                  Filtered by: {selectedIndicatorName}
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
@@ -387,7 +592,14 @@ const AnalyticsDashboard = () => {
 
         <Card className="rounded-2xl shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700">Regional Average Scores</CardTitle>
+            <CardTitle className="text-lg font-semibold text-gray-700">
+              Regional Average Scores
+              {selectedIndicatorName && (
+                <span className="block text-sm font-normal text-blue-600 mt-1">
+                  Filtered by: {selectedIndicatorName}
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
@@ -433,7 +645,14 @@ const AnalyticsDashboard = () => {
       {/* Regional Performance Chart */}
       <Card className="rounded-2xl shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-700">Regional Performance Overview</CardTitle>
+          <CardTitle className="text-lg font-semibold text-gray-700">
+            Regional Performance Overview
+            {selectedIndicatorName && (
+              <span className="block text-sm font-normal text-blue-600 mt-1">
+                Filtered by: {selectedIndicatorName}
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={250}>
