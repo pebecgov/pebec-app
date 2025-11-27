@@ -9,13 +9,13 @@ export default function PressReleaseMarquee() {
   if (!isVisible) return null;
 
   return (
-    <div className="bg-red-600 text-white relative overflow-hidden sticky top-0 z-50">
+    <div className="bg-red-600 text-white relative overflow-hidden  top-0 z-50">
       <div className="flex items-center">
         <div className="flex-1 py-3">
           <div className="marquee-container">
             <div className="marquee-content">
               <span className="font-semibold text-sm md:text-base">
-                Announcement: Notice of New Date for PEBEC Gala Night: Tuesday, 2nd December 2025 | Banquet Hall, State House, Abuja | 5:00 PM 
+                Announcement: Notice of New Date for PEBEC Gala Night: Tuesday, 2nd December 2025 | Venue: Banquet Hall, State House, Abuja | Time: 5:00 PM For more information, please contact: 0803 362 0898 or 0701 244 4706.
               </span>
             </div>
           </div>
@@ -28,7 +28,7 @@ export default function PressReleaseMarquee() {
           <XMarkIcon className="h-5 w-5" />
         </button>
       </div>
-      
+
       <style jsx>{`
         .marquee-container {
           width: 100%;
@@ -38,7 +38,7 @@ export default function PressReleaseMarquee() {
         
         .marquee-content {
           display: inline-block;
-          animation: marquee 90s linear infinite;
+          animation: marquee 35s linear infinite;
           padding-left: 0;
         }
         
@@ -57,7 +57,7 @@ export default function PressReleaseMarquee() {
         
         @media (max-width: 768px) {
           .marquee-content {
-            animation-duration: 70s;
+            animation-duration: 30s;
           }
         }
       `}</style>

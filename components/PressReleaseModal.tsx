@@ -21,11 +21,11 @@ export default function PressReleaseModal() {
     <div className="fixed inset-0 z-[100] overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
         {/* Background overlay */}
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
-        
+
         {/* Modal panel */}
         <div className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
           {/* Close button */}
@@ -45,8 +45,8 @@ export default function PressReleaseModal() {
             <div className="w-full max-w-lg">
               {/* Event Image */}
               <div className="relative">
-                <img 
-                  src="/images/hero/dateChange.png" 
+                <img
+                  src="/images/hero/dateChange.png"
                   alt="PEBEC Awards & Gala Night - Date Change Announcement"
                   className="w-full h-auto rounded-lg shadow-lg"
                 />
@@ -59,7 +59,7 @@ export default function PressReleaseModal() {
                   className="inline-flex justify-center rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
-                  Got it, thanks!
+                  Close
                 </button>
               </div>
             </div>
