@@ -19,6 +19,8 @@ import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 import AnalysisTab from "@/components/Admin/AnalysisTab";
 import { generateStateIndicatorPDF, processStateScoresForIndicator } from "@/lib/stateIndicatorPdfGenerator";
 import { toast } from "sonner";
+import { stateRegions, geopoliticalRegions } from "@/lib/stateRegions";
+import * as XLSX from 'xlsx';
 
 // Grade calculation function
 const indicatorMaxScores: Record<string, number> = Object.fromEntries(
@@ -138,7 +140,32 @@ const calculateAnalytics = (allScores: any[]) => {
   // Last updated
   const lastUpdated = Math.max(...Object.values(stateTimestamps));
 
-  // Grade distribution (tier-based counts)
+  // Regional distribution (region-based counts and scores)
+  const regionalDistribution: Record<string, { count: number; totalScore: number; averageScore: number; states: string[] }> = {};
+  
+  // Initialize regions
+  geopoliticalRegions.forEach(region => {
+    regionalDistribution[region] = { count: 0, totalScore: 0, averageScore: 0, states: [] };
+  });
+
+  // Group states by region
+  states.forEach(state => {
+    const region = stateRegions[state] || 'Unknown';
+    if (regionalDistribution[region]) {
+      regionalDistribution[region].count++;
+      regionalDistribution[region].totalScore += stateTotals[state];
+      regionalDistribution[region].states.push(state);
+    }
+  });
+
+  // Calculate average scores for each region
+  Object.keys(regionalDistribution).forEach(region => {
+    if (regionalDistribution[region].count > 0) {
+      regionalDistribution[region].averageScore = regionalDistribution[region].totalScore / regionalDistribution[region].count;
+    }
+  });
+
+  // Grade distribution (tier-based counts) - keeping for backward compatibility
   const gradeDistribution = {
     topTier: topPerformers,
     middleTier: midPerformers,
@@ -162,6 +189,7 @@ const calculateAnalytics = (allScores: any[]) => {
     lowestScoringState,
     lastUpdated,
     gradeDistribution,
+    regionalDistribution,
     indicatorPerformance,
     totalPossiblePoints: TOTAL_POSSIBLE_POINTS
   };
@@ -175,6 +203,48 @@ const AnalyticsDashboard = () => {
     if (!allScores) return null;
     return calculateAnalytics(allScores);
   }, [allScores]);
+
+  const exportRegionalDataToExcel = useCallback(() => {
+    if (!analytics) return;
+
+    const { regionalDistribution } = analytics;
+
+    // Prepare regional summary data
+    const regionalSummary = geopoliticalRegions.map(region => ({
+      Region: region,
+      'Number of States': regionalDistribution[region]?.count || 0,
+      'Total Score': regionalDistribution[region]?.totalScore?.toFixed(1) || '0.0',
+      'Average Score': regionalDistribution[region]?.averageScore?.toFixed(1) || '0.0',
+      'States': regionalDistribution[region]?.states?.join(', ') || 'None'
+    }));
+
+    // Prepare detailed state data with regions
+    const stateDetails = allScores?.map(score => ({
+      State: score.state,
+      Region: stateRegions[score.state] || 'Unknown',
+      Indicator: score.indicator,
+      'Sub-Indicator': score.subIndicator,
+      Score: score.score,
+      Value: score.value || '',
+      'Created At': new Date(score.createdAt).toLocaleDateString()
+    })) || [];
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Add regional summary sheet
+    const summarySheet = XLSX.utils.json_to_sheet(regionalSummary);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Regional Summary');
+
+    // Add detailed state data sheet
+    const detailsSheet = XLSX.utils.json_to_sheet(stateDetails);
+    XLSX.utils.book_append_sheet(workbook, detailsSheet, 'State Details');
+
+    // Download file
+    XLSX.writeFile(workbook, `regional_state_analysis_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast.success('Excel file downloaded successfully!');
+  }, [analytics, allScores]);
 
   if (!analytics) {
     return (
@@ -203,8 +273,21 @@ const AnalyticsDashboard = () => {
     lowestScoringState,
     lastUpdated,
     gradeDistribution,
+    regionalDistribution,
     indicatorPerformance
   } = analytics;
+
+  // Regional data for charts
+  const regionalChartData = geopoliticalRegions.map((region, index) => {
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+    return {
+      key: region.replace(/\s+/g, ''),
+      name: region,
+      count: regionalDistribution[region]?.count || 0,
+      averageScore: regionalDistribution[region]?.averageScore || 0,
+      fill: colors[index % colors.length]
+    };
+  });
 
   const gradePieData = [
     { key: 'topTier', name: 'Top Tier (1-10)', value: gradeDistribution.topTier, fill: '#10b981' },
@@ -224,11 +307,11 @@ const AnalyticsDashboard = () => {
               • All States ranked by their available score (fair comparison)
             </span>
           </p>
+          <p><strong>Regional Analysis:</strong> Performance distribution across Nigeria's 6 geopolitical regions</p>
           <p><strong>Top Tier (Ranks 1-10):</strong> Highest performers leading national reforms</p>
           <p><strong>Middle Tier (Ranks 11-22):</strong> Solid momentum with room to climb</p>
           <p><strong>Bottom Tier (Ranks 23+):</strong> Priority states requiring additional support</p>
-          <p><strong>Note:</strong> Tiers are rank-based to keep the focus on relative position each cycle.</p>
-          <p><strong>Below Standards (Below 70%):</strong> States that need improvement to meet requirements</p>
+          <p><strong>Note:</strong> Regional grouping shows geographic patterns in reform implementation.</p>
           <p><strong>Scoring Methods:</strong> 
             <span className="ml-1">
               • <span className="font-semibold text-blue-600">{formatScore(overallMaxScore)}-Point Scale:</span> Standard scoring with all metrics included
@@ -237,6 +320,17 @@ const AnalyticsDashboard = () => {
           </p>
         </div>
       </div>
+
+      {/* Export Controls */}
+      <div className="flex justify-end mb-6">
+        <Button 
+          onClick={exportRegionalDataToExcel}
+          className="bg-green-600 hover:bg-green-700 text-white px-6 py-2"
+        >
+          📊 Export Regional Analysis to Excel
+        </Button>
+      </div>
+
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="rounded-2xl shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
@@ -276,20 +370,16 @@ const AnalyticsDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="rounded-2xl shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700">Performance Distribution</CardTitle>
+            <CardTitle className="text-lg font-semibold text-gray-700">Regional Distribution (States Count)</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={[
-                { name: 'Top Tier (1-10)', value: topPerformers, fill: '#10b981' },
-                { name: 'Middle Tier (11-22)', value: midPerformers, fill: '#f59e0b' },
-                { name: 'Bottom Tier (23+)', value: lowPerformers, fill: '#ef4444' }
-              ]}>
+              <BarChart data={regionalChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" />
+                <Tooltip formatter={(value, name) => [value, 'States']} />
+                <Bar dataKey="count" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -297,27 +387,17 @@ const AnalyticsDashboard = () => {
 
         <Card className="rounded-2xl shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-700">Grade Distribution</CardTitle>
+            <CardTitle className="text-lg font-semibold text-gray-700">Regional Average Scores</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={gradePieData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {gradePieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value, name) => [value, name]} />
-              </PieChart>
+              <BarChart data={regionalChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                <YAxis />
+                <Tooltip formatter={(value, name) => [value?.toFixed(1), 'Average Score']} />
+                <Bar dataKey="averageScore" />
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -350,26 +430,33 @@ const AnalyticsDashboard = () => {
         )}
       </div>
 
-      {/* Score Trend Chart */}
+      {/* Regional Performance Chart */}
       <Card className="rounded-2xl shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-700">Score Distribution Overview</CardTitle>
+          <CardTitle className="text-lg font-semibold text-gray-700">Regional Performance Overview</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart 
-              data={[
-                { range: 'Top Tier (1-10)', count: gradeDistribution.topTier, fill: '#10b981' },
-                { range: 'Middle Tier (11-22)', count: gradeDistribution.middleTier, fill: '#3b82f6' },
-                { range: 'Bottom Tier (23+)', count: gradeDistribution.bottomTier, fill: '#ef4444' },
-              ]}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="range" />
-              <YAxis />
-              <Tooltip formatter={(value) => [value, 'States']} />
-              <Bar dataKey="count" />
-            </BarChart>
+            <PieChart>
+              <Pie
+                data={regionalChartData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, count, averageScore }) => `${name}: ${count} states (${averageScore?.toFixed(1)} avg)`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="count"
+              >
+                {regionalChartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value, name, props) => [
+                `${value} states (Avg: ${props.payload.averageScore?.toFixed(1)})`, 
+                name
+              ]} />
+            </PieChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
