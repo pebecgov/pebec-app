@@ -1551,11 +1551,12 @@ export const get72HourResolutionStats = query({
     fromDate,
     toDate
   }) => {
-    const user = await getCurrentUserOrThrow(ctx);
-    const isAdmin = ["admin", "staff", "president", "vice_president"].includes(user.role || "");
-    if (!isAdmin) {
-      throw new Error("Unauthorized: Only admins can access this data.");
-    }
+    try {
+      const user = await getCurrentUserOrThrow(ctx);
+      const isAdmin = ["admin", "staff", "president", "vice_president"].includes(user.role || "");
+      if (!isAdmin) {
+        throw new Error("Unauthorized: Only admins can access this data.");
+      }
 
     // Get all tickets
     let tickets = await ctx.db.query("tickets").collect();
@@ -1572,7 +1573,7 @@ export const get72HourResolutionStats = query({
     const mdas = await ctx.db.query("mdas").collect();
     const mdaMap: Record<string, string> = {};
     mdas.forEach(mda => {
-      mdaMap[mda._id] = mda.name;
+      mdaMap[mda._id as string] = mda.name;
     });
 
     // System-wide totals
@@ -1595,27 +1596,78 @@ export const get72HourResolutionStats = query({
     const now = Date.now();
 
     for (const ticket of tickets) {
+      // Skip tickets with invalid dates
+      if (!ticket.createdAt || isNaN(ticket.createdAt)) {
+        continue;
+      }
+
       const startTime = ticket.reassignedAt ?? ticket.createdAt;
+      
+      // For resolved/closed tickets, we need updatedAt to calculate resolution time
+      // If updatedAt is missing, skip the 72h calculation but still count the ticket
       const updated = ticket.updatedAt ?? ticket.createdAt;
-      const hours = skipWeekendHoursCount(startTime, updated);
+      
+      // Validate dates before calculating hours
+      if (isNaN(startTime) || isNaN(updated) || startTime > updated) {
+        // If dates are invalid, still count the ticket but skip 72h calculation
+        if (ticket.status === "resolved") {
+          systemTotalResolved++;
+        }
+        if (ticket.status === "closed") {
+          systemTotalClosed++;
+        }
+
+        // Per-MDA counts (without 72h calculation)
+        if (ticket.assignedMDA) {
+          const mdaId = ticket.assignedMDA as string;
+          if (!mdaStats[mdaId]) {
+            mdaStats[mdaId] = {
+              mdaId,
+              mdaName: mdaMap[mdaId] || "Unknown MDA",
+              totalResolved: 0,
+              resolvedWithin72h: 0,
+              totalClosed: 0,
+              closedWithin72h: 0,
+              totalTickets: 0
+            };
+          }
+          mdaStats[mdaId].totalTickets++;
+          if (ticket.status === "resolved") {
+            mdaStats[mdaId].totalResolved++;
+          }
+          if (ticket.status === "closed") {
+            mdaStats[mdaId].totalClosed++;
+          }
+        }
+        continue;
+      }
+
+      // Calculate hours only if dates are valid
+      let hours = 0;
+      try {
+        hours = skipWeekendHoursCount(startTime, updated);
+      } catch (error) {
+        // If calculation fails, skip 72h check but still count ticket
+        console.error(`Error calculating hours for ticket ${ticket._id}:`, error);
+      }
 
       // System-wide counts
       if (ticket.status === "resolved") {
         systemTotalResolved++;
-        if (hours <= 72) {
+        if (hours > 0 && hours <= 72) {
           systemTotalResolved72h++;
         }
       }
       if (ticket.status === "closed") {
         systemTotalClosed++;
-        if (hours <= 72) {
+        if (hours > 0 && hours <= 72) {
           systemTotalClosed72h++;
         }
       }
 
       // Per-MDA counts
       if (ticket.assignedMDA) {
-        const mdaId = ticket.assignedMDA;
+        const mdaId = ticket.assignedMDA as string;
         if (!mdaStats[mdaId]) {
           mdaStats[mdaId] = {
             mdaId,
@@ -1632,13 +1684,13 @@ export const get72HourResolutionStats = query({
 
         if (ticket.status === "resolved") {
           mdaStats[mdaId].totalResolved++;
-          if (hours <= 72) {
+          if (hours > 0 && hours <= 72) {
             mdaStats[mdaId].resolvedWithin72h++;
           }
         }
         if (ticket.status === "closed") {
           mdaStats[mdaId].totalClosed++;
-          if (hours <= 72) {
+          if (hours > 0 && hours <= 72) {
             mdaStats[mdaId].closedWithin72h++;
           }
         }
@@ -1665,6 +1717,10 @@ export const get72HourResolutionStats = query({
         to: toDate ? new Date(toDate).toISOString() : null
       }
     };
+    } catch (error) {
+      console.error("Error in get72HourResolutionStats:", error);
+      throw new Error(`Failed to fetch 72-hour resolution stats: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 });
 
