@@ -14,9 +14,13 @@ import LetterStatsDashboard from "@/components/AnalyticsCharts/AssignedLettersAn
 import TicketSummary from "@/components/TicketsStats";
 import EventAnalyticsDashboard from "@/components/EventsStats";
 import HolidayAnnouncementsDisplay from "@/components/HolidayWhereabout/HolidayAnnouncementsDisplay";
+import SeventyTwoHourResolutionDashboard from "@/components/SeventyTwoHourResolutionDashboard";
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("tickets");
   return <div className="mt-5">
+        <div className="mt-5 mb-5">
+        <SeventyTwoHourResolutionDashboard />
+        </div>
         <div className="mt-5 mb-5">
         <TicketSummary />
         </div>

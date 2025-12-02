@@ -1542,6 +1542,132 @@ export const getTicketStats = query({
   }
 });
 
+export const get72HourResolutionStats = query({
+  args: {
+    fromDate: v.optional(v.number()),
+    toDate: v.optional(v.number())
+  },
+  handler: async (ctx, {
+    fromDate,
+    toDate
+  }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const isAdmin = ["admin", "staff", "president", "vice_president"].includes(user.role || "");
+    if (!isAdmin) {
+      throw new Error("Unauthorized: Only admins can access this data.");
+    }
+
+    // Get all tickets
+    let tickets = await ctx.db.query("tickets").collect();
+    
+    // Filter by date range if provided
+    if (fromDate || toDate) {
+      tickets = tickets.filter(t => 
+        (!fromDate || t.createdAt >= fromDate) && 
+        (!toDate || t.createdAt <= toDate)
+      );
+    }
+
+    // Get all MDAs for name mapping
+    const mdas = await ctx.db.query("mdas").collect();
+    const mdaMap: Record<string, string> = {};
+    mdas.forEach(mda => {
+      mdaMap[mda._id] = mda.name;
+    });
+
+    // System-wide totals
+    let systemTotalResolved72h = 0;
+    let systemTotalResolved = 0;
+    let systemTotalClosed72h = 0;
+    let systemTotalClosed = 0;
+
+    // Per-MDA stats
+    const mdaStats: Record<string, {
+      mdaId: string;
+      mdaName: string;
+      totalResolved: number;
+      resolvedWithin72h: number;
+      totalClosed: number;
+      closedWithin72h: number;
+      totalTickets: number;
+    }> = {};
+
+    const now = Date.now();
+
+    for (const ticket of tickets) {
+      const startTime = ticket.reassignedAt ?? ticket.createdAt;
+      const updated = ticket.updatedAt ?? ticket.createdAt;
+      const hours = skipWeekendHoursCount(startTime, updated);
+
+      // System-wide counts
+      if (ticket.status === "resolved") {
+        systemTotalResolved++;
+        if (hours <= 72) {
+          systemTotalResolved72h++;
+        }
+      }
+      if (ticket.status === "closed") {
+        systemTotalClosed++;
+        if (hours <= 72) {
+          systemTotalClosed72h++;
+        }
+      }
+
+      // Per-MDA counts
+      if (ticket.assignedMDA) {
+        const mdaId = ticket.assignedMDA;
+        if (!mdaStats[mdaId]) {
+          mdaStats[mdaId] = {
+            mdaId,
+            mdaName: mdaMap[mdaId] || "Unknown MDA",
+            totalResolved: 0,
+            resolvedWithin72h: 0,
+            totalClosed: 0,
+            closedWithin72h: 0,
+            totalTickets: 0
+          };
+        }
+
+        mdaStats[mdaId].totalTickets++;
+
+        if (ticket.status === "resolved") {
+          mdaStats[mdaId].totalResolved++;
+          if (hours <= 72) {
+            mdaStats[mdaId].resolvedWithin72h++;
+          }
+        }
+        if (ticket.status === "closed") {
+          mdaStats[mdaId].totalClosed++;
+          if (hours <= 72) {
+            mdaStats[mdaId].closedWithin72h++;
+          }
+        }
+      }
+    }
+
+    // Convert to array and sort by resolvedWithin72h descending
+    const mdaStatsArray = Object.values(mdaStats).sort((a, b) => 
+      (b.resolvedWithin72h + b.closedWithin72h) - (a.resolvedWithin72h + a.closedWithin72h)
+    );
+
+    return {
+      systemWide: {
+        totalResolved: systemTotalResolved,
+        resolvedWithin72h: systemTotalResolved72h,
+        totalClosed: systemTotalClosed,
+        closedWithin72h: systemTotalClosed72h,
+        totalResolvedWithin72h: systemTotalResolved72h + systemTotalClosed72h,
+        totalResolvedAndClosed: systemTotalResolved + systemTotalClosed
+      },
+      perMda: mdaStatsArray,
+      dateRange: {
+        from: fromDate ? new Date(fromDate).toISOString() : null,
+        to: toDate ? new Date(toDate).toISOString() : null
+      }
+    };
+  }
+});
+
 export const migrateIncidentDates = mutation({
   args: {},
   handler: async (ctx) => {
