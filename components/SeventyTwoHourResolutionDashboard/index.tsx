@@ -19,8 +19,8 @@ export default function SeventyTwoHourResolutionDashboard() {
 
   const stats = isSignedIn
     ? useQuery(api.tickets.get72HourResolutionStats, {
-        fromDate: fromDate?.getTime(),
-        toDate: toDate?.getTime(),
+        fromDate: fromDate?.getTime() ?? undefined,
+        toDate: toDate?.getTime() ?? undefined,
       })
     : null;
 
@@ -86,8 +86,20 @@ export default function SeventyTwoHourResolutionDashboard() {
     return null;
   }
 
-  if (!stats) {
+  if (stats === undefined) {
     return <div className="text-center mt-10">Loading 72-hour resolution statistics...</div>;
+  }
+
+  if (stats === null) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-10">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800">
+            Unable to load 72-hour resolution statistics. Please ensure you have admin access.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const systemResolutionRate = stats.systemWide.totalResolvedAndClosed > 0
