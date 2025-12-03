@@ -16,8 +16,8 @@ export default function MyPerformance() {
   const [showAllActivities, setShowAllActivities] = useState(false);
   const [showDetailedView, setShowDetailedView] = useState(false);
   
-  const myActivity = useQuery(api.users.getStaffUserActivity, { timeRange: "30d" });
-  const staffMetrics = useQuery(api.users.getStaffUsageMetrics, { timeRange: "30d" });
+  const myActivity = useQuery(api.users.getStaffUserActivity, { timeRange: "1y" });
+  const staffMetrics = useQuery(api.users.getStaffUsageMetrics, { timeRange: "1y" });
   const currentUser = useQuery(api.users.current);
 
   // Handle loading state

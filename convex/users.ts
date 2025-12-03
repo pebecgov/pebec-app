@@ -1279,7 +1279,8 @@ export const getStaffUserActivity = query({
     timeRange: v.optional(v.union(
       v.literal("7d"),
       v.literal("30d"),
-      v.literal("90d")
+      v.literal("90d"),
+      v.literal("1y") 
     )),
     activityType: v.optional(v.union(
       v.literal("login"),
@@ -1303,7 +1304,8 @@ export const getStaffUserActivity = query({
     const timeRanges = {
       "7d": 7 * 24 * 60 * 60 * 1000,
       "30d": 30 * 24 * 60 * 60 * 1000,
-      "90d": 90 * 24 * 60 * 60 * 1000
+      "90d": 90 * 24 * 60 * 60 * 1000,
+      "1y": 365 * 24 * 60 * 60 * 1000
     };
     
     const startTime = now - timeRanges[timeRange];

@@ -12,7 +12,7 @@ import { formatWorkstream } from "@/lib/formatters";
 
 export default function StaffLeaderboard() {
   const [showAllStaff, setShowAllStaff] = useState(false);
-  const staffMetrics = useQuery(api.users.getStaffUsageMetrics, { timeRange: "30d" });
+  const staffMetrics = useQuery(api.users.getStaffUsageMetrics, { timeRange: "1y" });
 
   // Handle loading state
   if (staffMetrics === undefined) {
