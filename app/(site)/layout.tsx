@@ -21,8 +21,6 @@ import ChatbaseScript from "@/components/ChatbaseScript";
 import { Toaster } from "sonner";
 import { usePathname } from "next/navigation";
 import ActivityTracker from "@/components/ActivityTracker";
-import PressReleaseMarquee from "@/components/PressReleaseMarquee";
-import PressReleaseModal from "@/components/PressReleaseModal";
 const inter = Inter({
   subsets: ["latin"]
 });
@@ -66,8 +64,6 @@ export default function RootLayout({
       <div className="w-10 h-10 border-4 border-t-transparent border-black rounded-full animate-spin" />
     </div>
   </div> : <>
-    {!isHiddenPath && <PressReleaseModal />}
-    {!isHiddenPath && <PressReleaseMarquee />}
     {!isHiddenPath && <Lines />}
     {!isHiddenPath && <Header />}
     <Toaster position="top-center" richColors /> {}
