@@ -332,6 +332,7 @@ import { toast, Toaster } from "sonner";
 export const Contact = () => {
   const getAdminEmails = useMutation(api.users.getAdminEmails);
   const sendEmail = useAction(api.sendEmail.sendEmail);
+  const subscribeToNewsletter = useMutation(api.newsletters.subscribeToNewsletter);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
@@ -343,6 +344,12 @@ export const Contact = () => {
     message: ""
   });
 
+  const [newsletterName, setNewsletterName] = useState("");
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterOrganization, setNewsletterOrganization] = useState("");
+  const [newsletterJobRole, setNewsletterJobRole] = useState("");
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
+  const [newsletterError, setNewsletterError] = useState("");
   useEffect(() => {
     setHasMounted(true);
   }, []);
@@ -392,6 +399,48 @@ export const Contact = () => {
       toast.error("Failed to send message.");
     }
   };
+   const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterName.trim()) {
+      setNewsletterError("Please enter your name.");
+      return;
+    }
+    if (!newsletterEmail) {
+      setNewsletterError("Please enter a valid email address.");
+      return;
+    }
+    if (!newsletterOrganization.trim()) {
+      setNewsletterError("Please enter your organization.");
+      return;
+    }
+    if (!newsletterJobRole.trim()) {
+      setNewsletterError("Please enter your job role.");
+      return;
+    }
+
+    try {
+      setNewsletterError("");
+      setNewsletterSubscribed(false);
+      const res = await subscribeToNewsletter({
+        email: newsletterEmail,
+        name: newsletterName.trim(),
+        organization: newsletterOrganization.trim(),
+        jobRole: newsletterJobRole.trim()
+      });
+
+      if (res?.success) {
+        setNewsletterSubscribed(true);
+        setNewsletterName("");
+        setNewsletterEmail("");
+        setNewsletterOrganization("");
+        setNewsletterJobRole("");
+        toast.success("Subscribed to the newsletter!");
+      }
+    } catch (error) {
+      console.error("Newsletter subscription failed", error);
+      setNewsletterError("Something went wrong. Please try again.");
+    }
+  };
 
   // if (!hasMounted) {
   //   return (
@@ -421,6 +470,7 @@ export const Contact = () => {
     </Button>
   </div>
       </div>
+      
 
         <div className="relative mx-auto max-w-c-1390 px-7.5 pt-10 lg:px-15 lg:pt-15 xl:px-20 xl:pt-20">
           <div className="absolute left-0 top-0 -z-1 h-2/3 w-full rounded-lg bg-gradient-to-t from-transparent to-[#dee7ff47] dark:bg-gradient-to-t dark:to-[#252A42]"></div>
@@ -539,8 +589,65 @@ export const Contact = () => {
               </div>
             </motion.div>
           </div>
+        
+         
         </div>
+          <div className="w-full p-5 mt-4 bg-gray-100">
+  <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">           <div>
+               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                 📰 Stay in the loop with PEBEC
+               </h2>
+               <p className="text-gray-600 text-sm md:text-base max-w-xl">
+                 Subscribe to our newsletter to receive the latest updates, reforms, and resources directly in your inbox.               </p>
+            </div>
+
+           <form onSubmit={handleNewsletterSubmit} className="w-full md:w-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
+               <input
+                type="text"
+                required
+                placeholder="Full name"
+                value={newsletterName}
+                onChange={e => setNewsletterName(e.target.value)}
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <input
+                type="email"
+                required
+                placeholder="Email address"
+                value={newsletterEmail}
+                onChange={e => setNewsletterEmail(e.target.value)}
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <input
+                type="text"
+                required
+                placeholder="Organization"
+                value={newsletterOrganization}
+                onChange={e => setNewsletterOrganization(e.target.value)}
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <input
+                type="text"
+                required
+                placeholder="Job Role"
+                value={newsletterJobRole}
+                onChange={e => setNewsletterJobRole(e.target.value)}
+                className="w-full rounded-md border border-stroke px-4 py-3 focus:border-primary focus:outline-none dark:border-strokedark dark:bg-black dark:text-white"
+              />
+              <Button type="submit" className="sm:col-span-2 lg:col-span-1 px-6 py-3 text-base rounded-md bg-black text-white hover:bg-green-800">
+                Subscribe
+              </Button>
+            </form>
+          </div>
+          {(newsletterSubscribed || newsletterError) && (
+            <div className="max-w-6xl mx-auto mt-4">
+              {newsletterSubscribed && <p className="text-green-600 text-sm">Subscribed successfully ✅</p>}
+              {newsletterError && <p className="text-red-500 text-sm">{newsletterError}</p>}
+            </div>
+          )}
+          </div>
         <SendLetterModal open={openModal} setOpen={setOpenModal} />
+
       </section>
     </>
   );
