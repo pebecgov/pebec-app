@@ -199,19 +199,19 @@ export default function BusinessLettersAdmin() {
     setCurrentPage(1);
   }, [filter]);
   return <div className="max-w-7xl mx-auto p-4 sm:p-6">
-      <h1 className="text-xl sm:text-2xl font-bold mb-4 flex items-center gap-2">
-        📄 Incoming Letters from Users
-      </h1>
+    <h1 className="text-xl sm:text-2xl font-bold mb-4 flex items-center gap-2">
+      📄 Incoming Letters from Users
+    </h1>
 
-      {}
-      <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6 flex-wrap">
-  <Input placeholder="Search by email, company or contact" value={filter.email} onChange={e => setFilter({
+    { }
+    <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6 flex-wrap">
+      <Input placeholder="Search by email, company or contact" value={filter.email} onChange={e => setFilter({
         ...filter,
         email: e.target.value
       })} className="w-full sm:w-64" />
 
-  <div className="flex gap-2 w-full sm:w-auto items-end">
-    <Input type="date" value={filter.from} max={filter.to || undefined} onChange={e => {
+      <div className="flex gap-2 w-full sm:w-auto items-end">
+        <Input type="date" value={filter.from} max={filter.to || undefined} onChange={e => {
           const newFrom = e.target.value;
           setFilter(prev => ({
             ...prev,
@@ -219,26 +219,26 @@ export default function BusinessLettersAdmin() {
             to: prev.to && newFrom > prev.to ? "" : prev.to
           }));
         }} className="w-[135px]" />
-    <Input type="date" value={filter.to} min={filter.from || undefined} onChange={e => setFilter(prev => ({
+        <Input type="date" value={filter.to} min={filter.from || undefined} onChange={e => setFilter(prev => ({
           ...prev,
           to: e.target.value
         }))} className="w-[135px]" />
-  </div>
+      </div>
 
-  <div className="flex gap-2 flex-wrap">
-  <Button variant={activeQuickFilter === "today" ? "default" : "outline"} className={activeQuickFilter === "today" ? "bg-green-700 text-white" : ""} size="sm" onClick={() => handleDateFilter("today")}>
-    Today
-  </Button>
+      <div className="flex gap-2 flex-wrap">
+        <Button variant={activeQuickFilter === "today" ? "default" : "outline"} className={activeQuickFilter === "today" ? "bg-green-700 text-white" : ""} size="sm" onClick={() => handleDateFilter("today")}>
+          Today
+        </Button>
 
-  <Button variant={activeQuickFilter === "week" ? "default" : "outline"} className={activeQuickFilter === "week" ? "bg-green-700 text-white" : ""} size="sm" onClick={() => handleDateFilter("week")}>
-    This Week
-  </Button>
+        <Button variant={activeQuickFilter === "week" ? "default" : "outline"} className={activeQuickFilter === "week" ? "bg-green-700 text-white" : ""} size="sm" onClick={() => handleDateFilter("week")}>
+          This Week
+        </Button>
 
-  <Button variant={activeQuickFilter === "month" ? "default" : "outline"} className={activeQuickFilter === "month" ? "bg-green-700 text-white" : ""} size="sm" onClick={() => handleDateFilter("month")}>
-    This Month
-  </Button>
+        <Button variant={activeQuickFilter === "month" ? "default" : "outline"} className={activeQuickFilter === "month" ? "bg-green-700 text-white" : ""} size="sm" onClick={() => handleDateFilter("month")}>
+          This Month
+        </Button>
 
-  <Button variant="ghost" size="sm" className="text-red-500" onClick={() => {
+        <Button variant="ghost" size="sm" className="text-red-500" onClick={() => {
           setFilter({
             email: "",
             from: "",
@@ -246,190 +246,190 @@ export default function BusinessLettersAdmin() {
           });
           setActiveQuickFilter(null);
         }}>
-    Clear Filters
-  </Button>
+          Clear Filters
+        </Button>
       </div>
 
     </div>
 
 
-      {}
-      {selectedLetterIds.length > 0 && <div className="flex justify-end mb-4">
-    <Button onClick={openAssignDialog}>
-      {letters.some(l => selectedLetterIds.includes(l._id) && (l.assignedStream || l.assignedTo?.length)) ? "Reassign Selected" : "Assign Selected"}
-    </Button>
-  </div>}
+    { }
+    {selectedLetterIds.length > 0 && <div className="flex justify-end mb-4">
+      <Button onClick={openAssignDialog}>
+        {letters.some(l => selectedLetterIds.includes(l._id) && (l.assignedStream || l.assignedTo?.length)) ? "Reassign Selected" : "Assign Selected"}
+      </Button>
+    </div>}
 
     <div className="flex justify-end mb-4">
-  <div className="flex items-center gap-2">
-    <span className="text-sm text-gray-600">Sort by:</span>
-    <select value={sortOrder} onChange={e => setSortOrder(e.target.value as "newest" | "oldest")} className="border rounded px-2 py-1 text-sm">
-      <option value="newest">Newest to Oldest</option>
-      <option value="oldest">Oldest to Newest</option>
-    </select>
-  </div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-600">Sort by:</span>
+        <select value={sortOrder} onChange={e => setSortOrder(e.target.value as "newest" | "oldest")} className="border rounded px-2 py-1 text-sm">
+          <option value="newest">Newest to Oldest</option>
+          <option value="oldest">Oldest to Newest</option>
+        </select>
+      </div>
     </div>
 
 
 
-      {}
-    {}
+    { }
+    { }
     <div className="w-full overflow-x-auto border rounded-md">
-    <div className="w-full overflow-x-auto border rounded-md">
-  <table className="min-w-[1000px] text-sm whitespace-nowrap">
-    <thead className="bg-gray-100 text-left">
-      <tr>
-        <th className="p-3"></th>
-        <th className="p-3">Title</th>
-        <th className="p-3">Company</th>
-        <th className="p-3">Email</th>
-        <th className="p-3">Phone</th>
-        <th className="p-3">Date</th>
-        <th className="p-3">Files</th>
-        <th className="p-3">Assigned To</th>
-        <th className="p-3">Status</th>
-        <th className="p-3">Actions</th>
-      </tr>
-    </thead>
+      <div className="w-full overflow-x-auto border rounded-md">
+        <table className="min-w-[1000px] text-sm whitespace-nowrap">
+          <thead className="bg-gray-100 text-left">
+            <tr>
+              <th className="p-3"></th>
+              <th className="p-3">Title</th>
+              <th className="p-3">Company</th>
+              <th className="p-3">Email</th>
+              <th className="p-3">Phone</th>
+              <th className="p-3">Date</th>
+              <th className="p-3">Files</th>
+              <th className="p-3">Assigned To</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Actions</th>
+            </tr>
+          </thead>
 
-    <tbody>
-      {paginatedLetters.map(letter => <tr key={letter._id} className="border-t">
-          <td className="p-3">
-            <input type="checkbox" checked={selectedLetterIds.includes(letter._id)} onChange={() => toggleSelection(letter._id)} />
-          </td>
-          <td className="p-3">{letter.title.slice(0, 15)}...</td>
-          <td className="p-3">{letter.companyName}</td>
-          <td className="p-3">{letter.email}</td>
-          <td className="p-3">{letter.phone}</td>
-          <td className="p-3">{format(new Date(letter.createdAt), "PPP")}</td>
-          <td className="p-3">
-            <Button variant="outline" size="sm" onClick={() => handleShowFiles(letter)}>
-              📎 Show Files
-            </Button>
-          </td>
-          <td className="p-3">
-            {letter.assignedStream ? <span className="capitalize">{letter.assignedStream}</span> : <span className="italic text-gray-400">not assigned</span>}
-          </td>
-          <td className="p-3">
-            <span className={`capitalize px-2 py-1 rounded text-xs font-medium ${letter.status === "resolved" ? "bg-green-100 text-green-700" : letter.status === "in_progress" ? "bg-blue-100 text-blue-700" : letter.status === "acknowledged" ? "bg-purple-100 text-purple-700" : letter.status === "pending" ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500"}`}>
-              {letter.status === "pending" && "Waiting for Ack"}
-              {letter.status === "acknowledged" && "Acknowledged"}
-              {letter.status === "in_progress" && "In Progress"}
-              {letter.status === "resolved" && "Resolved"}
-              {!letter.status && !letter.assignedTo && "Not Assigned"}
-            </span>
-          </td>
-          <td className="p-3">
-  {userRole === "admin" && <Button variant="destructive" onClick={() => {
+          <tbody>
+            {paginatedLetters.map(letter => <tr key={letter._id} className="border-t">
+              <td className="p-3">
+                <input type="checkbox" checked={selectedLetterIds.includes(letter._id)} onChange={() => toggleSelection(letter._id)} />
+              </td>
+              <td className="p-3">{letter.title.slice(0, 15)}...</td>
+              <td className="p-3">{letter.companyName}</td>
+              <td className="p-3">{letter.email}</td>
+              <td className="p-3">{letter.phone}</td>
+              <td className="p-3">{format(new Date(letter.createdAt), "PPP")}</td>
+              <td className="p-3">
+                <Button variant="outline" size="sm" onClick={() => handleShowFiles(letter)}>
+                  📎 Show Files
+                </Button>
+              </td>
+              <td className="p-3">
+                {letter.assignedStream ? <span className="capitalize">{letter.assignedStream}</span> : <span className="italic text-gray-400">not assigned</span>}
+              </td>
+              <td className="p-3">
+                <span className={`capitalize px-2 py-1 rounded text-xs font-medium ${letter.status === "resolved" ? "bg-green-100 text-green-700" : letter.status === "in_progress" ? "bg-blue-100 text-blue-700" : letter.status === "acknowledged" ? "bg-purple-100 text-purple-700" : letter.status === "pending" ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500"}`}>
+                  {letter.status === "pending" && "Waiting for Ack"}
+                  {letter.status === "acknowledged" && "Acknowledged"}
+                  {letter.status === "in_progress" && "In Progress"}
+                  {letter.status === "resolved" && "Resolved"}
+                  {!letter.status && !letter.assignedTo && "Not Assigned"}
+                </span>
+              </td>
+              <td className="p-3">
+                {userRole === "admin" && <Button variant="destructive" onClick={() => {
                   setSelectedLetter(letter._id);
                   setDeleteDialogOpen(true);
                 }}>
-      Delete
-    </Button>}
+                  Delete
+                </Button>}
               </td>
 
 
-        </tr>)}
-    </tbody>
-  </table>
+            </tr>)}
+          </tbody>
+        </table>
       </div>
 
-      </div>
+    </div>
 
 
-      {}
-      {totalPages > 1 && <div className="flex justify-center gap-4 mt-6">
-          <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}>
-            ← Previous
-          </Button>
-          <span className="text-sm text-gray-700">Page {currentPage} of {totalPages}</span>
-          <Button size="sm" variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}>
-            Next →
-          </Button>
-        </div>}
+    { }
+    {totalPages > 1 && <div className="flex justify-center gap-4 mt-6">
+      <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}>
+        ← Previous
+      </Button>
+      <span className="text-sm text-gray-700">Page {currentPage} of {totalPages}</span>
+      <Button size="sm" variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}>
+        Next →
+      </Button>
+    </div>}
 
-      {}
-      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign Workstream</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-  {}
-  <select value={selectedStream} onChange={e => {
+    { }
+    <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Assign Workstream</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          { }
+          <select value={selectedStream} onChange={e => {
             setSelectedStream(e.target.value);
             setAssignEntireStream(false);
             setSelectedStaffIds([]);
           }} className="w-full border rounded px-3 py-2">
-  <option value="">Select Stream</option>
-  {staffStreams.map(stream => <option key={stream} value={stream}>{formatWorkstream(stream)}</option>)}
+            <option value="">Select Stream</option>
+            {staffStreams.map(stream => <option key={stream} value={stream}>{formatWorkstream(stream)}</option>)}
           </select>
 
-  <div className="flex items-center gap-2 mt-2">
-  <input type="checkbox" id="assignAll" checked={assignEntireStream} onChange={() => setAssignEntireStream(!assignEntireStream)} />
-  <label htmlFor="assignAll" className="text-sm text-gray-700">
-    Assign entire stream
-  </label>
+          <div className="flex items-center gap-2 mt-2">
+            <input type="checkbox" id="assignAll" checked={assignEntireStream} onChange={() => setAssignEntireStream(!assignEntireStream)} />
+            <label htmlFor="assignAll" className="text-sm text-gray-700">
+              Assign entire stream
+            </label>
           </div>
 
 
-  {}
-  {selectedStream && !assignEntireStream && <div className="border rounded p-3 max-h-60 overflow-y-auto">
-    <p className="text-sm font-medium mb-2 text-gray-700">
-      Select Staff in "{selectedStream}"
-    </p>
-    {users.filter(u => u.role === "staff" && u.staffStream === selectedStream).map(staff => <label key={staff._id} className="flex items-center space-x-2 mb-2">
-          <input type="checkbox" checked={selectedStaffIds.includes(staff._id)} onChange={e => {
+          { }
+          {selectedStream && !assignEntireStream && <div className="border rounded p-3 max-h-60 overflow-y-auto">
+            <p className="text-sm font-medium mb-2 text-gray-700">
+              Select Staff in "{selectedStream}"
+            </p>
+            {users.filter(u => u.role === "staff" && u.staffStream === selectedStream).map(staff => <label key={staff._id} className="flex items-center space-x-2 mb-2">
+              <input type="checkbox" checked={selectedStaffIds.includes(staff._id)} onChange={e => {
                 if (e.target.checked) {
                   setSelectedStaffIds(prev => [...prev, staff._id]);
                 } else {
                   setSelectedStaffIds(prev => prev.filter(id => id !== staff._id));
                 }
               }} />
-          <span>{`${staff.firstName ?? ""} ${staff.lastName ?? ""}`}</span>
-        </label>)}
-    {users.filter(u => u.role === "staff" && u.staffStream === selectedStream).length === 0 && <p className="text-sm text-gray-500 italic">No staff in this stream.</p>}
-  </div>}
+              <span>{`${staff.firstName ?? ""} ${staff.lastName ?? ""}`}</span>
+            </label>)}
+            {users.filter(u => u.role === "staff" && u.staffStream === selectedStream).length === 0 && <p className="text-sm text-gray-500 italic">No staff in this stream.</p>}
+          </div>}
 
         </div>
 
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAssignConfirm} disabled={assigning || !selectedStream}>
-              Assign
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleAssignConfirm} disabled={assigning || !selectedStream}>
+            Assign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
-      {}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Are you sure?</DialogTitle>
-          </DialogHeader>
-          <p>This will permanently delete the letter.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Yes, Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+    { }
+    <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Are you sure?</DialogTitle>
+        </DialogHeader>
+        <p>This will permanently delete the letter.</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={handleDelete}>
+            Yes, Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
 
-      <Dialog open={fileDialogOpen} onOpenChange={setFileDialogOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Attached Files</DialogTitle>
-    </DialogHeader>
-    <div className="space-y-2">
-    <Button variant="link" className="text-blue-600 p-0" onClick={async () => {
+    <Dialog open={fileDialogOpen} onOpenChange={setFileDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Attached Files</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Button variant="link" className="text-blue-600 p-0" onClick={async () => {
             if (!activeLetterFiles?.main) return;
             const url = await fetchFileUrl(activeLetterFiles.main);
             if (!url) {
@@ -443,10 +443,17 @@ export default function BusinessLettersAdmin() {
             try {
               const response = await fetch(url);
               const blob = await response.blob();
+              const contentType = response.headers.get("Content-Type") || "application/pdf";
+              let extension = "pdf";
+              if (contentType.includes("image/jpeg")) extension = "jpg";
+              else if (contentType.includes("image/png")) extension = "png";
+              else if (contentType.includes("application/msword")) extension = "doc";
+              else if (contentType.includes("wordprocessingml")) extension = "docx";
+
               const blobUrl = window.URL.createObjectURL(blob);
               const link = document.createElement("a");
               link.href = blobUrl;
-              link.download = "Main_Letter.pdf";
+              link.download = `Main_Letter.${extension}`;
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
@@ -464,11 +471,11 @@ export default function BusinessLettersAdmin() {
               });
             }
           }}>
-  📄 Main Letter
+            📄 Main Letter
           </Button>
 
 
-      {activeLetterFiles?.attachments.map((fileId, index) => <Button key={fileId} variant="link" className="text-blue-600 p-0 block text-left text-sm" onClick={async () => {
+          {activeLetterFiles?.attachments.map((fileId, index) => <Button key={fileId} variant="link" className="text-blue-600 p-0 block text-left text-sm" onClick={async () => {
             const url = await fetchFileUrl(fileId);
             if (!url) {
               toast({
@@ -481,10 +488,17 @@ export default function BusinessLettersAdmin() {
             try {
               const response = await fetch(url);
               const blob = await response.blob();
+              const contentType = response.headers.get("Content-Type") || "application/pdf";
+              let extension = "pdf";
+              if (contentType.includes("image/jpeg")) extension = "jpg";
+              else if (contentType.includes("image/png")) extension = "png";
+              else if (contentType.includes("application/msword")) extension = "doc";
+              else if (contentType.includes("wordprocessingml")) extension = "docx";
+
               const blobUrl = window.URL.createObjectURL(blob);
               const link = document.createElement("a");
               link.href = blobUrl;
-              link.download = `Attachment_${index + 1}.pdf`;
+              link.download = `Attachment_${index + 1}.${extension}`;
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
@@ -502,14 +516,14 @@ export default function BusinessLettersAdmin() {
               });
             }
           }}>
-     📎 Attachment {index + 1}
-   </Button>)}
-    </div>
-    <DialogFooter>
-      <Button onClick={() => setFileDialogOpen(false)}>Close</Button>
-    </DialogFooter>
-  </DialogContent>
+            📎 Attachment {index + 1}
+          </Button>)}
+        </div>
+        <DialogFooter>
+          <Button onClick={() => setFileDialogOpen(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
 
-    </div>;
+  </div>;
 }
