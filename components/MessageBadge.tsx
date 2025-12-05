@@ -3,7 +3,7 @@
 
 // @ts-nocheck - Temporary suppression for new message edit/delete functionality
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ChatBubbleLeftRightIcon, PaperAirplaneIcon, ArrowLeftIcon, MagnifyingGlassIcon, PaperClipIcon, ArrowDownTrayIcon, FunnelIcon, CheckIcon, ChevronDownIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
@@ -94,19 +94,25 @@ export default function MessageBadge() {
   const [editingMessageId, setEditingMessageId] = useState<Id<"messages"> | string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [showMessageMenu, setShowMessageMenu] = useState<Id<"messages"> | string | null>(null);
+  const [userLimit, setUserLimit] = useState(100);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Activity tracking for messages
   const { trackUserAction } = useGlobalActivityTracker();
 
   // Get current user from Convex
   const currentUser = useQuery(api.users.current);
-  
-  // Get messageable users
+
+  // Get messageable users with search support
   const messageableUsers = useQuery(
     api.messages.getMessageableUsers,
-    currentUser ? { currentUserId: currentUser._id } : "skip"
+    currentUser ? {
+      currentUserId: currentUser._id,
+      searchQuery: searchQuery,
+      offset: 0,
+      limit: userLimit
+    } : "skip"
   );
 
   // Get conversations for current user
@@ -158,7 +164,7 @@ export default function MessageBadge() {
   // Cleanup old optimistic messages
   useEffect(() => {
     const cleanup = setInterval(() => {
-      setOptimisticMessages(prev => 
+      setOptimisticMessages(prev =>
         prev.filter(msg => {
           // Remove messages older than 30 seconds or that are sent
           const age = Date.now() - msg.createdAt;
@@ -170,29 +176,31 @@ export default function MessageBadge() {
     return () => clearInterval(cleanup);
   }, []);
 
+
+
   // Filter and sort users based on search query, role filter, and last message time
   const filteredUsers = (messageableUsers || [])
     .filter((user: User) => {
       // Add safety checks for user object
       if (!user || !user._id) return false;
-      
+
       // Add null checks for user properties
       const userRole = user.role || '';
       const userEmail = user.email || '';
       const userFirstName = user.firstName || '';
       const userLastName = user.lastName || '';
-      
+
       // Exclude specific roles from being displayed
       const excludedRoles = ['federal', 'deputies', 'magistrates', 'state_governor', 'president', 'vice_president', 'world_bank', 'ngf', 'dmo', 'user'];
       if (excludedRoles.includes(userRole)) {
         return false;
       }
-      
+
       const fullName = `${userFirstName} ${userLastName}`.trim();
       const matchesSearch = fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           userRole.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           userEmail.toLowerCase().includes(searchQuery.toLowerCase());
-      
+        userRole.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        userEmail.toLowerCase().includes(searchQuery.toLowerCase());
+
       // Apply role filter
       let matchesRole = true;
       if (currentUser?.role === 'admin' || currentUser?.role === 'staff') {
@@ -212,7 +220,7 @@ export default function MessageBadge() {
         // Non-admin/staff users only see staff
         matchesRole = userRole === 'staff';
       }
-      
+
       return matchesSearch && matchesRole;
     })
     .sort((a, b) => {
@@ -221,15 +229,15 @@ export default function MessageBadge() {
       const bTime = b.lastMessageTime || 0;
       const aUnread = a.unreadCount || 0;
       const bUnread = b.unreadCount || 0;
-      
+
       // Users with messages first, then by unread count, then by time
       const aHasMessage = aTime > 0 ? 1 : 0;
       const bHasMessage = bTime > 0 ? 1 : 0;
-      
+
       if (bHasMessage !== aHasMessage) return bHasMessage - aHasMessage;
       if (bUnread !== aUnread) return bUnread - aUnread;
       if (bTime !== aTime) return bTime - aTime;
-      
+
       // Finally, sort alphabetically by name
       const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email || '';
       const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
@@ -238,18 +246,18 @@ export default function MessageBadge() {
 
   const handleUserClick = async (selectedUser: User) => {
     if (!currentUser) return;
-    
+
     setSelectedUser(selectedUser);
     setCurrentView('chat');
-    
+
     // Get or create conversation
     const conversationId = await getOrCreateConversation({
       userId1: currentUser._id,
       userId2: selectedUser._id
     });
-    
+
     setCurrentConversationId(conversationId);
-    
+
     // Mark conversation as read
     await markConversationAsRead({
       conversationId,
@@ -274,7 +282,7 @@ export default function MessageBadge() {
     if ((newMessage.trim() || selectedFile) && currentConversationId && currentUser) {
       const messageContent = newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : '');
       const messageType = selectedFile ? "file" : "text";
-      
+
       // Create optimistic message
       const tempId = `temp_${Date.now()}_${Math.random()}`;
       const optimisticMessage: OptimisticMessage = {
@@ -300,15 +308,15 @@ export default function MessageBadge() {
 
       // Add optimistic message to UI immediately
       setOptimisticMessages(prev => [...prev, optimisticMessage]);
-      
-      
+
+
       // Clear input immediately for better UX
       setNewMessage('');
       setSelectedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      
+
       // Send message asynchronously without blocking UI
       sendMessageAsync(tempId, optimisticMessage);
     }
@@ -316,12 +324,12 @@ export default function MessageBadge() {
 
   const sendMessageAsync = async (tempId: string, optimisticMessage: OptimisticMessage) => {
     if (!currentUser) return;
-    
+
     try {
       let fileId: Id<"_storage"> | undefined;
       let fileName: string | undefined;
       let fileSize: number | undefined;
-    
+
       // Upload file if selected
       if (optimisticMessage.messageType === 'file' && optimisticMessage.fileName) {
         // For file messages, we need to handle this differently since we cleared the file
@@ -345,33 +353,33 @@ export default function MessageBadge() {
         fileName,
         fileSize
       });
-      
+
       // Mark optimistic message as sent
-      setOptimisticMessages(prev => 
-        prev.map(msg => 
-          msg.tempId === tempId 
+      setOptimisticMessages(prev =>
+        prev.map(msg =>
+          msg.tempId === tempId
             ? { ...msg, status: 'sent' as const }
             : msg
         )
       );
-      
+
       // Remove optimistic message after a short delay to let real message appear
       setTimeout(() => {
         setOptimisticMessages(prev => prev.filter(msg => msg.tempId !== tempId));
       }, 1000);
-      
+
     } catch (error) {
       console.error('Error sending message:', error);
-      
+
       // Mark optimistic message as failed
-      setOptimisticMessages(prev => 
-        prev.map(msg => 
-          msg.tempId === tempId 
+      setOptimisticMessages(prev =>
+        prev.map(msg =>
+          msg.tempId === tempId
             ? { ...msg, status: 'failed' as const }
             : msg
         )
       );
-      
+
     }
   };
 
@@ -384,27 +392,27 @@ export default function MessageBadge() {
 
   const handleRetryMessage = async (optimisticMessage: OptimisticMessage) => {
     if (!currentUser) return;
-    
+
     // Create a new temp ID for retry
     const newTempId = `retry_${Date.now()}_${Math.random()}`;
-    
+
     // Update the optimistic message with new temp ID and pending status
-    setOptimisticMessages(prev => 
-      prev.map(msg => 
-        msg.tempId === optimisticMessage.tempId 
+    setOptimisticMessages(prev =>
+      prev.map(msg =>
+        msg.tempId === optimisticMessage.tempId
           ? { ...msg, tempId: newTempId, status: 'pending' as const }
           : msg
       )
     );
-    
-    
+
+
     // Retry sending
     await sendMessageAsync(newTempId, { ...optimisticMessage, tempId: newTempId, status: 'pending' });
   };
 
   const handleDownloadFile = async (fileId: Id<"_storage">, fileName: string) => {
     setDownloadingFileId(fileId);
-    
+
     try {
       // Get the download URL using Convex client
       const downloadUrl = await convex.query(api.messages.getFileDownloadUrl, { fileId });
@@ -412,7 +420,7 @@ export default function MessageBadge() {
         // Fetch the file as a blob to force download
         const response = await fetch(downloadUrl);
         const blob = await response.blob();
-        
+
         // Create a blob URL and download
         const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -421,7 +429,7 @@ export default function MessageBadge() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         // Clean up the blob URL
         window.URL.revokeObjectURL(blobUrl);
       }
@@ -463,7 +471,7 @@ export default function MessageBadge() {
 
   const getFormattedRole = (user: User) => {
     if (!user.role) return 'Unknown';
-    
+
     switch (user.role) {
       case 'saber_agent':
         return user.state || 'SABER Agent';
@@ -495,47 +503,47 @@ export default function MessageBadge() {
         return 'bg-green-500';
       case 'reform_champion':
         return 'bg-green-400';
-      
+
       // Red variants
       case 'mda':
         return 'bg-red-600';
-      
+
       // Blue variants
       case 'saber_agent':
         return 'bg-blue-600';
-      
+
       // Default fallback
       default:
         return 'bg-gray-500';
     }
   };
 
-   // Check if message can be edited (only time-based)
-   const canEditMessage = (message: any) => {
-     if (!currentUser) return false;
-     
-     // Only the sender can edit their own messages
-     if (message.senderId !== currentUser._id) return false;
-     
-     // Check if message is less than 15 minutes old
-     const messageAge = Date.now() - message.createdAt;
-     const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
-     
-     return messageAge < fifteenMinutes;
-   };
+  // Check if message can be edited (only time-based)
+  const canEditMessage = (message: any) => {
+    if (!currentUser) return false;
 
-   // Check if message can be deleted (only read status-based)
-   const canDeleteMessage = (message: any) => {
-     if (!currentUser) return false;
-     
-     // Only the sender can delete their own messages
-     if (message.senderId !== currentUser._id) return false;
-     
-     // Check if message is read by another user
-     if ('isRead' in message && message.isRead) return false;
-     
-     return true;
-   };
+    // Only the sender can edit their own messages
+    if (message.senderId !== currentUser._id) return false;
+
+    // Check if message is less than 15 minutes old
+    const messageAge = Date.now() - message.createdAt;
+    const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+    return messageAge < fifteenMinutes;
+  };
+
+  // Check if message can be deleted (only read status-based)
+  const canDeleteMessage = (message: any) => {
+    if (!currentUser) return false;
+
+    // Only the sender can delete their own messages
+    if (message.senderId !== currentUser._id) return false;
+
+    // Check if message is read by another user
+    if ('isRead' in message && message.isRead) return false;
+
+    return true;
+  };
 
   // Handle edit message
   const handleEditMessage = (message: any) => {
@@ -547,13 +555,13 @@ export default function MessageBadge() {
   // Handle save edit
   const handleSaveEdit = async () => {
     if (!editingMessageId || !editingContent.trim()) return;
-    
+
     try {
       if (typeof editingMessageId === 'string' && editingMessageId.startsWith('temp_')) {
         // Handle optimistic message edit
-        setOptimisticMessages(prev => 
-          prev.map(msg => 
-            msg.tempId === editingMessageId 
+        setOptimisticMessages(prev =>
+          prev.map(msg =>
+            msg.tempId === editingMessageId
               ? { ...msg, content: editingContent.trim() }
               : msg
           )
@@ -565,7 +573,7 @@ export default function MessageBadge() {
           newContent: editingContent.trim()
         });
       }
-      
+
       setEditingMessageId(null);
       setEditingContent('');
     } catch (error) {
@@ -573,26 +581,26 @@ export default function MessageBadge() {
     }
   };
 
-   // Handle delete message
-   const handleDeleteMessage = async (message: any) => {
-     if (!canDeleteMessage(message)) return;
-     
-     try {
-       if ('tempId' in message) {
-         // Handle optimistic message deletion
-         setOptimisticMessages(prev => prev.filter(msg => msg.tempId !== message.tempId));
-       } else {
-         // Handle real message deletion
-         await (deleteMessage as any)({
-           messageId: message._id
-         });
-       }
-       
-       setShowMessageMenu(null);
-     } catch (error) {
-       console.error('Error deleting message:', error);
-     }
-   };
+  // Handle delete message
+  const handleDeleteMessage = async (message: any) => {
+    if (!canDeleteMessage(message)) return;
+
+    try {
+      if ('tempId' in message) {
+        // Handle optimistic message deletion
+        setOptimisticMessages(prev => prev.filter(msg => msg.tempId !== message.tempId));
+      } else {
+        // Handle real message deletion
+        await (deleteMessage as any)({
+          messageId: message._id
+        });
+      }
+
+      setShowMessageMenu(null);
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  };
 
   // Handle cancel edit
   const handleCancelEdit = () => {
@@ -606,7 +614,7 @@ export default function MessageBadge() {
     <div className="relative">
       <Popover open={messagesOpen} onOpenChange={toggleMessages}>
         <PopoverTrigger asChild>
-        <button className="relative p-3 rounded-full bg-white shadow-md border border-gray-300 hover:bg-gray-100 transition duration-200">
+          <button className="relative p-3 rounded-full bg-white shadow-md border border-gray-300 hover:bg-gray-100 transition duration-200">
             <ChatBubbleLeftRightIcon className="w-6 h-6 text-green-600" />
             {unreadCount !== undefined && unreadCount > 0 && (
               <div className={`absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold shadow-md z-10 ${pulseAnimation}`}>
@@ -631,11 +639,10 @@ export default function MessageBadge() {
                   <div className="flex justify-between items-center">
                     <button
                       onClick={() => setShowRoleFilters(!showRoleFilters)}
-                      className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-lg transition-colors ${
-                        showRoleFilters 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`flex items-center space-x-2 px-3 py-2 text-sm rounded-lg transition-colors ${showRoleFilters
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       <FunnelIcon className="w-4 h-4" />
                       <span>Filter by Role</span>
@@ -660,67 +667,61 @@ export default function MessageBadge() {
                     className="pl-10"
                   />
                 </div>
-                
+
                 {/* Role Filter Buttons - Only show when toggled and for admin/staff */}
                 {(currentUser?.role === 'admin' || currentUser?.role === 'staff') && showRoleFilters && (
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setRoleFilter('all')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'all' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${roleFilter === 'all'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       All
                     </button>
                     <button
                       onClick={() => setRoleFilter('admin')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'admin' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${roleFilter === 'admin'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       Admins
                     </button>
                     <button
                       onClick={() => setRoleFilter('staff')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'staff' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${roleFilter === 'staff'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       Staff
                     </button>
                     <button
                       onClick={() => setRoleFilter('reform_champion')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'reform_champion' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${roleFilter === 'reform_champion'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       Reform Champions
                     </button>
                     <button
                       onClick={() => setRoleFilter('saber_agent')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'saber_agent' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${roleFilter === 'saber_agent'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       SABER Agents
                     </button>
                     <button
                       onClick={() => setRoleFilter('mda')}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        roleFilter === 'mda' 
-                          ? 'bg-green-500 text-white' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${roleFilter === 'mda'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       ReportGov Agent
                     </button>
@@ -742,52 +743,66 @@ export default function MessageBadge() {
                     No users found
                   </div>
                 ) : (
-                  filteredUsers.map((user) => (
-                    <div
-                      key={user._id}
-                      onClick={() => handleUserClick(user)}
-                      className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="relative">
-                            <div className={`w-10 h-10 ${getRoleColor(user.role)} rounded-full flex items-center justify-center text-white font-semibold`}>
-                              {getUserInitials(user)}
+                  <>
+                    {filteredUsers.map((user) => (
+                      <div
+                        key={user._id}
+                        onClick={() => handleUserClick(user)}
+                        className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="relative">
+                              <div className={`w-10 h-10 ${getRoleColor(user.role)} rounded-full flex items-center justify-center text-white font-semibold`}>
+                                {getUserInitials(user)}
+                              </div>
+                              {user.isOnline && (
+                                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                              )}
                             </div>
-                            {user.isOnline && (
-                              <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2">
+                                {user.unreadCount !== undefined && user.unreadCount > 0 && (
+                                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                )}
+                                <span className="font-medium text-gray-900">{getUserDisplayName(user)}</span>
+                                {user.role && (
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                    {getFormattedRole(user)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-500 truncate">
+                                {user.lastMessage || 'No messages yet'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-400">
+                              {user.lastMessageTime && formatTime(user.lastMessageTime)}
+                            </div>
+                            {user.unreadCount !== undefined && user.unreadCount > 0 && (
+                              <div className="mt-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                                {user.unreadCount}
+                              </div>
                             )}
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              {user.unreadCount !== undefined && user.unreadCount > 0 && (
-                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                              )}
-                              <span className="font-medium text-gray-900">{getUserDisplayName(user)}</span>
-                              {user.role && (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                  {getFormattedRole(user)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-500 truncate">
-                              {user.lastMessage || 'No messages yet'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-400">
-                            {user.lastMessageTime && formatTime(user.lastMessageTime)}
-                          </div>
-                          {user.unreadCount !== undefined && user.unreadCount > 0 && (
-                            <div className="mt-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                              {user.unreadCount}
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+
+                    {/* Load More Button - Only show when not searching and there might be more users */}
+                    {!searchQuery && filteredUsers.length >= userLimit && (
+                      <div className="p-4 border-t border-gray-200">
+                        <button
+                          onClick={() => setUserLimit(prev => prev + 100)}
+                          className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                        >
+                          Load More Users
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </>
@@ -828,7 +843,7 @@ export default function MessageBadge() {
                       const isOptimistic = 'tempId' in message;
                       const isCurrentUser = currentUser && message.senderId === currentUser._id;
                       const messageKey = isOptimistic ? message.tempId : message._id;
-                      
+
                       return (
                         <div
                           key={messageKey}
@@ -861,13 +876,12 @@ export default function MessageBadge() {
                               )}
                             </div>
                           )}
-                          
+
                           <div
-                            className={`max-w-xs px-4 py-2 rounded-lg ${
-                              isCurrentUser
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gray-100 text-gray-800'
-                            } ${isOptimistic && message.status === 'failed' ? 'opacity-60' : ''}`}
+                            className={`max-w-xs px-4 py-2 rounded-lg ${isCurrentUser
+                              ? 'bg-green-500 text-white'
+                              : 'bg-gray-100 text-gray-800'
+                              } ${isOptimistic && message.status === 'failed' ? 'opacity-60' : ''}`}
                           >
                             <div className="text-sm">
                               {editingMessageId === messageKey ? (
@@ -898,7 +912,7 @@ export default function MessageBadge() {
                                     </Button>
                                     <Button
                                       onClick={handleCancelEdit}
-                                     
+
                                       size="sm"
                                       className="px-2 py-1 text-xs bg-red-500 text-white hover:bg-red-600"
                                     >
@@ -952,18 +966,17 @@ export default function MessageBadge() {
                                 </>
                               )}
                             </div>
-                            
+
                             {/* Message status and timestamp */}
-                            <div className={`text-xs mt-1 flex items-center justify-between ${
-                              isCurrentUser ? 'text-green-100' : 'text-gray-500'
-                            }`}>
+                            <div className={`text-xs mt-1 flex items-center justify-between ${isCurrentUser ? 'text-green-100' : 'text-gray-500'
+                              }`}>
                               <span>
-                                {new Date(message.createdAt).toLocaleTimeString([], { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit' 
+                                {new Date(message.createdAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
                                 })}
                               </span>
-                              
+
                               {/* Status indicators for messages */}
                               {isCurrentUser && (
                                 <div className="flex items-center space-x-1">
@@ -1021,7 +1034,7 @@ export default function MessageBadge() {
 
               {/* Message Input */}
               <div className="p-4 border-t border-gray-200">
-                
+
                 {/* File attachment preview */}
                 {selectedFile && (
                   <div className="mb-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between">
@@ -1043,7 +1056,7 @@ export default function MessageBadge() {
                     </button>
                   </div>
                 )}
-                
+
                 <div className="flex gap-2">
                   <input
                     ref={fileInputRef}
@@ -1052,7 +1065,7 @@ export default function MessageBadge() {
                     className="hidden"
                     accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif"
                   />
-                  
+
                   <Button
                     onClick={() => fileInputRef.current?.click()}
                     variant="outline"
@@ -1061,7 +1074,7 @@ export default function MessageBadge() {
                   >
                     <PaperClipIcon className="w-4 h-4" />
                   </Button>
-                  
+
                   <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
