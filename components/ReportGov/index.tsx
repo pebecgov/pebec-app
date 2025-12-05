@@ -19,10 +19,10 @@ export default function ReportGovPage() {
   const [showVideo, setShowVideo] = useState(false);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const { user, isLoaded } = useUser();
-const isUserRole = isLoaded && user?.publicMetadata?.role === "user";
-const shouldDisableButton = !isLoaded || (!!user && !isUserRole);
+const userRole = user?.publicMetadata?.role?.toString().toLowerCase().trim();
+const shouldDisableButton = !isLoaded || (!!user && !userRole);
   const handleGuestClick = () => {
-    if (isSignedIn && user?.publicMetadata?.role === "user") {
+    if (isSignedIn && userRole === "user") {
       router.push("/reportgov");
     } else {
       router.push("/reportgov-guest?guest=1");
