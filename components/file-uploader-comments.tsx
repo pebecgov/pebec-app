@@ -100,14 +100,17 @@ export default function FileUploader({
 
       const { storageId } = await uploadPromise;
       
+      // Ensure storageId is a string
+      const storageIdString = typeof storageId === 'string' ? storageId : String(storageId);
+      
       // Save file metadata
       await saveUploadedFile({
-        storageId,
+        storageId: storageIdString as any,
         fileName: selectedFile.name
       });
       
       const fileSizeInMB = Math.round(selectedFile.size / 1024 / 1024 * 100) / 100;
-      setFileId(storageId, selectedFile.name, fileSizeInMB);
+      setFileId(storageIdString, selectedFile.name, fileSizeInMB);
       toast.success(`File uploaded successfully! (${fileSizeInMB}MB)`);
       setUploaded(true);
       setUploadProgress(100);
