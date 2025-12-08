@@ -9,6 +9,7 @@ export const addSaberMaterial = mutation({
     description: v.string(),
     fileSize: v.number(),
     materialUploadId: v.id("_storage"),
+    thumbnailId: v.optional(v.id("_storage")),
     createdBy: v.id("users"),
     createdAt: v.number(),
     roles: v.array(v.union(

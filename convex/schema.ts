@@ -539,6 +539,7 @@ export default defineSchema({
       v.literal("world_bank")
     )),
     materialUploadId: v.id("_storage"),
+    thumbnailId: v.optional(v.id("_storage")),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
     reference: v.optional(v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework"))),
