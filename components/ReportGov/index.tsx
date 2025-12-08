@@ -18,10 +18,10 @@ export default function ReportGovPage() {
   const [showVideo, setShowVideo] = useState(false);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const { user, isLoaded } = useUser();
-  
+
   const userRole = user?.publicMetadata?.role?.toString().toLowerCase().trim();
-  
- const isUserRole = isLoaded && (userRole === "user" || !userRole);
+
+  const isUserRole = isLoaded && (userRole === "user" || !userRole);
   const shouldDisableButton = !isLoaded || (!!user && !isUserRole);
 
   const handleGuestClick = () => {
@@ -38,7 +38,7 @@ export default function ReportGovPage() {
   const handleFeedbackClick = () => router.push("/feedback");
 
   const { signOut } = useClerk();
-  
+
   const handleSubmitComplaintClick = async () => {
     if (isSignedIn) {
       const primaryEmail = user?.primaryEmailAddress?.emailAddress;
@@ -56,13 +56,13 @@ export default function ReportGovPage() {
 
   const handleDashboardClick = () => {
     if (!isSignedIn) return handleSignInClick();
-    
+
     // If no role or role is "user", go to reportgov
     if (!userRole || userRole === "user") {
       router.push("/reportgov");
       return;
     }
-    
+
     // Handle other roles
     const role = userRole;
     if (role === "admin") router.push("/admin");
@@ -94,14 +94,13 @@ export default function ReportGovPage() {
           </p>
           <div className="flex items-center gap-4 flex-wrap">
             <div className="relative group">
-              <button 
-                onClick={handleSubmitComplaintClick} 
+              <button
+                onClick={handleSubmitComplaintClick}
                 disabled={shouldDisableButton}
-                className={`relative inline-block p-px font-semibold leading-6 text-white bg-green-900 shadow-2xl rounded-2xl transition-all duration-300 ease-in-out ${
-                  shouldDisableButton 
-                    ? "opacity-50 cursor-not-allowed" 
-                    : "hover:scale-105 active:scale-95 hover:shadow-green-700"
-                }`}
+                className={`relative inline-block p-px font-semibold leading-6 text-white bg-green-900 shadow-2xl rounded-2xl transition-all duration-300 ease-in-out ${shouldDisableButton
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:scale-105 active:scale-95 hover:shadow-green-700"
+                  }`}
               >
                 <span className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-600 via-emerald-500 to-lime-500 p-[2px] opacity-0 transition-opacity duration-500 group-hover:opacity-100"></span>
                 <span className="relative z-10 block px-6 py-3 rounded-2xl bg-green-950">
@@ -127,14 +126,13 @@ export default function ReportGovPage() {
 
           <div className="grid grid-cols-1 gap-3 text-white">
             <div className="flex flex-col items-center">
-              <button 
-                onClick={handleFeedbackClick} 
-                disabled={shouldDisableButton} 
-                className={`w-[320px] h-[140px] bg-green-800 rounded-[140px_140px_10px_10px] shadow-xl flex items-center justify-center transition-all ${
-                  shouldDisableButton 
-                    ? "opacity-50 cursor-not-allowed" 
-                    : "hover:scale-105 hover:bg-green-700"
-                }`}
+              <button
+                onClick={handleFeedbackClick}
+                disabled={shouldDisableButton}
+                className={`w-[320px] h-[140px] bg-green-800 rounded-[140px_140px_10px_10px] shadow-xl flex items-center justify-center transition-all ${shouldDisableButton
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:scale-105 hover:bg-green-700"
+                  }`}
               >
                 <FaRegCommentDots className="text-white text-8xl" />
               </button>
@@ -143,8 +141,8 @@ export default function ReportGovPage() {
 
             <div className="grid grid-cols-2 gap-6 text-white">
               <div className="flex flex-col items-center">
-                <button 
-                  onClick={handleStatusCheckClick} 
+                <button
+                  onClick={handleStatusCheckClick}
                   className="w-[140px] h-[140px] bg-green-800 rounded-[10px_10px_10px_140px] shadow-xl hover:scale-105 hover:bg-green-700 transition-all flex items-center justify-center"
                 >
                   <FaCheckDouble className="text-white text-5xl" />
@@ -153,8 +151,8 @@ export default function ReportGovPage() {
               </div>
 
               <div className="flex flex-col items-center">
-                <button 
-                  onClick={handleDashboardClick} 
+                <button
+                  onClick={handleDashboardClick}
                   className="w-[140px] h-[140px] bg-green-800 rounded-[10px_10px_140px_10px] shadow-xl hover:scale-105 hover:bg-green-700 transition-all flex items-center justify-center"
                 >
                   {isSignedIn ? <MdDashboard className="text-white text-5xl" /> : <FaSignInAlt className="text-white text-5xl" />}
@@ -175,10 +173,9 @@ export default function ReportGovPage() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div className="space-y-4">
               <p className="text-gray-700">
-                Citizens or Businesses can file complaints through two options: as a guest or as a registered user.
+                Citizens or Businesses can file complaints by registering to the ReportGov platform.
               </p>
               <ul className="list-disc ml-6 text-gray-600 space-y-2">
-                <li><strong>Guest:</strong> Submit a complaint and receive updates via email. Track complaint using ticket number.</li>
                 <li><strong>Registered User:</strong> Access your dashboard, comment, cancel or reopen complaints within 24hrs, auto-fill forms, and receive notifications.</li>
               </ul>
               <p className="mt-4 text-gray-700 font-medium">4 Easy Steps:</p>
@@ -203,16 +200,16 @@ export default function ReportGovPage() {
       {showVideo && (
         <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex justify-center items-start pt-16 sm:pt-24">
           <div className="relative w-[95%] max-w-3xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
-            <iframe 
-              className="w-full aspect-video rounded-xl" 
-              src="https://www.youtube.com" 
-              title="YouTube video player" 
-              frameBorder="0" 
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            <iframe
+              className="w-full aspect-video rounded-xl"
+              src="https://www.youtube.com"
+              title="YouTube video player"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
-            <button 
-              onClick={() => setShowVideo(false)} 
+            <button
+              onClick={() => setShowVideo(false)}
               className="absolute top-3 right-3 text-white text-lg bg-black bg-opacity-70 rounded-full w-8 h-8 flex items-center justify-center"
             >
               &times;
