@@ -11,6 +11,7 @@ import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import { useUser } from "@clerk/nextjs";
 import FileUploader from "../file-uploader-comments";
+import ImageUploader from "../image-uploader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 const ROLES = ["admin", "mda", "staff", "reform_champion", "deputies", "saber_agent", "magistrates", "state_governor", "president", "vice_president", "world_bank"] as const;
 type Role = typeof ROLES[number];
@@ -35,6 +36,7 @@ export default function AddSaberMaterialModal({
   const [description, setDescription] = useState("");
   const [fileId, setFileId] = useState<string | null>(null);
   const [fileSize, setFileSize] = useState<number>(0);
+  const [thumbnailId, setThumbnailId] = useState<string | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [reference, setReference] = useState<Reference | "">("");
   const [isPublic, setIsPublic] = useState(false);
@@ -69,6 +71,7 @@ export default function AddSaberMaterialModal({
         createdAt: Date.now(),
         roles: selectedRoles,
         materialUploadId: fileId as any,
+        thumbnailId: thumbnailId ? (thumbnailId as any) : undefined,
         reference: reference as Reference,
         isPublic
       });
@@ -76,6 +79,7 @@ export default function AddSaberMaterialModal({
       setTitle("");
       setDescription("");
       setFileId(null);
+      setThumbnailId(null);
       setSelectedRoles([]);
       setReference("");
       setErrors([]);
@@ -174,6 +178,20 @@ export default function AddSaberMaterialModal({
                 <p className="text-sm text-green-600 mt-2">✓ File uploaded successfully</p>
               )}
               {errors.includes("File Upload") && <p className="text-sm text-red-600 mt-1">A file is required.</p>}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Thumbnail Image (Optional)</h3>
+              <p className="text-xs text-gray-500 mb-2">Upload a thumbnail image to display on material cards. Recommended size: 400x300px or similar aspect ratio.</p>
+              <ImageUploader 
+                setImageId={(id) => {
+                  setThumbnailId(id);
+                  console.log("Thumbnail ID set:", id);
+                }}
+              />
+              {thumbnailId && (
+                <p className="text-sm text-green-600 mt-2">✓ Thumbnail uploaded successfully</p>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-4">

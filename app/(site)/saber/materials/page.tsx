@@ -1,6 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,27 @@ import Image from "next/image";
 export default function SaberMaterialsPage() {
   const publicMaterials = useQuery(api.saber_materials.getPublicSaberMaterials) || [];
   const getDownloadUrl = useMutation(api.tickets.getStorageUrl);
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
+  
+  useEffect(() => {
+    const fetchThumbnails = async () => {
+      const urls: Record<string, string> = {};
+      for (const material of publicMaterials) {
+        if (material.thumbnailId) {
+          try {
+            const url = await getDownloadUrl({ storageId: material.thumbnailId });
+            if (url) urls[material._id] = url;
+          } catch (error) {
+            console.error("Failed to fetch thumbnail for material:", material._id, error);
+          }
+        }
+      }
+      setThumbnailUrls(urls);
+    };
+    if (publicMaterials.length > 0) {
+      fetchThumbnails();
+    }
+  }, [publicMaterials, getDownloadUrl]);
 
   const handleDownload = async (fileId: string, fileName: string) => {
     try {
@@ -92,11 +114,22 @@ export default function SaberMaterialsPage() {
           {publicMaterials.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2">
               {publicMaterials.map((material) => (
-                <Card key={material._id} className="hover:shadow-lg transition-shadow">
+                <Card key={material._id} className="hover:shadow-lg transition-shadow overflow-hidden">
+                  {thumbnailUrls[material._id] && (
+                    <div className="w-full h-48 relative overflow-hidden bg-gray-100">
+                      <Image
+                        src={thumbnailUrls[material._id]}
+                        alt={material.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                      />
+                    </div>
+                  )}
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-2">
-                        {getFileIcon(material.title)}
+                        {!thumbnailUrls[material._id] && getFileIcon(material.title)}
                         <CardTitle className="text-lg leading-tight">{material.title}</CardTitle>
                       </div>
                     </div>
