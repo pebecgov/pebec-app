@@ -13,8 +13,8 @@ export const getUserConversations = query({
       .query("conversations")
       .order("desc")
       .collect();
-    
-    const conversations = allConversations.filter(conv => 
+
+    const conversations = allConversations.filter(conv =>
       conv.participants.includes(userId)
     );
 
@@ -64,7 +64,7 @@ export const getConversationMessages = query({
     const messagesWithSenders = await Promise.all(
       messages.map(async (message) => {
         const sender = await ctx.db.get(message.senderId);
-        
+
         // Decrypt the message content if it's encrypted
         let decryptedContent = message.content;
         if (message.isEncrypted) {
@@ -75,7 +75,7 @@ export const getConversationMessages = query({
             decryptedContent = '[Message could not be decrypted]';
           }
         }
-        
+
         return {
           ...message,
           content: decryptedContent,
@@ -90,9 +90,9 @@ export const getConversationMessages = query({
 
 // Create or get existing conversation between two users
 export const getOrCreateConversation = mutation({
-  args: { 
-    userId1: v.id("users"), 
-    userId2: v.id("users") 
+  args: {
+    userId1: v.id("users"),
+    userId2: v.id("users")
   },
   handler: async (ctx, { userId1, userId2 }) => {
     // Check if conversation already exists
@@ -101,7 +101,7 @@ export const getOrCreateConversation = mutation({
       .withIndex("byParticipant")
       .collect();
 
-    const existingConversation = existingConversations.find(conv => 
+    const existingConversation = existingConversations.find(conv =>
       conv.participants.includes(userId1) && conv.participants.includes(userId2)
     );
 
@@ -135,7 +135,7 @@ export const sendMessage = mutation({
   handler: async (ctx, { conversationId, senderId, content, messageType = "text", fileId, fileName, fileSize }) => {
     // Encrypt the message content
     const encryptedContent = encryptMessage(content);
-    
+
     // Create the message with encrypted content
     const messageId = await ctx.db.insert("messages", {
       conversationId,
@@ -175,9 +175,9 @@ export const markMessageAsRead = mutation({
 
 // Mark all messages in a conversation as read for a user
 export const markConversationAsRead = mutation({
-  args: { 
-    conversationId: v.id("conversations"), 
-    userId: v.id("users") 
+  args: {
+    conversationId: v.id("conversations"),
+    userId: v.id("users")
   },
   handler: async (ctx, { conversationId, userId }) => {
     const messages = await ctx.db
@@ -203,8 +203,13 @@ export const markConversationAsRead = mutation({
 
 // Get users that the current user can message (optimized for production)
 export const getMessageableUsers = query({
-  args: { currentUserId: v.id("users") },
-  handler: async (ctx, { currentUserId }) => {
+  args: {
+    currentUserId: v.id("users"),
+    searchQuery: v.optional(v.string()),
+    offset: v.optional(v.number()),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, { currentUserId, searchQuery, offset = 0, limit = 100 }) => {
     try {
       const currentUser = await ctx.db.get(currentUserId);
       if (!currentUser) return [];
@@ -217,15 +222,22 @@ export const getMessageableUsers = query({
         usersQuery = ctx.db.query("users")
           .filter((q) => q.eq(q.field("role"), "staff"));
       }
-      
+
       const users = await usersQuery.collect();
-      const otherUsers = users.filter(user => user && user._id !== currentUserId);
+      let otherUsers = users.filter(user => user && user._id !== currentUserId);
+
+      // If no search query, apply pagination
+      // If search query exists, search through all users
+      const isSearching = searchQuery && searchQuery.trim().length > 0;
+      if (!isSearching) {
+        otherUsers = otherUsers.slice(offset, offset + limit);
+      }
 
       if (otherUsers.length === 0) return [];
 
       // Get conversations in a single batch query
       const allConversations = await ctx.db.query("conversations").collect();
-      
+
       // Create a map for quick conversation lookup
       const conversationMap = new Map();
       allConversations.forEach(conv => {
@@ -239,7 +251,7 @@ export const getMessageableUsers = query({
 
       // Process users with conversation data
       const usersWithConversationData = await Promise.all(
-        otherUsers.slice(0, 100).map(async (user) => { // Limit to 100 users for performance
+        otherUsers.map(async (user) => {
           try {
             const conversation = conversationMap.get(user._id.toString());
             let lastMessage = undefined;
@@ -309,11 +321,11 @@ export const getMessageableUsers = query({
           // Users with messages first, then by unread count, then alphabetically
           const aHasMessage = a.lastMessageTime ? 1 : 0;
           const bHasMessage = b.lastMessageTime ? 1 : 0;
-          
+
           if (bHasMessage !== aHasMessage) return bHasMessage - aHasMessage;
           if (b.lastMessageTime !== a.lastMessageTime) return (b.lastMessageTime || 0) - (a.lastMessageTime || 0);
           if (b.unreadCount !== a.unreadCount) return b.unreadCount - a.unreadCount;
-          
+
           const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email;
           const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email;
           return aName.localeCompare(bName);
@@ -333,8 +345,8 @@ export const getUnreadMessageCount = query({
     const allConversations = await ctx.db
       .query("conversations")
       .collect();
-    
-    const conversations = allConversations.filter(conv => 
+
+    const conversations = allConversations.filter(conv =>
       conv.participants.includes(userId)
     );
 
@@ -359,7 +371,7 @@ export const getUnreadMessageCount = query({
 
 // Delete a message (only by sender, only if not read by others, only within 15 minutes)
 export const deleteMessage = mutation({
-  args: { 
+  args: {
     messageId: v.id("messages")
   },
   handler: async (ctx, { messageId }) => {
@@ -376,7 +388,7 @@ export const deleteMessage = mutation({
     // Check if message is less than 15 minutes old
     const messageAge = Date.now() - message.createdAt;
     const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
-    
+
     if (messageAge >= fifteenMinutes) {
       throw new Error("Cannot delete message older than 15 minutes");
     }
@@ -387,8 +399,8 @@ export const deleteMessage = mutation({
 
 // Edit a message (only by sender, only if not read by others, only within 15 minutes)
 export const editMessage = mutation({
-  args: { 
-    messageId: v.id("messages"), 
+  args: {
+    messageId: v.id("messages"),
     newContent: v.string()
   },
   handler: async (ctx, { messageId, newContent }) => {
@@ -400,7 +412,7 @@ export const editMessage = mutation({
     // Check if message is less than 15 minutes old (only time-based restriction for editing)
     const messageAge = Date.now() - message.createdAt;
     const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
-    
+
     if (messageAge >= fifteenMinutes) {
       throw new Error("Cannot edit message older than 15 minutes");
     }
@@ -426,9 +438,9 @@ export const editMessage = mutation({
 
 // Delete a conversation (only if user is participant)
 export const deleteConversation = mutation({
-  args: { 
-    conversationId: v.id("conversations"), 
-    userId: v.id("users") 
+  args: {
+    conversationId: v.id("conversations"),
+    userId: v.id("users")
   },
   handler: async (ctx, { conversationId, userId }) => {
     const conversation = await ctx.db.get(conversationId);
