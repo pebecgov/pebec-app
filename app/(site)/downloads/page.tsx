@@ -65,8 +65,18 @@ export default function DownloadsPage() {
       return order === "newest" ? bDate - aDate : aDate - bDate;
     });
   };
-  const filteredMaterials = category === "newsletters" ? [] : sortByDate(materials || [], sortOrder);
-  const filteredNewsletters = category === "all" || category === "newsletters" ? sortByDate(newsletters || [], sortOrder) : [];
+  
+  // Filter newsletters to only show those with attachments
+  const newslettersWithAttachments = (newsletters || []).filter((n: any) => n.attachmentId);
+  
+  // Filter materials based on category
+  const filteredMaterials = sortByDate(materials || [], sortOrder);
+  
+  // Filter newsletters based on category - only show newsletters in "All" tab, NOT in "Newsletters" tab
+  const filteredNewsletters = category === "all" 
+    ? sortByDate(newslettersWithAttachments, sortOrder) 
+    : [];
+  
   const allItems = [...filteredMaterials, ...filteredNewsletters];
   const paginatedItems = allItems.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
   const totalPages = Math.ceil(allItems.length / ITEMS_PER_PAGE);
@@ -123,38 +133,48 @@ export default function DownloadsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {paginatedItems.map((item: any) => {
-          const isNewsletter = !!item.subject;
-          const isMaterial = !!item.title;
-          const url = isNewsletter ? newsletterUrls[item._id] : materialUrls[item._id];
-          return <Card key={item._id} className={`flex flex-col justify-between h-full p-4 border ${isNewsletter ? "bg-gradient-to-br from-white to-blue-50 border-blue-100" : "border-gray-200"} shadow-sm hover:shadow-md transition-all`}>
-                <CardHeader className="pb-1">
-                  <CardTitle className={`text-lg font-semibold ${isNewsletter ? "text-green-700" : "text-green-800"}`}>
-                    {isNewsletter ? item.subject : item.title}
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    📅 {format(new Date(item.createdAt), "PPP")}
-                  </p>
-                </CardHeader>
+          {paginatedItems.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-gray-500">
+              <p>No items found in this category.</p>
+            </div>
+          ) : (
+            paginatedItems.map((item: any) => {
+              const isNewsletter = !!item.subject;
+              const isMaterial = !!item.title;
+              const url = isNewsletter ? newsletterUrls[item._id] : materialUrls[item._id];
+              
+              // Only render items that have download URLs
+              if (!url) return null;
+              
+              return <Card key={item._id} className={`flex flex-col justify-between h-full p-4 border ${isNewsletter ? "bg-gradient-to-br from-white to-blue-50 border-blue-100" : "border-gray-200"} shadow-sm hover:shadow-md transition-all`}>
+                    <CardHeader className="pb-1">
+                      <CardTitle className={`text-lg font-semibold ${isNewsletter ? "text-green-700" : "text-green-800"}`}>
+                        {isNewsletter ? item.subject : item.title}
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        📅 {format(new Date(item.createdAt), "PPP")}
+                      </p>
+                    </CardHeader>
 
-                <CardContent className="flex flex-col flex-grow justify-between gap-4 mt-2">
-                  <div className="text-sm text-gray-600">
-                    {isNewsletter ? "Stay updated with the latest news. Download and read our newsletter." : item.description}
-                  </div>
+                    <CardContent className="flex flex-col flex-grow justify-between gap-4 mt-2">
+                      <div className="text-sm text-gray-600">
+                        {isNewsletter ? "Stay updated with the latest news. Download and read our newsletter." : item.description}
+                      </div>
 
-                  {isMaterial && <div className="text-xs text-gray-500">
-                      📁 {(item.fileSize / 1024 / 1024).toFixed(2)} MB
-                    </div>}
+                      {isMaterial && <div className="text-xs text-gray-500">
+                          📁 {(item.fileSize / 1024 / 1024).toFixed(2)} MB
+                        </div>}
 
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="mt-auto">
-                    <Button className={`w-full ${isNewsletter ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-900 hover:bg-gray-900 text-white"}`}>
-                      <DownloadIcon className="w-4 h-4 mr-2" />
-                      Download
-                    </Button>
-                  </a>
-                </CardContent>
-              </Card>;
-        })}
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="mt-auto">
+                        <Button className={`w-full ${isNewsletter ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-900 hover:bg-gray-900 text-white"}`}>
+                          <DownloadIcon className="w-4 h-4 mr-2" />
+                          Download
+                        </Button>
+                      </a>
+                    </CardContent>
+                  </Card>;
+            })
+          )}
         </div>
 
         {}
