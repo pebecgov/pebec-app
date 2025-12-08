@@ -16,6 +16,7 @@ export default function DownloadsPage() {
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [materialUrls, setMaterialUrls] = useState<Record<string, string>>({});
   const [newsletterUrls, setNewsletterUrls] = useState<Record<string, string>>({});
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
   const [page, setPage] = useState(0);
   const materials = useQuery(api.saber_materials.getSaberMaterialsByReference, {
     reference: "website"
@@ -26,6 +27,7 @@ export default function DownloadsPage() {
     const fetchUrls = async () => {
       if (materials) {
         const urls: Record<string, string> = {};
+        const thumbnails: Record<string, string> = {};
         for (const item of materials) {
           if (item.materialUploadId) {
             const url = await getFileUrl({
@@ -33,8 +35,20 @@ export default function DownloadsPage() {
             });
             if (url) urls[item._id] = url;
           }
+          // Fetch thumbnail URLs
+          if (item.thumbnailId) {
+            try {
+              const thumbnailUrl = await getFileUrl({
+                storageId: item.thumbnailId
+              });
+              if (thumbnailUrl) thumbnails[item._id] = thumbnailUrl;
+            } catch (error) {
+              console.error("Failed to fetch thumbnail:", error);
+            }
+          }
         }
         setMaterialUrls(urls);
+        setThumbnailUrls(thumbnails);
       }
     };
     fetchUrls();
@@ -146,8 +160,19 @@ export default function DownloadsPage() {
               // Only render items that have download URLs
               if (!url) return null;
               
-              return <Card key={item._id} className={`flex flex-col justify-between h-full p-4 border ${isNewsletter ? "bg-gradient-to-br from-white to-blue-50 border-blue-100" : "border-gray-200"} shadow-sm hover:shadow-md transition-all`}>
-                    <CardHeader className="pb-1">
+              const thumbnailUrl = isMaterial ? thumbnailUrls[item._id] : null;
+              
+              return <Card key={item._id} className={`flex flex-col justify-between h-full border ${isNewsletter ? "bg-gradient-to-br from-white to-blue-50 border-blue-100" : "border-gray-200"} shadow-sm hover:shadow-md transition-all overflow-hidden`}>
+                    {thumbnailUrl && (
+                      <div className="w-full h-48 relative overflow-hidden bg-gray-100">
+                        <img
+                          src={thumbnailUrl}
+                          alt={isNewsletter ? item.subject : item.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <CardHeader className="pb-1 p-4">
                       <CardTitle className={`text-lg font-semibold ${isNewsletter ? "text-green-700" : "text-green-800"}`}>
                         {isNewsletter ? item.subject : item.title}
                       </CardTitle>
@@ -156,7 +181,7 @@ export default function DownloadsPage() {
                       </p>
                     </CardHeader>
 
-                    <CardContent className="flex flex-col flex-grow justify-between gap-4 mt-2">
+                    <CardContent className="flex flex-col flex-grow justify-between gap-4 mt-2 p-4 pt-0">
                       <div className="text-sm text-gray-600">
                         {isNewsletter ? "Stay updated with the latest news. Download and read our newsletter." : item.description}
                       </div>
