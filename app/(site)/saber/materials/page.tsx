@@ -1,7 +1,6 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,30 +12,89 @@ import Link from "next/link";
 import { toast } from "sonner";
 import Image from "next/image";
 
+// Material Card Component that can use hooks
+function MaterialCard({ material, getDownloadUrl, getFileIcon, formatFileSize, getReferenceColor }: any) {
+  const thumbnailUrl = useQuery(
+    api.reports.getStorageUrl,
+    material.thumbnailId ? { storageId: material.thumbnailId } : "skip"
+  );
+  
+  // Debug logging
+  if (material.thumbnailId) {
+    console.log("Material has thumbnailId:", material.thumbnailId, "URL:", thumbnailUrl);
+  }
+
+  const handleDownload = async (fileId: string, fileName: string) => {
+    try {
+      const url = await getDownloadUrl({
+        storageId: fileId as any
+      });
+      
+      if (url) {
+        window.open(url, "_blank");
+        toast.success("File downloaded successfully");
+      } else {
+        toast.error("Could not retrieve download link");
+      }
+    } catch (error) {
+      toast.error("Failed to download file");
+      console.error("Download error:", error);
+    }
+  };
+
+  return (
+    <Card className="hover:shadow-lg transition-shadow overflow-hidden">
+      {thumbnailUrl && (
+        <div className="w-full h-48 relative overflow-hidden bg-gray-100">
+          <img
+            src={thumbnailUrl}
+            alt={material.title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center space-x-2">
+            {!thumbnailUrl && getFileIcon(material.title)}
+            <CardTitle className="text-lg leading-tight">{material.title}</CardTitle>
+          </div>
+        </div>
+        <CardDescription className="text-sm line-clamp-2">
+          {material.description}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="space-y-3 mb-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>File Size:</span>
+            <span className="font-medium">{formatFileSize(material.fileSize)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>Added:</span>
+            <span className="font-medium">{format(new Date(material.createdAt), "MMM dd, yyyy")}</span>
+          </div>
+          {material.reference && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Category:</span>
+              <Badge className={getReferenceColor(material.reference)}>
+                {material.reference === "internal-general" ? "Internal" : material.reference.charAt(0).toUpperCase() + material.reference.slice(1)}
+              </Badge>
+            </div>
+          )}
+        </div>
+        <Button onClick={() => handleDownload(material.materialUploadId, material.title)} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+          <Download className="h-4 w-4 mr-2" />
+          Download
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SaberMaterialsPage() {
   const publicMaterials = useQuery(api.saber_materials.getPublicSaberMaterials) || [];
   const getDownloadUrl = useMutation(api.tickets.getStorageUrl);
-  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
-  
-  useEffect(() => {
-    const fetchThumbnails = async () => {
-      const urls: Record<string, string> = {};
-      for (const material of publicMaterials) {
-        if (material.thumbnailId) {
-          try {
-            const url = await getDownloadUrl({ storageId: material.thumbnailId });
-            if (url) urls[material._id] = url;
-          } catch (error) {
-            console.error("Failed to fetch thumbnail for material:", material._id, error);
-          }
-        }
-      }
-      setThumbnailUrls(urls);
-    };
-    if (publicMaterials.length > 0) {
-      fetchThumbnails();
-    }
-  }, [publicMaterials, getDownloadUrl]);
 
   const handleDownload = async (fileId: string, fileName: string) => {
     try {
@@ -114,54 +172,14 @@ export default function SaberMaterialsPage() {
           {publicMaterials.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2">
               {publicMaterials.map((material) => (
-                <Card key={material._id} className="hover:shadow-lg transition-shadow overflow-hidden">
-                  {thumbnailUrls[material._id] && (
-                    <div className="w-full h-48 relative overflow-hidden bg-gray-100">
-                      <Image
-                        src={thumbnailUrls[material._id]}
-                        alt={material.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 50vw"
-                      />
-                    </div>
-                  )}
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-2">
-                        {!thumbnailUrls[material._id] && getFileIcon(material.title)}
-                        <CardTitle className="text-lg leading-tight">{material.title}</CardTitle>
-                      </div>
-                    </div>
-                    <CardDescription className="text-sm line-clamp-2">
-                      {material.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-3 mb-4">
-                      <div className="flex items-center justify-between text-sm text-gray-600">
-                        <span>File Size:</span>
-                        <span className="font-medium">{formatFileSize(material.fileSize)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm text-gray-600">
-                        <span>Added:</span>
-                        <span className="font-medium">{format(new Date(material.createdAt), "MMM dd, yyyy")}</span>
-                      </div>
-                      {material.reference && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Category:</span>
-                          <Badge className={getReferenceColor(material.reference)}>
-                            {material.reference === "internal-general" ? "Internal" : material.reference.charAt(0).toUpperCase() + material.reference.slice(1)}
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
-                    <Button onClick={() => handleDownload(material.materialUploadId, material.title)} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download
-                    </Button>
-                  </CardContent>
-                </Card>
+                <MaterialCard
+                  key={material._id}
+                  material={material}
+                  getDownloadUrl={getDownloadUrl}
+                  getFileIcon={getFileIcon}
+                  formatFileSize={formatFileSize}
+                  getReferenceColor={getReferenceColor}
+                />
               ))}
             </div>
           ) : (
