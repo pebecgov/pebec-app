@@ -41,10 +41,14 @@ export default function AddSaberMaterialModal({
   const [errors, setErrors] = useState<string[]>([]);
   const addMaterial = useMutation(api.saber_materials.addSaberMaterial);
   const handleSubmit = async () => {
+    console.log("handleSubmit called with fileId:", fileId, "type:", typeof fileId);
     const missing: string[] = [];
     if (!title) missing.push("Title");
     if (!description) missing.push("Description");
-    if (!fileId) missing.push("File Upload");
+    if (!fileId || fileId.trim() === '') {
+      missing.push("File Upload");
+      console.error("File ID is missing or empty:", fileId);
+    }
     if (!reference) missing.push("Reference");
     if (["saber", "internal-general"].includes(reference) && selectedRoles.length === 0) {
       missing.push("Access Roles");
@@ -81,10 +85,17 @@ export default function AddSaberMaterialModal({
     }
   };
   const handleFileSet = (id: string, fileName: string, fileSizeInMB?: number) => {
+    console.log("handleFileSet called with:", { id, fileName, fileSizeInMB, idType: typeof id });
+    if (!id || id.trim() === '') {
+      console.error("Empty or invalid file ID received");
+      return;
+    }
     setFileId(id);
     if (fileSizeInMB !== undefined) {
       setFileSize(fileSizeInMB);
     }
+    // Clear any file upload errors when file is set
+    setErrors(prev => prev.filter(e => e !== "File Upload"));
   };
   const toggleRole = (role: Role) => {
     setSelectedRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
@@ -159,6 +170,9 @@ export default function AddSaberMaterialModal({
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">Upload Supporting Document</h3>
               <FileUploader setFileId={handleFileSet} />
+              {fileId && (
+                <p className="text-sm text-green-600 mt-2">✓ File uploaded successfully</p>
+              )}
               {errors.includes("File Upload") && <p className="text-sm text-red-600 mt-1">A file is required.</p>}
             </div>
 
