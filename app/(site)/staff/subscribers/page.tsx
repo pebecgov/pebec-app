@@ -68,6 +68,8 @@ export default function SubscribersPage() {
   const [monthlyDialogOpen, setMonthlyDialogOpen] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const monthlyReportSummary = useQuery(api.newsletters.getMonthlyReportSummary);
+  const monthlyReportData = useQuery(api.newsletters.getMonthlyReportData, {});
+  const monthlyReport = monthlyReportData?.data;
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
   const [customStatus, setCustomStatus] = useState("all");
@@ -92,25 +94,25 @@ export default function SubscribersPage() {
       toast.error("No data to generate PDF.");
       return;
     }
-    
+
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "pt",
       format: "A4"
     });
-    
+
     doc.setFontSize(18);
     doc.text(`Monthly Subscriber Report - ${monthlyReportSummary.month}`, 40, 40);
-    
+
     doc.setFontSize(14);
     doc.text(`Total Subscribers: ${monthlyReportSummary.totalCount}`, 40, 80);
     doc.text(`Active Subscriptions: ${monthlyReportSummary.subscribedCount}`, 40, 100);
     doc.text(`Unsubscribed: ${monthlyReportSummary.unsubscribedCount}`, 40, 120);
-    
+
     // Add a note about pagination
     doc.setFontSize(10);
     doc.text("Note: This is a summary report. For detailed subscriber lists, use the paginated view.", 40, 160);
-    
+
     doc.save("monthly_report_summary.pdf");
   };
   const generatePDF = () => {
@@ -118,26 +120,26 @@ export default function SubscribersPage() {
       toast.error("No data to generate PDF.");
       return;
     }
-    
+
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "pt",
       format: "A4"
     });
-    
+
     doc.setFontSize(18);
     doc.text("Custom Subscriber Report", 40, 40);
-    
+
     doc.setFontSize(14);
     doc.text(`Date Range: ${customReportSummary.dateRange}`, 40, 80);
     doc.text(`Total Subscribers: ${customReportSummary.totalCount}`, 40, 100);
     doc.text(`Active Subscriptions: ${customReportSummary.subscribedCount}`, 40, 120);
     doc.text(`Unsubscribed: ${customReportSummary.unsubscribedCount}`, 40, 140);
-    
+
     // Add a note about pagination
     doc.setFontSize(10);
     doc.text("Note: This is a summary report. For detailed subscriber lists, use the paginated view.", 40, 180);
-    
+
     doc.save("custom_report_summary.pdf");
     setCustomDialogOpen(false);
   };
@@ -234,210 +236,210 @@ export default function SubscribersPage() {
     }
   };
   return <div className="p-6 max-w-screen-xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Subscribers</h1>
-      <div className="flex gap-2">
+    <h1 className="text-2xl font-bold">Subscribers</h1>
+    <div className="flex gap-2">
       <Button onClick={generateMonthlyPDF}>
-      <BarChartIcon className="w-4 h-4 mr-1" /> Monthly Report
-          </Button>
-          <Button onClick={() => setCustomDialogOpen(true)} variant="outline">
-            <BarChartIcon className="w-4 h-4 mr-1" /> Custom Report
-          </Button>
-        </div>
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div className="flex flex-col sm:flex-row gap-2">
+        <BarChartIcon className="w-4 h-4 mr-1" /> Monthly Report
+      </Button>
+      <Button onClick={() => setCustomDialogOpen(true)} variant="outline">
+        <BarChartIcon className="w-4 h-4 mr-1" /> Custom Report
+      </Button>
+    </div>
+    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row gap-2">
         <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} placeholder="From" />
         <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} placeholder="To" />
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border rounded px-3 py-2">
-            <option value="all">All</option>
-            <option value="subscribed">Subscribed</option>
-            <option value="unsubscribed">Unsubscribed</option>
-          </select>
-          <Input type="text" placeholder="Search by email" value={emailSearch} onChange={e => setEmailSearch(e.target.value)} />
-        </div>
-        <div className="flex gap-2 flex-wrap items-center">
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>Add Email</Button>
-            </DialogTrigger>
-            <DialogContent className="space-y-4 max-w-md">
-              <DialogTitle>Add a Subscriber</DialogTitle>
-              <Label>Email</Label>
-              <Input value={newEmail} onChange={e => setNewEmail(e.target.value)} />
-              <Button onClick={handleAdd}>Add</Button>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="flex items-center gap-2">
-                <UploadIcon className="w-4 h-4" /> Upload from CSV
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="space-y-4 max-w-md">
-              <DialogTitle>Upload Subscribers</DialogTitle>
-              <p className="text-sm text-muted-foreground">Accepted formats: .xls, .xlsx</p>
-              <Input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} />
-            </DialogContent>
-          </Dialog>
-        </div>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border rounded px-3 py-2">
+          <option value="all">All</option>
+          <option value="subscribed">Subscribed</option>
+          <option value="unsubscribed">Unsubscribed</option>
+        </select>
+        <Input type="text" placeholder="Search by email" value={emailSearch} onChange={e => setEmailSearch(e.target.value)} />
       </div>
+      <div className="flex gap-2 flex-wrap items-center">
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>Add Email</Button>
+          </DialogTrigger>
+          <DialogContent className="space-y-4 max-w-md">
+            <DialogTitle>Add a Subscriber</DialogTitle>
+            <Label>Email</Label>
+            <Input value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+            <Button onClick={handleAdd}>Add</Button>
+          </DialogContent>
+        </Dialog>
 
-      <Dialog open={confirmUploadOpen} onOpenChange={setConfirmUploadOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Upload</DialogTitle>
-          </DialogHeader>
-          <p>You're about to upload {emailsToUpload.length} email(s) to the subscribers list.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmUploadOpen(false)}>Cancel</Button>
-            <Button onClick={confirmUpload} disabled={uploading}>Upload</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={deleteDialog.open} onOpenChange={open => setDeleteDialog(prev => ({
-      ...prev,
-      open
-    }))}>
-        <DialogContent>
-          <DialogTitle>Are you sure?</DialogTitle>
-          <p>This action will permanently delete this subscriber.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialog({
-            open: false,
-            email: null
-          })}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={unsubscribeDialog.open} onOpenChange={open => setUnsubscribeDialog(prev => ({
-      ...prev,
-      open
-    }))}>
-        <DialogContent>
-          <DialogTitle>Are you sure?</DialogTitle>
-          <p>This will unsubscribe the user but keep them in the system.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUnsubscribeDialog({
-            open: false,
-            email: null
-          })}>Cancel</Button>
-            <Button onClick={handleUnsubscribe}>Unsubscribe</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={subscribeDialog.open} onOpenChange={open => setSubscribeDialog(prev => ({
-      ...prev,
-      open
-    }))}>
-        <DialogContent>
-          <DialogTitle>Are you sure?</DialogTitle>
-          <p>This will re-subscribe the user to the newsletter.</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSubscribeDialog({
-            open: false,
-            email: null
-          })}>Cancel</Button>
-            <Button onClick={handleSubscribe}>Subscribe</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <div className="flex items-center justify-between text-sm text-gray-600">
-        <span>Total subscribers: {totalSubscribersCount}</span>
-        <span>Page {currentPage} of {totalPages} • Remaining: {pagesRemaining}</span>
+        <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="flex items-center gap-2">
+              <UploadIcon className="w-4 h-4" /> Upload from CSV
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="space-y-4 max-w-md">
+            <DialogTitle>Upload Subscribers</DialogTitle>
+            <p className="text-sm text-muted-foreground">Accepted formats: .xls, .xlsx</p>
+            <Input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} />
+          </DialogContent>
+        </Dialog>
       </div>
+    </div>
 
-      <div className="overflow-x-auto border rounded-md bg-white shadow-sm mt-2">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2">Email</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Subscribed At</th>
-              <th className="px-4 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {subscribers?.list.map(sub => <tr key={sub._id} className="border-t">
-                <td className="px-4 py-2">{sub.email}</td>
-                <td className="px-4 py-2">{sub.isSubscribed ? "Subscribed" : "Unsubscribed"}</td>
-                <td className="px-4 py-2">{format(new Date(sub.subscribedAt), "PPpp")}</td>
-                <td className="px-4 py-2 flex gap-2">
-  <div className="flex gap-2">
-    <Button variant={sub.isSubscribed ? "outline" : "secondary"} size="sm" className="min-w-[110px]" onClick={() => sub.isSubscribed ? confirmUnsubscribe(sub.email) : confirmSubscribe(sub.email)}>
-      {sub.isSubscribed ? "Unsubscribe" : "Subscribe"}
-    </Button>
-    <Button variant="destructive" size="sm" className="min-w-[110px]" onClick={() => confirmDelete(sub.email)}>
-      Delete
-    </Button>
-  </div>
+    <Dialog open={confirmUploadOpen} onOpenChange={setConfirmUploadOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Confirm Upload</DialogTitle>
+        </DialogHeader>
+        <p>You're about to upload {emailsToUpload.length} email(s) to the subscribers list.</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setConfirmUploadOpen(false)}>Cancel</Button>
+          <Button onClick={confirmUpload} disabled={uploading}>Upload</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={deleteDialog.open} onOpenChange={open => setDeleteDialog(prev => ({
+      ...prev,
+      open
+    }))}>
+      <DialogContent>
+        <DialogTitle>Are you sure?</DialogTitle>
+        <p>This action will permanently delete this subscriber.</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDeleteDialog({
+            open: false,
+            email: null
+          })}>Cancel</Button>
+          <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={unsubscribeDialog.open} onOpenChange={open => setUnsubscribeDialog(prev => ({
+      ...prev,
+      open
+    }))}>
+      <DialogContent>
+        <DialogTitle>Are you sure?</DialogTitle>
+        <p>This will unsubscribe the user but keep them in the system.</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setUnsubscribeDialog({
+            open: false,
+            email: null
+          })}>Cancel</Button>
+          <Button onClick={handleUnsubscribe}>Unsubscribe</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={subscribeDialog.open} onOpenChange={open => setSubscribeDialog(prev => ({
+      ...prev,
+      open
+    }))}>
+      <DialogContent>
+        <DialogTitle>Are you sure?</DialogTitle>
+        <p>This will re-subscribe the user to the newsletter.</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setSubscribeDialog({
+            open: false,
+            email: null
+          })}>Cancel</Button>
+          <Button onClick={handleSubscribe}>Subscribe</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <div className="flex items-center justify-between text-sm text-gray-600">
+      <span>Total subscribers: {totalSubscribersCount}</span>
+      <span>Page {currentPage} of {totalPages} • Remaining: {pagesRemaining}</span>
+    </div>
+
+    <div className="overflow-x-auto border rounded-md bg-white shadow-sm mt-2">
+      <table className="w-full text-sm text-left">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="px-4 py-2">Email</th>
+            <th className="px-4 py-2">Status</th>
+            <th className="px-4 py-2">Subscribed At</th>
+            <th className="px-4 py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {subscribers?.list.map(sub => <tr key={sub._id} className="border-t">
+            <td className="px-4 py-2">{sub.email}</td>
+            <td className="px-4 py-2">{sub.isSubscribed ? "Subscribed" : "Unsubscribed"}</td>
+            <td className="px-4 py-2">{format(new Date(sub.subscribedAt), "PPpp")}</td>
+            <td className="px-4 py-2 flex gap-2">
+              <div className="flex gap-2">
+                <Button variant={sub.isSubscribed ? "outline" : "secondary"} size="sm" className="min-w-[110px]" onClick={() => sub.isSubscribed ? confirmUnsubscribe(sub.email) : confirmSubscribe(sub.email)}>
+                  {sub.isSubscribed ? "Unsubscribe" : "Subscribe"}
+                </Button>
+                <Button variant="destructive" size="sm" className="min-w-[110px]" onClick={() => confirmDelete(sub.email)}>
+                  Delete
+                </Button>
+              </div>
             </td>
 
-              </tr>) || <tr>
-                <td colSpan={4} className="text-center text-gray-500 py-6">
-                  No subscribers found.
-                </td>
-              </tr>}
-          </tbody>
-        </table>
-      </div>
+          </tr>) || <tr>
+              <td colSpan={4} className="text-center text-gray-500 py-6">
+                No subscribers found.
+              </td>
+            </tr>}
+        </tbody>
+      </table>
+    </div>
 
-      <div className="flex items-center justify-center gap-4">
-        <Button onClick={() => setPage(p => Math.max(p - 1, 0))} disabled={page === 0}>
-          Previous
-        </Button>
-        <span className="text-gray-600 text-sm">Page {currentPage} of {totalPages} • Remaining: {pagesRemaining}</span>
-        <Button onClick={() => setPage(p => p + 1)} disabled={currentPage >= totalPages}>
-          Next
-        </Button>
-      </div>
-      <Dialog open={monthlyDialogOpen} onOpenChange={setMonthlyDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>This Month's Subscribers</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[400px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-2 text-left">Email</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyReport?.map(s => <tr key={s._id} className="border-t">
-                    <td className="px-4 py-2">{s.email}</td>
-                    <td className="px-4 py-2">{s.isSubscribed ? "Subscribed" : "Unsubscribed"}</td>
-                    <td className="px-4 py-2">{format(new Date(s.subscribedAt), "PPpp")}</td>
-                  </tr>)}
-              </tbody>
-            </table>
-          </div>
-        </DialogContent>
-      </Dialog>
+    <div className="flex items-center justify-center gap-4">
+      <Button onClick={() => setPage(p => Math.max(p - 1, 0))} disabled={page === 0}>
+        Previous
+      </Button>
+      <span className="text-gray-600 text-sm">Page {currentPage} of {totalPages} • Remaining: {pagesRemaining}</span>
+      <Button onClick={() => setPage(p => p + 1)} disabled={currentPage >= totalPages}>
+        Next
+      </Button>
+    </div>
+    <Dialog open={monthlyDialogOpen} onOpenChange={setMonthlyDialogOpen}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>This Month's Subscribers</DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[400px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-4 py-2 text-left">Email</th>
+                <th className="px-4 py-2 text-left">Status</th>
+                <th className="px-4 py-2 text-left">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyReport?.map(s => <tr key={s._id} className="border-t">
+                <td className="px-4 py-2">{s.email}</td>
+                <td className="px-4 py-2">{s.isSubscribed ? "Subscribed" : "Unsubscribed"}</td>
+                <td className="px-4 py-2">{format(new Date(s.subscribedAt), "PPpp")}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </DialogContent>
+    </Dialog>
 
-      <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
-        <DialogContent className="space-y-4 max-w-md">
-          <DialogHeader>
-            <DialogTitle>Generate Custom Report</DialogTitle>
-          </DialogHeader>
-          <Input type="date" value={customFromDate} onChange={e => setCustomFromDate(e.target.value)} />
-          <Input type="date" value={customToDate} onChange={e => setCustomToDate(e.target.value)} />
-          <select value={customStatus} onChange={e => setCustomStatus(e.target.value)} className="border rounded px-3 py-2">
-            <option value="all">All</option>
-            <option value="subscribed">Subscribed</option>
-            <option value="unsubscribed">Unsubscribed</option>
-          </select>
-          <DialogFooter>
-            <Button onClick={generatePDF}>Generate PDF</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+    <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
+      <DialogContent className="space-y-4 max-w-md">
+        <DialogHeader>
+          <DialogTitle>Generate Custom Report</DialogTitle>
+        </DialogHeader>
+        <Input type="date" value={customFromDate} onChange={e => setCustomFromDate(e.target.value)} />
+        <Input type="date" value={customToDate} onChange={e => setCustomToDate(e.target.value)} />
+        <select value={customStatus} onChange={e => setCustomStatus(e.target.value)} className="border rounded px-3 py-2">
+          <option value="all">All</option>
+          <option value="subscribed">Subscribed</option>
+          <option value="unsubscribed">Unsubscribed</option>
+        </select>
+        <DialogFooter>
+          <Button onClick={generatePDF}>Generate PDF</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
-    </div>;
+  </div>;
 }
