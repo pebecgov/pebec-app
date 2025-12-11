@@ -101,7 +101,6 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   };
 
   const transparencyQuestions: Array<{ key: string; label: string }> = [
-    { key: 'proactiveDisclosure', label: 'Proactive disclosure of service information' },
     { key: 'serviceLevelPublishing', label: 'Service level standards published' }
   ];
 
