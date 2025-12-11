@@ -181,11 +181,11 @@ export default function ScoringMetricsPage() {
 
 
   const [scorecardSelectedMda, setScorecardSelectedMda] = useState('');
-const [scorecardManualReceived, setScorecardManualReceived] = useState('');
-const [scorecardManualResolved, setScorecardManualResolved] = useState('');
-const [scorecardCalculatedScore, setScorecardCalculatedScore] = useState<number | null>(null);
-const [isSavingScorecard, setIsSavingScorecard] = useState(false);
-const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
+  const [scorecardManualReceived, setScorecardManualReceived] = useState('');
+  const [scorecardManualResolved, setScorecardManualResolved] = useState('');
+  const [scorecardCalculatedScore, setScorecardCalculatedScore] = useState<number | null>(null);
+  const [isSavingScorecard, setIsSavingScorecard] = useState(false);
+  const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
   // Mystery Shopping Modal States
   const [showMysteryModal, setShowMysteryModal] = useState(false);
   const [mysteryType, setMysteryType] = useState<'hasReportGov' | 'noReportGov'>('hasReportGov');
@@ -976,8 +976,8 @@ const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
 
   const scorecardTicketData = useQuery(api.mda_scoring.getScorecardTicketData,
     scorecardSelectedMda ? { mdaName: scorecardSelectedMda, scoringPeriod } : "skip"
-  ); 
-   const scorecardEntries = useQuery(api.mda_scoring.getScorecardEntries, { scoringPeriod });
+  );
+  const scorecardEntries = useQuery(api.mda_scoring.getScorecardEntries, { scoringPeriod });
   const scorecardSystemReceived = scorecardTicketData?.totalTickets || 0;
   const scorecardSystemResolved = scorecardTicketData?.resolvedTickets || 0;
   const manualReceivedValue = Number(scorecardManualReceived) || 0;
@@ -2374,9 +2374,9 @@ const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
               </div>
               <p className="text-sm text-gray-600">
                 View {mdaFilter === 'all' ? 'all' : 'MDAs with data'} {
-                  ministryFilter === 'ministries-only' ? 'ministries' : 
-                  ministryFilter === 'without-ministries' ? 'non-ministry organizations' : 
-                  'organizations'
+                  ministryFilter === 'ministries-only' ? 'ministries' :
+                    ministryFilter === 'without-ministries' ? 'non-ministry organizations' :
+                      'organizations'
                 } with their saved metric scores. Data is averaged across both halves (1st Half & 2nd Half) for the selected year.
               </p>
             </div>
@@ -2779,6 +2779,7 @@ const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
                                           { mdaName: mda.mdaName, year: dashboardYear }
                                         ) as any;
                                         if (detailedData) {
+                                          detailedData.position = rank;
                                           await generateMdaScoringPDF(detailedData);
                                           toast.success("PDF downloaded successfully!");
                                         } else {
@@ -2825,12 +2826,12 @@ const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                      selectedMetric === 'transparency' ? 'Transparency' :
-                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                            selectedMetric === 'timeliness' ? 'Timeliness' :
-                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                        selectedMetric === 'transparency' ? 'Transparency' :
+                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                              selectedMetric === 'timeliness' ? 'Timeliness' :
+                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
@@ -2972,12 +2973,12 @@ const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
                                 selectedMetric === 'controversial' ? 'Controversial' :
                                   selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
                                     selectedMetric === 'innovation' ? 'Innovation' :
-                                    selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                      selectedMetric === 'transparency' ? 'Transparency' :
-                                        selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                          selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                            selectedMetric === 'timeliness' ? 'Timeliness' :
-                                              selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
+                                      selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                        selectedMetric === 'transparency' ? 'Transparency' :
+                                          selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                            selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                              selectedMetric === 'timeliness' ? 'Timeliness' :
+                                                selectedMetric === 'totalScore' ? 'Total Score' : 'Score'} (%)
                           </th>
                         </tr>
                       </thead>
@@ -3716,7 +3717,7 @@ const [isDownloadingScorecard, setIsDownloadingScorecard] = useState(false);
 
                             const mysteryScore = viewDetailsData.mysteryShopping?.firstHalf || viewDetailsData.mysteryShopping?.secondHalf ?
                               ((viewDetailsData.mysteryShopping?.firstHalf?.totalScore || 0) + (viewDetailsData.mysteryShopping?.secondHalf?.totalScore || 0)) / 2 : 0;
-                            
+
                             // Controversial: Handle both old and new data formats
                             let controversialScore = viewDetailsData.controversial?.firstHalf || viewDetailsData.controversial?.secondHalf ?
                               ((viewDetailsData.controversial?.firstHalf?.score || 0) + (viewDetailsData.controversial?.secondHalf?.score || 0)) / 2 : 0;

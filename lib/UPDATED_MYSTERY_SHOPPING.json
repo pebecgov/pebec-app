@@ -1,0 +1,371 @@
+[
+  {
+    "MDA": "Federal Competition and Consumer Protection Commission",
+    "SERVICE TESTED": "Making a Complaint",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "10 working days",
+    "ACTUAL TIME TAKEN": "1 day",
+    "EXPERIENCE RATING (1-10)": "10",
+    "COMMENTS": "My complaint application was responded to and worked in less than a day. They called me to understand more and to explain why they made the decision that they did."
+  },
+  {
+    "MDA": "Nigerian Investment Promotion Council",
+    "SERVICE TESTED": "NIPC Business Registration",
+    "COST ON WEBSITE": "N150,000",
+    "TIMELINE": "24 hours",
+    "ACTUAL TIME TAKEN": "4 days",
+    "EXPERIENCE RATING (1-10)": "10",
+    "COMMENTS": "The registration was successful. I was called immediately the next day after I submitted my application. It took 4 days because I needed to change a document that I had submitted; otherwise, it would have been done on time."
+  },
+  {
+    "MDA": "Federal Produce Inspection Service",
+    "SERVICE TESTED": "Application for Certification",
+    "COST ON WEBSITE": "No fee on website",
+    "TIMELINE": "",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "4",
+    "COMMENTS": "There was no online application. Fees were not made available online. A letter had to be written and taken to them physically. Physical testing of their process was done as I did not have a warehouse to use. They said once I submit my application letter correctly then 2 days would be needed for inspection, after which if everything is okay certification would be given. Fee would be determined after inspection."
+  },
+  {
+    "MDA": "Ministry of Foreign Affairs",
+    "SERVICE TESTED": "Making Inquiries",
+    "COST ON WEBSITE": "No Fee on website.",
+    "TIMELINE": "",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "5",
+    "COMMENTS": "I went to make inquiries about birth certificate authentication. As the number on the website does not exist and the process is not automated. I was told it is N300 and would take 2 days after complete submission of the required documents."
+  },
+  {
+    "MDA": "Bank of Industry",
+    "SERVICE TESTED": "Application for Business Advisory Services",
+    "COST ON WEBSITE": "Free (but tied to loan approval)",
+    "TIMELINE": "Not specified as standalone service",
+    "ACTUAL TIME TAKEN": "N/A (immediate denial)",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "Service only available to approved loan applicants. No standalone advisory for general businesses. Misleading public information on website."
+  },
+  {
+    "MDA": "Trademarks Registry",
+    "SERVICE TESTED": "Registration of company logo (trademark) for agro-processing company",
+    "COST ON WEBSITE": "Official filing ~₦20,000-₦50,000 + agent fees (total often ₦100,000+)",
+    "TIMELINE": "12-24 months (if unopposed)",
+    "ACTUAL TIME TAKEN": "N/A (process halted)",
+    "EXPERIENCE RATING (1-10)": "3",
+    "COMMENTS": "Direct application impossible; only accredited agents allowed. Agent accreditation process is offline, cumbersome, and non-transparent."
+  },
+  {
+    "MDA": "Environmental Health Council of Nigeria",
+    "SERVICE TESTED": "Registration of motor vehicle cleaning licence (Type C)",
+    "COST ON WEBSITE": "N50,000.000 (Published fees significantly lower than demanded)",
+    "TIMELINE": "Not clearly stated",
+    "ACTUAL TIME TAKEN": "Process aborted",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "Major discrepancy between website fees and amounts requested in-office. Clear evidence of arbitrary charges/inflation of costs."
+  },
+  {
+    "MDA": "Nigerian Ports Authority",
+    "SERVICE TESTED": "Registration of Shipping Agent/Chandler/Company",
+    "COST ON WEBSITE": "N54,615.38 (registration fee)",
+    "TIMELINE": "6 weeks",
+    "ACTUAL TIME TAKEN": "48 hours",
+    "EXPERIENCE RATING (1-10)": "9",
+    "COMMENTS": "Fully successful, transparent, and efficient. No extra demands or hitches."
+  },
+  {
+    "MDA": "National Drug Law Enforcement Agency",
+    "SERVICE TESTED": "Drug test application and visa clearance",
+    "COST ON WEBSITE": "N21,500.00",
+    "TIMELINE": "Minimum 3 weeks (or faster via new portal: 3 days-1 week)",
+    "ACTUAL TIME TAKEN": "48 hours",
+    "EXPERIENCE RATING (1-10)": "9",
+    "COMMENTS": "Smooth process with recent digital improvements. No issues reported."
+  },
+  {
+    "MDA": "Advertising Regulatory Council of Nigeria",
+    "SERVICE TESTED": "Registration/vetting of social media advert",
+    "COST ON WEBSITE": "Vetting fees ₦7,500-₦100,000 (depending on urgency)",
+    "TIMELINE": "1-20 days (depending on fee tier)",
+    "ACTUAL TIME TAKEN": "Application submitted by agent; awaiting approval (20 working days countdown started)",
+    "EXPERIENCE RATING (1-10)": "4",
+    "COMMENTS": "Referred to mandatory agent who demanded unofficial extras beyond published vetting fees."
+  },
+  {
+    "MDA": "Nigeria Agricultural Quarantine Service",
+    "SERVICE TESTED": "Application for phytosanitary export certificate",
+    "COST ON WEBSITE": "Official inspection/treatment + certificate fees of N50 to N30 per bag depending on the number of bags.",
+    "TIMELINE": "Varies (portal-based, typically days-weeks)",
+    "ACTUAL TIME TAKEN": "Exercise incomplete (aborted due to extortion demand)",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "Demand for unbudgeted \"facilitation\" fees not part of official structure. Common touting issue at export points."
+  },
+  {
+    "MDA": "Corporate Affairs Commission",
+    "SERVICE TESTED": "Business Name Reservation and Registration",
+    "COST ON WEBSITE": "Cost inconsistent (₦10,500 stated; FIRS tax omitted) Website",
+    "TIMELINE": "24-48 hours",
+    "ACTUAL TIME TAKEN": "18 Days",
+    "EXPERIENCE RATING (1-10)": "7",
+    "COMMENTS": "Name reservation was seamless, However Approval took more than 24 Hours which does not tally with Their SLA, Also There was some Query on the application which was updated"
+  },
+  {
+    "MDA": "Nigerian Upstream Petroleum Regulatory Commission",
+    "SERVICE TESTED": "OGISP Certificate Application (Specialized Category)",
+    "COST ON WEBSITE": "Cost clearly stated: Specialized Category – ₦257,500",
+    "TIMELINE": "2 weeks",
+    "ACTUAL TIME TAKEN": "-",
+    "EXPERIENCE RATING (1-10)": "5",
+    "COMMENTS": "Service not tested as price was above budget for mystery shopping, but they responded to the email with adequate information"
+  },
+  {
+    "MDA": "Nigerian Export-Import Bank",
+    "SERVICE TESTED": "Business Loan Inquiry",
+    "COST ON WEBSITE": "Information not stated",
+    "TIMELINE": "60-120 Working days",
+    "ACTUAL TIME TAKEN": "Poor (No response)",
+    "EXPERIENCE RATING (1-10)": "0",
+    "COMMENTS": "No response to email, Document required for Mystery shopping not available e.g proforma invoice"
+  },
+  {
+    "MDA": "Standards Organisation of Nigeria",
+    "SERVICE TESTED": "Application for MANCAP Certificate",
+    "COST ON WEBSITE": "Not specified (Varies)",
+    "TIMELINE": "No specific timeline provided",
+    "ACTUAL TIME TAKEN": "Submitted Friday, November 14, 2025 (Pending)",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "The application submission was delayed until Friday, November 14, 2025, because of a technical issue on the website that was only resolved after the mystery shopper had to visit the physical office. Furthermore, there is no specific official timeline published for the MANCAP approval process, leading to uncertainty regarding service delivery standards."
+  },
+  {
+    "MDA": "Joint Tax Board",
+    "SERVICE TESTED": "TIN Number Application",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "24 Hours",
+    "ACTUAL TIME TAKEN": "4 weeks (and still not received)",
+    "EXPERIENCE RATING (1-10)": "4",
+    "COMMENTS": "My application was acknowledged with a Request ID via email, but the TIN Number itself has not yet been received."
+  },
+  {
+    "MDA": "EFCC - Special Control Unit for Money Laundering",
+    "SERVICE TESTED": "Application for a SCUML Certificate",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "15 working days",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "The application was unsuccessful because, although all required documents were submitted and the system indicated a successful submission, the recipient later received an email stating the application had failed and requesting a DNFI document which was not listed as part of the requirements on their website."
+  },
+  {
+    "MDA": "Federal Airports Authority of Nigeria",
+    "SERVICE TESTED": "Application for Airport E- Gate Pass",
+    "COST ON WEBSITE": "NGN60,000",
+    "TIMELINE": "Timeline Not specified on the website",
+    "ACTUAL TIME TAKEN": "10 Minutes",
+    "EXPERIENCE RATING (1-10)": "10",
+    "COMMENTS": "The application had to be done physically at the airport rather than online, which defeats the purpose of an end-to-end online service for an MDA."
+  },
+  {
+    "MDA": "Nigerian Postal Service",
+    "SERVICE TESTED": "In-tra state Letter dispatch",
+    "COST ON WEBSITE": "NGN3,000",
+    "TIMELINE": "2 Working days",
+    "ACTUAL TIME TAKEN": "4 working Days",
+    "EXPERIENCE RATING (1-10)": "5",
+    "COMMENTS": "The delivery was delayed, taking 4 working days instead of the promised 2 working days."
+  },
+  {
+    "MDA": "Nigeria Broadcasting Commission",
+    "SERVICE TESTED": "Application for a Broadcasting License",
+    "COST ON WEBSITE": "NGN,10,000,000 But I tested the process",
+    "TIMELINE": "No Timeline was provided on the website",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "I successfully completed the pre-licence application, but afterward, there was no option to proceed with the actual licence application."
+  },
+  {
+    "MDA": "Service Compact",
+    "SERVICE TESTED": "Complaint on Service Delivery by an MDA",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "No Timeline was provided on the website",
+    "ACTUAL TIME TAKEN": "1 hour",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "When I visited the SERVICOM office at the Head of Service block to report an issue with an MDA’s service delivery, I realized there was no official contact line available. When I approached the desk officer to lodge the complaint, I was informed that they still had to forward it to the SERVICOM headquarters"
+  },
+  {
+    "MDA": "Federal Inland Revenue Service",
+    "SERVICE TESTED": "TIN Number Application",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "24 Hours",
+    "ACTUAL TIME TAKEN": "Actual time wasn’t clear because I didn’t get an email notification",
+    "EXPERIENCE RATING (1-10)": "6",
+    "COMMENTS": "My application was acknowledged, but I didn’t get an email that it was ready, till I tried to register again and saw my TIN Number had already been created."
+  },
+  {
+    "MDA": "Industrial Training Fund",
+    "SERVICE TESTED": "Compliance Renewal Report",
+    "COST ON WEBSITE": "Cost Not specified on the website",
+    "TIMELINE": "Timeline Not specified on the website",
+    "ACTUAL TIME TAKEN": "Not completed because fees exceeded budget",
+    "EXPERIENCE RATING (1-10)": "4",
+    "COMMENTS": "I went with the downloaded ITF form 5a form from ITF’s website but upon getting there I was asked why I downloaded the form online and I should come to the office next time to get the form. Secondly, No payment information on the site or on their SLA, online I got that the renewal fees is 1% of total payroll, so my budget was N15600 but i was asked to pay 105k and that they are pitying me for not adding the penalty"
+  },
+  {
+    "MDA": "National Office for Technology Acquisition and Promotion",
+    "SERVICE TESTED": "Technology Advisory Services",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "Timeline Not specified on the website",
+    "ACTUAL TIME TAKEN": "10 Minutes",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": "Overall, while remote channel responsiveness was limited, the quality of service received during the physical visit was satisfactory and informative."
+  },
+  {
+    "MDA": "Bureau for Public Procurement",
+    "SERVICE TESTED": "BPP Certificate",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "Timeline Not specified on the website",
+    "ACTUAL TIME TAKEN": "Tested the process to payment",
+    "EXPERIENCE RATING (1-10)": "10",
+    "COMMENTS": "The process was automated and smooth. I submitted the application with incorrect documents, it showed processing initially but later in the day I was asked to resubmit, and I had 2 more trials"
+  },
+  {
+    "MDA": "Nigerian Copyright Commission",
+    "SERVICE TESTED": "Sound Recording (Audio Recording)",
+    "COST ON WEBSITE": "NGN10,000",
+    "TIMELINE": "Timeline not stated",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "0",
+    "COMMENTS": "Login credentials rejected after account creation. I couldn’t move forward with the process."
+  },
+  {
+    "MDA": "National Inland Waterways Authority",
+    "SERVICE TESTED": "Vessel Registration",
+    "COST ON WEBSITE": "NGN10,000",
+    "TIMELINE": "Timeline not stated",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "4",
+    "COMMENTS": "The account creation was successful. I Couldn’t make payment to proceed with application due to error with the remita"
+  },
+  {
+    "MDA": "Nigeria Export Processing Zone Authority",
+    "SERVICE TESTED": "Free Zone Setup",
+    "COST ON WEBSITE": "Testing the process $500",
+    "TIMELINE": "Five working Days",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "0",
+    "COMMENTS": "I Couldn’t download the application from the website (The application download icon redirected me to and error message) for the free zone set up"
+  },
+  {
+    "MDA": "Federal Ministry of Transportation",
+    "SERVICE TESTED": "NILL",
+    "COST ON WEBSITE": "NIL",
+    "TIMELINE": "NIL",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "NIL",
+    "COMMENTS": "NIL"
+  },
+  {
+    "MDA": "Nigerian Electricity Management Service Agency",
+    "SERVICE TESTED": "Meter Verification",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "10",
+    "COMMENTS": "Meter Verification process was seamless."
+  },
+  {
+    "MDA": "National Agency for Food and Drug Administration and Control",
+    "SERVICE TESTED": "Food Safety Registration Renewal",
+    "COST ON WEBSITE": "N37,975.00",
+    "TIMELINE": "30 days",
+    "ACTUAL TIME TAKEN": "Still in progress",
+    "EXPERIENCE RATING (1-10)": "8",
+    "COMMENTS": "The process was seamless without hitches. However, 2 weeks in, no update has been provided regarding the application."
+  },
+  {
+    "MDA": "Nigerian Communications Commission",
+    "SERVICE TESTED": "License for provision of Internet Services",
+    "COST ON WEBSITE": "N550,000",
+    "TIMELINE": "28-56 days (the Commission to respond to all applicants within 90 Days)",
+    "ACTUAL TIME TAKEN": "Testing the process",
+    "EXPERIENCE RATING (1-10)": "8",
+    "COMMENTS": ""
+  },
+  {
+    "MDA": "National Information Technology Development Agency",
+    "SERVICE TESTED": "IICP Registration",
+    "COST ON WEBSITE": "Free",
+    "TIMELINE": "21 working days",
+    "ACTUAL TIME TAKEN": "Still ongoing",
+    "EXPERIENCE RATING (1-10)": "7",
+    "COMMENTS": "The website was seamless and straightforward."
+  },
+  {
+    "MDA": "Nigerian Shippers’ Council",
+    "SERVICE TESTED": "Logistics Services Provider Registration",
+    "COST ON WEBSITE": "N30, 000",
+    "TIMELINE": "Not Stated",
+    "ACTUAL TIME TAKEN": "In progress",
+    "EXPERIENCE RATING (1-10)": "5",
+    "COMMENTS": "It required a lot of calls and emails to complete the process."
+  },
+  {
+    "MDA": "Nigerian Agricultural Insurance Corporation",
+    "SERVICE TESTED": "Subsidised Livestock Insurance",
+    "COST ON WEBSITE": "Requested for quote",
+    "TIMELINE": "Not stated",
+    "ACTUAL TIME TAKEN": "NA",
+    "EXPERIENCE RATING (1-10)": "2",
+    "COMMENTS": ""
+  },
+  {
+    "MDA": "National Identity Management Commission",
+    "SERVICE TESTED": "Date of birth Modification",
+    "COST ON WEBSITE": "N28,574.0",
+    "TIMELINE": "Not Stated",
+    "ACTUAL TIME TAKEN": "Done",
+    "EXPERIENCE RATING (1-10)": "5",
+    "COMMENTS": "1. Login blocked due to device restriction 2.Applicants were required to pay ₦3,000 for capturing/biometric verification, into a personal Account. 3.Website lists old location 4.Unofficial agents outside premises"
+  },
+  {
+    "MDA": "Patent and Design Registry",
+    "SERVICE TESTED": "Patents and Design Search",
+    "COST ON WEBSITE": "N2,500",
+    "TIMELINE": "Not Stated",
+    "ACTUAL TIME TAKEN": "Same Day",
+    "EXPERIENCE RATING (1-10)": "8",
+    "COMMENTS": "1.The process is self-explanatory 2. Tested the support part in my dashboard and they responded promptly"
+  },
+  {
+    "MDA": "Nigerian Midstream and Downstream Petroleum Regulatory Authority",
+    "SERVICE TESTED": "LPG Retailer Registration (Testing the process)",
+    "COST ON WEBSITE": "",
+    "TIMELINE": "Not Stated",
+    "ACTUAL TIME TAKEN": "",
+    "EXPERIENCE RATING (1-10)": "8",
+    "COMMENTS": "1.Online application process itself was generally straightforward and user-friendly 2. Tested the live chat but it was unresponsive"
+  },
+  {
+    "MDA": "National Environmental Standards and Regulations Enforcement Agency",
+    "SERVICE TESTED": "Applied for a waste and Toxic substance permit",
+    "COST ON WEBSITE": "₦20,000.00",
+    "TIMELINE": "3 months",
+    "ACTUAL TIME TAKEN": "All the required documents for the permits were uploaded, but the payment failed on the website.",
+    "EXPERIENCE RATING (1-10)": "4",
+    "COMMENTS": ""
+  },
+  {
+    "MDA": "Nigeria Export Promotion Council",
+    "SERVICE TESTED": "Exporting License",
+    "COST ON WEBSITE": "₦13,500.00",
+    "TIMELINE": "24 hrs. after official payment",
+    "ACTUAL TIME TAKEN": "All the required documents for the License have been uploaded, but an email was sent that we have one pending document to upload before the License will be ready",
+    "EXPERIENCE RATING (1-10)": "8",
+    "COMMENTS": ""
+  },
+  {
+    "MDA": "Nigerian Electricity Regulatory Commission",
+    "SERVICE TESTED": "Metering Service Vendor Provider",
+    "COST ON WEBSITE": "",
+    "TIMELINE": "",
+    "ACTUAL TIME TAKEN": "There is no eService; I will physically go to their Office.",
+    "EXPERIENCE RATING (1-10)": "5",
+    "COMMENTS": ""
+  }
+]

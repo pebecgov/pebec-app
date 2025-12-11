@@ -1,5 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import mysteryCallData from './BFA_MysteryCall_clean.json';
+import mysteryShoppingData from './UPDATED_MYSTERY_SHOPPING.json';
 
 interface MdaDetailedData {
   mdaName: string;
@@ -44,6 +46,29 @@ interface MdaDetailedData {
     firstHalf: any;
     secondHalf: any;
   };
+  position?: number | string;
+}
+
+// Define interfaces for the import data
+interface MysteryCallEntry {
+  MDAs: string;
+  "PHONE NUMBER": string;
+  "DATE CALLED": string;
+  "TIME CALLED": string;
+  EMAIL: string;
+  "DATE SENT": string;
+  "TIME SENT": string;
+  "DATE MDA RESPONDED": string;
+}
+
+interface MysteryShoppingEntry {
+  MDA: string;
+  "SERVICE TESTED": string;
+  "COST ON WEBSITE": string;
+  "TIMELINE": string;
+  "ACTUAL TIME TAKEN": string;
+  "EXPERIENCE RATING (1-10)": string;
+  COMMENTS: string;
 }
 
 export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void> {
@@ -76,11 +101,27 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition = 35;
   }
 
-  // Title
+  // Display Position at top right
+  if (data.position) {
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Overall Rank: ${data.position}`, pageWidth - 15, 20, { align: 'right' });
+  }
+
+  // Main Title (MDA Name)
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${data.mdaName} - Scoring Report ${data.year}`, pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += 15;
+  const mdaName = data.mdaName;
+  const splitMdaName = doc.splitTextToSize(mdaName, pageWidth - 40);
+  doc.text(splitMdaName, pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += (splitMdaName.length * 8) + 1; // Reduced space after MDA Name
+
+  // Subtitle (Report Year)
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  const reportTitle = `Scoring Report ${data.year}`;
+  doc.text(reportTitle, pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 5;
 
   // Helper function to sort months Jan-Dec
   const sortMonthsByYearAndMonth = (entries: Array<[string, any]>): Array<[string, any]> => {
@@ -108,10 +149,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   // Generate all 12 months for the year
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const slaTableData: string[][] = [];
-  
+
   // Collect all months with data
   const monthlyData: { [key: string]: { percentage?: number; method?: string } } = {};
-  
+
   if (data.sla.firstHalf?.monthlySlaData) {
     Object.entries(data.sla.firstHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
       if (value && (value.method === 'file' || value.method === 'rating')) {
@@ -122,7 +163,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       }
     });
   }
-  
+
   if (data.sla.secondHalf?.monthlySlaData) {
     Object.entries(data.sla.secondHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
       if (value && (value.method === 'file' || value.method === 'rating')) {
@@ -143,7 +184,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         const monthIndex = parseInt(key.split('-')[1]);
         // Exclude November (10) and December (11)
         if (monthIndex === 10 || monthIndex === 11) return;
-        
+
         const monthData = half.monthlySlaData[key];
         if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
           slaAllMonthKeys.add(key);
@@ -151,7 +192,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       });
     }
   });
-  
+
   const slaTotalMonthsWithData = slaAllMonthKeys.size;
   // Recalculate sumTotalScore excluding November and December
   let slaSumTotalScore = 0;
@@ -162,7 +203,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         const monthIndex = parseInt(key.split('-')[1]);
         // Exclude November (10) and December (11)
         if (monthIndex === 10 || monthIndex === 11) return;
-        
+
         if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
           // Calculate score for this month (5 points max per month)
           if (monthData.method === 'file') {
@@ -184,39 +225,39 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const monthData = monthlyData[monthKey];
-    
+
     if (monthData) {
       slaTableData.push([`${monthName} ${data.year}`, `${monthData.percentage?.toFixed(1)}%`]);
     } else {
       slaTableData.push([`${monthName} ${data.year}`, 'No data']);
     }
   }
-  
+
   // Add summary rows
   slaTableData.push(['Total Score', `${slaFinalScore.toFixed(1)}/30 (${((slaFinalScore / 30) * 100).toFixed(1)}%)`]);
   slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
-    autoTable(doc, {
-      startY: yPosition,
-      head: [['1. Service Level Agreement (30 points)', 'Score']],
-      body: slaTableData.slice(0, -2),
-      headStyles: {
-        fillColor: [41, 128, 185],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold'
-      },
-      styles: { fontSize: 9 },
-      theme: 'striped'
-    });
-    yPosition = (doc as any).lastAutoTable.finalY + 10;
-    
-    // Add summary
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(slaTableData[slaTableData.length - 2][0] + ': ' + slaTableData[slaTableData.length - 2][1], 14, yPosition);
-    yPosition += 6;
-    doc.text(slaTableData[slaTableData.length - 1][0] + ': ' + slaTableData[slaTableData.length - 1][1], 14, yPosition);
-    yPosition += 15;
+  autoTable(doc, {
+    startY: yPosition,
+    head: [['1. Service Level Agreement (30 points)', 'Score']],
+    body: slaTableData.slice(0, -2),
+    headStyles: {
+      fillColor: [41, 128, 185],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold'
+    },
+    styles: { fontSize: 9 },
+    theme: 'striped'
+  });
+  yPosition = (doc as any).lastAutoTable.finalY + 10;
+
+  // Add summary
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(slaTableData[slaTableData.length - 2][0] + ': ' + slaTableData[slaTableData.length - 2][1], 14, yPosition);
+  yPosition += 6;
+  doc.text(slaTableData[slaTableData.length - 1][0] + ': ' + slaTableData[slaTableData.length - 1][1], 14, yPosition);
+  yPosition += 15;
 
   // Mystery Shopping - combine both halves
   const mysteryTableData: string[][] = [];
@@ -249,19 +290,19 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     { key: 'satisfaction', label: 'SATISFACTION OF SERVICE THAT IS BEEN TESTED', type: 'rating' }
   ];
   const ratingLabels = ['No Response', 'POOR', 'FAIR', 'AVERAGE', 'GOOD', 'EXCELLENT'];
-  
+
   // Combine ratings from both halves (average them)
   const combinedRatings: { [key: string]: { values: number[], label: string, type: string } } = {};
   let avgTotalScore = 0;
   let avgMaxScore = 0;
   let avgPercentage = 0;
   let mysteryType = '';
-  
+
   [data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].forEach(half => {
     if (half) {
       mysteryType = half.mysteryType || mysteryType;
       const questions = half.mysteryType === 'hasReportGov' ? hasReportGovQuestions : noReportGovQuestions;
-      
+
       questions.forEach(q => {
         const rating = half.ratings?.[q.key];
         if (rating !== undefined) {
@@ -271,7 +312,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
           combinedRatings[q.key].values.push(rating);
         }
       });
-      
+
       if (half.totalScore) avgTotalScore += half.totalScore;
       // Mystery Shopping is always out of 20 points, regardless of question count
       avgMaxScore = 20;
@@ -297,7 +338,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
   if (mysteryTableData.length > 0) {
     mysteryTableData.push(['Total Score', `${finalMysteryScore.toFixed(1)}/20 (${finalMysteryPercentage.toFixed(1)}%)`]);
-    
+
     if (yPosition > pageHeight - 80) {
       doc.addPage();
       yPosition = 20;
@@ -317,11 +358,93 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 70 } }
     });
     yPosition = (doc as any).lastAutoTable.finalY + 10;
-    
+
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(mysteryTableData[mysteryTableData.length - 1][0] + ': ' + mysteryTableData[mysteryTableData.length - 1][1], 14, yPosition);
     yPosition += 15;
+
+    // --- Add Detailed Mystery Shopping Info (Call/Email & Service Test) ---
+    // 1. Find Call/Email Data
+    const callEntry = (mysteryCallData.Sheet1 as MysteryCallEntry[]).find(
+      (item) => item.MDAs?.toLowerCase() === data.mdaName.toLowerCase() ||
+        data.mdaName.toLowerCase().includes(item.MDAs?.toLowerCase()) ||
+        item.MDAs?.toLowerCase().includes(data.mdaName.toLowerCase())
+    );
+
+    if (callEntry) {
+      if (yPosition > pageHeight - 100) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      const callEmailBody = [
+        ['Phone Number', callEntry["PHONE NUMBER"] || 'N/A'],
+        ['Date & Time Called', `${callEntry["DATE CALLED"] || ''} ${callEntry["TIME CALLED"] ? '-' : ''} ${callEntry["TIME CALLED"] || ''}`.trim() || 'N/A'],
+        ['Email Address', callEntry.EMAIL || 'N/A'],
+        ['Date & Time Sent', `${callEntry["DATE SENT"] || ''} ${callEntry["TIME SENT"] ? '-' : ''} ${callEntry["TIME SENT"] || ''}`.trim() || 'N/A'],
+        ['Date Responded', callEntry["DATE MDA RESPONDED"] || 'N/A'],
+      ];
+
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Mystery Shopping - Call & Email Interaction', 'Details']],
+        body: callEmailBody,
+        headStyles: {
+          fillColor: [76, 175, 80], // Green shade usually for mystery shopping
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 50, fontStyle: 'bold' },
+          1: { cellWidth: 'auto' } // Allow description to wrap
+        },
+        styles: { fontSize: 8, overflow: 'linebreak' },
+        theme: 'grid'
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    }
+
+    // 2. Find Service Test Data
+    const serviceEntry = (mysteryShoppingData as MysteryShoppingEntry[]).find(
+      (item) => item.MDA?.toLowerCase() === data.mdaName.toLowerCase() ||
+        data.mdaName.toLowerCase().includes(item.MDA?.toLowerCase()) ||
+        item.MDA?.toLowerCase().includes(data.mdaName.toLowerCase())
+    );
+
+    if (serviceEntry) {
+      if (yPosition > pageHeight - 80) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      const serviceBody = [
+        ['Service Tested', serviceEntry["SERVICE TESTED"] || 'N/A'],
+        ['Cost on Website', serviceEntry["COST ON WEBSITE"] || 'N/A'],
+        ['Timeline', serviceEntry["TIMELINE"] || 'N/A'],
+        ['Actual Time Taken', serviceEntry["ACTUAL TIME TAKEN"] || 'N/A'],
+        ['Experience Rating', serviceEntry["EXPERIENCE RATING (1-10)"] || 'N/A'],
+        ['Comments', serviceEntry.COMMENTS || 'N/A']
+      ];
+
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Mystery Shopping - Service Test', 'Details']],
+        body: serviceBody,
+        headStyles: {
+          fillColor: [76, 175, 80],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 50, fontStyle: 'bold' },
+          1: { cellWidth: 'auto' }
+        },
+        styles: { fontSize: 8, overflow: 'linebreak' },
+        theme: 'grid'
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    }
   }
 
   // Controversial - average both halves
@@ -477,15 +600,15 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
           ? firstHalf.isSkipped
             ? 'Skipped'
             : firstHalf.responses?.[question.key]
-            ? 'Yes'
-            : 'No'
+              ? 'Yes'
+              : 'No'
           : 'No data';
         const secondValue = secondHalf
           ? secondHalf.isSkipped
             ? 'Skipped'
             : secondHalf.responses?.[question.key]
-            ? 'Yes'
-            : 'No'
+              ? 'Yes'
+              : 'No'
           : 'No data';
         bodyRows.push([question.label, `${firstValue} | ${secondValue}`]);
       });
@@ -518,7 +641,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const resFirst = data.reportGovResolution.firstHalf || {};
     const resSecond = data.reportGovResolution.secondHalf || {};
     const isSkipped = (resFirst?.isSkipped || false) || (resSecond?.isSkipped || false);
-    
+
     if (yPosition > pageHeight - 80) {
       doc.addPage();
       yPosition = 20;
@@ -543,27 +666,27 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       // Not skipped - show detailed information
       const hasFirstHalf = resFirst && (resFirst.totalTickets !== undefined || resFirst.score !== undefined);
       const hasSecondHalf = resSecond && (resSecond.totalTickets !== undefined || resSecond.score !== undefined);
-      
+
       let totalTickets, resolvedTickets, resolutionRate, avgResponseTime, avgResolutionTime, avgScore;
-      
+
       if (hasFirstHalf && hasSecondHalf) {
         // Both halves have data - sum tickets, average times and score
         totalTickets = (resFirst.totalTickets || 0) + (resSecond.totalTickets || 0);
         resolvedTickets = (resFirst.resolvedTickets || 0) + (resSecond.resolvedTickets || 0);
         resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
-        
+
         avgResponseTime = resFirst.averageResponseTime && resSecond.averageResponseTime
           ? ((resFirst.averageResponseTime || 0) + (resSecond.averageResponseTime || 0)) / 2
           : (resFirst.averageResponseTime || resSecond.averageResponseTime || 0);
-        
+
         avgResolutionTime = resFirst.averageResolutionTime && resSecond.averageResolutionTime
           ? ((resFirst.averageResolutionTime || 0) + (resSecond.averageResolutionTime || 0)) / 2
           : (resFirst.averageResolutionTime || resSecond.averageResolutionTime || 0);
-        
+
         avgScore = resFirst.score && resSecond.score
           ? ((resFirst.score || 0) + (resSecond.score || 0)) / 2
           : (resFirst.score || resSecond.score || 0);
-        
+
       } else if (hasFirstHalf) {
         // Only first half has data - divide score by 2 (like table)
         totalTickets = resFirst.totalTickets || 0;
@@ -619,7 +742,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         const monthIndex = parseInt(key.split('-')[1]);
         // Exclude November (10) and December (11) from calculations
         if (monthIndex === 10 || monthIndex === 11) return;
-        
+
         if (value) monthlyReportMonths[key] = true;
       });
     }
@@ -630,7 +753,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const isSubmitted = monthlyReportMonths[monthKey] === true;
-    
+
     monthlyReportTableData.push([`${monthName} ${data.year}`, isSubmitted ? 'Submitted' : 'Not submitted']);
   }
 
@@ -659,7 +782,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       theme: 'striped'
     });
     yPosition = (doc as any).lastAutoTable.finalY + 10;
-    
+
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(monthlyReportTableData[monthlyReportTableData.length - 2][0] + ': ' + monthlyReportTableData[monthlyReportTableData.length - 2][1], 14, yPosition);
@@ -678,7 +801,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         const monthIndex = parseInt(key.split('-')[1]);
         // Exclude November (10) and December (11) from calculations
         if (monthIndex === 10 || monthIndex === 11) return;
-        
+
         if (value) timelinessMonths[key] = true;
       });
     }
@@ -689,7 +812,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const isOnTime = timelinessMonths[monthKey] === true;
-    
+
     timelinessTableData.push([`${monthName} ${data.year}`, isOnTime ? 'On Time' : 'Late']);
   }
 
@@ -718,7 +841,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     theme: 'striped'
   });
   yPosition = (doc as any).lastAutoTable.finalY + 10;
-  
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
@@ -731,7 +854,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const slaScore = slaFinalScore;
 
   const mysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
-  
+
   // Controversial: Handle both old and new data formats
   let controversialScore = data.controversial.firstHalf || data.controversial.secondHalf ?
     ((data.controversial.firstHalf?.score || 0) + (data.controversial.secondHalf?.score || 0)) / 2 : 0;
@@ -781,14 +904,14 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   }
   // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
   let reportGovResScore = 0;
-  const isReportGovSkipped = (data.reportGovResolution.firstHalf?.isSkipped || false) || 
-                             (data.reportGovResolution.secondHalf?.isSkipped || false);
+  const isReportGovSkipped = (data.reportGovResolution.firstHalf?.isSkipped || false) ||
+    (data.reportGovResolution.secondHalf?.isSkipped || false);
   if (data.reportGovResolution.firstHalf || data.reportGovResolution.secondHalf) {
     const resFirst = data.reportGovResolution.firstHalf || {};
     const resSecond = data.reportGovResolution.secondHalf || {};
     const hasFirstHalf = resFirst && resFirst.score !== undefined && resFirst.score !== null;
     const hasSecondHalf = resSecond && resSecond.score !== undefined && resSecond.score !== null;
-    
+
     if (!isReportGovSkipped) {
       if (hasFirstHalf && hasSecondHalf) {
         // Both halves have data - average
@@ -804,14 +927,14 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   }
 
   // Calculate base total score (all metrics except controversial and touting & rentseeking)
-  const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore + 
-                    transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+  const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
+    transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
 
   // Calculate penalties (convert negative scores to positive penalty values)
   const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
   const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
   const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
-  
+
   let maxPossiblePoints = 90;
   if (isTransparencySkipped) {
     maxPossiblePoints -= 5;
@@ -860,7 +983,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     bodyStyles: {
       fontSize: 10
     },
-    styles: { 
+    styles: {
       fontSize: 10,
       cellPadding: 4
     },
