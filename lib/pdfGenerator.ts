@@ -324,12 +324,12 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const avgRating = info.values.reduce((sum, val) => sum + val, 0) / info.values.length;
     if (info.type === 'rating') {
       const points = (avgRating / 5) * 1;
-      const ratingLabel = avgRating === 0 ? 'No Response' : (ratingLabels[Math.round(avgRating)] || avgRating.toFixed(1));
-      mysteryTableData.push([info.label, `${ratingLabel} (${points.toFixed(2)} points)`]);
+      const ratingLabel = avgRating === 0 ? '0' : (ratingLabels[Math.round(avgRating)] || avgRating.toFixed(1));
+      mysteryTableData.push([info.label, `${ratingLabel}`]);
     } else {
       const answer = avgRating >= 0.5 ? 'Yes' : 'No';
       const points = avgRating >= 0.5 ? 1 : 0;
-      mysteryTableData.push([info.label, `${answer} (${points} point${points === 1 ? '' : 's'})`]);
+      mysteryTableData.push([info.label, `${answer}`]);
     }
   });
 
