@@ -563,7 +563,7 @@ export const Contact = () => {
 
               <div className="5 mb-7">
                 <h3 className="mb-4 text-metatitle3 font-medium text-black dark:text-white">
-                  Our Loaction
+                  Our Location
                 </h3>
                 <p>5th Floor, House 1, TotalEnergies House, Plot 247 Herbert Macaulay Way, Central Business District (Opposite NNPC Towers), Abuja, FCT
 
