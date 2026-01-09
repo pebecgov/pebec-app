@@ -565,7 +565,7 @@ export const Contact = () => {
                 <h3 className="mb-4 text-metatitle3 font-medium text-black dark:text-white">
                   Our Loaction
                 </h3>
-                <p>5th Floor, Total Energies, House 1, Plot 247 Herbert Macaulay Way, Central Business District (Opposite NNPC Towers), Abuja, FCT
+                <p>5th Floor, House 1, TotalEnergies House, Plot 247 Herbert Macaulay Way, Central Business District (Opposite NNPC Towers), Abuja, FCT
 
                 </p>
               </div>
