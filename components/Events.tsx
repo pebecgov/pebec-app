@@ -19,44 +19,49 @@ export default function EventsPage() {
   const now = new Date();
   const upcomingEvents = events?.filter(event => new Date(event.eventDate) >= now) || [];
   const pastEvents = events?.filter(event => new Date(event.eventDate) < now) || [];
+
+  // Hardcoded workshop event date
+  const workshopEventDate = new Date('2024-10-14T11:00:00');
+  const isWorkshopUpcoming = workshopEventDate >= now;
   return <div className="pb-20 bg-gray-50">
-      {}
-      <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
-        <Image src="/images/events.jpg" alt="Events Banner" fill className="object-cover object-center" />
-        <div className="absolute inset-0 bg-green-900/80" />
-        <div className="relative z-10 h-full flex flex-col justify-center items-center text-center text-white px-4">
-          <h1 className="text-3xl md:text-5xl font-extrabold">
-            Upcoming Events
-          </h1>
-          <p className="mt-4 max-w-xl text-gray-200 text-base md:text-lg">
-            Discover and join our exciting events. Be part of something big!
-          </p>
-        </div>
+    { }
+    <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
+      <Image src="/images/events.jpg" alt="Events Banner" fill className="object-cover object-center" />
+      <div className="absolute inset-0 bg-green-900/80" />
+      <div className="relative z-10 h-full flex flex-col justify-center items-center text-center text-white px-4">
+        <h1 className="text-3xl md:text-5xl font-extrabold">
+          Upcoming Events
+        </h1>
+        <p className="mt-4 max-w-xl text-gray-200 text-base md:text-lg">
+          Discover and join our exciting events. Be part of something big!
+        </p>
       </div>
+    </div>
 
-      {}
-      <div className="mt-10 max-w-7xl mx-auto px-4 md:px-8 flex flex-col lg:flex-row gap-8">
-        {}
-        <div className="w-full lg:w-[70%]">
-          <h2 className="text-2xl font-bold mb-6 text-green-700">
-            Upcoming Events
-          </h2>
+    { }
+    <div className="mt-10 max-w-7xl mx-auto px-4 md:px-8 flex flex-col lg:flex-row gap-8">
+      { }
+      <div className="w-full lg:w-[70%]">
+        <h2 className="text-2xl font-bold mb-6 text-green-700">
+          Upcoming Events
+        </h2>
 
-          {!events ? <div className="flex h-40 items-center justify-center">
-              <Spinner size="lg" />
-            </div> : <ul className="grid gap-6 md:grid-cols-2">
-            {/* Workshop Event Card */}
+        {!events ? <div className="flex h-40 items-center justify-center">
+          <Spinner size="lg" />
+        </div> : <ul className="grid gap-6 md:grid-cols-2">
+          {/* Workshop Event Card */}
+          {isWorkshopUpcoming && (
             <li className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden">
               <div className="relative w-full bg-white">
-                <Image 
-                  src="/images/workshop-banner.png" 
-                  alt="Strategic Engagement Workshop" 
+                <Image
+                  src="/images/workshop-banner.png"
+                  alt="Strategic Engagement Workshop"
                   width={800}
                   height={600}
-                  className="w-full h-auto object-contain" 
+                  className="w-full h-auto object-contain"
                 />
               </div>
-              
+
               <div className="p-4 flex flex-col flex-grow justify-between space-y-3">
                 <div>
                   <div className="flex justify-between items-start">
@@ -72,15 +77,15 @@ export default function EventsPage() {
                       </Badge>
                     </div>
                   </div>
-          
+
                   <p className="text-sm text-gray-500 mt-1">Presenting Strategic Investment opportunities in the UAE and Highlighting Nigeria's Business and Investment Climate</p>
-          
+
                   <div className="flex items-center text-sm text-gray-600 gap-2 mt-1">
                     <Clock className="w-4 h-4" />
                     11:00 AM
                   </div>
                 </div>
-          
+
                 <Link href="/workshop">
                   <Button className="w-full bg-green-600 hover:bg-green-700 text-white mt-3">
                     Register Now
@@ -88,81 +93,100 @@ export default function EventsPage() {
                 </Link>
               </div>
             </li>
-            
-            {/* Regular Events */}
-            {upcomingEvents.map(event => <li key={event._id} className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden min-h-[420px]">
-                {}
-                <div className="relative w-full h-40 bg-white">
-                  <Image src={event.coverImageUrl || '/placeholder.jpg'} alt={event.title} fill className="object-cover object-center" />
-                </div>
-          
-                {}
-                <div className="p-4 flex flex-col flex-grow justify-between space-y-3">
+          )}
+
+
+          {/* Regular Events */}
+          {upcomingEvents.map(event => <li key={event._id} className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden min-h-[420px]">
+            { }
+            <div className="relative w-full h-40 bg-white">
+              <Image src={event.coverImageUrl || '/placeholder.jpg'} alt={event.title} fill className="object-cover object-center" />
+            </div>
+
+            { }
+            <div className="p-4 flex flex-col flex-grow justify-between space-y-3">
+              <div>
+                <div className="flex justify-between items-start">
                   <div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
-                        <p className="text-sm text-gray-600">
-                          Hosted by {event.host || 'PEBEC'}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <Badge className="text-xs bg-green-600 text-white px-2 py-1">
-                          {format(new Date(event.eventDate), 'PP')}
-                        </Badge>
-                       
-                      </div>
-                    </div>
-          
-                    <p className="text-sm text-gray-500 mt-1">{event.description}</p>
-          
-                    <div className="flex items-center text-sm text-gray-600 gap-2 mt-1">
-                      <Clock className="w-4 h-4" />
-                      {format(new Date(event.eventDate), 'p')}
-                    </div>
-          
-                    {}
+                    <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
+                    <p className="text-sm text-gray-600">
+                      Hosted by {event.host || 'PEBEC'}
+                    </p>
                   </div>
-          
-                  <Link href={`/events/${event.customUrl || event._id}`}>
-                    <Button className="w-full bg-green-600 hover:bg-green-700 text-white mt-3">
-                      View Details
-                    </Button>
-                  </Link>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge className="text-xs bg-green-600 text-white px-2 py-1">
+                      {format(new Date(event.eventDate), 'PP')}
+                    </Badge>
+
+                  </div>
                 </div>
-              </li>)}
-          </ul>}
-        </div>
 
-        {}
-        <div className="w-full lg:w-[30%]">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-green-700 mb-4">
-              Past Events
-            </h2>
+                <p className="text-sm text-gray-500 mt-1">{event.description}</p>
 
-            {pastEvents.length === 0 ? <p className="text-gray-500 text-sm">No past events.</p> : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
-                {pastEvents.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 4).map(event => <Link key={event._id} href={`/events/${event.customUrl || event._id}`} className="block rounded-lg overflow-hidden border bg-white shadow-sm hover:shadow-md transition">
-      <div className="relative h-28 w-full">
-        <Image src={event.coverImageUrl || '/placeholder.jpg'} alt={event.title} fill className="object-cover object-center" />
+                <div className="flex items-center text-sm text-gray-600 gap-2 mt-1">
+                  <Clock className="w-4 h-4" />
+                  {format(new Date(event.eventDate), 'p')}
+                </div>
+
+                { }
+              </div>
+
+              <Link href={`/events/${event.customUrl || event._id}`}>
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white mt-3">
+                  View Details
+                </Button>
+              </Link>
+            </div>
+          </li>)}
+        </ul>}
       </div>
-      <div className="p-3">
-        <h3 className="text-sm font-semibold text-gray-800">
-          {event.title}
-        </h3>
-        <p className="text-xs text-gray-500 mt-1">
-          {new Date(event.eventDate).toLocaleDateString(undefined, {
+
+      { }
+      <div className="w-full lg:w-[30%]">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold text-green-700 mb-4">
+            Past Events
+          </h2>
+
+          {pastEvents.length === 0 && isWorkshopUpcoming ? <p className="text-gray-500 text-sm">No past events.</p> : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+            {/* Hardcoded Workshop Event - Show in past events if date has passed */}
+            {!isWorkshopUpcoming && (
+              <Link href="/workshop" className="block rounded-lg overflow-hidden border bg-white shadow-sm hover:shadow-md transition">
+                <div className="relative h-28 w-full">
+                  <Image src="/images/workshop-banner.png" alt="Strategic Engagement Workshop" fill className="object-cover object-center" />
+                </div>
+                <div className="p-3">
+                  <h3 className="text-sm font-semibold text-gray-800">
+                    Strategic Engagement on Business Facilitation & Investment Access
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Oct 14, 2024
+                  </p>
+                </div>
+              </Link>
+            )}
+
+            {pastEvents.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()).slice(0, 4).map(event => <Link key={event._id} href={`/events/${event.customUrl || event._id}`} className="block rounded-lg overflow-hidden border bg-white shadow-sm hover:shadow-md transition">
+              <div className="relative h-28 w-full">
+                <Image src={event.coverImageUrl || '/placeholder.jpg'} alt={event.title} fill className="object-cover object-center" />
+              </div>
+              <div className="p-3">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  {event.title}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {new Date(event.eventDate).toLocaleDateString(undefined, {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric'
                   })}
-        </p>
-      </div>
-    </Link>)}
+                </p>
+              </div>
+            </Link>)}
 
-              </div>}
-          </div>
+          </div>}
         </div>
       </div>
-    </div>;
+    </div>
+  </div>;
 }
