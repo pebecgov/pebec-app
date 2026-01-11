@@ -30,6 +30,7 @@ export default function EventPage() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [organization, setOrganization] = useState("");
+  const [designation, setDesignation] = useState("");
   const [isVip, setIsVip] = useState(false);
   const [vipCode, setVipCode] = useState("");
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
@@ -214,6 +215,10 @@ export default function EventPage() {
       setError("❌ Please enter your full name, email, and phone number.");
       return;
     }
+    if (!organization.trim() || !designation.trim()) {
+      setError("❌ Please enter your organization and designation.");
+      return;
+    }
     if (event.eventType === "vip_and_general") {
       if (isVip && event.vipTicketLimit != null && ticketsLeft.vip !== null && ticketsLeft.vip <= 0) {
         setError("❌ VIP tickets are sold out.");
@@ -315,7 +320,8 @@ export default function EventPage() {
         firstName: !currentUser ? firstName : undefined,
         lastName: !currentUser ? lastName : undefined,
         phone: !currentUser ? phone : undefined,
-        organization: organization ? organization : undefined,
+        organization: organization,
+        designation: designation,
         qrCode: qrCodeUrl,
         ticketPdfId: storageId as Id<"_storage">,
         isVip
@@ -326,6 +332,8 @@ export default function EventPage() {
         setIsTicketReady(true);
         setAnswers([]);
         setEmail("");
+        setOrganization("");
+        setDesignation("");
       }, 1500);
     } catch (error) {
       console.error("❌ Error generating ticket:", error);
@@ -386,7 +394,7 @@ export default function EventPage() {
     }
   };
   
-  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim()) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
+  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || !organization.trim() || !designation.trim() || questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim()) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
   
   return <div className="relative mx-auto w-full bg-white pt-12 mt-30 px-10 md:px-30 lg:px-30 md:mb-20  ">
       <div className="flex flex-col md:flex-row gap-8">
@@ -456,8 +464,12 @@ export default function EventPage() {
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" required />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-500">Organization </label>
-          <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Company/Institution" />
+          <label className="text-xs font-semibold text-gray-500">Organization *</label>
+          <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Company/Institution" required />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-500">Designation *</label>
+          <input type="text" value={designation} onChange={e => setDesignation(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Your position/role" required />
         </div>
         <div>
           <label className="text-xs font-semibold text-gray-500">Email Address</label>

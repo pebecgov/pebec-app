@@ -153,7 +153,8 @@ export const rsvpEvent = mutation({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     phone: v.optional(v.string()),
-    organization: v.optional(v.string()),
+    organization: v.string(),
+    designation: v.string(),
     qrCode: v.string(),
     ticketPdfId: v.id("_storage"),
     isVip: v.optional(v.boolean())
@@ -169,7 +170,8 @@ export const rsvpEvent = mutation({
     firstName,
     lastName,
     phone,
-    organization
+    organization,
+    designation
   }) => {
     console.log("📌 RSVP Mutation triggered for Event ID:", eventId);
     const event = await ctx.db.get(eventId);
@@ -189,7 +191,8 @@ export const rsvpEvent = mutation({
       firstName: firstName ?? undefined,
       lastName: lastName ?? undefined,
       phone: phone ?? undefined,
-      organization: organization ?? undefined,
+      organization: organization,
+      designation: designation,
       questionnaireAnswers: answers.map(a => a.answer),
       ticketNumber,
       qrCode,
