@@ -17,7 +17,11 @@ export default function Posts() {
         <Spinner size="lg" />
       </div>;
   }
-  const filteredPosts = posts.filter(post => post.title?.toLowerCase().includes(searchQuery.toLowerCase()) || post.excerpt?.toLowerCase().includes(searchQuery.toLowerCase())).sort((a, b) => new Date(b._creationTime).getTime() - new Date(a._creationTime).getTime());
+  const filteredPosts = posts.filter(post => post.title?.toLowerCase().includes(searchQuery.toLowerCase()) || post.excerpt?.toLowerCase().includes(searchQuery.toLowerCase())).sort((a, b) => {
+    const dateA = a.publishedDate ?? a._creationTime;
+    const dateB = b.publishedDate ?? b._creationTime;
+    return dateB - dateA; // Descending order
+  });
   const totalPages = Math.ceil(filteredPosts.length / postsPerPage);
   const paginatedPosts = filteredPosts.slice((currentPage - 1) * postsPerPage, currentPage * postsPerPage);
   return <div className="max-w-4xl mx-auto px-4 py-8">
@@ -30,8 +34,9 @@ export default function Posts() {
       {}
       <ul>
         {paginatedPosts.length > 0 ? paginatedPosts.map(post => {
-        const createdDate = new Date(post._creationTime);
-        const isNew = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24) < 2;
+        const postDate = post.publishedDate ?? post._creationTime;
+        const dateObj = new Date(postDate);
+        const isNew = (Date.now() - dateObj.getTime()) / (1000 * 60 * 60 * 24) < 2;
         return <PostItem key={post._id} post={post} showComments={false} isNew={isNew} />;
       }) : <p className="text-center text-gray-500">No posts found.</p>}
       </ul>
