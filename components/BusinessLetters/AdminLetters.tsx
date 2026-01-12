@@ -24,6 +24,9 @@ export default function BusinessLettersAdmin() {
     user
   } = useUser();
   const userRole = user?.publicMetadata?.role;
+  const currentUser = useQuery(api.users.getCurrentUsers);
+  const isReceptionist = currentUser?.staffStream === "receptionist" || userRole === "receptionist";
+  const isAdmin = userRole === "admin";
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const letters = useQuery(api.business_letters.getAllBusinessLetters, {
     refreshKey
@@ -32,6 +35,7 @@ export default function BusinessLettersAdmin() {
   const deleteLetter = useMutation(api.business_letters.deleteBusinessLetter);
   const getFileUrl = useMutation(api.business_letters.getFileUrl);
   const assignLettersToStaff = useMutation(api.business_letters.assignLettersToStaff);
+  const markFilesAsViewed = useMutation(api.business_letters.markLetterFilesAsViewed);
   const [selectedLetterIds, setSelectedLetterIds] = useState<Id<"business_letters">[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -54,6 +58,7 @@ export default function BusinessLettersAdmin() {
   } | null>(null);
   const convex = useConvex();
   const [selectedStaffIds, setSelectedStaffIds] = useState<Id<"users">[]>([]);
+  const [viewedPopupLetterId, setViewedPopupLetterId] = useState<Id<"business_letters"> | null>(null);
   const recordsPerPage = 20;
   const staffStreams = useMemo(() => {
     const streams = new Set<string>();
@@ -65,12 +70,24 @@ export default function BusinessLettersAdmin() {
     ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"].forEach(stream => streams.add(stream));
     return Array.from(streams);
   }, [users]);
-  const handleShowFiles = (letter: typeof letters[number]) => {
+  const handleShowFiles = async (letter: typeof letters[number]) => {
     setActiveLetterFiles({
       main: letter.letterFileId,
       attachments: letter.supportingFileIds || []
     });
     setFileDialogOpen(true);
+    // Mark this letter as viewed in backend if user is logged in
+    if (currentUser?._id && currentUser.firstName && !letter.viewedBy) {
+      try {
+        await markFilesAsViewed({
+          letterId: letter._id,
+          userId: currentUser._id,
+          userName: `${currentUser.firstName} ${currentUser.lastName || ""}`.trim()
+        });
+      } catch (error) {
+        console.error("Failed to mark letter as viewed:", error);
+      }
+    }
   };
   const filteredLetters = letters.filter(l => {
     const search = filter.email.toLowerCase();
@@ -195,6 +212,28 @@ export default function BusinessLettersAdmin() {
     setAssignEntireStream(false);
     setAssignDialogOpen(true);
   };
+
+  const openAssignDialogForLetter = (letterId: Id<"business_letters">) => {
+    const letter = letters.find(l => l._id === letterId);
+    if (!letter) return;
+
+    // Set the selected letter
+    setSelectedLetterIds([letterId]);
+
+    // Pre-fill stream and staff if already assigned
+    const preSelectedUsers = letter.assignedTo && letter.assignedStream
+      ? users.filter(u =>
+        Array.isArray(letter.assignedTo)
+          ? letter.assignedTo.includes(u._id)
+          : letter.assignedTo === u._id
+      ).map(u => u._id)
+      : [];
+
+    setSelectedStream(letter.assignedStream || "");
+    setSelectedStaffIds(preSelectedUsers);
+    setAssignEntireStream(false);
+    setAssignDialogOpen(true);
+  };
   useEffect(() => {
     setCurrentPage(1);
   }, [filter]);
@@ -303,9 +342,52 @@ export default function BusinessLettersAdmin() {
               <td className="p-3">{letter.phone}</td>
               <td className="p-3">{format(new Date(letter.createdAt), "PPP")}</td>
               <td className="p-3">
-                <Button variant="outline" size="sm" onClick={() => handleShowFiles(letter)}>
-                  📎 Show Files
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleShowFiles(letter)}>
+                    📎 Show Files
+                  </Button>
+                  {letter.viewedBy && letter.viewedByName && letter.viewedAt && (
+                    <div className="relative">
+                      <span
+                        className="text-xs text-green-600 flex items-center gap-1 cursor-pointer hover:text-green-700"
+                        title={`First viewed by ${letter.viewedByName} on ${format(new Date(letter.viewedAt), "PPP 'at' p")}`}
+                        onClick={() => setViewedPopupLetterId(viewedPopupLetterId === letter._id ? null : letter._id)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                          <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                        </svg>
+                        Viewed
+                      </span>
+                      {viewedPopupLetterId === letter._id && (
+                        <div className="absolute left-0 bottom-full mb-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[250px]">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-semibold text-sm text-gray-700">First Viewed By</h4>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewedPopupLetterId(null);
+                              }}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-600">
+                              <span className="font-medium text-gray-800">{letter.viewedByName}</span>
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {format(new Date(letter.viewedAt), "PPP 'at' p")}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </td>
               <td className="p-3">
                 {letter.assignedStream ? <span className="capitalize">{letter.assignedStream}</span> : <span className="italic text-gray-400">not assigned</span>}
@@ -320,12 +402,29 @@ export default function BusinessLettersAdmin() {
                 </span>
               </td>
               <td className="p-3">
-                {userRole === "admin" && <Button variant="destructive" onClick={() => {
-                  setSelectedLetter(letter._id);
-                  setDeleteDialogOpen(true);
-                }}>
-                  Delete
-                </Button>}
+                <div className="flex gap-2">
+                  {(isAdmin || isReceptionist) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openAssignDialogForLetter(letter._id)}
+                    >
+                      {letter.assignedStream ? "Reassign" : "Assign"}
+                    </Button>
+                  )}
+                  {isAdmin && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedLetter(letter._id);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
               </td>
 
 
@@ -440,36 +539,8 @@ export default function BusinessLettersAdmin() {
               });
               return;
             }
-            try {
-              const response = await fetch(url);
-              const blob = await response.blob();
-              const contentType = response.headers.get("Content-Type") || "application/pdf";
-              let extension = "pdf";
-              if (contentType.includes("image/jpeg")) extension = "jpg";
-              else if (contentType.includes("image/png")) extension = "png";
-              else if (contentType.includes("application/msword")) extension = "doc";
-              else if (contentType.includes("wordprocessingml")) extension = "docx";
-
-              const blobUrl = window.URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = blobUrl;
-              link.download = `Main_Letter.${extension}`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(blobUrl);
-              toast({
-                title: "Download Successful",
-                description: "Main letter downloaded successfully."
-              });
-            } catch (error) {
-              console.error("Failed to download main letter:", error);
-              toast({
-                title: "Error",
-                description: "Failed to download the main letter.",
-                variant: "destructive"
-              });
-            }
+            // Open in new tab to view instead of download
+            window.open(url, '_blank');
           }}>
             📄 Main Letter
           </Button>
@@ -485,36 +556,8 @@ export default function BusinessLettersAdmin() {
               });
               return;
             }
-            try {
-              const response = await fetch(url);
-              const blob = await response.blob();
-              const contentType = response.headers.get("Content-Type") || "application/pdf";
-              let extension = "pdf";
-              if (contentType.includes("image/jpeg")) extension = "jpg";
-              else if (contentType.includes("image/png")) extension = "png";
-              else if (contentType.includes("application/msword")) extension = "doc";
-              else if (contentType.includes("wordprocessingml")) extension = "docx";
-
-              const blobUrl = window.URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = blobUrl;
-              link.download = `Attachment_${index + 1}.${extension}`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(blobUrl);
-              toast({
-                title: "Download Successful",
-                description: `Attachment ${index + 1} downloaded successfully.`
-              });
-            } catch (error) {
-              console.error("Failed to download attachment:", error);
-              toast({
-                title: "Error",
-                description: `Failed to download Attachment ${index + 1}.`,
-                variant: "destructive"
-              });
-            }
+            // Open in new tab to view instead of download
+            window.open(url, '_blank');
           }}>
             📎 Attachment {index + 1}
           </Button>)}
