@@ -41,9 +41,9 @@ export default function TicketDetailsPage() {
   if (!ticket) return <p className="text-center text-gray-500">Loading ticket details...</p>;
   const isClosedOrResolved = ticket.status === "closed" || ticket.status === "resolved";
   return <div className="relative max-w-5xl mx-auto md:mt-30 p-6 mt-20 bg-white shadow-lg rounded-md">
-       {}
-       <Link href="/reportgov">
-      
+    { }
+    <Link href="/reportgov">
+
       <button type="button" className="bg-white text-center w-48 rounded-2xl h-14 relative text-black text-xl font-semibold border-4 border-white group">
         <div className="bg-green-400 rounded-xl h-12 w-1/4 grid place-items-center absolute left-0 top-0 group-hover:w-full z-10 duration-500">
           <svg width="25px" height="25px" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
@@ -53,85 +53,85 @@ export default function TicketDetailsPage() {
         </div>
         <p className="translate-x-4">Go Back</p>
       </button>
-      
-            </Link>
-            {isClosedOrResolved && ticket.resolutionNote && <div className="mt-6 p-4 border rounded-lg bg-gray-50 mb-10">
-          <h3 className="font-semibold text-lg mb-2">Resolution Note</h3>
-          <p>{ticket.resolutionNote}</p>
-        </div>}
-      {}
-   
 
-     
+    </Link>
+    {isClosedOrResolved && ticket.resolutionNote && <div className="mt-6 p-4 border rounded-lg bg-gray-50 mb-10">
+      <h3 className="font-semibold text-lg mb-2">Resolution Note</h3>
+      <p>{ticket.resolutionNote}</p>
+    </div>}
+    { }
 
-      {}
-      <TicketStepper currentStep={ticket.status === "open" ? 0 : ticket.status === "in_progress" ? 1 : 2} status={ticket.status} />
 
-      {}
-      <div className="mt-6">
-        <h1 className="text-2xl font-bold">{ticket.title}</h1>
-        <p className="text-gray-500 mt-1">
-          Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
-        </p>
-      </div>
 
-      {}
-      <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-        <h3 className="font-semibold text-lg">Description</h3>
-        <div dangerouslySetInnerHTML={{
+
+    { }
+    <TicketStepper currentStep={ticket.status === "open" ? 0 : ticket.status === "in_progress" ? 1 : 2} status={ticket.status} />
+
+    { }
+    <div className="mt-6">
+      <h1 className="text-2xl font-bold">{ticket.title}</h1>
+      <p className="text-gray-500 mt-1">
+        Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
+      </p>
+    </div>
+
+    { }
+    <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+      <h3 className="font-semibold text-lg">Description</h3>
+      <div dangerouslySetInnerHTML={{
         __html: ticket.description
       }} />
-      </div>
+    </div>
 
-      {}
-      <div className="mt-6 p-5 bg-white shadow-md rounded-lg border">
-        <h3 className="font-semibold text-lg mb-3">User Details</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-700 text-sm">
-          <div className="flex items-center gap-2">
-            <FaUser className="text-gray-600" />
-            <p>{ticket.fullName}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaEnvelope className="text-gray-600" />
-            <p>{ticket.email}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaPhone className="text-gray-600" />
-            <p>{ticket.phoneNumber}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaCalendarAlt className="text-gray-600" />
-            <p>{new Date(ticket.incidentDate).toLocaleDateString()}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaMapMarkerAlt className="text-gray-600" />
-            <p>{ticket.state}, {ticket.address}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <FaBuilding className="text-gray-600" />
-            <p>{ticket.assignedMDAName}</p>
-          </div>
+    { }
+    <div className="mt-6 p-5 bg-white shadow-md rounded-lg border">
+      <h3 className="font-semibold text-lg mb-3">User Details</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-700 text-sm">
+        <div className="flex items-center gap-2">
+          <FaUser className="text-gray-600" />
+          <p>{ticket.fullName}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <FaEnvelope className="text-gray-600" />
+          <p>{ticket.email}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <FaPhone className="text-gray-600" />
+          <p>{ticket.phoneNumber}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <FaCalendarAlt className="text-gray-600" />
+          <p>{new Date(ticket.incidentDate).toLocaleDateString()}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <FaMapMarkerAlt className="text-gray-600" />
+          <p>{ticket.state}, {ticket.address}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <FaBuilding className="text-gray-600" />
+          <p>{ticket.assignedMDAName}</p>
         </div>
       </div>
+    </div>
 
-      {}
-      {fileUrls.length > 0 && <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-          <h3 className="font-semibold text-lg mb-2">Uploaded Files</h3>
-          <ul className="list-disc pl-5">
-            {fileUrls.map((url, index) => <li key={index}>
-                <a href={url} target="_blank" rel="noopener noreferrer" className={`text-blue-500 hover:underline flex items-center gap-1 ${isClosedOrResolved ? "pointer-events-none opacity-50" : ""}`}>
-                  <FaFileAlt className="text-gray-500" /> View Document {index + 1}
-                </a>
-              </li>)}
-          </ul>
-        </div>}
+    { }
+    {fileUrls.length > 0 && <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+      <h3 className="font-semibold text-lg mb-2">Uploaded Files</h3>
+      <ul className="list-disc pl-5">
+        {fileUrls.map((url, index) => <li key={index}>
+          <a href={url} target="_blank" rel="noopener noreferrer" className={`text-blue-500 hover:underline flex items-center gap-1 ${isClosedOrResolved ? "pointer-events-none opacity-50" : ""}`}>
+            <FaFileAlt className="text-gray-500" /> View Document {index + 1}
+          </a>
+        </li>)}
+      </ul>
+    </div>}
 
-      {}
+    { }
 
 
-    {}
-       {!isClosedOrResolved && <div className="mt-6">
-           <TicketComments ticketId={ticketId as string} />
-         </div>}
-    </div>;
+    { }
+    <div className="mt-6">
+      <TicketComments ticketId={ticketId as string} readOnly={isClosedOrResolved} />
+    </div>
+  </div>;
 }

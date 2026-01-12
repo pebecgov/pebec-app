@@ -17,9 +17,11 @@ import FileUploader from "./file-uploader-comments";
 import { formatRole } from "@/lib/formatters";
 
 export default function TicketComments({
-  ticketId
+  ticketId,
+  readOnly = false
 }: {
   ticketId: string;
+  readOnly?: boolean;
 }) {
   const {
     userId: clerkUserId
@@ -97,7 +99,7 @@ export default function TicketComments({
   return <div className="w-full bg-white p-6 rounded-lg shadow-md">
     <h3 className="text-xl font-semibold mb-4">Updates ({comments?.length || 0})</h3>
 
-    <div className="flex flex-col gap-3 mb-6">
+    {!readOnly && <div className="flex flex-col gap-3 mb-6">
       <div className="relative">
         <Textarea value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." rows={3} className="resize-none border p-2 rounded-md pr-10" />
         <div className="absolute top-2 right-2">
@@ -121,7 +123,7 @@ export default function TicketComments({
       <Button onClick={handleAddComment} className="w-fit mt-2">
         Post
       </Button>
-    </div>
+    </div>}
 
 
     <ul className="space-y-6">
