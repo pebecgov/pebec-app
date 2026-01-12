@@ -2,12 +2,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { getNextWorkingDays, formatDateForDisplay, formatDateForAPI, isWorkingDay } from "@/lib/dateUtils";
 import { format } from "date-fns";
+import { useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 interface RoomAvailabilityCardProps {
   title: string;
@@ -18,8 +21,11 @@ interface RoomAvailabilityCardProps {
 }
 
 export default function RoomAvailabilityCard({ title, bookings, href, room, showBookButton = true }: RoomAvailabilityCardProps) {
+  const { user } = useUser();
+  const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
+  const deleteBooking = useMutation(api.meetings.deleteRoomBooking);
   const [selectedDay, setSelectedDay] = useState(new Date());
-  
+
   // Get next 5 working days from today
   const workingDays = useMemo(() => {
     return getNextWorkingDays(new Date(), 5);
@@ -38,7 +44,7 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
 
 
   const formatRange = (b: any) => `${b.startTime} - ${b.endTime}`;
-  
+
   // Get all unique attendee IDs from all bookings
   const allAttendeeIds = useMemo(() => {
     return displayBookings
@@ -47,12 +53,12 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
       .filter((id): id is Id<"users"> => id !== undefined)
       .filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
   }, [displayBookings]);
-  
+
   const attendeeUsers = useQuery(
-    api.meetings.getUsersByIds, 
+    api.meetings.getUsersByIds,
     allAttendeeIds.length > 0 ? { userIds: allAttendeeIds as Id<"users">[] } : "skip"
   ) || [];
-  
+
   const getAttendeeNames = (attendeeIds: string[]) => {
     if (!attendeeIds || attendeeIds.length === 0) return [];
     return attendeeIds.map(id => {
@@ -89,8 +95,18 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
     }
   };
 
+  const handleDelete = async (bookingId: string) => {
+    if (!convexUser?._id) return;
+    try {
+      await deleteBooking({ bookingId: bookingId as any, requesterId: convexUser._id });
+      toast.success("Booking deleted successfully");
+    } catch (e: any) {
+      toast.error("Failed to delete booking. Please try again.");
+    }
+  };
+
   const isToday = selectedDay.toDateString() === new Date().toDateString();
-  
+
   return (
     <div className="bg-white border rounded-2xl p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
@@ -152,12 +168,11 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
               <li key={b._id} className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-medium">{formatRange(b)}</span>
-                  <span 
-                    className={`text-xs font-medium capitalize px-2 py-1 rounded-full ${
-                      (b.meetingType || "internal") === "internal" 
-                        ? "bg-white text-gray-700" 
-                        : "bg-black text-white"
-                    }`}
+                  <span
+                    className={`text-xs font-medium capitalize px-2 py-1 rounded-full ${(b.meetingType || "internal") === "internal"
+                      ? "bg-white text-gray-700"
+                      : "bg-black text-white"
+                      }`}
                   >
                     {(b.meetingType || "internal") === "internal" ? "Internal" : "External"}
                   </span>
@@ -172,7 +187,7 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
                   <div className="mt-2">
                     <span className="text-xs text-gray-500">
                       Attendees ({b.attendees.length}): {
-                        attendeeUsers.length > 0 
+                        attendeeUsers.length > 0
                           ? getAttendeeNames(b.attendees).join(", ")
                           : "Loading..."
                       }
@@ -187,10 +202,19 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
                   </div>
                 )}
                 {b.createdAt && (
-                  <div className="mt-2">
-                    <span className="text-xs text-gray-400">
-                      Booked on {format(new Date(b.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                    </span>
+                  <div className="mt-2 text-xs text-gray-400 flex items-center justify-between">
+                    <span>Booked on {format(new Date(b.createdAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                    {(convexUser?._id === b.createdBy || convexUser?.role === "admin") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleDelete(b._id)}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 )}
               </li>
@@ -198,6 +222,6 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
           </ul>
         )}
       </div>
-    </div>
+    </div >
   );
 }

@@ -17,6 +17,7 @@ import StaffMemberSelector from "@/components/StaffMemberSelector";
 import EditMeetingModal from "@/components/EditMeetingModal";
 import RoomAvailabilityCard from "@/components/RoomAvailabilityCard";
 import { isWorkingDay } from "@/lib/dateUtils";
+import { format } from "date-fns";
 
 type RoomKey = "staff_conference" | "dg_conference";
 
@@ -48,7 +49,7 @@ export default function StaffRoomsPage() {
 
   const dateStr = useMemo(() => (selectedDate ? selectedDate.toISOString().split("T")[0] : ""), [selectedDate]);
   const bookings = useQuery(api.meetings.listRoomBookingsByDate, dateStr ? { room, date: dateStr } : "skip") || [];
-  
+
   // Get all unique attendee IDs from all bookings
   const allAttendeeIds = useMemo(() => {
     return bookings
@@ -57,12 +58,12 @@ export default function StaffRoomsPage() {
       .filter((id): id is Id<"users"> => id !== undefined)
       .filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
   }, [bookings]);
-  
+
   const attendeeUsers = useQuery(
-    api.meetings.getUsersByIds, 
+    api.meetings.getUsersByIds,
     allAttendeeIds.length > 0 ? { userIds: allAttendeeIds } : "skip"
   ) || [];
-  
+
   const getAttendeeNames = (attendeeIds: string[]) => {
     if (!attendeeIds || attendeeIds.length === 0) return [];
     return attendeeIds.map(id => {
@@ -77,21 +78,21 @@ export default function StaffRoomsPage() {
   // Check for booking conflicts
   const hasConflict = useMemo(() => {
     if (!startTime || !endTime || !selectedDate) return false;
-    
+
     const s = new Date(selectedDate);
     s.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
     const e = new Date(selectedDate);
     e.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
-    
+
     return bookings.some((booking: any) => {
       const bookingStart = new Date(selectedDate);
       const [startHour, startMin] = booking.startTime.split(':').map(Number);
       bookingStart.setHours(startHour, startMin, 0, 0);
-      
+
       const bookingEnd = new Date(selectedDate);
       const [endHour, endMin] = booking.endTime.split(':').map(Number);
       bookingEnd.setHours(endHour, endMin, 0, 0);
-      
+
       // Check if there's any overlap
       return (s < bookingEnd && e > bookingStart);
     });
@@ -168,8 +169,8 @@ export default function StaffRoomsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       {/* Back Button */}
-      <Button 
-        variant="ghost" 
+      <Button
+        variant="ghost"
         onClick={handleBack}
         className="mb-4 flex items-center gap-2 hover:bg-gray-100"
       >
@@ -181,203 +182,200 @@ export default function StaffRoomsPage() {
 
       {/* Tabs */}
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6">
-      <button
+        <button
           onClick={() => setActiveTab("booking")}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-            activeTab === "booking"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${activeTab === "booking"
+            ? "bg-white text-gray-900 shadow-sm"
+            : "text-gray-600 hover:text-gray-900"
+            }`}
         >
           Book Room
         </button>
         <button
           onClick={() => setActiveTab("daily")}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-            activeTab === "daily"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${activeTab === "daily"
+            ? "bg-white text-gray-900 shadow-sm"
+            : "text-gray-600 hover:text-gray-900"
+            }`}
         >
-         Today&apos;s Meetings
+          Today&apos;s Meetings
         </button>
         <button
           onClick={() => setActiveTab("weekly")}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-            activeTab === "weekly"
-              ? "bg-white text-gray-900 shadow-sm"
-              : "text-gray-600 hover:text-gray-900"
-          }`}
+          className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${activeTab === "weekly"
+            ? "bg-white text-gray-900 shadow-sm"
+            : "text-gray-600 hover:text-gray-900"
+            }`}
         >
-         Scheduled Meetings
+          Scheduled Meetings
         </button>
-       
+
       </div>
 
-   {/* Booking Tab */}
-   {activeTab === "booking" && (
+      {/* Booking Tab */}
+      {activeTab === "booking" && (
         <div className="space-y-6">
           {/* Booking Form */}
-      <div className="bg-white p-4 rounded-lg shadow">
-        <h2 className="text-lg font-semibold mb-4">Book a Room</h2>
-        
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium mb-1">Room</label>
-            <select
-              className="w-full border rounded px-3 py-2"
-              value={room}
-              onChange={(e) => setRoom(e.target.value as RoomKey)}
-            >
-              <option value="staff_conference">Staff Conference Room</option>
-              <option value="dg_conference">DG Conference Room</option>
-            </select>
-          </div>
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h2 className="text-lg font-semibold mb-4">Book a Room</h2>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Meeting Type</label>
-            <select
-              className="w-full border rounded px-3 py-2"
-              value={meetingType}
-              onChange={(e) => setMeetingType(e.target.value as "internal" | "external")}
-            >
-              <option value="internal">Internal Meeting</option>
-              <option value="external">External Meeting</option>
-            </select>
-          </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium mb-1">Room</label>
+                <select
+                  className="w-full border rounded px-3 py-2"
+                  value={room}
+                  onChange={(e) => setRoom(e.target.value as RoomKey)}
+                >
+                  <option value="staff_conference">Staff Conference Room</option>
+                  <option value="dg_conference">DG Conference Room</option>
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Date</label>
-            <DatePicker 
-              selected={selectedDate} 
-              onChange={(d) => setSelectedDate(d)} 
-              minDate={new Date()} 
-              filterDate={(date) => isWorkingDay(date)}
-              className="w-full border rounded px-3 py-2" 
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Meeting Type</label>
+                <select
+                  className="w-full border rounded px-3 py-2"
+                  value={meetingType}
+                  onChange={(e) => setMeetingType(e.target.value as "internal" | "external")}
+                >
+                  <option value="internal">Internal Meeting</option>
+                  <option value="external">External Meeting</option>
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Start Time</label>
-            <TimePicker value={startTime} onChange={setStartTime} placeholder="Select start time" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">End Time</label>
-            <TimePicker value={endTime} onChange={setEndTime} placeholder="Select end time" />
-          </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Date</label>
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={(d) => setSelectedDate(d)}
+                  minDate={new Date()}
+                  filterDate={(date) => isWorkingDay(date)}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
 
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Title (optional)</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border rounded px-3 py-2" />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Description (optional)</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border rounded px-3 py-2" rows={3} />
-          </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Start Time</label>
+                <TimePicker value={startTime} onChange={setStartTime} placeholder="Select start time" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">End Time</label>
+                <TimePicker value={endTime} onChange={setEndTime} placeholder="Select end time" />
+              </div>
 
-          {/* Staff Member Selection - Only show for internal meetings */}
-          {meetingType === "internal" && (
-            <div className="md:col-span-2">
-              <StaffMemberSelector
-                selectedStaff={attendees}
-                onStaffChange={setAttendees}
-                disabled={hasConflict}
-              />
-            </div>
-          )}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Title (optional)</label>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border rounded px-3 py-2" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Description (optional)</label>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border rounded px-3 py-2" rows={3} />
+              </div>
 
-          {/* Conflict Warning */}
-          {hasConflict && (
-            <div className="md:col-span-2">
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                <p className="text-red-800 text-sm">
-                  ⚠️ This time slot conflicts with an existing booking. Please choose a different time.
-                </p>
+              {/* Staff Member Selection - Only show for internal meetings */}
+              {meetingType === "internal" && (
+                <div className="md:col-span-2">
+                  <StaffMemberSelector
+                    selectedStaff={attendees}
+                    onStaffChange={setAttendees}
+                    disabled={hasConflict}
+                  />
+                </div>
+              )}
+
+              {/* Conflict Warning */}
+              {hasConflict && (
+                <div className="md:col-span-2">
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                    <p className="text-red-800 text-sm">
+                      ⚠️ This time slot conflicts with an existing booking. Please choose a different time.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="md:col-span-2 flex justify-end">
+                <Button
+                  onClick={handleCreate}
+                  disabled={hasConflict}
+                  className={hasConflict ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  Book Room
+                </Button>
               </div>
             </div>
-          )}
-
-          <div className="md:col-span-2 flex justify-end">
-            <Button 
-              onClick={handleCreate}
-              disabled={hasConflict}
-              className={hasConflict ? "opacity-50 cursor-not-allowed" : ""}
-            >
-              Book Room
-            </Button>
           </div>
-        </div>
-      </div>
         </div>
       )}
       {/* Daily View Tab */}
       {activeTab === "daily" && (
         <div className="space-y-6">
           {/* Bookings Display */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Bookings for {dateStr}</h2>
-        </div>
-        {bookings.length === 0 ? (
-          <p className="text-sm text-gray-600">No bookings for this date.</p>
-        ) : (
-          <ul className="divide-y">
-            {bookings.map((b: any) => (
-              <li key={b._id} className="py-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{b.startTime} - {b.endTime} ({b.room === "staff_conference" ? "Staff Room" : "DG Room"})</p>
-                  <p className="text-sm text-gray-500 capitalize">{b.meetingType || "internal"} meeting</p>
-                  {(b.title || b.description) && (
-                    <p className="text-sm text-gray-600">{b.title || b.description}</p>
-                  )}
-                  {b.attendees && b.attendees.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">Attendees ({b.attendees.length}):</p>
-                      <div className="flex flex-wrap gap-1">
-                        {attendeeUsers.length > 0 ? (
-                          getAttendeeNames(b.attendees).map((name, index) => (
-                            <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                              {name}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-400">Loading...</span>
-                        )}
-                      </div>
+          <div className="bg-white p-4 rounded-lg shadow mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Bookings for {dateStr}</h2>
+            </div>
+            {bookings.length === 0 ? (
+              <p className="text-sm text-gray-600">No bookings for this date.</p>
+            ) : (
+              <ul className="divide-y">
+                {bookings.map((b: any) => (
+                  <li key={b._id} className="py-3 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{b.startTime} - {b.endTime} ({b.room === "staff_conference" ? "Staff Room" : "DG Room"})</p>
+                      <p className="text-sm text-gray-500 capitalize">{b.meetingType || "internal"} meeting</p>
+                      {(b.title || b.description) && (
+                        <p className="text-sm text-gray-600">{b.title || b.description}</p>
+                      )}
+                      {b.attendees && b.attendees.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500 mb-1">Attendees ({b.attendees.length}):</p>
+                          <div className="flex flex-wrap gap-1">
+                            {attendeeUsers.length > 0 ? (
+                              getAttendeeNames(b.attendees).map((name, index) => (
+                                <span key={index} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                  {name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-400">Loading...</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {b.createdAt && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Booked on {format(new Date(b.createdAt), "MMM d, yyyy 'at' h:mm a")}
+                        </p>
+                      )}
                     </div>
-                  )}
-                  {b.createdAt && (
-                    <p className="text-xs text-gray-400 mt-2">
-                      Booked on {format(new Date(b.createdAt), "MMM d, yyyy 'at' h:mm a")}
-                    </p>
-                  )}
-                </div>
-                {(convexUser?._id === b.createdBy || convexUser?.role === "admin") && (
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEdit(b)}>
-                      <Edit className="w-4 h-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(b._id)}>Delete</Button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                    {(convexUser?._id === b.createdBy || convexUser?.role === "admin") && (
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(b)}>
+                          <Edit className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDelete(b._id)}>Delete</Button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
       {/* Weekly View Tab */}
       {activeTab === "weekly" && (
         <div className="space-y-6">
-        
+
 
           <div className="grid lg:px-36 grid-cols-1 gap-6">
-            <RoomAvailabilityCard 
-              title="Staff Conference Room" 
-              href="/staff/rooms" 
+            <RoomAvailabilityCard
+              title="Staff Conference Room"
+              href="/staff/rooms"
               room="staff_conference"
               showBookButton={false}
             />
@@ -385,7 +383,7 @@ export default function StaffRoomsPage() {
         </div>
       )}
 
-   
+
 
       {/* Edit Modal */}
       {editingBooking && (

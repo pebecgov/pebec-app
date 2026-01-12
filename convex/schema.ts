@@ -558,7 +558,10 @@ export default defineSchema({
     assignedTo: v.optional(v.array(v.id("users"))),
     assignedToName: v.optional(v.array(v.string())),
     assignedStream: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("pending"), v.literal("acknowledged"), v.literal("in_progress"), v.literal("resolved")))
+    status: v.optional(v.union(v.literal("pending"), v.literal("acknowledged"), v.literal("in_progress"), v.literal("resolved"))),
+    viewedBy: v.optional(v.id("users")), // First person who viewed the files
+    viewedByName: v.optional(v.string()), // Name of first viewer
+    viewedAt: v.optional(v.number()) // Timestamp of first view
   }).index("byEmail", ["email"]).index("byStatus", ["status"]),
   contact_messages: defineTable({
     name: v.string(),

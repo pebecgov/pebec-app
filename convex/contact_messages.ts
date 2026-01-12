@@ -35,12 +35,13 @@ export const createContactMessage = mutation({
                 createdAt: Date.now(),
                 type: "contact_message"
             });
+        }
 
-            // Send email notification to admin
-            await ctx.scheduler.runAfter(1000, api.email.sendEmail, {
-                to: admin.email,
-                subject: `New Contact Message: ${args.subject}`,
-                html: `
+        // Send email notification to info@pebec.gov.ng
+        await ctx.scheduler.runAfter(1000, api.email.sendEmail, {
+            to: "info@pebec.gov.ng",
+            subject: `New Contact Message: ${args.subject}`,
+            html: `
           <h2>New Contact Form Submission</h2>
           <p><strong>Name:</strong> ${args.name}</p>
           <p><strong>Email:</strong> ${args.email}</p>
@@ -48,8 +49,7 @@ export const createContactMessage = mutation({
           <p><strong>Subject:</strong> ${args.subject}</p>
           <p><strong>Message:</strong><br/>${args.message}</p>
         `
-            });
-        }
+        });
 
         return {
             messageId

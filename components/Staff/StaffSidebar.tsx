@@ -66,15 +66,18 @@ export default function Sidebar({
     name: "Dashboard",
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff"
-  }, {
+  }, 
+  {
     name: "Meeting Rooms",
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/rooms"
-  }, {
-    name: "Internal letters",
-    icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/letters"
-  }, {
+  },
+  //  {
+  //   name: "Internal letters",
+  //   icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+  //   path: "/staff/letters"
+  // }, 
+  {
     name: "Kanboard",
     icon: <ClipboardDocumentIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/kanban"
