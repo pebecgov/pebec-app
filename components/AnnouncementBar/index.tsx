@@ -51,7 +51,7 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex-1 text-center">
                         <span className="inline-flex items-center gap-2 text-sm md:text-base font-medium">
-                            NEW REPORT: 2025 Sub-national Ease of Doing Business and BFA Performance Report Now Available — Download Here →
+                            The 2025 Subnational Ease of Doing Business and Business Facilitation Act Performance Report Now Available → Download Here
                         </span>
                     </div>
                     <button
