@@ -29,7 +29,7 @@ export const createMediaPost = mutation({
     pictureIds: v.array(v.id("_storage")),
     videoUrls: v.optional(v.array(v.string())),
     categoryId: v.id("mediaCategories"),
-    eventDate: v.optional(v.number())
+    eventDate: v.optional(v.number()) // Optional in schema for backward compatibility, but required in UI
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("media", {
@@ -45,7 +45,13 @@ export const getMediaByCategory = query({
   handler: async (ctx, {
     categoryId
   }) => {
-    return await ctx.db.query("media").filter(q => q.eq(q.field("categoryId"), categoryId)).order("desc").collect();
+    const media = await ctx.db.query("media").filter(q => q.eq(q.field("categoryId"), categoryId)).collect();
+    // Sort by eventDate (if available) or createdAt, descending (newest first)
+    return media.sort((a, b) => {
+      const dateA = a.eventDate ?? a.createdAt;
+      const dateB = b.eventDate ?? b.createdAt;
+      return dateB - dateA; // Descending order
+    });
   }
 });
 export const generateUploadUrl = mutation({
@@ -57,8 +63,14 @@ export const generateUploadUrl = mutation({
 export const getAllMedia = query({
   args: {},
   handler: async ctx => {
-    const media = await ctx.db.query("media").order("desc").collect();
-    return Promise.all(media.map(async item => {
+    const media = await ctx.db.query("media").collect();
+    // Sort by eventDate (if available) or createdAt, descending (newest first)
+    const sortedMedia = media.sort((a, b) => {
+      const dateA = a.eventDate ?? a.createdAt;
+      const dateB = b.eventDate ?? b.createdAt;
+      return dateB - dateA; // Descending order
+    });
+    return Promise.all(sortedMedia.map(async item => {
       const coverImageUrl = item.pictureIds?.[0] ? await ctx.storage.getUrl(item.pictureIds[0]) : null;
       return {
         ...item,
@@ -86,8 +98,14 @@ export const getMediaById = query({
 export const getMediaWithUrls = query({
   args: {},
   handler: async ctx => {
-    const mediaPosts = await ctx.db.query("media").order("desc").collect();
-    return await Promise.all(mediaPosts.map(async post => {
+    const mediaPosts = await ctx.db.query("media").collect();
+    // Sort by eventDate (if available) or createdAt, descending (newest first)
+    const sortedMedia = mediaPosts.sort((a, b) => {
+      const dateA = a.eventDate ?? a.createdAt;
+      const dateB = b.eventDate ?? b.createdAt;
+      return dateB - dateA; // Descending order
+    });
+    return await Promise.all(sortedMedia.map(async post => {
       const pictureUrls = await Promise.all(post.pictureIds.map(async id => {
         const url = await ctx.storage.getUrl(id);
         return url;
