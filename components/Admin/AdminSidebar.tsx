@@ -20,11 +20,11 @@ export default function Sidebar({
   const currentUser = useQuery(api.users.getCurrentUsers);
   const allowedPaths = currentUser?.permissions || [];
   const userRole = currentUser?.role;
-  
+
   // For admin users with no specific permissions set, show everything
   // For staff users, only show what they have explicit permissions for
   const shouldShowAllItems = userRole === "admin" && allowedPaths.length === 0;
-  
+
 
 
   useEffect(() => {
@@ -73,6 +73,9 @@ export default function Sidebar({
     }, {
       name: "Business Letters",
       path: "/admin/business-letters"
+    }, {
+      name: "Contact Messages",
+      path: "/admin/messages"
     }, {
       name: "Report Templates",
       path: "/admin/internal-reports"
@@ -175,20 +178,20 @@ export default function Sidebar({
     }]
   }];
   return <>
-      <aside className={`bg-white shadow-lg h-screen fixed transition-all duration-300 z-50 border-r border-gray-200 flex flex-col 
+    <aside className={`bg-white shadow-lg h-screen fixed transition-all duration-300 z-50 border-r border-gray-200 flex flex-col 
         ${isOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"} 
         md:translate-x-0 md:w-${isOpen ? "64" : "16"} md:relative`}>
-        <div className="flex items-center justify-between p-4 border-b border-gray-300">
-          <h2 className={`text-lg font-semibold text-gray-700 ${isOpen ? "block" : "hidden"}`}>
-            Admin Dashboard
-          </h2>
+      <div className="flex items-center justify-between p-4 border-b border-gray-300">
+        <h2 className={`text-lg font-semibold text-gray-700 ${isOpen ? "block" : "hidden"}`}>
+          Admin Dashboard
+        </h2>
 
-          <button className="hidden md:flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full shadow-md hover:bg-gray-300 transition" onClick={() => setIsOpen(!isOpen)}>
-            {isOpen ? <FaAngleDoubleLeft className="text-gray-700" /> : <FaAngleDoubleRight className="text-gray-700" />}
-          </button>
-        </div>
+        <button className="hidden md:flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full shadow-md hover:bg-gray-300 transition" onClick={() => setIsOpen(!isOpen)}>
+          {isOpen ? <FaAngleDoubleLeft className="text-gray-700" /> : <FaAngleDoubleRight className="text-gray-700" />}
+        </button>
+      </div>
 
-        <nav className="mt-6 flex-grow overflow-y-hidden hover:overflow-y-auto">
+      <nav className="mt-6 flex-grow overflow-y-hidden hover:overflow-y-auto">
         {menuSections.filter(section => {
           if (shouldShowAllItems) return true;
           if (section.path) return allowedPaths.includes(section.path);
@@ -197,47 +200,47 @@ export default function Sidebar({
           }
           return false;
         }).map(section => <div key={section.name}>
-              {section.items ? <div>
-                  <div className="flex items-center justify-between p-4 rounded-lg cursor-pointer hover:bg-gray-100" onClick={() => {
+          {section.items ? <div>
+            <div className="flex items-center justify-between p-4 rounded-lg cursor-pointer hover:bg-gray-100" onClick={() => {
               if (!isOpen) return setIsOpen(true);
               toggleDropdown(section.name);
             }} title={!isOpen ? section.name : undefined}>
-                    <div className="flex items-center gap-3">
-                      {section.icon}
-                      <span className={`${isOpen ? "block" : "hidden"}`}>{section.name}</span>
-                    </div>
-                    {isOpen && (openDropdowns[section.name] ? <FaChevronUp /> : <FaChevronDown />)}
-                  </div>
-                  {openDropdowns[section.name] && <div className="pl-2 space-y-1">
-    {section.items.filter(item => shouldShowAllItems || allowedPaths.includes(item.path)).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
-          <div className={`pl-6 py-2 rounded-md transition-colors cursor-pointer
+              <div className="flex items-center gap-3">
+                {section.icon}
+                <span className={`${isOpen ? "block" : "hidden"}`}>{section.name}</span>
+              </div>
+              {isOpen && (openDropdowns[section.name] ? <FaChevronUp /> : <FaChevronDown />)}
+            </div>
+            {openDropdowns[section.name] && <div className="pl-2 space-y-1">
+              {section.items.filter(item => shouldShowAllItems || allowedPaths.includes(item.path)).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
+                <div className={`pl-6 py-2 rounded-md transition-colors cursor-pointer
               ${pathname === item.path ? "bg-green-100 text-green-800 font-medium" : "text-gray-700 hover:bg-gray-100"}
             `}>
-            {item.name}
-          </div>
-        </Link>)}
-  </div>}
+                  {item.name}
+                </div>
+              </Link>)}
+            </div>}
 
-                </div> : <Link href={section.path} onClick={handleCloseSidebar}>
-                  <div className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100  transition-all duration-300 ${pathname === section.path ? "bg-green-500 text-white hover:bg-green-600" : ""}`} title={!isOpen ? section.name : undefined}>
-                    {section.icon}
-                    <span className={`ml-4 ${isOpen ? "block" : "hidden"}`}>{section.name}</span>
-                  </div>
-                </Link>}
-            </div>)}
-        </nav>
+          </div> : <Link href={section.path} onClick={handleCloseSidebar}>
+            <div className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100  transition-all duration-300 ${pathname === section.path ? "bg-green-500 text-white hover:bg-green-600" : ""}`} title={!isOpen ? section.name : undefined}>
+              {section.icon}
+              <span className={`ml-4 ${isOpen ? "block" : "hidden"}`}>{section.name}</span>
+            </div>
+          </Link>}
+        </div>)}
+      </nav>
 
-        <div className="mt-auto p-2">
-          <SignOutButton redirectUrl="/">
-            <button className={`flex items-center justify-center gap-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition
+      <div className="mt-auto p-2">
+        <SignOutButton redirectUrl="/">
+          <button className={`flex items-center justify-center gap-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition
                 ${isOpen ? "px-4 py-2 w-40" : "w-12 h-12"}`}>
-              <LogOut className={`w-${isOpen ? "5" : "7"} h-${isOpen ? "5" : "7"}`} />
-              <span className={`text-base ${isOpen ? "block" : "hidden"}`}>Logout</span>
-            </button>
-          </SignOutButton>
-        </div>
-      </aside>
+            <LogOut className={`w-${isOpen ? "5" : "7"} h-${isOpen ? "5" : "7"}`} />
+            <span className={`text-base ${isOpen ? "block" : "hidden"}`}>Logout</span>
+          </button>
+        </SignOutButton>
+      </div>
+    </aside>
 
-      {isOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={() => setIsOpen(false)}></div>}
-    </>;
+    {isOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={() => setIsOpen(false)}></div>}
+  </>;
 }

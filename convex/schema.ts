@@ -559,6 +559,17 @@ export default defineSchema({
     assignedStream: v.optional(v.string()),
     status: v.optional(v.union(v.literal("pending"), v.literal("acknowledged"), v.literal("in_progress"), v.literal("resolved")))
   }).index("byEmail", ["email"]).index("byStatus", ["status"]),
+  contact_messages: defineTable({
+    name: v.string(),
+    email: v.string(),
+    subject: v.string(),
+    phone: v.optional(v.string()),
+    message: v.string(),
+    createdAt: v.number(),
+    assignedTo: v.optional(v.array(v.id("users"))),
+    assignedToName: v.optional(v.array(v.string())),
+    status: v.optional(v.union(v.literal("pending"), v.literal("viewed"), v.literal("replied"), v.literal("acknowledged"), v.literal("in_progress"), v.literal("resolved")))
+  }).index("byEmail", ["email"]).index("byStatus", ["status"]).index("byCreatedAt", ["createdAt"]),
   newsletter_subscribers: defineTable({
     email: v.string(),
     name: v.optional(v.string()),

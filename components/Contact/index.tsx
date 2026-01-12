@@ -330,8 +330,7 @@ import { api } from "@/convex/_generated/api";
 import { toast, Toaster } from "sonner";
 
 export const Contact = () => {
-  const getAdminEmails = useMutation(api.users.getAdminEmails);
-  const sendEmail = useAction(api.sendEmail.sendEmail);
+  const createContactMessage = useMutation(api.contact_messages.createContactMessage);
   const subscribeToNewsletter = useMutation(api.newsletters.subscribeToNewsletter);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [openModal, setOpenModal] = useState(false);
@@ -371,20 +370,13 @@ export const Contact = () => {
     }
 
     try {
-      const adminEmails = await getAdminEmails();
-      const htmlContent = `
-        <h2>New Contact Form Submission</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Phone:</strong> ${phone || "N/A"}</p>
-        <p><strong>Message:</strong><br/>${message}</p>
-      `;
-
-      await Promise.all(adminEmails.map((to: string) => sendEmail({
-        to,
-        subject: `[Contact] ${subject}`,
-        html: htmlContent
-      })));
+      await createContactMessage({
+        name,
+        email,
+        subject,
+        phone: phone || undefined,
+        message
+      });
 
       toast.success("Message sent successfully!");
       setFormData({
