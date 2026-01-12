@@ -186,7 +186,8 @@ export default defineSchema({
     content: v.string(),
     coverImageId: v.optional(v.id("_storage")),
     authorId: v.id("users"),
-    likes: v.number()
+    likes: v.number(),
+    publishedDate: v.optional(v.number()) // Date the article was published/occurred, not when created
   }).index("bySlug", ["slug"]),
   notifications: defineTable({
     userId: v.optional(v.id("users")),

@@ -54,7 +54,7 @@ export default function PostItem({
               </Avatar>
               <div>
                 <h2 className="text-sm font-bold">{combineName(post.author)}</h2>
-                <p className="text-xs text-gray-500">{formatDate(post._creationTime)}</p>
+                <p className="text-xs text-gray-500">{formatDate(post.publishedDate ?? post._creationTime)}</p>
               </div>
             </div>
 
@@ -101,7 +101,7 @@ export default function PostItem({
               <div className="flex flex-wrap items-center gap-4 text-gray-500 text-sm mt-4">
                 <div className="flex items-center gap-2">
                   <Sparkle className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                  <span>{formatDate(post._creationTime)}</span>
+                  <span>{formatDate(post.publishedDate ?? post._creationTime)}</span>
                 </div>
                 <Separator orientation="vertical" className="h-4 hidden sm:block" />
                 <div className="flex items-center gap-2">

@@ -74,7 +74,7 @@ export default function Post({
               {combineName(post.author)}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {formatDate(post._creationTime)}
+              {formatDate(post.publishedDate ?? post._creationTime)}
             </p>
           </div>
         </div>

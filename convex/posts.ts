@@ -9,8 +9,14 @@ export const generateUploadUrl = mutation(async ctx => {
 export const getPosts = query({
   args: {},
   handler: async ctx => {
-    const posts = await ctx.db.query("posts").order("desc").collect();
-    return Promise.all(posts.map(async post => {
+    const posts = await ctx.db.query("posts").collect();
+    // Sort by publishedDate (if available) or _creationTime, descending (newest first)
+    const sortedPosts = posts.sort((a, b) => {
+      const dateA = a.publishedDate ?? a._creationTime;
+      const dateB = b.publishedDate ?? b._creationTime;
+      return dateB - dateA; // Descending order
+    });
+    return Promise.all(sortedPosts.map(async post => {
       const author = await ctx.db.get(post.authorId);
       if (!author) {
         console.warn(`🚨 Author not found for post: ${post._id}`);
@@ -44,8 +50,14 @@ export const getPosts = query({
 export const getRecentPosts = query({
   args: {},
   handler: async ctx => {
-    const posts = await ctx.db.query("posts").order("desc").take(4);
-    return Promise.all(posts.map(async post => {
+    const posts = await ctx.db.query("posts").collect();
+    // Sort by publishedDate (if available) or _creationTime, descending (newest first)
+    const sortedPosts = posts.sort((a, b) => {
+      const dateA = a.publishedDate ?? a._creationTime;
+      const dateB = b.publishedDate ?? b._creationTime;
+      return dateB - dateA; // Descending order
+    }).slice(0, 4);
+    return Promise.all(sortedPosts.map(async post => {
       const author = await ctx.db.get(post.authorId);
       return {
         ...post,
@@ -81,7 +93,8 @@ export const createPost = mutation({
     slug: v.string(),
     excerpt: v.string(),
     content: v.string(),
-    coverImageId: v.optional(v.id("_storage"))
+    coverImageId: v.optional(v.id("_storage")),
+    publishedDate: v.optional(v.number()) // Optional in schema for backward compatibility, but required in UI
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -150,7 +163,8 @@ export const editPost = mutation({
     title: v.string(),
     excerpt: v.string(),
     content: v.string(),
-    coverImageId: v.optional(v.id("_storage"))
+    coverImageId: v.optional(v.id("_storage")),
+    publishedDate: v.optional(v.number())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -169,7 +183,8 @@ export const editPost = mutation({
       title: args.title,
       excerpt: args.excerpt,
       content: args.content,
-      coverImageId: args.coverImageId
+      coverImageId: args.coverImageId,
+      publishedDate: args.publishedDate
     });
     return true;
   }
@@ -315,8 +330,14 @@ export const getMostLikedPostExcerpts = query({
   },
   handler: async (ctx, args) => {
     const limit = args.limit ?? 5;
-    const posts = await ctx.db.query("posts").order("desc").collect();
-    const mostLiked = posts.sort((a, b) => b.likes - a.likes).slice(0, limit).map(({
+    const posts = await ctx.db.query("posts").collect();
+    // Sort by publishedDate (if available) or _creationTime, then by likes
+    const sortedPosts = posts.sort((a, b) => {
+      const dateA = a.publishedDate ?? a._creationTime;
+      const dateB = b.publishedDate ?? b._creationTime;
+      return dateB - dateA; // Descending order
+    });
+    const mostLiked = sortedPosts.sort((a, b) => b.likes - a.likes).slice(0, limit).map(({
       slug,
       excerpt
     }) => ({

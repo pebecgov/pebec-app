@@ -55,7 +55,8 @@ export default function NewPostForm({
       content: initialData?.content ? JSON.parse(initialData.content) : {
         content: []
       },
-      coverImageId: initialData?.coverImageId || undefined
+      coverImageId: initialData?.coverImageId || undefined,
+      publishedDate: initialData?.publishedDate ? new Date(initialData.publishedDate).toISOString().split('T')[0] : ""
     }
   });
   const watchedContent = watch("content") || defaultEditorContent;
@@ -87,6 +88,9 @@ export default function NewPostForm({
     }
     if (postQuery.coverImageId) {
       setValue("coverImageId", postQuery.coverImageId as Id<"_storage">);
+    }
+    if (postQuery.publishedDate) {
+      setValue("publishedDate", new Date(postQuery.publishedDate).toISOString().split('T')[0]);
     }
   }, [postQuery, setValue]);
   const editorPost = initialData ? {
@@ -124,19 +128,22 @@ export default function NewPostForm({
     }
     try {
       let postSlug;
+      const publishedDate = data.publishedDate ? new Date(data.publishedDate).getTime() : undefined;
       if (initialData) {
         await updatePost({
           slug: initialData.slug,
           title: data.title,
           excerpt: data.excerpt,
           content: JSON.stringify(contentJson),
-          coverImageId: data.coverImageId as Id<"_storage"> | undefined
+          coverImageId: data.coverImageId as Id<"_storage"> | undefined,
+          publishedDate: publishedDate
         });
       } else {
         postSlug = await createPost({
           ...data,
           coverImageId: data.coverImageId as Id<"_storage"> | undefined,
-          content: JSON.stringify(contentJson)
+          content: JSON.stringify(contentJson),
+          publishedDate: publishedDate
         });
       }
       if (!postSlug) throw new Error("Failed to create or update post");
@@ -194,6 +201,21 @@ export default function NewPostForm({
           <Input type="text" placeholder="Post excerpt" {...register("excerpt")} />
           {errors.excerpt?.message && <p className="mt-1 px-2 text-xs text-red-400">
               {errors.excerpt.message}
+            </p>}
+        </div>
+
+        {}
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-1">Publication Date <span className="text-red-500">*</span></p>
+          <p className="text-xs text-gray-500 mb-2">This is the date the article was published/occurred, not when you're creating this post.</p>
+          <Input 
+            type="date" 
+            {...register("publishedDate")} 
+            className="w-full"
+            required
+          />
+          {errors.publishedDate?.message && <p className="mt-1 px-2 text-xs text-red-400">
+              {errors.publishedDate.message}
             </p>}
         </div>
 
