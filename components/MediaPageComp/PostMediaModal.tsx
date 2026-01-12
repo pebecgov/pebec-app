@@ -60,8 +60,8 @@ export function PostMediaModal({
     setVideoLinks(updated);
   };
   const handlePost = async () => {
-    if (!title || !categoryId || pictures.length === 0 || !convexUser) {
-      return toast.error("Please fill in all required fields.");
+    if (!title || !categoryId || pictures.length === 0 || !convexUser || !eventDate) {
+      return toast.error("Please fill in all required fields, including the event date.");
     }
     try {
       setIsUploading(true);
@@ -85,7 +85,7 @@ export function PostMediaModal({
         title,
         description: desc,
         categoryId: categoryId as Id<"mediaCategories">,
-        eventDate: eventDate ? new Date(eventDate).getTime() : undefined,
+        eventDate: new Date(eventDate).getTime(), // Required field - date the event occurred
         pictureIds: uploadedIds,
         videoUrls: videoLinks.filter(Boolean)
       });
@@ -130,13 +130,15 @@ export function PostMediaModal({
             </option>)}
         </select>
         <div>
-        <p className="text-sm text-gray-500">Date of Event (Optional)</p>
+        <p className="text-sm font-medium text-gray-700 mb-1">Date of Event <span className="text-red-500">*</span></p>
+        <p className="text-xs text-gray-500 mb-2">This is the date the event occurred, not when you're creating this post.</p>
         <Input 
           type="date" 
           value={eventDate} 
           onChange={e => setEventDate(e.target.value)} 
           placeholder="Date of Event"
           className="w-full"
+          required
         />
         </div>
          
