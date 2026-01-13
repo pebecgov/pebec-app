@@ -23,20 +23,36 @@ export const createAnnouncement = mutation({
       .query("users")
       .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", identity.subject))
       .first();
-    
+
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Check if user has an active announcement
-    const existingAnnouncement = await ctx.db
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (args.startDate < todayStr) {
+      throw new Error("You cannot select a past date.");
+    }
+
+    // Check if user has an overlapping active announcement
+    const userAnnouncements = await ctx.db
       .query("holidayAnnouncements")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .filter((q) => q.eq(q.field("isActive"), true))
-      .first();
+      .collect();
 
-    if (existingAnnouncement) {
-      throw new Error("You already have an active announcement. Please end it first.");
+    const newStart = new Date(args.startDate).getTime();
+    const newEnd = new Date(args.endDate).getTime();
+
+    const hasOverlap = userAnnouncements.some(a => {
+      const existingStart = new Date(a.startDate).getTime();
+      const existingEnd = new Date(a.endDate).getTime();
+
+      // Check for overlap: (StartA <= EndB) && (EndA >= StartB)
+      return newStart <= existingEnd && newEnd >= existingStart;
+    });
+
+    if (hasOverlap) {
+      throw new Error("You have an active leave in that time.");
     }
 
     const announcementId = await ctx.db.insert("holidayAnnouncements", {
@@ -84,7 +100,7 @@ export const getUserAnnouncements = query({
       .query("users")
       .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", identity.subject))
       .first();
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -114,7 +130,7 @@ export const endAnnouncement = mutation({
       .query("users")
       .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", identity.subject))
       .first();
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -158,7 +174,7 @@ export const updateAnnouncement = mutation({
       .query("users")
       .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", identity.subject))
       .first();
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -170,6 +186,41 @@ export const updateAnnouncement = mutation({
 
     if (announcement.userId !== user._id) {
       throw new Error("You can only update your own announcements");
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const announcementEnd = new Date(announcement.endDate).getTime();
+
+    // Prevent editing past announcements (unless it's active and extends into today/future essentially, but logical check: if end date < today, it's past)
+    // Note: JS timestamp comparison. 
+    if (announcementEnd < today) {
+      throw new Error("Cannot edit past announcements.");
+    }
+
+    if (args.startDate || args.endDate) {
+      // Check for overlaps excluding self
+      const userAnnouncements = await ctx.db
+        .query("holidayAnnouncements")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .collect();
+
+      const newStart = args.startDate ? new Date(args.startDate).getTime() : new Date(announcement.startDate).getTime();
+      const newEnd = args.endDate ? new Date(args.endDate).getTime() : new Date(announcement.endDate).getTime();
+
+      const hasOverlap = userAnnouncements.some(a => {
+        if (a._id === args.announcementId) return false; // Skip self
+
+        const existingStart = new Date(a.startDate).getTime();
+        const existingEnd = new Date(a.endDate).getTime();
+
+        return newStart <= existingEnd && newEnd >= existingStart;
+      });
+
+      if (hasOverlap) {
+        throw new Error("The new dates overlap with another active announcement.");
+      }
     }
 
     const updateData: any = {
@@ -204,7 +255,7 @@ export const deleteAnnouncement = mutation({
       .query("users")
       .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", identity.subject))
       .first();
-    
+
     if (!user) {
       throw new Error("User not found");
     }
@@ -221,5 +272,47 @@ export const deleteAnnouncement = mutation({
     await ctx.db.delete(args.announcementId);
 
     return args.announcementId;
+  },
+});
+// Get announcements filtered by type (active/upcoming vs past)
+export const getAnnouncementsByType = query({
+  args: {
+    type: v.union(v.literal("active"), v.literal("past")),
+  },
+  handler: async (ctx, args) => {
+    const announcements = await ctx.db
+      .query("holidayAnnouncements")
+      .collect();
+
+    const now = new Date();
+    // Reset time to start of day for comparison to include today in active
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    const filtered = announcements.filter(a => {
+      const endDate = new Date(a.endDate).getTime();
+
+      if (args.type === "active") {
+        // Active if end date is today or in the future
+        // We use the end of the day for the end date comparison to be inclusive
+        const endDateTime = new Date(a.endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        return endDateTime.getTime() >= today && a.isActive !== false;
+      } else {
+        // Past if end date is before today
+        const endDateTime = new Date(a.endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        return endDateTime.getTime() < today || a.isActive === false;
+      }
+    });
+
+    // Sort active by start date (ascending - nearest first)
+    // Sort past by end date (descending - most recent first)
+    return filtered.sort((a, b) => {
+      if (args.type === "active") {
+        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      } else {
+        return new Date(b.endDate).getTime() - new Date(a.endDate).getTime();
+      }
+    });
   },
 });

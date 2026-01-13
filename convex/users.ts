@@ -1200,7 +1200,7 @@ export const getStaffUsageMetrics = query({
         }>;
       }> = {};
 
-      const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
+      const staffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
 
       for (const stream of staffStreams) {
         const streamUsers = filteredStaffUsers.filter(user => user.staffStream === stream);

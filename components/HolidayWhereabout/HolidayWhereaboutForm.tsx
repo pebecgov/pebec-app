@@ -29,6 +29,8 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
 
+  const [error, setError] = useState<string | null>(null);
+
   // Clear time fields when dates change and they're no longer the same day
   React.useEffect(() => {
     if (startDate && endDate && startDate !== endDate) {
@@ -49,7 +51,8 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setError(null);
+
     if (!reason || !startDate || !endDate) {
       toast({
         title: "Error",
@@ -122,60 +125,34 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
       if (onSuccess) {
         onSuccess();
       }
-    } catch (error) {
+    } catch (err: any) {
+      // Clean up the error message
+      let errorMessage = err.message || "Failed to create Absence notice";
+
+      // Remove Convex specific prefixes/suffixes if present
+      if (errorMessage.includes("Uncaught Error: ")) {
+        errorMessage = errorMessage.split("Uncaught Error: ")[1].split("\n")[0];
+      }
+
+      // Remove "Server Error" prefix if present
+      if (errorMessage.includes("Server Error")) {
+        // Try to find the actual message part
+        const parts = errorMessage.split("Error: ");
+        if (parts.length > 1) {
+          errorMessage = parts[1].split("\n")[0];
+        }
+      }
+
+      setError(errorMessage);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create Absence notice",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const activeAnnouncement = userAnnouncements?.find(announcement => announcement.isActive);
-
-  if (activeAnnouncement) {
-    return (
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <UserIcon className="w-5 h-5" />
-            Current Absence Notice
-          </CardTitle>
-          <CardDescription>
-            You currently have an active Absence Notice
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">
-                {reasonOptions.find(opt => opt.value === activeAnnouncement.reason)?.icon}
-              </span>
-              <div>
-                <p className="font-medium">
-                  {reasonOptions.find(opt => opt.value === activeAnnouncement.reason)?.label}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {new Date(activeAnnouncement.startDate).toLocaleDateString()} - {new Date(activeAnnouncement.endDate).toLocaleDateString()}
-                  {activeAnnouncement.reason === "official_assignment" && activeAnnouncement.startTime && activeAnnouncement.endTime && (
-                    <span className="ml-2 text-blue-600">
-                      ({activeAnnouncement.startTime} - {activeAnnouncement.endTime})
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-            {activeAnnouncement.description && (
-              <p className="text-sm text-gray-700">{activeAnnouncement.description}</p>
-            )}
-            <EndAnnouncementButton announcementId={activeAnnouncement._id} />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
@@ -184,9 +161,6 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
           <CalendarIcon className="w-5 h-5" />
           Absence Notice
         </CardTitle>
-        {/* <CardDescription>
-          Announce to your team when you will not be available for work
-        </CardDescription> */}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -216,6 +190,7 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
                 id="startDate"
                 type="date"
                 value={startDate}
+                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setStartDate(e.target.value)}
                 required
               />
@@ -226,6 +201,7 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
                 id="endDate"
                 type="date"
                 value={endDate}
+                min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => setEndDate(e.target.value)}
                 required
               />
@@ -272,6 +248,13 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
             />
           </div>
 
+
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
           <Button type="submit" disabled={isSubmitting} className="w-full font-medium text-md">
             {isSubmitting ? (
               <div className="flex items-center gap-2 p-2 text">
@@ -285,41 +268,5 @@ export default function HolidayWhereaboutForm({ onSuccess }: HolidayWhereaboutFo
         </form>
       </CardContent>
     </Card>
-  );
-}
-
-function EndAnnouncementButton({ announcementId }: { announcementId: Id<"holidayAnnouncements"> }) {
-  const [isEnding, setIsEnding] = useState(false);
-  const { toast } = useToast();
-  const endAnnouncement = useMutation(api.holidayAnnouncements.endAnnouncement);
-
-  const handleEndAnnouncement = async () => {
-    setIsEnding(true);
-    try {
-      await endAnnouncement({ announcementId });
-      toast({
-        title: "Success",
-        description: "Your announcement has been ended",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to end announcement",
-        variant: "destructive",
-      });
-    } finally {
-      setIsEnding(false);
-    }
-  };
-
-  return (
-    <Button 
-      onClick={handleEndAnnouncement} 
-      disabled={isEnding}
-      variant="outline"
-      className="w-full text-md"
-    >
-      {isEnding ? "Ending..." : "End Absence Notice"}
-    </Button>
   );
 }
