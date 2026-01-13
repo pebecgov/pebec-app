@@ -24,9 +24,9 @@ const FeaturesTabItem = ({
           <p className="w-11/12">{desc2}</p>
         </div>
         <div className="relative mx-auto hidden md:block md:w-1/2">
-  <div className="w-full overflow-hidden rounded-2xl shadow-xl border border-gray-200 dark:border-strokedark">
-    <Image src={image} alt={title} width={562} height={366} className="w-full h-auto object-cover dark:hidden" />
-    <Image src={imageDark} alt={title} width={562} height={366} className="w-full h-auto object-cover hidden dark:block" />
+  <div className="w-full h-[366px] overflow-hidden rounded-2xl shadow-xl border border-gray-200 dark:border-strokedark">
+    <Image src={image} alt={title} width={562} height={366} className="w-full h-full object-cover dark:hidden" />
+    <Image src={imageDark} alt={title} width={562} height={366} className="w-full h-full object-cover hidden dark:block" />
   </div>
       </div>
 
