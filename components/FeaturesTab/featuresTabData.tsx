@@ -19,7 +19,7 @@ const featuresTabData: FeatureTab[] = [{
   title: "Legislative / Judicial Reforms",
   desc1: `An embodiment of review select existing laws relating to business facilitation in a single legislation and Specialized fast-track courts established within existing structure of Magistrates Courts`,
   desc2: `Designated to provide claimants with an accessible, inexpensive, and speedy resolution platform for simple and liquidated debt recovery disputes`,
-  image: "/images/judiciary.png",
-  imageDark: "/images/judiciary.png"
+  image: "/images/law.jpg",
+  imageDark: "/images/law.jpg"
 }];
 export default featuresTabData;
