@@ -176,6 +176,30 @@ export default function MessageBadge() {
     return () => clearInterval(cleanup);
   }, []);
 
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setUserLimit((prev) => prev + 20);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [messageableUsers]);
+
 
 
   // Filter and sort users based on search query, role filter, and last message time
@@ -791,15 +815,10 @@ export default function MessageBadge() {
                       </div>
                     ))}
 
-                    {/* Load More Button - Only show when not searching and there might be more users */}
-                    {!searchQuery && filteredUsers.length >= userLimit && (
-                      <div className="p-4 border-t border-gray-200">
-                        <button
-                          onClick={() => setUserLimit(prev => prev + 100)}
-                          className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                        >
-                          Load More Users
-                        </button>
+                    {/* Loader Sentinel for Infinite Scroll */}
+                    {!searchQuery && (messageableUsers?.length || 0) >= userLimit && (
+                      <div ref={loadMoreRef} className="p-4 flex justify-center">
+                        <div className="w-6 h-6 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
                       </div>
                     )}
                   </>
