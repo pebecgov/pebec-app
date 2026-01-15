@@ -50,6 +50,10 @@ export default function Sidebar({
     icon: <NotebookPenIcon className="w-5 h-5" />,
     path: "/admin/kanban"
   }, {
+    name: "Task Management",
+    icon: <ClipboardDocumentIcon className="w-5 h-5" />,
+    path: "/admin/tasks"
+  }, {
     name: "ReportGov",
     icon: <ExclamationTriangleIcon className="w-5 h-5" />,
     path: "/admin/tickets"

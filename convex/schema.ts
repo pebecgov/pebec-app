@@ -441,9 +441,14 @@ export default defineSchema({
     comments: v.optional(v.number()),
     attachments: v.optional(v.number()),
     dueDate: v.optional(v.number()),
+    createdBy: v.id("users"), // Admin who created/assigned the task
+    createdByName: v.optional(v.string()), // Name of admin who created the task
+    completionNotes: v.optional(v.string()), // Notes added by staff when completing/updating task
+    taskDetails: v.optional(v.string()), // Additional details/updates from staff
+    completedAt: v.optional(v.number()), // When the task was marked as done
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
-  }).index("byStatus", ["status"]).index("byAssignedTo", ["assignedTo"]),
+  }).index("byStatus", ["status"]).index("byAssignedTo", ["assignedTo"]).index("byCreatedBy", ["createdBy"]),
   reforms: defineTable({
     title: v.string(),
     description: v.string(),
