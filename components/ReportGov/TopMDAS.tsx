@@ -117,10 +117,6 @@ const TopMDAS = () => {
                 {style.icon}
               </div>
 
-              {/* MDA Icon */}
-              <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center text-xl sm:text-2xl shadow-sm mr-4 border border-slate-100">
-                {icon}
-              </div>
 
               {/* Info */}
               <div className="flex-grow min-w-0 mr-4">

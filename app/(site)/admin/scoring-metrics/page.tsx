@@ -12,9 +12,11 @@ import { toast } from "sonner";
 import ScoringMetricsDashboard from "@/components/Admin/ScoringMetricsDashboard";
 import { generateMdaScoringPDF } from "@/lib/pdfGenerator";
 import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
+import { generateScorecardPdf } from "@/lib/scorecardPdfGenerator";
 import { indicators } from "@/convex/config/indicators";
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
+import * as XLSX from "xlsx";
 
 const stateIndicatorMaxScores: Record<string, number> = Object.fromEntries(
   Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
@@ -56,6 +58,10 @@ const STATE_ALIAS_MAP: Record<string, string> = (() => {
   });
   return map;
 })();
+
+// Scorecard calculation constants
+const SCORECARD_MULTIPLIER = 1; // Weight multiplier for Bayesian averaging
+const SCORECARD_AVERAGE_TICKET_WEIGHT = 100; // Average ticket weight (percentage)
 
 const INVALID_STATE_LABELS = new Set([
   "DATA SOURCES",
@@ -429,6 +435,7 @@ export default function ScoringMetricsPage() {
   const saveTransparencyData = useMutation(mdaScoringApi.saveTransparencyData);
   const saveMonthlyReportData = useMutation(api.mda_scoring.saveMonthlyReportData);
   const saveTimelinessData = useMutation(api.mda_scoring.saveTimelinessData);
+  const saveScorecardEntry = useMutation(api.mda_scoring.saveScorecardEntry);
 
   // Ranking queries
   const mysteryRankings = useQuery(api.mda_scoring.getAllMysteryShoppingRankings, { scoringPeriod });
