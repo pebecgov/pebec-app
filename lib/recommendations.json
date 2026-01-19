@@ -1,0 +1,624 @@
+[
+  {
+    "agency": "National Drug Law Enforcement Agency",
+    "recommendations": [
+      "NDLEA to investigate the root causes of the 0% SLA compliance recorded in March and July 2025 and ensure consistent service delivery and complete monthly reporting across the entire fiscal year.",
+      "NDLEA to institutionalise a proactive internal reporting framework with clear accountability, timelines, and reminder systems to guarantee 100% timely submission of monthly reports.",
+      "NDLEA to enhance transparency by ensuring all SLA and reporting metrics are populated every month and by publishing periodic public performance summaries.",
+      "NDLEA to sustain and expand the use of its digital portal by promoting it to stakeholders and extending its application to additional services to improve efficiency and innovation outcomes."
+    ]
+  },
+  {
+    "agency": "National Bureau of Statistics",
+    "recommendations": [
+      "NBS to immediately establish a system for tracking, measuring, and reporting SLA performance as a core institutional accountability requirement.",
+      "NBS to replace non-official correspondence emails with dedicated institutional email addresses and ensure all communication channels are actively monitored and responsive.",
+      "NBS to enforce absolute compliance with mandatory monthly reporting through strict internal controls and accountability mechanisms.",
+      "NBS to initiate digital service delivery by developing and launching at least one core online application or process.",
+      "NBS to enhance website transparency by publishing a comprehensive FAQ section and integrating the official ReportGov link.",
+      "NBS to leverage stakeholder engagement structures to implement at least one documented service innovation."
+    ]
+  },
+  {
+    "agency": "National Agency for Food and Drug Administration and Control",
+    "recommendations": [
+      "NAFDAC to stabilise and improve SLA performance by ensuring consistent monthly scores and complete data reporting across all service periods.",
+      "NAFDAC to implement a reliable communication system that guarantees timely acknowledgement and response to all public calls and emails.",
+      "NAFDAC to achieve full end-to-end digitalisation of core services by enabling both online applications and approvals.",
+      "NAFDAC to improve applicant experience by providing proactive status updates throughout the service processing lifecycle.",
+      "NAFDAC to reduce ReportGov complaint resolution timelines by streamlining internal workflows while sustaining its high-resolution rate.",
+      "NAFDAC to publish clear service requirements, timelines, and fee structures for all services on its website to enhance transparency.",
+      "NAFDAC to leverage its stakeholder engagement framework to launch at least one documented service innovation."
+    ]
+  },
+  {
+    "agency": "Ministry of Interior",
+    "recommendations": [
+      "Federal Ministry of Interior (CBD) to address SLA volatility by implementing systems that ensure consistent service delivery and complete monthly performance reporting.",
+      "The Ministry to restore functional public communication by correcting published contact details and ensuring timely responses to inquiries.",
+      "The Ministry to enhance digital transparency by publishing FAQs, service timelines, and official fees on its website.",
+      "The Ministry to improve online service quality by conducting a user experience review and resolving identified service bottlenecks.",
+      "The Ministry to activate accountability mechanisms by onboarding the ReportGov Desktop Agent and integrating it on the website.",
+      "The Ministry to enforce strict internal deadlines to achieve full compliance with mandatory monthly reporting.",
+      "The Ministry to translate stakeholder engagement into at least one documented service innovation."
+    ]
+  },
+  {
+    "agency": "Ministry of Foreign Affairs",
+    "recommendations": [
+      "Federal Ministry of Foreign Affairs to immediately investigate reported unethical practices and enforce a zero-tolerance policy against touting and rent-seeking.",
+      "The  Ministry to establish a functional SLA tracking and reporting system covering all service months.",
+      "The Ministry to restore basic public communication by ensuring all listed phone numbers and emails are functional and monitored.",
+      "The Ministry to overhaul website transparency by publishing detailed FAQs, service timelines, and official fees.",
+      "The Ministry to initiate digital service delivery by introducing at least one online application or process.",
+      "The  Ministry to ensure full compliance with mandatory monthly reporting requirements.",
+      "The Ministry to submit a reform plan to PEBEC outlining concrete steps to improve stakeholder engagement and innovation."
+    ]
+  },
+  {
+    "agency": "Joint Tax Board",
+    "recommendations": [
+      "Joint Tax Board to immediately establish and operationalise SLA measurement and reporting systems.",
+      "JTB to audit and reform the TIN issuance process to align actual delivery timelines with published service commitments.",
+      "JTB to restore functional communication channels by ensuring timely responses to all calls and emails.",
+      "JTB to update its website with clear service requirements, timelines, and fee structures.",
+      "JTB to enforce strict compliance with mandatory monthly reporting obligations.",
+      "JTB to activate and promote the ReportGov complaints mechanism and ensure effective ticket resolution.",
+      "JTB to develop and submit a clear innovation agenda based on stakeholder engagement outcomes."
+    ]
+  },
+  {
+    "agency": "Industrial Training Fund",
+    "recommendations": [
+      "Industrial Training Fund to immediately implement a comprehensive SLA tracking and public reporting system.",
+      "ITF to eliminate communication failures by establishing a dedicated and responsive customer service unit.",
+      "ITF to standardise processes and publish all official fees and penalties to eliminate discrepancies and hidden charges.",
+      "ITF to enable full digital access by launching complete online application processes for core services.",
+      "ITF to enforce full compliance with mandatory monthly reporting through internal disciplinary mechanisms.",
+      "ITF to replicate its effective ReportGov resolution model across all customer service operations."
+    ]
+  },
+  {
+    "agency": "Galaxy Backbone Limited",
+    "recommendations": [
+      "Galaxy Backbone to immediately deploy an SLA tracking and monthly performance reporting system.",
+      "Galaxy Backbone to enforce strict internal accountability to ensure 100% timely submission of all mandatory reports.",
+      "Galaxy Backbone to activate and promote the ReportGov channel by integrating it prominently and resolving submitted tickets.",
+      "Galaxy Backbone to complete the digital service lifecycle by enabling full online approvals and service fulfilment.",
+      "Galaxy Backbone to leverage strong stakeholder engagement to implement at least one documented innovation initiative."
+    ]
+  },
+  {
+    "agency": "Federal Road Safety Corps",
+    "recommendations": [
+      "Federal Road Safety Corps to urgently address non-responsive customer service channels by instituting monitored and time-bound response systems.",
+      "FRSC to stabilise SLA performance through consistent service delivery and complete monthly data reporting.",
+      "FRSC to significantly improve ReportGov resolution rates and turnaround times through internal process reforms.",
+      "FRSC to ensure full compliance with mandatory monthly reporting requirements.",
+      "FRSC to conduct a comprehensive service experience audit to improve online service satisfaction."
+    ]
+  },
+  {
+    "agency": "Federal Produce Inspection Service",
+    "recommendations": [
+      "Federal Produce Inspection Service to immediately activate monthly SLA monitoring and reporting mechanisms.",
+      "FPIS to ensure timely responses to public inquiries through designated and monitored communication channels.",
+      "FPIS to enhance website transparency by publishing clear service requirements, timelines, and fees.",
+      "FPIS to fully digitalise certification processes through an end-to-end online application portal.",
+      "FPIS to prioritise full compliance with mandatory monthly reporting obligations.",
+      "FPIS to leverage stakeholder engagement structures to implement at least one documented innovation initiative."
+    ]
+  },
+  {
+    "agency": "Federal Ministry of Works",
+    "recommendations": [
+      "Federal Ministry of Works to establish a functional system for monthly SLA tracking and reporting.",
+      "The Ministry to improve responsiveness by implementing monitored customer service channels with defined response timelines.",
+      "The Ministry to enhance digital service delivery by deploying at least one full online application and approval process.",
+      "The Ministry to enforce strict internal reporting discipline to ensure timely submission of mandatory reports.",
+      "The  Ministry to develop and submit an innovation and stakeholder engagement improvement plan to PEBEC."
+    ]
+  },
+  {
+    "agency": "Federal Ministry of Transportation",
+    "recommendations": [
+      "Federal Ministry of Transportation to immediately implement performance monitoring systems for tracking and reporting SLA metrics.",
+      "The  Ministry to activate basic public communication channels and publish clear service information on its website.",
+      "The Ministry to enforce full compliance with mandatory monthly reporting requirements.",
+      "The  Ministry to conduct a leadership-led operational review to address systemic service delivery gaps."
+    ]
+  },
+  {
+    "agency": "Federal Ministry of Power",
+    "recommendations": [
+      "Federal Ministry of Power to immediately establish performance tracking and monthly SLA reporting systems.",
+      "The Ministry to activate and monitor public communication channels and publish an FAQ section on its website.",
+      "The Ministry to enforce strict compliance with mandatory monthly reporting obligations.",
+      "The Ministry to conduct a leadership-led operational overhaul to improve transparency and accountability."
+    ]
+  },
+  {
+    "agency": "Federal Ministry of Information and National Orientation",
+    "recommendations": [
+      "Federal Ministry of Information to establish and publicly report SLA performance metrics consistently.",
+      "The Ministry to activate reliable public communication channels, including monitored phone and email services.",
+      "The Ministry to enforce full compliance with mandatory monthly reporting requirements.",
+      "The Ministry to conduct a comprehensive operational realignment to model national transparency standards."
+    ]
+  },
+  {
+    "agency": "Federal Ministry of Finance",
+    "recommendations": [
+      "Federal Ministry of Finance to immediately establish systems for tracking and reporting SLA performance metrics.",
+      "The Ministry to activate and publicise monitored public communication channels.",
+      "The Ministry to enforce strict compliance with mandatory monthly reporting obligations.",
+      "The Ministry to develop a digital service roadmap aligned with its fiscal leadership role.",
+      "The Ministry to conduct a leadership-led operational review to strengthen accountability and transparency."
+    ]
+  },
+  {
+    "agency": "Federal Ministry of Environment",
+    "recommendations": [
+      "Federal Ministry of Environment to immediately implement SLA performance tracking and reporting systems.",
+      "The Ministry to establish functional public communication channels and publish an FAQ section.",
+      "The Ministry to enforce full compliance with mandatory monthly reporting requirements.",
+      "The Ministry to conduct a comprehensive operational review to address transparency and innovation gaps."
+    ]
+  },
+  {
+    "agency": "Federal Ministry of Aviation and Aerospace Development",
+    "recommendations": [
+      "Federal Ministry of Aviation and Aerospace Development to immediately implement SLA monitoring and reporting systems.",
+      "The Ministry to establish responsive public communication channels and publish FAQs.",
+      "The Ministry to strengthen stakeholder engagement frameworks to guide service improvements."
+    ]
+  },
+  {
+    "agency": "Federal Inland Revenue Service",
+    "recommendations": [
+      "NRS to establish and publicise functional customer service communication channels.",
+      "NRS to stabilise and improve SLA performance across all core services.",
+      "NRS to enhance system-generated communication through automated service status notifications.",
+      "NRS to publish clear service timelines to improve transparency and manage expectations.",
+      "NRS to enforce consistent and timely submission of monthly performance reports.",
+      "NRS to leverage innovation to reduce ReportGov complaint resolution timelines."
+    ]
+  },
+  {
+    "agency": "Federal Competition and Consumer Protection Commission",
+    "recommendations": [
+      "Federal Competition and Consumer Protection Commission to proactively review and publicly clarify the actions that resulted in the “Controversial” penalty in order to sustain public trust and stakeholder confidence.",
+      "FCCPC to investigate and resolve the root causes of the 0% SLA performance recorded in September and October 2025 and ensure consistent year-round service delivery.",
+      "FCCPC to activate and monitor its email response channel by implementing a tracked system that guarantees timely acknowledgment of all public inquiries.",
+      "FCCPC to reconcile and accurately report complaint resolution data on ReportGov to reflect its actual high resolution performance.",
+      "FCCPC to develop and publicize a structured digital innovation agenda to enhance transparency, efficiency, and public accountability."
+    ]
+  },
+  {
+    "agency": "Federal Airports Authority of Nigeria",
+    "recommendations": [
+      "Federal Airports Authority of Nigeria to address inconsistent SLA performance and rectify system failures that resulted in “No data” entries to ensure reliable service delivery throughout the year.",
+      "FAAN to bridge the customer service gap by establishing responsive and monitored call and email communication channels for remote inquiries.",
+      "FAAN to ensure that services advertised as online are delivered end-to-end digitally without mandatory physical appearances.",
+      "FAAN to overhaul its ReportGov complaint handling process to significantly improve resolution rates and reduce response times.",
+      "FAAN to enforce strict internal controls to ensure consistent and timely submission of all mandatory monthly reports."
+    ]
+  },
+  {
+    "agency": "Environmental Health Council of Nigeria",
+    "recommendations": [
+      "Environmental Health Council of Nigeria to immediately investigate discrepancies between published and demanded fees and enforce strict adherence to officially approved charges.",
+      "EHCON to establish a functional SLA monitoring and reporting system to address the complete absence of performance data.",
+      "EHCON to activate responsive customer service channels by establishing a dedicated helpdesk with defined response timelines.",
+      "EHCON to enhance website transparency by publishing clear service timelines and comprehensive FAQs.",
+      "EHCON to leverage innovation by deploying an online application portal to reduce discretionary practices and improve stakeholder confidence.",
+      "EHCON to enforce internal reporting discipline to ensure full and timely submission of all mandatory monthly reports."
+    ]
+  },
+  {
+    "agency": "EFCC - Special Control Unit for Money Laundering",
+    "recommendations": [
+      "Special Control Unit Against Money Laundering to establish functional and monitored customer service channels to address the current non-responsiveness of phone and email helpdesks.",
+      "SCUML to urgently review and update all published service requirements to eliminate undocumented documentation requests.",
+      "SCUML to implement consistent SLA performance monitoring and ensure complete monthly data reporting.",
+      "SCUML to significantly reduce ReportGov complaint resolution timelines by streamlining internal processes.",
+      "SCUML to enforce strict internal deadlines to ensure all mandatory reports are submitted on time.",
+      "SCUML to develop a digital innovation roadmap that enhances application tracking and reduces processing errors."
+    ]
+  },
+  {
+    "agency": "Corporate Affairs Commission",
+    "recommendations": [
+      "Corporate Affairs Commission to ensure consistent SLA performance and uninterrupted monthly reporting by addressing identified service delivery gaps.",
+      "CAC to align actual service delivery timelines with published SLAs to restore credibility and public trust.",
+      "CAC to activate a responsive email customer service channel through a structured and monitored support system.",
+      "CAC to clarify and standardize all published fee information to ensure full transparency and accuracy.",
+      "CAC to reduce ReportGov complaint resolution timelines by improving internal escalation and feedback mechanisms.",
+      "CAC to strengthen internal coordination to ensure all mandatory monthly reports are submitted consistently and on time."
+    ]
+  },
+  {
+    "agency": "Central Bank of Nigeria – National Collateral Agency",
+    "recommendations": [
+      "Central Bank of Nigeria to institute a rigorous SLA tracking and reporting framework to ensure consistent monthly performance monitoring.",
+      "CBN to integrate call and email response channels under a unified customer service protocol to improve overall responsiveness.",
+      "CBN to publish clear service processing timelines to enhance transparency and manage stakeholder expectations.",
+      "CBN to investigate and resolve the operational issues that led to performance and reporting lapses after June 2025.",
+      "CBN to enforce stricter internal deadlines to ensure timely submission of all mandatory reports.",
+      "CBN to develop structured stakeholder engagement and innovation plans to improve service delivery outcomes."
+    ]
+  },
+  {
+    "agency": "Bureau for Public Procurement",
+    "recommendations": [
+      "Bureau of Public Procurement to immediately publish clear service timelines and comprehensive fee schedules to address transparency gaps.",
+      "BPP to establish a functional and monitored customer service desk to address non-responsive call and email channels.",
+      "BPP to overhaul its ReportGov complaint resolution process to significantly improve resolution rates and response times.",
+      "BPP to address system failures that resulted in missing SLA data toward the end of the reporting year.",
+      "BPP to enforce strict internal deadlines to ensure all reports are submitted fully and on time.",
+      "BPP to leverage its digital portal to strengthen stakeholder engagement and feedback mechanisms."
+    ]
+  },
+  {
+    "agency": "Bank of Industry",
+    "recommendations": [
+      "Bank of Industry to immediately establish systems for capturing and reporting SLA performance data.",
+      "BOI to clarify and correct all public service information to accurately define service scope and eligibility.",
+      "BOI to publish clear fee structures and processing timelines for all services to meet transparency standards.",
+      "BOI to revamp customer service responsiveness by implementing monitored and time-bound communication protocols.",
+      "BOI to accelerate the deployment of functional online application portals for core services.",
+      "BOI to reduce ReportGov response and resolution timelines through streamlined internal workflows.",
+      "BOI to develop and publish a digital innovation roadmap to enhance service efficiency and user experience."
+    ]
+  },
+  {
+    "agency": "Advertising Regulatory Council of Nigeria",
+    "recommendations": [
+      "Advertising Regulatory Council of Nigeria to immediately establish mandatory SLA tracking and reporting systems to address total data and reporting failure.",
+      "ARCON to abolish mandatory agent-mediated service processes and transition to direct, transparent client engagement.",
+      "ARCON to urgently deploy a fully digital service portal for application, payment, and service tracking.",
+      "ARCON to publish a comprehensive schedule of official fees and binding service timelines to eliminate opacity.",
+      "ARCON to establish a functional customer feedback and complaint handling system integrated with ReportGov.",
+      "ARCON to conduct a leadership-driven review of institutional culture and compliance practices following the “Controversial” penalty.",
+      "ARCON to develop and publish a credible digital innovation roadmap to automate core regulatory functions."
+    ]
+  },
+  {
+    "agency": "National Environmental Standards and Regulations Enforcement Agency",
+    "recommendations": [
+      "National Environmental Standards and Regulations Enforcement Agency to immediately eradicate touting and rent-seeking by enforcing a zero-tolerance policy supported by visible signage, monitoring mechanisms, and collaboration with security agencies.",
+      "NESREA to institute a functional SLA performance tracking system and ensure timely submission of all mandatory monthly reports to PEBEC.",
+      "NESREA to urgently restore and monitor all published customer service phone and email channels to ensure prompt public responsiveness.",
+      "NESREA to conduct a comprehensive audit of its digital platforms to harmonize service information, pricing clarity, workflow functionality, and ReportGov integration.",
+      "NESREA to deploy targeted digital innovations and public awareness campaigns that redirect users to official channels and eliminate reliance on unofficial intermediaries."
+    ]
+  },
+  {
+    "agency": "National Information Technology Development Agency",
+    "recommendations": [
+      "National Information Technology Development Agency to implement a monitored customer service protocol with defined SLA targets to ensure timely responses across all email and communication channels.",
+      "NITDA to streamline complaint handling workflows to reduce average resolution time to no more than 72 hours.",
+      "NITDA to formally identify, document, and showcase verifiable innovations in public service delivery that go beyond basic digital presence.",
+      "NITDA to publish clear service processing timelines across all platforms to improve transparency and manage stakeholder expectations.",
+      "NITDA to institutionalize year-round reporting discipline to eliminate late submissions and missing SLA data."
+    ]
+  },
+  {
+    "agency": "National Inland Waterways Authority",
+    "recommendations": [
+      "National Inland Waterways Authority to immediately implement a comprehensive SLA monitoring framework and enforce full, timely submission of all required monthly performance reports.",
+      "NIWA to restore and actively monitor all public phone and email channels with defined response-time targets.",
+      "NIWA to urgently audit and stabilize its online application and payment systems to eliminate transaction failures and publish clear service timelines.",
+      "NIWA to develop and publish comprehensive FAQs and step-by-step service guides to reduce information gaps and unofficial dependency.",
+      "NIWA to analyze the drivers of recent SLA improvements and institutionalize them across all service units year-round."
+    ]
+  },
+  {
+    "agency": "National Insurance Commission",
+    "recommendations": [
+      "National Insurance Commission to urgently establish a mandatory SLA tracking and reporting system with clear accountability for monthly PEBEC submissions.",
+      "NAICOM to expedite the deployment of functional online service portals and ensure all official communication channels are responsive.",
+      "NAICOM to standardize and publicly publish all service fees, timelines, and requirements to ensure full transparency.",
+      "NAICOM to leverage its strong stakeholder engagement capacity to drive comprehensive reforms in digital service delivery and communication.",
+      "NAICOM to formally document and communicate innovation initiatives undertaken to improve operational efficiency and customer experience."
+    ]
+  },
+  {
+    "agency": "National Office for Technology Acquisition and Promotion",
+    "recommendations": [
+      "National Office for Technology Acquisition and Promotion to immediately resolve all outstanding ReportGov complaints and implement a time-bound resolution protocol.",
+      "NOTAP to activate and monitor all published phone and email channels with defined response standards.",
+      "NOTAP to publish clear service delivery timelines for all applications to improve predictability and transparency.",
+      "NOTAP to digitize and standardize advisory services to ensure parity between physical and remote service experiences.",
+      "NOTAP to identify, document, and report innovative service delivery practices beyond baseline compliance.",
+      "NOTAP to eliminate chronic reporting delays by enforcing internal deadlines and accountability mechanisms."
+    ]
+  },
+  {
+    "agency": "National Pension Commission",
+    "recommendations": [
+      "National Pension Commission to enforce a robust, year-round SLA performance management and reporting framework to eliminate service and data gaps.",
+      "PENCOM to conduct a root-cause analysis of SLA failures and implement corrective measures to prevent recurrence.",
+      "PENCOM to streamline complaint handling processes to reduce average resolution times and improve service efficiency.",
+      "PENCOM to formally document and communicate digital service innovations to ensure recognition of operational excellence.",
+      "PENCOM to strengthen administrative compliance through structured reporting calendars and clear ownership of submissions."
+    ]
+  },
+  {
+    "agency": "Nigeria Agricultural Quarantine Service",
+    "recommendations": [
+      "Nigeria Agricultural Quarantine Service to immediately eliminate touting and extortion through visible anti-corruption enforcement, public fee disclosure, and disciplinary action.",
+      "NAQS to accelerate the deployment of a fully digital application, payment, and tracking portal for phytosanitary certification.",
+      "NAQS to investigate SLA failures and ensure consistent service performance throughout the year.",
+      "NAQS to close reporting gaps and formally document innovation initiatives for recognition."
+    ]
+  },
+  {
+    "agency": "Nigeria Broadcasting Commission",
+    "recommendations": [
+      "National Broadcasting Commission to immediately activate and monitor all public communication channels with defined responsiveness targets.",
+      "NBC to complete and operationalize an end-to-end online licensing workflow.",
+      "NBC to significantly reduce complaint resolution timelines to meet best-practice standards.",
+      "NBC to update its website with comprehensive service requirements, timelines, and fee information.",
+      "NBC to document and communicate operational innovations to address the zero innovation score."
+    ]
+  },
+  {
+    "agency": "Nigeria Civil Aviation Authority",
+    "recommendations": [
+      "Nigerian Civil Aviation Authority to implement a robust SLA monitoring and reporting framework to ensure reliable service delivery and complete data submission.",
+      "NCAA to restore and manage all official communication channels with tracked response targets.",
+      "NCAA to overhaul its ReportGov complaint handling process to improve resolution rates and response times.",
+      "NCAA to execute a structured stakeholder engagement strategy to rebuild trust and collaboration.",
+      "NCAA to enforce strict administrative reporting discipline through internal accountability systems.",
+      "NCAA to formally document and report improvement and innovation initiatives."
+    ]
+  },
+  {
+    "agency": "Nigeria Customs Service",
+    "recommendations": [
+      "Nigeria Customs Service to immediately enforce a functional email management protocol with defined service level targets for responsiveness.",
+      "NCS to investigate the incidents leading to the “Controversial” classification and implement corrective engagement measures.",
+      "NCS to streamline complaint handling workflows to reduce average resolution timelines."
+    ]
+  },
+  {
+    "agency": "Nigeria Export Processing Zone Authority",
+    "recommendations": [
+      "Nigeria Export Processing Zones Authority to conduct an immediate overhaul of its public-facing digital services to restore functionality, clarity, and accessibility.",
+      "NEPZA to implement a rigorous SLA performance monitoring framework to ensure consistent service delivery.",
+      "NEPZA to activate and resource its ReportGov complaint resolution mechanism.",
+      "NEPZA to deploy simple digital solutions to address foundational service delivery failures.",
+      "NEPZA to enforce strict accountability for timely and complete report submissions."
+    ]
+  },
+  {
+    "agency": "Nigeria Export Promotion Council",
+    "recommendations": [
+      "Nigerian Export Promotion Council to stabilize service delivery by addressing the root causes of SLA performance volatility.",
+      "NEPC to urgently fix technical issues in its online portal to ensure seamless document processing and license issuance.",
+      "NEPC to formally document and communicate innovative practices that enhance the export ecosystem.",
+      "NEPC to eliminate chronic reporting delays through structured internal accountability mechanisms."
+    ]
+  },
+  {
+    "agency": "Nigeria Immigration Service",
+    "recommendations": [
+      "Nigeria Immigration Service to implement a visible zero-tolerance anti-corruption framework with strengthened monitoring and public reporting channels.",
+      "NIS to formally investigate incidents leading to the “Controversial” classification and implement preventive protocols.",
+      "NIS to significantly improve complaint resolution capacity by clearing backlogs and reducing resolution timelines.",
+      "NIS to enforce punctual administrative reporting through strengthened internal compliance systems."
+    ]
+  },
+  {
+    "agency": "Nigerian Agricultural Insurance Corporation",
+    "recommendations": [
+      "Nigerian Agricultural Insurance Corporation to urgently establish a functional SLA performance tracking and reporting system with strict accountability for timely submission of all PEBEC-mandated reports.",
+      "NAIC to immediately restore, monitor, and enforce responsiveness across all published phone and email customer service channels.",
+      "NAIC to comprehensively update its website and digital platforms with clear service requirements, timelines, and costs to eliminate ambiguity.",
+      "NAIC to leverage its strong stakeholder engagement mechanisms to gather feedback and communicate reforms addressing performance reporting and service delivery gaps.",
+      "NAIC to formally document and communicate all service improvements and process enhancements to correct the zero innovation score."
+    ]
+  },
+  {
+    "agency": "Nigerian Airspace Management Agency",
+    "recommendations": [
+      "Nigerian Airspace Management Agency to investigate the causes of SLA volatility and implement standardized operating procedures to ensure consistent service delivery throughout the year.",
+      "NAMA to immediately activate and monitor all published phone and email channels to ensure timely responses to public inquiries.",
+      "NAMA to urgently resolve all outstanding ReportGov complaints and establish a dedicated, accountable complaint management process.",
+      "NAMA to develop and implement a structured stakeholder engagement programme to improve collaboration and service alignment.",
+      "NAMA to strengthen reporting discipline by enforcing internal tracking systems that ensure complete and punctual submission of all performance data.",
+      "NAMA to create and publish a comprehensive Frequently Asked Questions (FAQ) section to improve public self-service and reduce inquiry bottlenecks."
+    ]
+  },
+  {
+    "agency": "Nigerian Communications Commission",
+    "recommendations": [
+      "Nigerian Communications Commission to urgently deploy resources and streamline workflows to clear complaint backlogs and achieve a maximum complaint resolution timeline of 72 hours.",
+      "NCC to ensure full cost transparency by clearly publishing all service fees on its website and digital service portals.",
+      "NCC to reinforce punctual administrative reporting by implementing internal deadlines that eliminate late submissions.",
+      "NCCto investigate and correct the absence of SLA data for November and December 2025 to ensure complete annual performance reporting."
+    ]
+  },
+  {
+    "agency": "Nigerian Content Development Management Board",
+    "recommendations": [
+      "Nigerian Content Development and Monitoring Board to develop and implement a structured, continuous, and documented stakeholder engagement strategy to improve engagement outcomes.",
+      "NCDMB to investigate the zero service satisfaction rating recorded during service testing and address any gaps between process design and user experience.",
+      "NCDMB to streamline complaint handling workflows to reduce average resolution time while maintaining full resolution rates.",
+      "NCDMB to address missing SLA data for November and December 2025 to ensure a complete and flawless annual performance record."
+    ]
+  },
+  {
+    "agency": "Nigerian Copyright Commission",
+    "recommendations": [
+      "Nigeria Copyright Commission to immediately establish a basic SLA performance tracking framework and enforce mandatory, timely submission of all monthly reports to PEBEC.",
+      "NCC to restore functionality and responsiveness across all published phone and email communication channels with defined response targets.",
+      "NCC to publish service standards and fully activate its ReportGov complaint resolution mechanism to meet transparency and accountability requirements.",
+      "NCC to implement a structured stakeholder engagement plan to actively communicate with and receive feedback from the creative sector.",
+      "NCC to leverage its existing digital application systems to document and communicate measurable service improvements recognized as innovation."
+    ]
+  },
+  {
+    "agency": "Nigerian Electricity Management Service Agency",
+    "recommendations": [
+      "Nigerian Electricity Management Services Agency to immediately publish its service level standards to meet minimum transparency and accountability requirements.",
+      "NEMSA to develop and deploy functional online application and approval portals to improve accessibility and service efficiency.",
+      "NEMSA to standardize internal processes to reduce variability and ensure consistent SLA performance throughout the year.",
+      "NEMSA to streamline complaint resolution workflows to significantly reduce average resolution times.",
+      "NEMSA to formally identify, document, and communicate innovative practices across its technical and service delivery functions.",
+      "NEMSA to enforce stricter reporting deadlines and publish a comprehensive FAQ section to strengthen administrative discipline and public guidance."
+    ]
+  },
+  {
+    "agency": "Nigerian Electricity Regulatory Commission",
+    "recommendations": [
+      "Nigerian Electricity Regulatory Commission to urgently overhaul its complaint management system by activating ReportGov operations, clearing backlogs, and enforcing strict resolution protocols.",
+      "NERC to conduct a root-cause analysis of SLA volatility and implement standardized processes to ensure consistent service delivery.",
+      "NERC to restore and monitor all public communication channels to guarantee timely responses to stakeholder inquiries.",
+      "NERC to enhance digital service transparency by clearly publishing requirements, costs, timelines, and enabling online service approvals.",
+      "NERC to formally document and communicate regulatory and process improvements to address the zero innovation score."
+    ]
+  },
+  {
+    "agency": "Nigerian Export-Import Bank",
+    "recommendations": [
+      "Nigerian Export-Import Bank to immediately restore and actively monitor all public phone and email communication channels with defined service level targets.",
+      "NEXIM to prioritize the deployment of secure online application and approval platforms for loans and core financial services.",
+      "NEXIM to urgently activate and publicize its ReportGov complaint resolution mechanism and ensure prompt handling of all grievances.",
+      "NEXIM to implement a structured stakeholder engagement programme to better align services with exporter and importer needs.",
+      "NEXIM to formally identify, document, and communicate innovative financial products, processes, or partnerships to improve service delivery and sector impact."
+    ]
+  },
+  {
+    "agency": "Nigerian Investment Promotion Council",
+    "recommendations": [
+      "Nigerian Investment Promotion Commission to implement a mandatory, year-round SLA performance management system to ensure consistent service delivery and complete reporting across all months.",
+      "NIPC to immediately restore and actively monitor all public phone lines to ensure reliable access for prospective investors.",
+      "NIPC to resolve the outstanding ReportGov complaint and institutionalize a transparent, time-bound complaint resolution process.",
+      "NIPC to enforce strict internal accountability for the timely compilation and submission of all monthly performance reports.",
+      "NIPC to review and align published service timelines with actual processing times or enhance internal efficiency to consistently meet advertised deadlines.",
+      "NIPC to formally document and communicate the innovative features of its digital registration and stakeholder engagement platforms."
+    ]
+  },
+  {
+    "agency": "Nigerian Maritime Administration and Safety Agency",
+    "recommendations": [
+      "Nigerian Maritime Administration and Safety Agency to urgently establish a functional SLA tracking and mandatory reporting system with strict accountability to PEBEC.",
+      "NIMASA to restore and monitor all public phone lines and implement response-time targets for handling inquiries.",
+      "NIMASA to formally identify, document, and communicate innovative practices across its regulatory and service delivery functions.",
+      "NIMASA to publish clear service delivery timelines on all digital platforms to strengthen transparency and expectation management."
+    ]
+  },
+  {
+    "agency": "Nigerian Midstream and Downstream Petroleum Regulatory Authority",
+    "recommendations": [
+      "Nigerian Midstream and Downstream Petroleum Regulatory Authority to immediately implement a basic performance management framework with absolute accountability for SLA tracking and report submission.",
+      "NMDPRA to conduct a root-cause investigation into incidents that triggered the controversy penalty and implement corrective safeguards.",
+      "NMDPRA  to publish a functional public phone line and clearly disclose all service requirements, timelines, and fees on its website.",
+      "NMDPRA  to immediately publish its service level standards and launch a structured stakeholder engagement strategy.",
+      "NMDPRA  to audit and fix all digital contact channels, including the live chat feature, to ensure consistent public accessibility."
+    ]
+  },
+  {
+    "agency": "Nigerian Ports Authority",
+    "recommendations": [
+      "Nigerian Ports Authority to accelerate the digitalization of core services by launching end-to-end online application and approval platforms for key port services.",
+      "NPA to formalize and systematize its complaint management process on the ReportGov platform with tracked response and resolution timelines.",
+      "NPA to establish internal service level targets for all inquiry channels to improve responsiveness beyond current performance levels.",
+      "NPA to reinforce internal accountability to ensure uninterrupted monthly reporting and complete SLA data submission throughout the fiscal year."
+    ]
+  },
+  {
+    "agency": "Nigerian Postal Service",
+    "recommendations": [
+      "Nigeria Postal Service to urgently establish a basic SLA performance tracking system and enforce mandatory submission of all PEBEC-required reports.",
+      "NIPOST to restore functionality and responsiveness across all published phone and email channels with defined response time targets.",
+      "NIPOST to immediately onboard a ReportGov desktop agent and operationalize a formal public complaint resolution mechanism.",
+      "NIPOST  to publish its service level standards and clearly disclose all service timelines and costs on its website.",
+      "NIPOST to develop and implement a structured stakeholder engagement strategy to support service delivery reforms."
+    ]
+  },
+  {
+    "agency": "Nigerian Shippers’ Council",
+    "recommendations": [
+      "Nigeria Shippers Council to conduct a root-cause analysis of the mid-year SLA performance collapse and implement safeguards to ensure consistent service delivery.",
+      "NSC  to immediately resolve outstanding complaints and institutionalize a monitored ReportGov complaint resolution process.",
+      "NSC  to comprehensively update its website with clear service requirements and timelines for all key services.",
+      "NSC to formally document and communicate innovative practices leveraging its strong stakeholder engagement.",
+      "NSC to tighten internal deadlines and accountability to eliminate late submission of monthly reports."
+    ]
+  },
+  {
+    "agency": "Nigerian Upstream Petroleum Regulatory Commission",
+    "recommendations": [
+      "Nigerian Upstream Petroleum Regulatory Commission to implement a structured and proactive stakeholder engagement framework to rebuild industry trust.",
+      "NUPRC to urgently resolve all pending complaints and enforce a time-bound complaint resolution process via ReportGov.",
+      "NUPRC to restore full functionality and responsiveness of all published communication channels, including public phone lines.",
+      "NUPRC to publish clear service timelines and cost structures on its digital platforms to eliminate ambiguity.",
+      "NUPRC to investigate SLA performance fluctuations and standardize processes to ensure consistent service delivery.",
+      "NUPRC to formally identify, document, and communicate innovation initiatives within its regulatory operations.",
+      "NUPRC to enforce strict internal accountability for timely and complete submission of all performance reports."
+    ]
+  },
+  {
+    "agency": "Oil & Gas Free Zone Authority",
+    "recommendations": [
+      "Oil and Gas Free Zone Authority to implement a structured and continuous stakeholder engagement framework with regular feedback mechanisms.",
+      "OGFZA to formally document and communicate innovative practices in service delivery and investor facilitation.",
+      "OGFZA to complete the digital service lifecycle by enabling online approvals and facility granting.",
+      "OGFZA to reinforce internal reporting deadlines to eliminate late submission of performance reports."
+    ]
+  },
+  {
+    "agency": "Patent and Design Registry",
+    "recommendations": [
+      "Patent and Design Registry to urgently establish a basic SLA tracking and mandatory reporting system with strict accountability.",
+      "Patent and Design Registry to immediately restore functionality of its email systems and ensure all public communication channels are monitored and responsive.",
+      "Patent and Design Registry to publish service level standards and clearly outline service requirements, eligibility criteria, and processing timelines.",
+      "Patent and Design Registry to streamline internal workflows to reduce average complaint resolution times while maintaining full resolution rates.",
+      "Patent and Design Registry to leverage strong stakeholder engagement to communicate reforms and improve user experience."
+    ]
+  },
+  {
+    "agency": "Securities and Exchange Commission",
+    "recommendations": [
+      "Securities and Exchange Commission to urgently investigate the causes of prolonged SLA failure and institute a rigorous, year-round performance management and reporting system.",
+      "SEC to immediately resolve all outstanding complaints and fully operationalize the ReportGov grievance redress mechanism.",
+      "SEC  to restore functionality and responsiveness of all public communication channels, particularly the official email system.",
+      "SEC  to publish service level standards and implement a structured stakeholder engagement strategy to rebuild market trust.",
+      "SEC  to assign clear individual accountability and enforce strict internal deadlines for all monthly report submissions."
+    ]
+  },
+  {
+    "agency": "Service Compact",
+    "recommendations": [
+      "SERVICOM to immediately establish and publish its own internal SLA performance management framework as a benchmark for all MDAs.",
+      "SERVICOM to standardize, publicize, and actively manage an accessible complaint intake and resolution system integrated with ReportGov across all offices.",
+      "SERVICOM to publish comprehensive service requirements, timelines, and cost structures on its website to model transparency best practices.",
+      "SERVICOM to accelerate the digitalization of its core services, particularly complaint lodging and tracking processes.",
+      "SERVICOM to implement proactive and structured stakeholder engagement to drive system-wide service culture reform.",
+      "SERVICOM to enforce a strict internal reporting calendar to ensure uninterrupted monthly performance reporting."
+    ]
+  },
+  {
+    "agency": "Standards Organisation of Nigeria",
+    "recommendations": [
+      "Standards Organisation of Nigeria to urgently audit and fix its online application portal to ensure reliable, end-to-end digital service delivery.",
+      "SON to implement a monitored email management system with defined service level targets for responsiveness.",
+      "SON to update its website with clear requirements, timelines, and costs for all major services, including MANCAP certification.",
+      "SON to streamline complaint resolution workflows to significantly reduce average resolution times.",
+      "SON to formally identify, document, and communicate innovative practices across its service delivery and testing processes."
+    ]
+  },
+  {
+    "agency": "Trademarks Registry",
+    "recommendations": [
+      "Trademarks Registry to urgently establish a basic SLA tracking and mandatory reporting framework with strict accountability to PEBEC.",
+      "Trademarks Registry to digitize and reform the agent accreditation and trademark application process by deploying a transparent, end-to-end online system.",
+      "Trademarks Registry to establish dedicated, functional public communication channels and ensure all inquiries receive timely responses.",
+      "Trademarks Registry to immediately resolve outstanding complaints and institutionalize a monitored grievance resolution process via ReportGov.",
+      "Trademarks Registry to publish clear service requirements, realistic timelines, and a comprehensive fee structure for all trademark services."
+    ]
+  }
+]
