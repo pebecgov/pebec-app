@@ -10,11 +10,19 @@ import { ArrowRight } from 'lucide-react';
 export default function LatestNewsSection() {
   const posts = useQuery(api.posts.getPosts);
   if (!posts) return null;
-  const latestPosts = posts.sort((a, b) => {
-    const dateA = a.publishedDate ?? a._creationTime;
-    const dateB = b.publishedDate ?? b._creationTime;
-    return dateB - dateA; // Descending order
-  }).slice(0, 3);
+  const latestPosts = posts
+    .filter(post => post.publishedDate) // Only show posts with publishedDate
+    .sort((a, b) => {
+      // First, prioritize posts with homePageOrder set
+      if (a.homePageOrder !== undefined && b.homePageOrder !== undefined) {
+        return a.homePageOrder - b.homePageOrder; // Lower numbers first
+      }
+      if (a.homePageOrder !== undefined) return -1; // Posts with order come first
+      if (b.homePageOrder !== undefined) return 1;
+      // If neither has order, sort by publishedDate (newest first)
+      return (b.publishedDate ?? 0) - (a.publishedDate ?? 0);
+    })
+    .slice(0, 3);
   return <section className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         {}
@@ -39,7 +47,7 @@ export default function LatestNewsSection() {
                   {post.title}
                 </h3>
                 <p className="text-sm text-gray-300 mt-1">
-                  {formatDate(post.publishedDate ?? post._creationTime)}
+                  {post.publishedDate ? formatDate(post.publishedDate) : ''}
                 </p>
               </div>
               <div className="absolute bottom-4 right-4 z-20 bg-white text-black rounded-full p-2 shadow-md">

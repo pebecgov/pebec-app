@@ -121,6 +121,9 @@ export default function Sidebar({
       name: "Create Articles",
       path: "/admin/create-article"
     }, {
+      name: "Home Page News",
+      path: "/admin/home-news"
+    }, {
       name: "Upload Reports",
       path: "/admin/reports"
     }, {
