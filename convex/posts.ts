@@ -347,3 +347,45 @@ export const getMostLikedPostExcerpts = query({
     return mostLiked;
   }
 });
+
+export const updateHomePageOrder = mutation({
+  args: {
+    postId: v.id("posts"),
+    homePageOrder: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized: Only admins can update home page order");
+    }
+    await ctx.db.patch(args.postId, {
+      homePageOrder: args.homePageOrder
+    });
+    return true;
+  }
+});
+
+export const getPostsForHomePageManagement = query({
+  args: {},
+  handler: async (ctx) => {
+    const posts = await ctx.db.query("posts").collect();
+    return Promise.all(posts.map(async post => {
+      const author = await ctx.db.get(post.authorId);
+      return {
+        ...post,
+        author: author ? {
+          _id: author._id,
+          firstName: author.firstName ?? "PEBEC Gov",
+          lastName: author.lastName ?? "",
+        } : {
+          _id: "unknown" as Id<"users">,
+          firstName: "Pebec Gov",
+          lastName: "",
+        },
+        ...(post.coverImageId ? {
+          coverImageUrl: (await ctx.storage.getUrl(post.coverImageId)) ?? ""
+        } : {})
+      };
+    }));
+  }
+});
