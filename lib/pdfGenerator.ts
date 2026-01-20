@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import mysteryCallData from './BFA_MysteryCall_clean.json';
 import mysteryShoppingData from './UPDATED_MYSTERY_SHOPPING.json';
+import recommendationsData from './recommendations.json';
 
 interface MdaDetailedData {
   mdaName: string;
@@ -59,6 +60,11 @@ interface MysteryCallEntry {
   "DATE SENT": string;
   "TIME SENT": string;
   "DATE MDA RESPONDED": string;
+}
+
+interface RecommendationEntry {
+  agency: string;
+  recommendations: string[];
 }
 
 interface MysteryShoppingEntry {
@@ -977,26 +983,59 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     headStyles: {
       fillColor: [25, 118, 210],
       textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 12
+      fontStyle: 'bold'
     },
     bodyStyles: {
-      fontSize: 10
+      fontSize: 9
     },
     styles: {
-      fontSize: 10,
+      fontSize: 9,
       cellPadding: 4
     },
     theme: 'striped',
     didParseCell: (data: any) => {
       if (data.row.index === data.table.body.length - 1) {
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fontSize = 12;
+        data.cell.styles.fontSize = 10;
         data.cell.styles.fillColor = [25, 118, 210];
         data.cell.styles.textColor = [255, 255, 255];
       }
     }
   });
+  yPosition = (doc as any).lastAutoTable.finalY + 5;
+
+  // Recommendations
+  const recommendationsEntry = (recommendationsData as RecommendationEntry[]).find(
+    (item) => item.agency?.toLowerCase() === data.mdaName.toLowerCase() ||
+      data.mdaName.toLowerCase().includes(item.agency?.toLowerCase()) ||
+      item.agency?.toLowerCase().includes(data.mdaName.toLowerCase())
+  );
+
+  if (recommendationsEntry && recommendationsEntry.recommendations && recommendationsEntry.recommendations.length > 0) {
+    if (yPosition > pageHeight - 60) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    const recommendationsBody = recommendationsEntry.recommendations.map((rec) => [rec]);
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['Recommendations for Improvement']],
+      body: recommendationsBody,
+      headStyles: {
+        fillColor: [255, 87, 34],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 4,
+        overflow: 'linebreak'
+      },
+      theme: 'striped'
+    });
+  }
 
   // Save PDF
   const fileName = `${data.mdaName.replace(/[^a-z0-9]/gi, '_')}_Scoring_Report_${data.year}.pdf`;
