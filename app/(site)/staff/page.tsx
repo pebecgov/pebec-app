@@ -11,6 +11,7 @@ import AdminMonthlyTicketsReport from "@/components/AnalyticsCharts/MonthlyResol
 import StaffAnalytics from "@/components/StaffAnalytics/Meetings";
 import MyPerformance from "@/components/StaffPerformance/MyPerformance";
 import StaffLeaderboard from "@/components/StaffPerformance/StaffLeaderboard";
+import UpcomingMeetings from "@/components/StaffAnalytics/UpcomingMeetings";
 export default function StaffPage() {
   const {
     user,
@@ -35,17 +36,22 @@ export default function StaffPage() {
     return null;
   }
   return <div className="mt-5">
-      {/* Performance Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
-        <StaffLeaderboard />
-        <MyPerformance />
-      </div>
-      
-      {/* Existing Analytics */}
-      <div className="mt-5 mb-5">
-        <StaffAnalytics />
-      </div>
-      {/* <div className="mt-5 mb-5">
+    {/* Performance Section */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 items-start">
+      <StaffLeaderboard />
+      <MyPerformance />
+    </div>
+
+    {/* Upcoming Meetings */}
+    <div className="mb-6">
+      <UpcomingMeetings />
+    </div>
+
+    {/* Existing Analytics */}
+    <div className="mt-5 mb-5">
+      <StaffAnalytics />
+    </div>
+    {/* <div className="mt-5 mb-5">
         <UsersCard />
       </div>
       <div className="mt-5 mb-5">
@@ -57,5 +63,5 @@ export default function StaffPage() {
       <div className="mt-5 mb-5">
         <AdminMonthlyTicketsReport />
       </div> */}
-    </div>;
+  </div>;
 }
