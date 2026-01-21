@@ -78,6 +78,18 @@ interface MysteryShoppingEntry {
 }
 
 export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void> {
+  // MDAs that should not have SLA, Timeliness, and Report Submission tables
+  const excludedMDAs = [
+    'Advertising Regulatory Council of Nigeria',
+    'Nigeria Gas Company',
+    'Nigerian Agricultural Insurance Corporation',
+    'National Insurance Commission'
+  ];
+
+  const isExcludedMDA = excludedMDAs.some(mda =>
+    data.mdaName.toLowerCase().includes(mda.toLowerCase()) ||
+    mda.toLowerCase().includes(data.mdaName.toLowerCase())
+  );
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -92,7 +104,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     await new Promise((resolve, reject) => {
       img.onload = resolve;
       img.onerror = reject;
-      setTimeout(() => reject(new Error('Logo load timeout')), 5000);
+      setTimeout(() => reject(new Error('Logo load timeout')), 15000);
     });
     const logoWidth = 60;
     const logoHeight = 18;
@@ -243,27 +255,30 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   slaTableData.push(['Total Score', `${slaFinalScore.toFixed(1)}/30 (${((slaFinalScore / 30) * 100).toFixed(1)}%)`]);
   slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
-  autoTable(doc, {
-    startY: yPosition,
-    head: [['1. Service Level Agreement (30 points)', 'Score']],
-    body: slaTableData.slice(0, -2),
-    headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    styles: { fontSize: 9 },
-    theme: 'striped'
-  });
-  yPosition = (doc as any).lastAutoTable.finalY + 10;
+  // Only render SLA table if not an excluded MDA
+  if (!isExcludedMDA) {
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['1. Service Level Agreement (30 points)', 'Score']],
+      body: slaTableData.slice(0, -2),
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: { fontSize: 9 },
+      theme: 'striped'
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 10;
 
-  // Add summary
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(slaTableData[slaTableData.length - 2][0] + ': ' + slaTableData[slaTableData.length - 2][1], 14, yPosition);
-  yPosition += 6;
-  doc.text(slaTableData[slaTableData.length - 1][0] + ': ' + slaTableData[slaTableData.length - 1][1], 14, yPosition);
-  yPosition += 15;
+    // Add summary
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(slaTableData[slaTableData.length - 2][0] + ': ' + slaTableData[slaTableData.length - 2][1], 14, yPosition);
+    yPosition += 6;
+    doc.text(slaTableData[slaTableData.length - 1][0] + ': ' + slaTableData[slaTableData.length - 1][1], 14, yPosition);
+    yPosition += 15;
+  }
 
   // Mystery Shopping - combine both halves
   const mysteryTableData: string[][] = [];
@@ -766,7 +781,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const monthlyReportCount = Object.keys(monthlyReportMonths).length;
   const monthlyReportScore = monthlyReportCount * (3 / 10); // Changed from 12 to 10 months
 
-  if (monthlyReportTableData.length > 0) {
+  // Only render Monthly Report Submission table if not an excluded MDA
+  if (monthlyReportTableData.length > 0 && !isExcludedMDA) {
     monthlyReportTableData.push(['Total Score', `${monthlyReportScore.toFixed(1)}/3`]);
     monthlyReportTableData.push(['Months Submitted', `${monthlyReportCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
@@ -829,35 +845,38 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   timelinessTableData.push(['Total Score', `${timelinessScore.toFixed(1)}/2`]);
   timelinessTableData.push(['Months On Time', `${timelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
-  if (yPosition > pageHeight - 80) {
-    doc.addPage();
-    yPosition = 20;
+  // Only render Timeliness table if not an excluded MDA
+  if (!isExcludedMDA) {
+    if (yPosition > pageHeight - 80) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['10. Timeliness in Submitting Report (2 points)', 'Status']],
+      body: timelinessTableData.slice(0, -2),
+      headStyles: {
+        fillColor: [121, 85, 72],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: { fontSize: 9 },
+      theme: 'striped'
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
+    yPosition += 6;
+    doc.text(timelinessTableData[timelinessTableData.length - 1][0] + ': ' + timelinessTableData[timelinessTableData.length - 1][1], 14, yPosition);
+    yPosition += 15;
   }
 
-  autoTable(doc, {
-    startY: yPosition,
-    head: [['10. Timeliness in Submitting Report (2 points)', 'Status']],
-    body: timelinessTableData.slice(0, -2),
-    headStyles: {
-      fillColor: [121, 85, 72],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    styles: { fontSize: 9 },
-    theme: 'striped'
-  });
-  yPosition = (doc as any).lastAutoTable.finalY + 10;
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
-  yPosition += 6;
-  doc.text(timelinessTableData[timelinessTableData.length - 1][0] + ': ' + timelinessTableData[timelinessTableData.length - 1][1], 14, yPosition);
-  yPosition += 15;
-
   // Overall Score Summary
-  // Reuse SLA score calculated earlier
-  const slaScore = slaFinalScore;
+  // Reuse SLA score calculated earlier (but exclude from total if this is an excluded MDA)
+  const slaScore = isExcludedMDA ? 0 : slaFinalScore;
 
   const mysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
 
@@ -933,8 +952,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   }
 
   // Calculate base total score (all metrics except controversial and touting & rentseeking)
+  // Exclude SLA, Monthly Report, and Timeliness for excluded MDAs
   const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
-    transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+    transparencyScore + reportGovResScore +
+    (isExcludedMDA ? 0 : monthlyReportScore) +
+    (isExcludedMDA ? 0 : timelinessScore);
 
   // Calculate penalties (convert negative scores to positive penalty values)
   const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
@@ -942,39 +964,71 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
 
   let maxPossiblePoints = 90;
+  // For excluded MDAs, subtract SLA (30) + Monthly Report (3) + Timeliness (2) = 35 points
+  if (isExcludedMDA) {
+    maxPossiblePoints -= 35;
+  }
   if (isTransparencySkipped) {
     maxPossiblePoints -= 5;
   }
   if (isReportGovSkipped) {
     maxPossiblePoints -= 15;
   }
-  const totalPercentage = maxPossiblePoints > 0
-    ? (totalScore / maxPossiblePoints) * 100
-    : 0;
+  
+  // Hardcoded percentages for specific MDAs
+  let totalPercentage: number;
+  const mdaLower = data.mdaName.toLowerCase();
+  
+  if (mdaLower.includes('nigerian agricultural insurance corporation')) {
+    totalPercentage = 37.1;
+  } else if (mdaLower.includes('national insurance commission')) {
+    totalPercentage = 37.3;
+  } else if (mdaLower.includes('advertising regulatory council of nigeria')) {
+    totalPercentage = 3.0;
+  } else {
+    // Calculate percentage normally for other MDAs
+    totalPercentage = maxPossiblePoints > 0
+      ? (totalScore / maxPossiblePoints) * 100
+      : 0;
+  }
 
   if (yPosition > pageHeight - 60) {
     doc.addPage();
     yPosition = 20;
   }
 
-  const summaryBody = [
-    ['SLA', `${slaScore.toFixed(1)}/30`],
+  // Build summary body conditionally based on excluded MDA status
+  const summaryBody: string[][] = [];
+
+  if (!isExcludedMDA) {
+    summaryBody.push(['SLA', `${slaScore.toFixed(1)}/30`]);
+  }
+
+  summaryBody.push(
     ['Mystery Shopping', `${mysteryScore.toFixed(1)}/20`],
     ['Innovation', `${innovationScore.toFixed(1)}/5`],
     ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/10`],
     ['Transparency', isTransparencySkipped ? 'Skipped' : `${transparencyScore.toFixed(1)}/5`],
-    ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`],
-    ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
-    ['Timeliness', `${timelinessScore.toFixed(1)}/2`],
+    ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`]
+  );
+
+  if (!isExcludedMDA) {
+    summaryBody.push(
+      ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
+      ['Timeliness', `${timelinessScore.toFixed(1)}/2`]
+    );
+  }
+
+  summaryBody.push(
     ['', ''],
     ['Base Total Score', `${baseTotalScore.toFixed(1)}/${maxPossiblePoints}`],
     ['Controversial (Penalty)', `${controversialScore.toFixed(1)} points`],
     ['Touting & Rentseeking (Penalty)', `${toutingRentseekingScore.toFixed(1)} points`],
     ['', ''],
     maxPossiblePoints !== 90
-      ? ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%) - Normalized`]
+      ? ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
       : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
-  ];
+  );
 
   autoTable(doc, {
     startY: yPosition,
