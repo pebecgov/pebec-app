@@ -22,15 +22,22 @@ export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
             return;
         }
 
+        // Sort MDAs by totalPercentage (rank) in descending order to match dashboard ranking
+        const sortedMdaData = [...mdaData].sort((a: any, b: any) => {
+            const aValue = a.totalPercentage || 0;
+            const bValue = b.totalPercentage || 0;
+            return bValue - aValue; // Descending order (highest rank first)
+        });
+
         setIsDownloading(true);
-        setProgress({ current: 0, total: mdaData.length });
+        setProgress({ current: 0, total: sortedMdaData.length });
 
         let successCount = 0;
         let failCount = 0;
 
-        for (let i = 0; i < mdaData.length; i++) {
-            const mda = mdaData[i];
-            setProgress({ current: i + 1, total: mdaData.length });
+        for (let i = 0; i < sortedMdaData.length; i++) {
+            const mda = sortedMdaData[i];
+            setProgress({ current: i + 1, total: sortedMdaData.length });
 
             try {
                 // Fetch detailed data for this MDA
@@ -40,7 +47,7 @@ export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
                 ) as any;
 
                 if (detailedData) {
-                    // Add rank/position
+                    // Add rank/position based on sorted order (1 = top rank)
                     detailedData.position = i + 1;
 
                     // Generate PDF
