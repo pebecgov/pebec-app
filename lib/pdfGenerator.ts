@@ -238,8 +238,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const slaMaxPossibleScoreForMonths = slaTotalMonthsWithData * pointsPerMonth;
   const slaFinalScore = slaTotalMonthsWithData > 0 ? (slaSumTotalScore / slaMaxPossibleRawScore) * slaMaxPossibleScoreForMonths : 0;
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec)
-  for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
+  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const monthData = monthlyData[monthKey];
@@ -769,8 +769,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   });
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec) for display
-  for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
+  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const isSubmitted = monthlyReportMonths[monthKey] === true;
@@ -829,13 +829,22 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   });
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec) for display
-  for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
+  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const isOnTime = timelinessMonths[monthKey] === true;
+    const isSubmitted = monthlyReportMonths[monthKey] === true;
 
-    timelinessTableData.push([`${monthName} ${data.year}`, isOnTime ? 'On Time' : 'Late']);
+    // If not submitted, show "Not Submitted", otherwise show "On Time" or "Late"
+    let status: string;
+    if (!isSubmitted) {
+      status = 'Not Submitted';
+    } else {
+      status = isOnTime ? 'On Time' : 'Late';
+    }
+
+    timelinessTableData.push([`${monthName} ${data.year}`, status]);
   }
 
   const timelinessCount = Object.keys(timelinessMonths).length;
@@ -974,11 +983,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   if (isReportGovSkipped) {
     maxPossiblePoints -= 15;
   }
-  
+
   // Hardcoded percentages for specific MDAs
   let totalPercentage: number;
   const mdaLower = data.mdaName.toLowerCase();
-  
+
   if (mdaLower.includes('nigerian agricultural insurance corporation')) {
     totalPercentage = 37.1;
   } else if (mdaLower.includes('national insurance commission')) {
