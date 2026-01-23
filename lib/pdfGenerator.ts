@@ -1017,6 +1017,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     totalPercentage = 4.9;
   } else if (mdaLower.includes('federal ministry of power')) {
     totalPercentage = 4.9;
+  } else if (mdaLower.includes('federal ministry of works')) {
+    totalPercentage = 12.3;
   } else if (mdaLower.includes('ministry of foreign affairs')) {
     totalPercentage = -2.1;
   } else {
