@@ -83,7 +83,16 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     'Advertising Regulatory Council of Nigeria',
     'Nigeria Gas Company',
     'Nigerian Agricultural Insurance Corporation',
-    'National Insurance Commission'
+    'National Insurance Commission',
+    'Federal Ministry of Justice',
+    'Federal Ministry of Information and National Orientation',
+    'Federal Ministry of Works',
+    'Federal Ministry of Aviation and Aerospace Development',
+    'Federal Ministry of Transportation',
+    'Federal Ministry of Finance',
+    'Federal Ministry of Environment',
+    'Federal Ministry of Power',
+    'Ministry of Foreign Affairs'
   ];
 
   const isExcludedMDA = excludedMDAs.some(mda =>
@@ -994,6 +1003,22 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     totalPercentage = 37.3;
   } else if (mdaLower.includes('advertising regulatory council of nigeria')) {
     totalPercentage = 3.0;
+  } else if (mdaLower.includes('federal ministry of justice')) {
+    totalPercentage = 22.5;
+  } else if (mdaLower.includes('federal ministry of information and national orientation')) {
+    totalPercentage = 13.0;
+  } else if (mdaLower.includes('federal ministry of aviation and aerospace development')) {
+    totalPercentage = 10.5;
+  } else if (mdaLower.includes('federal ministry of transportation')) {
+    totalPercentage = 10.5;
+  } else if (mdaLower.includes('federal ministry of finance')) {
+    totalPercentage = 7.4;
+  } else if (mdaLower.includes('federal ministry of environment')) {
+    totalPercentage = 4.9;
+  } else if (mdaLower.includes('federal ministry of power')) {
+    totalPercentage = 4.9;
+  } else if (mdaLower.includes('ministry of foreign affairs')) {
+    totalPercentage = -2.1;
   } else {
     // Calculate percentage normally for other MDAs
     totalPercentage = maxPossiblePoints > 0
