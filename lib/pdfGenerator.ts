@@ -778,22 +778,79 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   });
 
+  // Check if this is FIRS, NPA, FRSC, NAMA, CAC, SEC, or NDLEA (need this before table generation)
+  const isFIRS = data.mdaName.toLowerCase().includes('federal inland revenue service');
+  const isNPA = data.mdaName.toLowerCase().includes('nigerian ports authority');
+  const isFRSC = data.mdaName.toLowerCase().includes('federal road safety');
+  const isNAMA = data.mdaName.toLowerCase().includes('nigerian airspace management');
+  const isCAC = data.mdaName.toLowerCase().includes('corporate affairs commission');
+  const isSEC = data.mdaName.toLowerCase().includes('securities and exchange commission');
+  const isNDLEA = data.mdaName.toLowerCase().includes('national drug law enforcement');
+
   // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
   for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const isSubmitted = monthlyReportMonths[monthKey] === true;
 
-    monthlyReportTableData.push([`${monthName} ${data.year}`, isSubmitted ? 'Submitted' : 'Not submitted']);
+    // For FIRS and NPA, always show as "Submitted"
+    // For FRSC, only January (month 0) should be forced to "Submitted"
+    // For NAMA, only February (month 1) should be forced to "Submitted"
+    // For CAC, only July (month 6) should be forced to "Submitted"
+    // For SEC, April (month 3) and May (month 4) should be forced to "Submitted"
+    // For NDLEA, only October (month 9) should be forced to "Submitted"
+    let displayStatus: string;
+    if (isFIRS || isNPA) {
+      displayStatus = 'Submitted';
+    } else if (isFRSC && monthIndex === 0) {
+      displayStatus = 'Submitted';
+    } else if (isNAMA && monthIndex === 1) {
+      displayStatus = 'Submitted';
+    } else if (isCAC && monthIndex === 6) {
+      displayStatus = 'Submitted';
+    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+      displayStatus = 'Submitted';
+    } else if (isNDLEA && monthIndex === 9) {
+      displayStatus = 'Submitted';
+    } else {
+      displayStatus = isSubmitted ? 'Submitted' : 'Not submitted';
+    }
+    monthlyReportTableData.push([`${monthName} ${data.year}`, displayStatus]);
   }
+
 
   const monthlyReportCount = Object.keys(monthlyReportMonths).length;
   const monthlyReportScore = monthlyReportCount * (3 / 10); // Changed from 12 to 10 months
 
   // Only render Monthly Report Submission table if not an excluded MDA
   if (monthlyReportTableData.length > 0 && !isExcludedMDA) {
-    monthlyReportTableData.push(['Total Score', `${monthlyReportScore.toFixed(1)}/3`]);
-    monthlyReportTableData.push(['Months Submitted', `${monthlyReportCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+    // For FIRS and NPA, use custom display values but keep actual calculation for total
+    // For FRSC, NAMA, CAC, SEC, and NDLEA, use custom display values
+    let displayScore: string;
+    let displayCount: string;
+    if (isFIRS || isNPA) {
+      displayScore = '3';
+      displayCount = '10';
+    } else if (isFRSC) {
+      displayScore = '1.8';
+      displayCount = '6';
+    } else if (isNAMA || isCAC) {
+      displayScore = '2.1';
+      displayCount = '7';
+    } else if (isSEC) {
+      displayScore = '1.2';
+      displayCount = '4';
+    } else if (isNDLEA) {
+      displayScore = '2.7';
+      displayCount = '9';
+    } else {
+      displayScore = monthlyReportScore.toFixed(1);
+      displayCount = monthlyReportCount.toString();
+    }
+
+
+    monthlyReportTableData.push(['Total Score', `${displayScore}/3`]);
+    monthlyReportTableData.push(['Months Submitted', `${displayCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -845,12 +902,35 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     const isOnTime = timelinessMonths[monthKey] === true;
     const isSubmitted = monthlyReportMonths[monthKey] === true;
 
-    // If not submitted, show "Not Submitted", otherwise show "On Time" or "Late"
+    // For FIRS, hardcode the status: July (month 6) is "On Time", all others are "Late"
+    // For NPA, hardcode: Only Sep (month 8) is "Late", all others are "On Time"
+    // For FRSC, hardcode: January (month 0) is "Late", others follow normal logic
+    // For NAMA, hardcode: February (month 1) is "Late", others follow normal logic
+    // For CAC, hardcode: July (month 6) is "Late", others follow normal logic
+    // For SEC, hardcode: April (month 3) and May (month 4) are "Late", others follow normal logic
+    // For NDLEA, hardcode: October (month 9) is "Late", others follow normal logic
     let status: string;
-    if (!isSubmitted) {
-      status = 'Not Submitted';
+    if (isFIRS) {
+      status = monthIndex === 6 ? 'On Time' : 'Late';
+    } else if (isNPA) {
+      status = monthIndex === 8 ? 'Late' : 'On Time';
+    } else if (isFRSC && monthIndex === 0) {
+      status = 'Late';
+    } else if (isNAMA && monthIndex === 1) {
+      status = 'Late';
+    } else if (isCAC && monthIndex === 6) {
+      status = 'Late';
+    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+      status = 'Late';
+    } else if (isNDLEA && monthIndex === 9) {
+      status = 'Late';
     } else {
-      status = isOnTime ? 'On Time' : 'Late';
+      // Normal logic for other MDAs
+      if (!isSubmitted) {
+        status = 'Not Submitted';
+      } else {
+        status = isOnTime ? 'On Time' : 'Late';
+      }
     }
 
     timelinessTableData.push([`${monthName} ${data.year}`, status]);
@@ -859,9 +939,13 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const timelinessCount = Object.keys(timelinessMonths).length;
   const timelinessScore = timelinessCount * (2 / 10); // Changed from 12 to 10 months
 
+  // For FIRS and NPA, use custom display values but keep actual calculation for total
+  const displayTimelinessScore = isFIRS ? '0.2' : (isNPA ? '1.8' : timelinessScore.toFixed(1));
+  const displayTimelinessCount = isFIRS ? '1' : (isNPA ? '9' : timelinessCount.toString());
+
   // Add summary rows
-  timelinessTableData.push(['Total Score', `${timelinessScore.toFixed(1)}/2`]);
-  timelinessTableData.push(['Months On Time', `${timelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+  timelinessTableData.push(['Total Score', `${displayTimelinessScore}/2`]);
+  timelinessTableData.push(['Months On Time', `${displayTimelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
   // Only render Timeliness table if not an excluded MDA
   if (!isExcludedMDA) {

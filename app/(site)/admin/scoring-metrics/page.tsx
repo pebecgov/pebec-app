@@ -316,8 +316,10 @@ export default function ScoringMetricsPage() {
   const [manualAverageResponseTime, setManualAverageResponseTime] = useState(0);
   const [manualAverageResolutionTime, setManualAverageResolutionTime] = useState(0);
   const [showFinalScore, setShowFinalScore] = useState(false);
-  const [scoringPeriod, setScoringPeriod] = useState(`1st Half ${new Date().getFullYear()}`);
   const currentYear = new Date().getFullYear();
+  const [scoringYear, setScoringYear] = useState(currentYear);
+  const [scoringHalf, setScoringHalf] = useState<'1st Half' | '2nd Half'>('1st Half');
+  const scoringPeriod = `${scoringHalf} ${scoringYear}`;
   const [notes, setNotes] = useState('');
   const [recommendations, setRecommendations] = useState('');
   const [processingMonthlyFiles, setProcessingMonthlyFiles] = useState<{ [key: string]: boolean }>({});
@@ -2148,12 +2150,21 @@ export default function ScoringMetricsPage() {
           <h1 className="text-2xl font-bold text-gray-800">MDA Scoring Metrics</h1>
           <div className="flex gap-4">
             <Select
-              value={scoringPeriod}
-              onChange={(e) => setScoringPeriod(e.target.value)}
-              className="min-w-[150px]"
+              value={scoringYear}
+              onChange={(e) => setScoringYear(Number(e.target.value))}
+              className="min-w-[120px]"
             >
-              <MenuItem value={`1st Half ${currentYear}`}>1st Half {currentYear}</MenuItem>
-              <MenuItem value={`2nd Half ${currentYear}`}>2nd Half {currentYear}</MenuItem>
+              {Array.from({ length: 3 }, (_, i) => currentYear - 2 + i).map(year => (
+                <MenuItem key={year} value={year}>{year}</MenuItem>
+              ))}
+            </Select>
+            <Select
+              value={scoringHalf}
+              onChange={(e) => setScoringHalf(e.target.value as '1st Half' | '2nd Half')}
+              className="min-w-[130px]"
+            >
+              <MenuItem value="1st Half">1st Half</MenuItem>
+              <MenuItem value="2nd Half">2nd Half</MenuItem>
             </Select>
           </div>
         </div>
