@@ -778,7 +778,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   });
 
-  // Check if this is FIRS, NPA, FRSC, NAMA, CAC, SEC, or NDLEA (need this before table generation)
+  // Check if this is FIRS, NPA, FRSC, NAMA, CAC, SEC, NDLEA, or CBN (need this before table generation)
   const isFIRS = data.mdaName.toLowerCase().includes('federal inland revenue service');
   const isNPA = data.mdaName.toLowerCase().includes('nigerian ports authority');
   const isFRSC = data.mdaName.toLowerCase().includes('federal road safety');
@@ -786,6 +786,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const isCAC = data.mdaName.toLowerCase().includes('corporate affairs commission');
   const isSEC = data.mdaName.toLowerCase().includes('securities and exchange commission');
   const isNDLEA = data.mdaName.toLowerCase().includes('national drug law enforcement');
+  const isCBN = data.mdaName.toLowerCase().includes('central bank');
 
   // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
   for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
@@ -799,6 +800,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     // For CAC, only July (month 6) should be forced to "Submitted"
     // For SEC, April (month 3) and May (month 4) should be forced to "Submitted"
     // For NDLEA, only October (month 9) should be forced to "Submitted"
+    // For CBN, only January (month 0) should be forced to "Submitted"
     let displayStatus: string;
     if (isFIRS || isNPA) {
       displayStatus = 'Submitted';
@@ -811,6 +813,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
       displayStatus = 'Submitted';
     } else if (isNDLEA && monthIndex === 9) {
+      displayStatus = 'Submitted';
+    } else if (isCBN && monthIndex === 0) {
       displayStatus = 'Submitted';
     } else {
       displayStatus = isSubmitted ? 'Submitted' : 'Not submitted';
@@ -825,7 +829,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   // Only render Monthly Report Submission table if not an excluded MDA
   if (monthlyReportTableData.length > 0 && !isExcludedMDA) {
     // For FIRS and NPA, use custom display values but keep actual calculation for total
-    // For FRSC, NAMA, CAC, SEC, and NDLEA, use custom display values
+    // For FRSC, NAMA, CAC, SEC, NDLEA, and CBN, use custom display values
     let displayScore: string;
     let displayCount: string;
     if (isFIRS || isNPA) {
@@ -843,6 +847,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     } else if (isNDLEA) {
       displayScore = '2.7';
       displayCount = '9';
+    } else if (isCBN) {
+      displayScore = '0.9';
+      displayCount = '3';
     } else {
       displayScore = monthlyReportScore.toFixed(1);
       displayCount = monthlyReportCount.toString();
@@ -909,6 +916,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     // For CAC, hardcode: July (month 6) is "Late", others follow normal logic
     // For SEC, hardcode: April (month 3) and May (month 4) are "Late", others follow normal logic
     // For NDLEA, hardcode: October (month 9) is "Late", others follow normal logic
+    // For CBN, hardcode: January (month 0) is "Late", others follow normal logic
     let status: string;
     if (isFIRS) {
       status = monthIndex === 6 ? 'On Time' : 'Late';
@@ -923,6 +931,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
       status = 'Late';
     } else if (isNDLEA && monthIndex === 9) {
+      status = 'Late';
+    } else if (isCBN && monthIndex === 0) {
       status = 'Late';
     } else {
       // Normal logic for other MDAs
