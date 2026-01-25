@@ -21,9 +21,9 @@ export default function Sidebar({
   const allowedPaths = currentUser?.permissions || [];
   const userRole = currentUser?.role;
 
-  // For admin users with no specific permissions set, show everything
+  // Admin users should always see all items
   // For staff users, only show what they have explicit permissions for
-  const shouldShowAllItems = userRole === "admin" && allowedPaths.length === 0;
+  const shouldShowAllItems = userRole === "admin";
 
 
 
@@ -187,7 +187,7 @@ export default function Sidebar({
   return <>
     <aside className={`bg-white shadow-lg h-screen fixed transition-all duration-300 z-50 border-r border-gray-200 flex flex-col 
         ${isOpen ? "translate-x-0 w-64" : "-translate-x-full w-64"} 
-        md:translate-x-0 md:w-${isOpen ? "64" : "16"} md:relative`}>
+        md:translate-x-0 ${isOpen ? "md:w-64" : "md:w-16"} md:relative`}>
       <div className="flex items-center justify-between p-4 border-b border-gray-300">
         <h2 className={`text-lg font-semibold text-gray-700 ${isOpen ? "block" : "hidden"}`}>
           Admin Dashboard
@@ -241,7 +241,7 @@ export default function Sidebar({
         <SignOutButton redirectUrl="/">
           <button className={`flex items-center justify-center gap-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition
                 ${isOpen ? "px-4 py-2 w-40" : "w-12 h-12"}`}>
-            <LogOut className={`w-${isOpen ? "5" : "7"} h-${isOpen ? "5" : "7"}`} />
+            <LogOut className={isOpen ? "w-5 h-5" : "w-7 h-7"} />
             <span className={`text-base ${isOpen ? "block" : "hidden"}`}>Logout</span>
           </button>
         </SignOutButton>
