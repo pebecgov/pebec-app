@@ -169,11 +169,13 @@ export default function Sidebar({
     name: "Absence Notice",
     icon: <MapPinIcon className="w-5 h-5" />,
     path: "/admin/holiday-whereabout"
-  }, {
-    name: "Email Management",
-    icon: <EnvelopeIcon className="w-5 h-5" />,
-    path: "/admin/email-management"
-  }, {
+  },
+  //  {
+  //   name: "Email Management",
+  //   icon: <EnvelopeIcon className="w-5 h-5" />,
+  //   path: "/admin/email-management"
+  // }, 
+  {
     name: "User Management",
     icon: <UserGroupIcon className="w-5 h-5" />,
     items: [{

@@ -100,7 +100,6 @@ export const createTask = mutation({
         assignedStream: v.optional(v.string()),
         assignedTo: v.optional(v.id("users")),
         assignedToName: v.optional(v.string()),
-        priority: v.optional(v.string()),
         dueDate: v.optional(v.number())
     },
     handler: async (ctx, args) => {
@@ -131,7 +130,6 @@ export const createTask = mutation({
             assignedToName: args.assignedToName,
             assignedStream: args.assignedStream,
             assignedRole: assignedRole,
-            priority: args.priority ?? "Medium",
             progress: 0,
             comments: 0,
             attachments: 0,
@@ -164,10 +162,12 @@ export const createTask = mutation({
                             <h2 style="color: #059669;">New Task Assigned</h2>
                             <p>Hello ${assignedUser.firstName || "Staff"},</p>
                             <p>You have been assigned a new task: <strong>"${args.title}"</strong></p>
-                            <p><strong>Priority:</strong> ${args.priority ?? "Medium"}</p>
                             ${args.dueDate ? `<p><strong>Due Date:</strong> ${new Date(args.dueDate).toLocaleDateString()}</p>` : ""}
                             ${args.description ? `<p><strong>Description:</strong> ${args.description}</p>` : ""}
                             <p style="margin-top: 20px;">Please log in to the portal to view the details and start working on it.</p>
+                            <div style="margin-top: 20px;">
+                                <a href="https://www.pebec.gov.ng/staff/tasks" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task</a>
+                            </div>
                         </div>
                     `
                 });
@@ -200,9 +200,11 @@ export const createTask = mutation({
                                 <h2 style="color: #059669;">New Workstream Task</h2>
                                 <p>Hello ${streamUser.firstName || "Staff"},</p>
                                 <p>A new task has been assigned to your workstream (<strong>${args.assignedStream}</strong>): <strong>"${args.title}"</strong></p>
-                                <p><strong>Priority:</strong> ${args.priority ?? "Medium"}</p>
                                 ${args.dueDate ? `<p><strong>Due Date:</strong> ${new Date(args.dueDate).toLocaleDateString()}</p>` : ""}
                                 <p style="margin-top: 20px;">Please log in to the portal to view the details.</p>
+                                <div style="margin-top: 20px;">
+                                    <a href="https://www.pebec.gov.ng/staff/tasks" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task</a>
+                                </div>
                             </div>
                         `
                     });
@@ -289,6 +291,9 @@ export const requestTaskCompletion = mutation({
                     <p>Staff member <strong>${user.firstName || ""} ${user.lastName || ""}</strong> has ${task.completionRequestStatus === "rejected" ? "resubmitted" : "requested completion approval for"} the task: <strong>"${task.title}"</strong></p>
                     ${completionNotes ? `<p><strong>Notes:</strong> ${completionNotes}</p>` : ""}
                     <p style="margin-top: 20px;">Please log in to the admin portal to review the request.</p>
+                    <div style="margin-top: 20px;">
+                        <a href="https://www.pebec.gov.ng/admin/tasks" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Review Task</a>
+                    </div>
                 </div>
             `
         });
@@ -414,6 +419,9 @@ export const confirmTaskCompletion = mutation({
                             ${adminComment ? `<p><strong>Admin Note:</strong> ${adminComment}</p>` : ""}
                             ${!approved ? `<p style="color: #6b7280; font-style: italic;">Please address the feedback and resubmit the task for approval.</p>` : ""}
                             <p style="margin-top: 20px;">View details in the staff portal.</p>
+                            <div style="margin-top: 20px;">
+                                <a href="https://www.pebec.gov.ng/staff/tasks" style="background-color: ${approved ? "#059669" : "#dc2626"}; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task</a>
+                            </div>
                         </div>
                     `
                 });
