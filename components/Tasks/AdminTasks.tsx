@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 
 export default function AdminTasks() {
@@ -24,7 +24,6 @@ export default function AdminTasks() {
   const [description, setDescription] = useState("");
   const [selectedStream, setSelectedStream] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<Id<"users"> | null>(null);
-  const [priority, setPriority] = useState<string>("Medium");
   const [dueDate, setDueDate] = useState("");
 
   const allTasks = useQuery(api.tasks.getAllTasks);
@@ -89,7 +88,6 @@ export default function AdminTasks() {
         assignedStream: selectedStream || undefined,
         assignedTo: selectedStaffId || undefined,
         assignedToName: assignedToName,
-        priority: priority || "Medium",
         dueDate: dueDate ? new Date(dueDate).getTime() : undefined
       });
 
@@ -100,7 +98,6 @@ export default function AdminTasks() {
       setDescription("");
       setSelectedStream(null);
       setSelectedStaffId(null);
-      setPriority("Medium");
       setDueDate("");
     } catch (error) {
       console.error("Error creating task:", error);
@@ -165,16 +162,7 @@ export default function AdminTasks() {
   };
 
   const getPriorityColor = (priority?: string) => {
-    switch (priority) {
-      case "High":
-        return "bg-red-100 text-red-800";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800";
-      case "Low":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+    return "bg-gray-100 text-gray-800";
   };
 
   const getStatusColor = (status: string) => {
@@ -279,9 +267,9 @@ export default function AdminTasks() {
                         <Hourglass className="w-3 h-3 mr-1" />
                         Pending Approval
                       </Badge>
-                      <Badge className={getPriorityColor(task.priority)}>
-                        {task.priority || "Medium"}
-                      </Badge>
+                      {task.dueDate && (
+                        <CountdownTimer dueDate={task.dueDate} createdAt={task.createdAt} />
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -344,7 +332,7 @@ export default function AdminTasks() {
                     {task.completionRequestedAt && (
                       <div className="flex items-center gap-1 text-yellow-600">
                         <Hourglass className="w-4 h-4" />
-                        Requested: {format(new Date(task.completionRequestedAt), "PPP")}
+                        Requested: {format(new Date(task.completionRequestedAt), "PPP 'at' p")}
                       </div>
                     )}
                   </div>
@@ -407,9 +395,9 @@ export default function AdminTasks() {
                       <Badge className={getStatusColor(task.status)}>
                         {task.status === "to_do" ? "To Do" : task.status === "in_progress" ? "In Progress" : task.status === "done" ? "Done" : "Assigned"}
                       </Badge>
-                      <Badge className={getPriorityColor(task.priority)}>
-                        {task.priority || "Medium"}
-                      </Badge>
+                      {task.status !== "done" && task.dueDate && (
+                        <CountdownTimer dueDate={task.dueDate} createdAt={task.createdAt} />
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -438,7 +426,7 @@ export default function AdminTasks() {
                     </div>
                     {task.completedAt && (
                       <div className="flex items-center gap-1 text-green-600">
-                        Completed: {format(new Date(task.completedAt), "PPP")}
+                        Completed: {format(new Date(task.completedAt), "PPP 'at' p")}
                       </div>
                     )}
                   </div>
@@ -555,7 +543,7 @@ export default function AdminTasks() {
                   <SelectContent>
                     {workstreams.map((stream) => (
                       <SelectItem key={stream.value} value={stream.value}>
-                        {stream.label}
+                        {formatWorkstream(stream.value)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -587,23 +575,7 @@ export default function AdminTasks() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Priority
-                </label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Low">Low</SelectItem>
-                    <SelectItem value="Medium">Medium</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Due Date
@@ -701,13 +673,74 @@ export default function AdminTasks() {
   );
 }
 
+function CountdownTimer({ dueDate, createdAt }: { dueDate: number, createdAt: number }) {
+  const [now, setNow] = useState(Date.now());
+
+  useState(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60000); // Update every minute
+    return () => clearInterval(interval);
+  });
+
+  const total = dueDate - createdAt;
+  const remaining = dueDate - now;
+  const ratio = remaining / total;
+
+  let color = "bg-green-100 text-green-800";
+  let label = "";
+
+  if (remaining < 0) {
+    color = "bg-red-100 text-red-800";
+    label = "Overdue";
+  } else {
+    // Calculate days/hours remaining
+    const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+    if (days > 0) {
+      label = `${days}d ${hours}h remaining`;
+    } else {
+      label = `${hours}h remaining`;
+    }
+
+    if (ratio <= 0.2) {
+      color = "bg-red-100 text-red-800";
+    } else if (ratio <= 0.5) {
+      color = "bg-yellow-100 text-yellow-800";
+    }
+  }
+
+  return (
+    <Badge className={color}>
+      <Clock className="w-3 h-3 mr-1" />
+      {label}
+    </Badge>
+  );
+}
+
 function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showUpdates, setShowUpdates] = useState(false);
+  const [hasNewUpdates, setHasNewUpdates] = useState(false);
 
   const updates = useQuery(api.tasks.getTaskUpdates, { taskId });
   const addTaskUpdate = useMutation(api.tasks.addTaskUpdate);
+
+  useEffect(() => {
+    const seenCount = parseInt(localStorage.getItem(`task_updates_seen_${taskId}`) || "0");
+    if (updates && updates.length > seenCount && !showUpdates) {
+      setHasNewUpdates(true);
+    }
+  }, [updates, taskId, showUpdates]);
+
+  const handleToggleUpdates = () => {
+    const newShowUpdates = !showUpdates;
+    setShowUpdates(newShowUpdates);
+    if (newShowUpdates && updates) {
+      localStorage.setItem(`task_updates_seen_${taskId}`, updates.length.toString());
+      setHasNewUpdates(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -721,6 +754,10 @@ function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
       });
       setNewComment("");
       toast.success("Update posted!");
+      // After posting, mark as seen
+      if (updates) {
+        localStorage.setItem(`task_updates_seen_${taskId}`, (updates.length + 1).toString());
+      }
     } catch (error) {
       console.error("Error posting update:", error);
       toast.error("Failed to post update");
@@ -732,11 +769,17 @@ function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
   return (
     <div className="mt-4 border-t pt-4">
       <button
-        onClick={() => setShowUpdates(!showUpdates)}
-        className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 mb-2"
+        onClick={handleToggleUpdates}
+        className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 mb-2 relative"
       >
         <MessageSquare className="w-4 h-4" />
-        Task Updates ({updates?.length || 0})
+        View Task Updates ({updates?.length || 0})
+        {hasNewUpdates && (
+          <span className="absolute -top-1 -right-2 flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+          </span>
+        )}
       </button>
 
       {showUpdates && (
