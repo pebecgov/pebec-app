@@ -541,15 +541,15 @@ export const updateUserRoleInConvex = mutation({
     }
     if (role === "staff" && staffStream) {
       const permissionMap: Record<string, string[]> = {
-        regulatory: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        sub_national: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        innovation: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        judiciary: ["/staff", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        communications: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
-        investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        receptionist: ["/staff", "/staff/letters", "/staff/business-letters", "/staff/messages", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        account: ["/staff", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
+        regulatory: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        sub_national: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        innovation: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        judiciary: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        communications: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
+        investments: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        receptionist: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/letters", "/staff/business-letters", "/staff/messages", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        account: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        auditor: ["/staff/tasks", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
       };
 
       // Get base staff permissions
@@ -1371,5 +1371,55 @@ export const getStaffUserActivity = query({
       console.error("Error in getStaffUserActivity:", error);
       throw new Error("Failed to retrieve user activity data");
     }
+  }
+});
+
+export const refreshStaffPermissions = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // If run from dashboard/internally, identity might be null or different
+    // We can rely on Convex's built-in security for who can call mutations from the dashboard
+    // But let's try to be safe: check if there's an identity at least, or just allow it if we trust dashboard access.
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity) {
+      const user = await ctx.db.query("users").withIndex("byClerkUserId", q => q.eq("clerkUserId", identity.subject)).unique();
+      if (user && user.role !== "admin") {
+        throw new Error("Only admins can refresh permissions");
+      }
+    }
+    // If no identity (e.g. CLI/Internal), we allow it as it's a maintenance task.
+
+    const staffUsers = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("role"), "staff"))
+      .collect();
+
+    const permissionMap: Record<string, string[]> = {
+      regulatory: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+      sub_national: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+      innovation: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+      judiciary: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+      communications: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
+      investments: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+      receptionist: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/letters", "/staff/business-letters", "/staff/messages", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+      account: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+      auditor: ["/staff/tasks", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
+    };
+
+    let count = 0;
+    for (const staff of staffUsers) {
+      if (staff.staffStream) {
+        const basePermissions = permissionMap[staff.staffStream] ?? [];
+        const currentPermissions = staff.permissions ?? [];
+        const combinedPermissions = [...new Set([...basePermissions, ...currentPermissions])];
+
+        await ctx.db.patch(staff._id, {
+          permissions: combinedPermissions
+        });
+        count++;
+      }
+    }
+
+    return { success: true, count };
   }
 });

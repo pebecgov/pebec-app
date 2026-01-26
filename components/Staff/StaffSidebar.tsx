@@ -77,11 +77,12 @@ export default function Sidebar({
   //   icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
   //   path: "/staff/letters"
   // }, 
+  // {
+  //   name: "Kanboard",
+  //   icon: <ClipboardDocumentIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+  //   path: "/staff/kanban"
+  // }, 
   {
-    name: "Kanboard",
-    icon: <ClipboardDocumentIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/kanban"
-  }, {
     name: "My Tasks",
     icon: <ClipboardDocumentIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/tasks"

@@ -17,6 +17,7 @@ import { indicators } from "@/convex/config/indicators";
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
 import * as XLSX from "xlsx";
+import { BulkPdfDownloader } from "@/components/Admin/BulkPdfDownloader";
 
 const stateIndicatorMaxScores: Record<string, number> = Object.fromEntries(
   Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
@@ -315,8 +316,10 @@ export default function ScoringMetricsPage() {
   const [manualAverageResponseTime, setManualAverageResponseTime] = useState(0);
   const [manualAverageResolutionTime, setManualAverageResolutionTime] = useState(0);
   const [showFinalScore, setShowFinalScore] = useState(false);
-  const [scoringPeriod, setScoringPeriod] = useState(`1st Half ${new Date().getFullYear()}`);
   const currentYear = new Date().getFullYear();
+  const [scoringYear, setScoringYear] = useState(currentYear);
+  const [scoringHalf, setScoringHalf] = useState<'1st Half' | '2nd Half'>('1st Half');
+  const scoringPeriod = `${scoringHalf} ${scoringYear}`;
   const [notes, setNotes] = useState('');
   const [recommendations, setRecommendations] = useState('');
   const [processingMonthlyFiles, setProcessingMonthlyFiles] = useState<{ [key: string]: boolean }>({});
@@ -2147,12 +2150,21 @@ export default function ScoringMetricsPage() {
           <h1 className="text-2xl font-bold text-gray-800">MDA Scoring Metrics</h1>
           <div className="flex gap-4">
             <Select
-              value={scoringPeriod}
-              onChange={(e) => setScoringPeriod(e.target.value)}
-              className="min-w-[150px]"
+              value={scoringYear}
+              onChange={(e) => setScoringYear(Number(e.target.value))}
+              className="min-w-[120px]"
             >
-              <MenuItem value={`1st Half ${currentYear}`}>1st Half {currentYear}</MenuItem>
-              <MenuItem value={`2nd Half ${currentYear}`}>2nd Half {currentYear}</MenuItem>
+              {Array.from({ length: 3 }, (_, i) => currentYear - 2 + i).map(year => (
+                <MenuItem key={year} value={year}>{year}</MenuItem>
+              ))}
+            </Select>
+            <Select
+              value={scoringHalf}
+              onChange={(e) => setScoringHalf(e.target.value as '1st Half' | '2nd Half')}
+              className="min-w-[130px]"
+            >
+              <MenuItem value="1st Half">1st Half</MenuItem>
+              <MenuItem value="2nd Half">2nd Half</MenuItem>
             </Select>
           </div>
         </div>
@@ -2298,10 +2310,10 @@ export default function ScoringMetricsPage() {
           <div className="w-full space-y-6">
             {/* Live Dashboard Header */}
             <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">Live Scoring Dashboard</h2>
-                <div className="flex items-center gap-4">
-                  <FormControl sx={{ minWidth: 200 }} variant="outlined">
+              <div className="mb-4">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">Live Scoring Dashboard</h2>
+                <div className="flex flex-wrap items-center gap-3">
+                  <FormControl sx={{ minWidth: 200, flexShrink: 0 }} variant="outlined" size="small">
                     <InputLabel id="metric-label">Select Metric</InputLabel>
                     <Select
                       labelId="metric-label"
@@ -2322,7 +2334,7 @@ export default function ScoringMetricsPage() {
                       <MenuItem value="timeliness">Timeliness</MenuItem>
                     </Select>
                   </FormControl>
-                  <FormControl sx={{ minWidth: 180 }} variant="outlined">
+                  <FormControl sx={{ minWidth: 160, flexShrink: 0 }} variant="outlined" size="small">
                     <InputLabel id="filter-label">Filter MDAs</InputLabel>
                     <Select
                       labelId="filter-label"
@@ -2335,7 +2347,7 @@ export default function ScoringMetricsPage() {
                       <MenuItem value="withData">MDAs with Data</MenuItem>
                     </Select>
                   </FormControl>
-                  <FormControl sx={{ minWidth: 200 }} variant="outlined">
+                  <FormControl sx={{ minWidth: 180, flexShrink: 0 }} variant="outlined" size="small">
                     <InputLabel id="ministry-filter-label">Ministry Filter</InputLabel>
                     <Select
                       labelId="ministry-filter-label"
@@ -2349,7 +2361,7 @@ export default function ScoringMetricsPage() {
                       <MenuItem value="without-ministries">Exclude Ministries</MenuItem>
                     </Select>
                   </FormControl>
-                  <FormControl sx={{ minWidth: 150 }} variant="outlined">
+                  <FormControl sx={{ minWidth: 120, flexShrink: 0 }} variant="outlined" size="small">
                     <InputLabel id="year-label">Year</InputLabel>
                     <Select
                       labelId="year-label"
@@ -2366,17 +2378,14 @@ export default function ScoringMetricsPage() {
                   <button
                     onClick={handleGenerateDashboardPDF}
                     disabled={liveDashboardData === undefined || !Array.isArray(liveDashboardData) || liveDashboardData.length === 0}
-                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap h-10"
                   >
                     📥 Download PDF
                   </button>
-                  <button
-                    onClick={handleGenerateRegionalAveragesPDF}
-                    disabled={!regionalAverages}
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    🗺️ Regional Averages PDF
-                  </button>
+                  <BulkPdfDownloader
+                    mdaData={processDashboardMdaData(mdaFilter, ministryFilter)}
+                    year={dashboardYear}
+                  />
                 </div>
               </div>
               <p className="text-sm text-gray-600">

@@ -431,11 +431,13 @@ export default defineSchema({
     updatedAt: v.optional(v.number())
   }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]),
   tasks: defineTable({
+    customTaskId: v.optional(v.string()), // Manual ID for the task
     title: v.string(),
     description: v.optional(v.string()),
     status: v.union(v.literal("to_do"), v.literal("in_progress"), v.literal("done"), v.literal("assigned")),
     assignedTo: v.optional(v.id("users")),
     assignedToName: v.optional(v.string()),
+    assignedStream: v.optional(v.string()), // For workstream-based assignment
     assignedRole: v.optional(v.string()),
     priority: v.optional(v.string()),
     progress: v.optional(v.number()),
@@ -447,9 +449,18 @@ export default defineSchema({
     completionNotes: v.optional(v.string()), // Notes added by staff when completing/updating task
     taskDetails: v.optional(v.string()), // Additional details/updates from staff
     completedAt: v.optional(v.number()), // When the task was marked as done
+    // Completion request fields
+    completionRequestStatus: v.optional(v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"))),
+    completionRequestedAt: v.optional(v.number()), // When completion was requested
+    completionRequestedBy: v.optional(v.id("users")), // Staff member who requested completion
+    completionDocumentId: v.optional(v.id("_storage")), // Document uploaded with completion request
+    completionDocumentName: v.optional(v.string()), // Name of the uploaded document
+    completionApprovedBy: v.optional(v.id("users")), // Admin who approved/rejected
+    completionApprovedAt: v.optional(v.number()), // When completion was approved/rejected
+    completionAdminComment: v.optional(v.string()), // Admin's comment when approving/rejecting
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
-  }).index("byStatus", ["status"]).index("byAssignedTo", ["assignedTo"]).index("byCreatedBy", ["createdBy"]),
+  }).index("byStatus", ["status"]).index("byAssignedTo", ["assignedTo"]).index("byCreatedBy", ["createdBy"]).index("byAssignedStream", ["assignedStream"]).index("byCompletionRequestStatus", ["completionRequestStatus"]),
   reforms: defineTable({
     title: v.string(),
     description: v.string(),
@@ -790,6 +801,14 @@ export default defineSchema({
     submittedAt: v.number(), // When SABER agent submitted
     updatedAt: v.optional(v.number())
   }).index("bySubmittedBy", ["submittedBy"]).index("byState", ["state"]).index("byAssessment", ["dmoAssessment"]).index("byDeadline", ["deadline"]).index("byDate", ["submittedAt"]),
+
+  task_updates: defineTable({
+    taskId: v.id("tasks"),
+    authorId: v.id("users"),
+    authorName: v.string(),
+    content: v.string(),
+    createdAt: v.number(),
+  }).index("byTask", ["taskId"]),
 
   // SABER Deadline Management Tables
   saber_deadlines: defineTable({

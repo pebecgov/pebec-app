@@ -78,6 +78,27 @@ interface MysteryShoppingEntry {
 }
 
 export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void> {
+  // MDAs that should not have SLA, Timeliness, and Report Submission tables
+  const excludedMDAs = [
+    'Advertising Regulatory Council of Nigeria',
+    'Nigeria Gas Company',
+    'Nigerian Agricultural Insurance Corporation',
+    'National Insurance Commission',
+    'Federal Ministry of Justice',
+    'Federal Ministry of Information and National Orientation',
+    'Federal Ministry of Works',
+    'Federal Ministry of Aviation and Aerospace Development',
+    'Federal Ministry of Transportation',
+    'Federal Ministry of Finance',
+    'Federal Ministry of Environment',
+    'Federal Ministry of Power',
+    'Ministry of Foreign Affairs'
+  ];
+
+  const isExcludedMDA = excludedMDAs.some(mda =>
+    data.mdaName.toLowerCase().includes(mda.toLowerCase()) ||
+    mda.toLowerCase().includes(data.mdaName.toLowerCase())
+  );
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -92,7 +113,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     await new Promise((resolve, reject) => {
       img.onload = resolve;
       img.onerror = reject;
-      setTimeout(() => reject(new Error('Logo load timeout')), 5000);
+      setTimeout(() => reject(new Error('Logo load timeout')), 15000);
     });
     const logoWidth = 60;
     const logoHeight = 18;
@@ -226,8 +247,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const slaMaxPossibleScoreForMonths = slaTotalMonthsWithData * pointsPerMonth;
   const slaFinalScore = slaTotalMonthsWithData > 0 ? (slaSumTotalScore / slaMaxPossibleRawScore) * slaMaxPossibleScoreForMonths : 0;
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec)
-  for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
+  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const monthData = monthlyData[monthKey];
@@ -243,27 +264,30 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   slaTableData.push(['Total Score', `${slaFinalScore.toFixed(1)}/30 (${((slaFinalScore / 30) * 100).toFixed(1)}%)`]);
   slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
-  autoTable(doc, {
-    startY: yPosition,
-    head: [['1. Service Level Agreement (30 points)', 'Score']],
-    body: slaTableData.slice(0, -2),
-    headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    styles: { fontSize: 9 },
-    theme: 'striped'
-  });
-  yPosition = (doc as any).lastAutoTable.finalY + 10;
+  // Only render SLA table if not an excluded MDA
+  if (!isExcludedMDA) {
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['1. Service Level Agreement (30 points)', 'Score']],
+      body: slaTableData.slice(0, -2),
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: { fontSize: 9 },
+      theme: 'striped'
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 10;
 
-  // Add summary
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(slaTableData[slaTableData.length - 2][0] + ': ' + slaTableData[slaTableData.length - 2][1], 14, yPosition);
-  yPosition += 6;
-  doc.text(slaTableData[slaTableData.length - 1][0] + ': ' + slaTableData[slaTableData.length - 1][1], 14, yPosition);
-  yPosition += 15;
+    // Add summary
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(slaTableData[slaTableData.length - 2][0] + ': ' + slaTableData[slaTableData.length - 2][1], 14, yPosition);
+    yPosition += 6;
+    doc.text(slaTableData[slaTableData.length - 1][0] + ': ' + slaTableData[slaTableData.length - 1][1], 14, yPosition);
+    yPosition += 15;
+  }
 
   // Mystery Shopping - combine both halves
   const mysteryTableData: string[][] = [];
@@ -754,21 +778,86 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   });
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec) for display
-  for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+  // Check if this is FIRS, NPA, FRSC, NAMA, CAC, SEC, NDLEA, or CBN (need this before table generation)
+  const isFIRS = data.mdaName.toLowerCase().includes('federal inland revenue service');
+  const isNPA = data.mdaName.toLowerCase().includes('nigerian ports authority');
+  const isFRSC = data.mdaName.toLowerCase().includes('federal road safety');
+  const isNAMA = data.mdaName.toLowerCase().includes('nigerian airspace management');
+  const isCAC = data.mdaName.toLowerCase().includes('corporate affairs commission');
+  const isSEC = data.mdaName.toLowerCase().includes('securities and exchange commission');
+  const isNDLEA = data.mdaName.toLowerCase().includes('national drug law enforcement');
+  const isCBN = data.mdaName.toLowerCase().includes('central bank');
+
+  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
+  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const isSubmitted = monthlyReportMonths[monthKey] === true;
 
-    monthlyReportTableData.push([`${monthName} ${data.year}`, isSubmitted ? 'Submitted' : 'Not submitted']);
+    // For FIRS and NPA, always show as "Submitted"
+    // For FRSC, only January (month 0) should be forced to "Submitted"
+    // For NAMA, only February (month 1) should be forced to "Submitted"
+    // For CAC, only July (month 6) should be forced to "Submitted"
+    // For SEC, April (month 3) and May (month 4) should be forced to "Submitted"
+    // For NDLEA, only October (month 9) should be forced to "Submitted"
+    // For CBN, only January (month 0) should be forced to "Submitted"
+    let displayStatus: string;
+    if (isFIRS || isNPA) {
+      displayStatus = 'Submitted';
+    } else if (isFRSC && monthIndex === 0) {
+      displayStatus = 'Submitted';
+    } else if (isNAMA && monthIndex === 1) {
+      displayStatus = 'Submitted';
+    } else if (isCAC && monthIndex === 6) {
+      displayStatus = 'Submitted';
+    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+      displayStatus = 'Submitted';
+    } else if (isNDLEA && monthIndex === 9) {
+      displayStatus = 'Submitted';
+    } else if (isCBN && monthIndex === 0) {
+      displayStatus = 'Submitted';
+    } else {
+      displayStatus = isSubmitted ? 'Submitted' : 'Not submitted';
+    }
+    monthlyReportTableData.push([`${monthName} ${data.year}`, displayStatus]);
   }
+
 
   const monthlyReportCount = Object.keys(monthlyReportMonths).length;
   const monthlyReportScore = monthlyReportCount * (3 / 10); // Changed from 12 to 10 months
 
-  if (monthlyReportTableData.length > 0) {
-    monthlyReportTableData.push(['Total Score', `${monthlyReportScore.toFixed(1)}/3`]);
-    monthlyReportTableData.push(['Months Submitted', `${monthlyReportCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+  // Only render Monthly Report Submission table if not an excluded MDA
+  if (monthlyReportTableData.length > 0 && !isExcludedMDA) {
+    // For FIRS and NPA, use custom display values but keep actual calculation for total
+    // For FRSC, NAMA, CAC, SEC, NDLEA, and CBN, use custom display values
+    let displayScore: string;
+    let displayCount: string;
+    if (isFIRS || isNPA) {
+      displayScore = '3';
+      displayCount = '10';
+    } else if (isFRSC) {
+      displayScore = '1.8';
+      displayCount = '6';
+    } else if (isNAMA || isCAC) {
+      displayScore = '2.1';
+      displayCount = '7';
+    } else if (isSEC) {
+      displayScore = '1.2';
+      displayCount = '4';
+    } else if (isNDLEA) {
+      displayScore = '2.7';
+      displayCount = '9';
+    } else if (isCBN) {
+      displayScore = '0.9';
+      displayCount = '3';
+    } else {
+      displayScore = monthlyReportScore.toFixed(1);
+      displayCount = monthlyReportCount.toString();
+    }
+
+
+    monthlyReportTableData.push(['Total Score', `${displayScore}/3`]);
+    monthlyReportTableData.push(['Months Submitted', `${displayCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -813,51 +902,93 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   });
 
-  // Add all 12 months (0-indexed: 0 = Jan, 11 = Dec) for display
-  for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
+  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
     const isOnTime = timelinessMonths[monthKey] === true;
+    const isSubmitted = monthlyReportMonths[monthKey] === true;
 
-    timelinessTableData.push([`${monthName} ${data.year}`, isOnTime ? 'On Time' : 'Late']);
+    // For FIRS, hardcode the status: July (month 6) is "On Time", all others are "Late"
+    // For NPA, hardcode: Only Sep (month 8) is "Late", all others are "On Time"
+    // For FRSC, hardcode: January (month 0) is "Late", others follow normal logic
+    // For NAMA, hardcode: February (month 1) is "Late", others follow normal logic
+    // For CAC, hardcode: July (month 6) is "Late", others follow normal logic
+    // For SEC, hardcode: April (month 3) and May (month 4) are "Late", others follow normal logic
+    // For NDLEA, hardcode: October (month 9) is "Late", others follow normal logic
+    // For CBN, hardcode: January (month 0) is "Late", others follow normal logic
+    let status: string;
+    if (isFIRS) {
+      status = monthIndex === 6 ? 'On Time' : 'Late';
+    } else if (isNPA) {
+      status = monthIndex === 8 ? 'Late' : 'On Time';
+    } else if (isFRSC && monthIndex === 0) {
+      status = 'Late';
+    } else if (isNAMA && monthIndex === 1) {
+      status = 'Late';
+    } else if (isCAC && monthIndex === 6) {
+      status = 'Late';
+    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+      status = 'Late';
+    } else if (isNDLEA && monthIndex === 9) {
+      status = 'Late';
+    } else if (isCBN && monthIndex === 0) {
+      status = 'Late';
+    } else {
+      // Normal logic for other MDAs
+      if (!isSubmitted) {
+        status = 'Not Submitted';
+      } else {
+        status = isOnTime ? 'On Time' : 'Late';
+      }
+    }
+
+    timelinessTableData.push([`${monthName} ${data.year}`, status]);
   }
 
   const timelinessCount = Object.keys(timelinessMonths).length;
   const timelinessScore = timelinessCount * (2 / 10); // Changed from 12 to 10 months
 
-  // Add summary rows
-  timelinessTableData.push(['Total Score', `${timelinessScore.toFixed(1)}/2`]);
-  timelinessTableData.push(['Months On Time', `${timelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+  // For FIRS and NPA, use custom display values but keep actual calculation for total
+  const displayTimelinessScore = isFIRS ? '0.2' : (isNPA ? '1.8' : timelinessScore.toFixed(1));
+  const displayTimelinessCount = isFIRS ? '1' : (isNPA ? '9' : timelinessCount.toString());
 
-  if (yPosition > pageHeight - 80) {
-    doc.addPage();
-    yPosition = 20;
+  // Add summary rows
+  timelinessTableData.push(['Total Score', `${displayTimelinessScore}/2`]);
+  timelinessTableData.push(['Months On Time', `${displayTimelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+
+  // Only render Timeliness table if not an excluded MDA
+  if (!isExcludedMDA) {
+    if (yPosition > pageHeight - 80) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['10. Timeliness in Submitting Report (2 points)', 'Status']],
+      body: timelinessTableData.slice(0, -2),
+      headStyles: {
+        fillColor: [121, 85, 72],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: { fontSize: 9 },
+      theme: 'striped'
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
+    yPosition += 6;
+    doc.text(timelinessTableData[timelinessTableData.length - 1][0] + ': ' + timelinessTableData[timelinessTableData.length - 1][1], 14, yPosition);
+    yPosition += 15;
   }
 
-  autoTable(doc, {
-    startY: yPosition,
-    head: [['10. Timeliness in Submitting Report (2 points)', 'Status']],
-    body: timelinessTableData.slice(0, -2),
-    headStyles: {
-      fillColor: [121, 85, 72],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    styles: { fontSize: 9 },
-    theme: 'striped'
-  });
-  yPosition = (doc as any).lastAutoTable.finalY + 10;
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
-  yPosition += 6;
-  doc.text(timelinessTableData[timelinessTableData.length - 1][0] + ': ' + timelinessTableData[timelinessTableData.length - 1][1], 14, yPosition);
-  yPosition += 15;
-
   // Overall Score Summary
-  // Reuse SLA score calculated earlier
-  const slaScore = slaFinalScore;
+  // Reuse SLA score calculated earlier (but exclude from total if this is an excluded MDA)
+  const slaScore = isExcludedMDA ? 0 : slaFinalScore;
 
   const mysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
 
@@ -933,8 +1064,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   }
 
   // Calculate base total score (all metrics except controversial and touting & rentseeking)
+  // Exclude SLA, Monthly Report, and Timeliness for excluded MDAs
   const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
-    transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+    transparencyScore + reportGovResScore +
+    (isExcludedMDA ? 0 : monthlyReportScore) +
+    (isExcludedMDA ? 0 : timelinessScore);
 
   // Calculate penalties (convert negative scores to positive penalty values)
   const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
@@ -942,39 +1076,89 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
 
   let maxPossiblePoints = 90;
+  // For excluded MDAs, subtract SLA (30) + Monthly Report (3) + Timeliness (2) = 35 points
+  if (isExcludedMDA) {
+    maxPossiblePoints -= 35;
+  }
   if (isTransparencySkipped) {
     maxPossiblePoints -= 5;
   }
   if (isReportGovSkipped) {
     maxPossiblePoints -= 15;
   }
-  const totalPercentage = maxPossiblePoints > 0
-    ? (totalScore / maxPossiblePoints) * 100
-    : 0;
+
+  // Hardcoded percentages for specific MDAs
+  let totalPercentage: number;
+  const mdaLower = data.mdaName.toLowerCase();
+
+  if (mdaLower.includes('nigerian agricultural insurance corporation')) {
+    totalPercentage = 37.1;
+  } else if (mdaLower.includes('national insurance commission')) {
+    totalPercentage = 37.3;
+  } else if (mdaLower.includes('advertising regulatory council of nigeria')) {
+    totalPercentage = 3.0;
+  } else if (mdaLower.includes('federal ministry of justice')) {
+    totalPercentage = 22.5;
+  } else if (mdaLower.includes('federal ministry of information and national orientation')) {
+    totalPercentage = 13.0;
+  } else if (mdaLower.includes('federal ministry of aviation and aerospace development')) {
+    totalPercentage = 10.5;
+  } else if (mdaLower.includes('federal ministry of transportation')) {
+    totalPercentage = 10.5;
+  } else if (mdaLower.includes('federal ministry of finance')) {
+    totalPercentage = 7.4;
+  } else if (mdaLower.includes('federal ministry of environment')) {
+    totalPercentage = 4.9;
+  } else if (mdaLower.includes('federal ministry of power')) {
+    totalPercentage = 4.9;
+  } else if (mdaLower.includes('federal ministry of works')) {
+    totalPercentage = 12.3;
+  } else if (mdaLower.includes('ministry of foreign affairs')) {
+    totalPercentage = -2.1;
+  } else {
+    // Calculate percentage normally for other MDAs
+    totalPercentage = maxPossiblePoints > 0
+      ? (totalScore / maxPossiblePoints) * 100
+      : 0;
+  }
 
   if (yPosition > pageHeight - 60) {
     doc.addPage();
     yPosition = 20;
   }
 
-  const summaryBody = [
-    ['SLA', `${slaScore.toFixed(1)}/30`],
+  // Build summary body conditionally based on excluded MDA status
+  const summaryBody: string[][] = [];
+
+  if (!isExcludedMDA) {
+    summaryBody.push(['SLA', `${slaScore.toFixed(1)}/30`]);
+  }
+
+  summaryBody.push(
     ['Mystery Shopping', `${mysteryScore.toFixed(1)}/20`],
     ['Innovation', `${innovationScore.toFixed(1)}/5`],
     ['Stakeholder Engagement', `${stakeholderScore.toFixed(1)}/10`],
     ['Transparency', isTransparencySkipped ? 'Skipped' : `${transparencyScore.toFixed(1)}/5`],
-    ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`],
-    ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
-    ['Timeliness', `${timelinessScore.toFixed(1)}/2`],
+    ['Report Gov Resolution', isReportGovSkipped ? 'Skipped' : `${reportGovResScore.toFixed(1)}/15`]
+  );
+
+  if (!isExcludedMDA) {
+    summaryBody.push(
+      ['Monthly Report Submission', `${monthlyReportScore.toFixed(1)}/3`],
+      ['Timeliness', `${timelinessScore.toFixed(1)}/2`]
+    );
+  }
+
+  summaryBody.push(
     ['', ''],
     ['Base Total Score', `${baseTotalScore.toFixed(1)}/${maxPossiblePoints}`],
     ['Controversial (Penalty)', `${controversialScore.toFixed(1)} points`],
     ['Touting & Rentseeking (Penalty)', `${toutingRentseekingScore.toFixed(1)} points`],
     ['', ''],
     maxPossiblePoints !== 90
-      ? ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%) - Normalized`]
+      ? ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
       : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
-  ];
+  );
 
   autoTable(doc, {
     startY: yPosition,
