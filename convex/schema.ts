@@ -1026,6 +1026,13 @@ export default defineSchema({
     startTime: v.string(), // HH:mm format
     endTime: v.string(), // HH:mm format
     description: v.optional(v.string()),
+    meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
+    internalParticipants: v.optional(v.array(v.object({
+      type: v.union(v.literal("staff"), v.literal("workstream")),
+      id: v.string(),
+      name: v.string()
+    }))),
+    externalParticipants: v.optional(v.array(v.string())),
     createdBy: v.id("users"),
     createdByName: v.optional(v.string()),
     createdByStaffStream: v.optional(v.string()),

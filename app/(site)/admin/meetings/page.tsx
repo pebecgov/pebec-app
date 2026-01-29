@@ -90,7 +90,7 @@ export default function Meetings() {
       return;
     }
     if (!title.trim() || !meetingDate || selectedUsers.length === 0) {
-      toast.error("You must fill all fields before scheduling a meeting.");
+      toast.error("You must fill all fields before scheduling an event.");
       return;
     }
     try {
@@ -110,7 +110,7 @@ export default function Meetings() {
         meetingDate: meetingDate.getTime(),
         duration
       });
-      toast.success("Meeting scheduled successfully!");
+      toast.success("Event scheduled successfully!");
       setIsDialogOpen(false);
       setTitle("");
       setDescription("");
@@ -119,7 +119,7 @@ export default function Meetings() {
       setSelectedUsers([]);
     } catch (error) {
       console.error("Meeting creation failed:", error);
-      toast.error("Failed to create meeting.");
+      toast.error("Failed to create event.");
     }
   };
   const handleUserSelection = (userId: string) => {
@@ -130,16 +130,16 @@ export default function Meetings() {
     return meetings ? meetings.filter(meeting => meeting.createdBy === convexUserId || meeting.acceptedAttendees.includes(convexUserId!) || meeting.attendees.includes(convexUserId!)) : [];
   }, [meetings, convexUserId]);
   return <div className="container mx-auto ">
-   <div className="container mx-auto p-6 flex flex-col sm:flex-row gap-6">
-      {}
+    <div className="container mx-auto p-6 flex flex-col sm:flex-row gap-6">
+      { }
       <UpcomingMeetings meetings={meetingsWithCreatorImages} userRole={convexUser?.role ?? "staff"} userId={convexUserId!} />
 
-      {}
+      { }
       <Calendar meetings={meetingsWithCreatorImages} onAddEvent={() => setIsDialogOpen(true)} userId={convexUserId || ""} userRole={userRole} />
     </div>
 
-      {}
-      <Dialog open={isDialogOpen} onOpenChange={isOpen => {
+    { }
+    <Dialog open={isDialogOpen} onOpenChange={isOpen => {
       setIsDialogOpen(isOpen);
       if (!isOpen) {
         setTitle("");
@@ -150,94 +150,94 @@ export default function Meetings() {
         setSelectedRole("");
       }
     }}>
-        <DialogContent>
-          <DialogTitle>Schedule a New Meeting</DialogTitle>
+      <DialogContent>
+        <DialogTitle>Schedule a New Event</DialogTitle>
 
-          <div className="space-y-4">
-  {}
-  <div>
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Meeting Title</label>
-    <Input placeholder="Enter meeting title" value={title} onChange={e => setTitle(e.target.value)} className="mt-1" />
-  </div>
+        <div className="space-y-4">
+          { }
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Event Title</label>
+            <Input placeholder="Enter event title" value={title} onChange={e => setTitle(e.target.value)} className="mt-1" />
+          </div>
 
-  {}
-  <div>
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description (optional)</label>
-    <Input placeholder="Enter meeting description" value={description} onChange={e => setDescription(e.target.value)} className="mt-1" />
-  </div>
+          { }
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description (optional)</label>
+            <Input placeholder="Enter event description" value={description} onChange={e => setDescription(e.target.value)} className="mt-1" />
+          </div>
 
-  {}
-  <div>
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Meeting Date & Time</label>
-    <Input type="datetime-local" onChange={e => setMeetingDate(new Date(e.target.value))} className="mt-1" />
-  </div>
+          { }
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Event Date & Time</label>
+            <Input type="datetime-local" onChange={e => setMeetingDate(new Date(e.target.value))} className="mt-1" />
+          </div>
 
-  {}
-  <div>
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Meeting Estimated Duration (minutes)</label>
-    <Input type="number" placeholder="Enter duration in minutes" value={duration} onChange={e => setDuration(Number(e.target.value))} className="mt-1" />
-  </div>
+          { }
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Event Estimated Duration (minutes)</label>
+            <Input type="number" placeholder="Enter duration in minutes" value={duration} onChange={e => setDuration(Number(e.target.value))} className="mt-1" />
+          </div>
         </div>
 
-          {}
-          <Select onValueChange={setSelectedRole}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Group" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">PEBEC Admins</SelectItem>
-              <SelectItem value="mda">MDAs</SelectItem>
-              <SelectItem value="staff">PEBEC Staff</SelectItem>
-              <SelectItem value="reform_champion">Reform Champions</SelectItem>
-            </SelectContent>
-          </Select>
+        { }
+        <Select onValueChange={setSelectedRole}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select Group" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="admin">PEBEC Admins</SelectItem>
+            <SelectItem value="mda">MDAs</SelectItem>
+            <SelectItem value="staff">PEBEC Staff</SelectItem>
+            <SelectItem value="reform_champion">Reform Champions</SelectItem>
+          </SelectContent>
+        </Select>
 
-          {}
-          {users && <div className="mt-4">
-    <h3 className="text-sm font-semibold mb-2">Select Attendees:</h3>
-    <div className="relative">
-      <button className="w-full px-4 py-2 border rounded-lg text-left flex justify-between items-center" onClick={() => setIsDropdownOpen(prev => !prev)}>
-        {selectedUsers.length > 0 ? `${selectedUsers.length} attendee(s) selected` : "Select attendees"}
-        <ChevronDown className="w-5 h-5 text-gray-500" />
-      </button>
+        { }
+        {users && <div className="mt-4">
+          <h3 className="text-sm font-semibold mb-2">Select Attendees:</h3>
+          <div className="relative">
+            <button className="w-full px-4 py-2 border rounded-lg text-left flex justify-between items-center" onClick={() => setIsDropdownOpen(prev => !prev)}>
+              {selectedUsers.length > 0 ? `${selectedUsers.length} attendee(s) selected` : "Select attendees"}
+              <ChevronDown className="w-5 h-5 text-gray-500" />
+            </button>
 
-      {isDropdownOpen && <div className="absolute z-10 bg-white border rounded-md shadow-md mt-1 w-full max-h-60 overflow-auto">
-    {users.filter(user => user._id !== convexUserId).map(user => <div key={user._id} onClick={() => handleUserSelection(user._id)} className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-100 ${selectedUsers.includes(user._id) ? "bg-blue-100" : ""}`}>
-          <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
-          <UserAvatar src={user.imageUrl} size={25} />
-          <span>{user.firstName} {user.lastName}</span>
-        </div>)}
-  </div>}
+            {isDropdownOpen && <div className="absolute z-10 bg-white border rounded-md shadow-md mt-1 w-full max-h-60 overflow-auto">
+              {users.filter(user => user._id !== convexUserId).map(user => <div key={user._id} onClick={() => handleUserSelection(user._id)} className={`flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-gray-100 ${selectedUsers.includes(user._id) ? "bg-blue-100" : ""}`}>
+                <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
+                <UserAvatar src={user.imageUrl} size={25} />
+                <span>{user.firstName} {user.lastName}</span>
+              </div>)}
+            </div>}
 
-    </div>
-  </div>}
+          </div>
+        </div>}
 
 
-          {}
-          {selectedUsers.length > 0 && <div className="mt-4 p-2 border rounded-md bg-gray-100">
-              <h3 className="text-sm font-semibold">Attendees:</h3>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {selectedUsers.map(userId => {
+        { }
+        {selectedUsers.length > 0 && <div className="mt-4 p-2 border rounded-md bg-gray-100">
+          <h3 className="text-sm font-semibold">Attendees:</h3>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {selectedUsers.map(userId => {
               const user = users?.find(u => u._id === userId);
               return user && <div key={user._id} className="flex items-center gap-2 bg-white px-2 py-1 rounded-md shadow">
-                        <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
-                        <span className="text-sm">{user.firstName} {user.lastName}</span>
-                        <button className="text-red-500 text-xs hover:bg-red-100 px-1 rounded" onClick={e => {
+                <Image src={user.imageUrl || "/default-avatar.png"} alt="User Profile" width={25} height={25} className="rounded-full object-cover" />
+                <span className="text-sm">{user.firstName} {user.lastName}</span>
+                <button className="text-red-500 text-xs hover:bg-red-100 px-1 rounded" onClick={e => {
                   e.stopPropagation();
                   handleUserSelection(user._id);
                 }}>
-  ✕
+                  ✕
                 </button>
-                      </div>;
+              </div>;
             })}
-              </div>
-            </div>}
+          </div>
+        </div>}
 
-          <Button onClick={handleScheduleMeeting}>Invite</Button>
-        </DialogContent>
-      </Dialog>
+        <Button onClick={handleScheduleMeeting}>Invite</Button>
+      </DialogContent>
+    </Dialog>
 
 
-    
-    </div>;
+
+  </div>;
 }

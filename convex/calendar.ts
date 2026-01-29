@@ -11,6 +11,13 @@ export const createCalendarMeeting = mutation({
         startTime: v.string(), // HH:mm
         endTime: v.string(), // HH:mm
         description: v.optional(v.string()),
+        meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
+        internalParticipants: v.optional(v.array(v.object({
+            type: v.union(v.literal("staff"), v.literal("workstream")),
+            id: v.string(),
+            name: v.string()
+        }))),
+        externalParticipants: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -39,6 +46,9 @@ export const createCalendarMeeting = mutation({
             startTime: args.startTime,
             endTime: args.endTime,
             description: args.description,
+            meetingType: args.meetingType,
+            internalParticipants: args.internalParticipants,
+            externalParticipants: args.externalParticipants,
             createdBy: user._id,
             createdByName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
             createdByStaffStream: user.staffStream,
@@ -58,6 +68,13 @@ export const updateCalendarMeeting = mutation({
         startTime: v.string(),
         endTime: v.string(),
         description: v.optional(v.string()),
+        meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
+        internalParticipants: v.optional(v.array(v.object({
+            type: v.union(v.literal("staff"), v.literal("workstream")),
+            id: v.string(),
+            name: v.string()
+        }))),
+        externalParticipants: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -94,6 +111,9 @@ export const updateCalendarMeeting = mutation({
             startTime: args.startTime,
             endTime: args.endTime,
             description: args.description,
+            meetingType: args.meetingType,
+            internalParticipants: args.internalParticipants,
+            externalParticipants: args.externalParticipants,
             createdByStaffStream: meeting.createdByStaffStream || user.staffStream,
             updatedAt: Date.now(),
         });
@@ -213,14 +233,40 @@ export const getUpcomingMeetings = query({
         if (!identity) return [];
 
         const limit = args.limit || 5;
-        const today = new Date().toISOString().split("T")[0]; // yyyy-MM-dd
         const now = new Date();
+        const today = now.toISOString().split("T")[0]; // yyyy-MM-dd
         const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+        // Calculate start and end of current week
+        const startOfWeek = new Date();
+        const day = startOfWeek.getDay(); // 0 (Sun) to 6 (Sat)
+        const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+        const monday = new Date(startOfWeek.setDate(diff));
+        monday.setHours(0, 0, 0, 0);
+
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+
+        const formatDateStr = (d: Date) => {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${day}`;
+        };
+
+        const startDateStr = formatDateStr(monday);
+        const endDateStr = formatDateStr(sunday);
 
         const allMeetings = await ctx.db.query("calendar_meetings").collect();
 
+        // Filter for meetings of the week
+        const weeklyMeetings = allMeetings.filter((meeting) => {
+            return meeting.date >= startDateStr && meeting.date <= endDateStr;
+        });
+
         // Filter for upcoming meetings (today or future, and if today, not yet ended)
-        const upcomingMeetings = allMeetings.filter((meeting) => {
+        const upcomingMeetings = weeklyMeetings.filter((meeting) => {
             if (meeting.date > today) return true;
             if (meeting.date === today && meeting.endTime > currentTime) return true;
             return false;

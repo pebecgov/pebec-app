@@ -49,10 +49,10 @@ export default function UpcomingMeetings({
         userId,
         response: "declined"
       });
-      toast.success("Meeting declined successfully!");
+      toast.success("Event declined successfully!");
       router.refresh();
     } catch (error) {
-      toast.error("Failed to decline the meeting.");
+      toast.error("Failed to decline the event.");
     }
   };
   const handleReschedule = async () => {
@@ -63,7 +63,7 @@ export default function UpcomingMeetings({
         newDate: new Date(newMeetingDate).getTime(),
         userId
       });
-      toast.success("Meeting rescheduled successfully!");
+      toast.success("Event rescheduled successfully!");
       setRescheduleModal(false);
       setSelectedMeetingId(null);
       setNewMeetingDate("");
@@ -79,7 +79,7 @@ export default function UpcomingMeetings({
         meetingId: selectedMeetingId,
         userId
       });
-      toast.success("Meeting Cancelled", {
+      toast.success("Event Cancelled", {
         duration: 3000
       });
       setCancelModal(false);
@@ -91,87 +91,87 @@ export default function UpcomingMeetings({
   };
   const now = new Date().getTime();
   return <div className="flex flex-col bg-white dark:bg-gray-900 p-4 rounded-lg shadow-md w-full sm:w-2/3 mx-auto max-h-[550px] overflow-y-auto">
-      <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Upcoming Meetings</h2>
+    <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Upcoming Events</h2>
 
-      {meetings.length === 0 ? <p className="text-gray-400">No upcoming meetings</p> : <div className="space-y-3">
-          {meetings.filter(meeting => meeting.status !== "cancelled" && meeting.meetingDate > now).map(meeting => <div key={meeting.id} className="relative flex flex-col p-4 border rounded-lg shadow-sm bg-white dark:bg-gray-900">
-                
-              {}
+    {meetings.length === 0 ? <p className="text-gray-400">No upcoming events</p> : <div className="space-y-3">
+      {meetings.filter(meeting => meeting.status !== "cancelled" && meeting.meetingDate > now).map(meeting => <div key={meeting.id} className="relative flex flex-col p-4 border rounded-lg shadow-sm bg-white dark:bg-gray-900">
+
+        { }
         <div className="flex mb-2">
-  <span className={`px-3 py-1 text-xs font-semibold rounded-full text-white shadow-md ${meeting.status === "pending" ? "bg-yellow-500" : meeting.status === "declined" ? "bg-red-500" : "bg-green-500"}`}>
-    {meeting.status === "pending" ? "Pending" : meeting.status === "declined" ? "Declined" : "Confirmed"}
-  </span>
+          <span className={`px-3 py-1 text-xs font-semibold rounded-full text-white shadow-md ${meeting.status === "pending" ? "bg-yellow-500" : meeting.status === "declined" ? "bg-red-500" : "bg-green-500"}`}>
+            {meeting.status === "pending" ? "Pending" : meeting.status === "declined" ? "Declined" : "Confirmed"}
+          </span>
         </div>
 
 
-                {}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={35} height={35} className="rounded-full border object-cover" />
-                    <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{meeting.title}</h3>
-                      <p className="text-xs text-gray-500">{new Date(meeting.meetingDate).toLocaleString()}</p>
-                    </div>
-                  </div>
+        { }
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Image src={meeting.creatorImage || "/default-avatar.png"} alt="Organizer" width={35} height={35} className="rounded-full border object-cover" />
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{meeting.title}</h3>
+              <p className="text-xs text-gray-500">{new Date(meeting.meetingDate).toLocaleString()}</p>
+            </div>
+          </div>
 
-      
-                {}
-                <button onClick={() => router.push(`/${userRole}/meetings/${meeting.id}`)} className="flex items-center gap-1 px-3 py-1 text-xs font-medium transition-all border rounded-full shadow-sm group bg-white dark:bg-gray-800 border-gray-300 text-gray-700 hover:bg-emerald-500 hover:text-white hover:border-emerald-500">
-                  View Details
-                  <ArrowRight className="w-4 h-4 transition-transform duration-300 ease-in-out transform group-hover:rotate-90" />
-                </button>
-              </div>
-      
-              {}
-              {!meeting.acceptedAttendees.includes(userId) && meeting.attendees.includes(userId) && meeting.meetingDate > Date.now() && <div className="flex space-x-2 mt-2">
-                  <Button className="bg-green-500 text-white text-xs flex-1" onClick={() => acceptInvite({
+
+          { }
+          <button onClick={() => router.push(`/${userRole}/meetings/${meeting.id}`)} className="flex items-center gap-1 px-3 py-1 text-xs font-medium transition-all border rounded-full shadow-sm group bg-white dark:bg-gray-800 border-gray-300 text-gray-700 hover:bg-emerald-500 hover:text-white hover:border-emerald-500">
+            View Details
+            <ArrowRight className="w-4 h-4 transition-transform duration-300 ease-in-out transform group-hover:rotate-90" />
+          </button>
+        </div>
+
+        { }
+        {!meeting.acceptedAttendees.includes(userId) && meeting.attendees.includes(userId) && meeting.meetingDate > Date.now() && <div className="flex space-x-2 mt-2">
+          <Button className="bg-green-500 text-white text-xs flex-1" onClick={() => acceptInvite({
             meetingId: meeting.id,
             userId,
             response: "accepted"
           })}>
-                    Accept
-                  </Button>
-                  <Button className="bg-red-500 text-white text-xs flex-1" onClick={() => handleDecline(meeting.id)}>
-                    Decline
-                  </Button>
-                </div>}
-      
-              {}
-              {meeting.createdBy === userId && <div className="flex space-x-2 mt-2">
-                  <Button className="bg-yellow-500 text-white text-xs flex-1" onClick={() => {
+            Accept
+          </Button>
+          <Button className="bg-red-500 text-white text-xs flex-1" onClick={() => handleDecline(meeting.id)}>
+            Decline
+          </Button>
+        </div>}
+
+        { }
+        {meeting.createdBy === userId && <div className="flex space-x-2 mt-2">
+          <Button className="bg-yellow-500 text-white text-xs flex-1" onClick={() => {
             setSelectedMeetingId(meeting.id);
             setRescheduleModal(true);
           }}>
-                    <CalendarClock className="w-4 h-4" />
-                    Reschedule
-                  </Button>
-                  <Button variant="destructive" className="text-xs flex-1" onClick={() => {
+            <CalendarClock className="w-4 h-4" />
+            Reschedule
+          </Button>
+          <Button variant="destructive" className="text-xs flex-1" onClick={() => {
             setSelectedMeetingId(meeting.id);
             setCancelModal(true);
           }}>
-                    <XCircle className="w-4 h-4" />
-                    Cancel
-                  </Button>
-                </div>}
-            </div>)}
-      </div>}
+            <XCircle className="w-4 h-4" />
+            Cancel
+          </Button>
+        </div>}
+      </div>)}
+    </div>}
 
-      {}
-      <Dialog.Root open={rescheduleModal} onOpenChange={setRescheduleModal}>
-        <DialogContent>
-          <DialogTitle>Reschedule Meeting</DialogTitle>
-          <Input type="datetime-local" value={newMeetingDate} onChange={e => setNewMeetingDate(e.target.value)} />
-          <Button onClick={handleReschedule}>Confirm Reschedule</Button>
-        </DialogContent>
-      </Dialog.Root>
+    { }
+    <Dialog.Root open={rescheduleModal} onOpenChange={setRescheduleModal}>
+      <DialogContent>
+        <DialogTitle>Reschedule Event</DialogTitle>
+        <Input type="datetime-local" value={newMeetingDate} onChange={e => setNewMeetingDate(e.target.value)} />
+        <Button onClick={handleReschedule}>Confirm Reschedule</Button>
+      </DialogContent>
+    </Dialog.Root>
 
-      {}
-      <Dialog.Root open={cancelModal} onOpenChange={setCancelModal}>
-        <DialogContent>
-          <DialogTitle>Cancel Meeting?</DialogTitle>
-          <p>Are you sure you want to cancel this meeting?</p>
-          <Button onClick={handleCancel}>Yes, Cancel</Button>
-        </DialogContent>
-      </Dialog.Root>
-    </div>;
+    { }
+    <Dialog.Root open={cancelModal} onOpenChange={setCancelModal}>
+      <DialogContent>
+        <DialogTitle>Cancel Event?</DialogTitle>
+        <p>Are you sure you want to cancel this event?</p>
+        <Button onClick={handleCancel}>Yes, Cancel</Button>
+      </DialogContent>
+    </Dialog.Root>
+  </div>;
 }

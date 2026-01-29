@@ -13,11 +13,11 @@ export default function UpcomingMeetings() {
     const upcomingMeetings = useQuery(api.calendar.getUpcomingMeetings, { limit: 5 }) || [];
 
     return (
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="bg-white border rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                     <CalendarDaysIcon className="w-6 h-6 text-green-600" />
-                    <h2 className="text-xl font-semibold text-gray-800">Upcoming Meetings</h2>
+                    <h2 className="text-xl font-semibold text-gray-800">Events of the Week</h2>
                 </div>
                 <button
                     onClick={() => router.push("/staff/meeting-calendar")}
@@ -31,12 +31,12 @@ export default function UpcomingMeetings() {
             {upcomingMeetings.length === 0 ? (
                 <div className="text-center py-8">
                     <CalendarDaysIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm">No upcoming meetings</p>
+                    <p className="text-gray-500 text-sm">No upcoming events</p>
                     <button
                         onClick={() => router.push("/staff/meeting-calendar")}
                         className="mt-3 text-sm text-green-600 hover:text-green-700 font-medium"
                     >
-                        Create a meeting
+                        Create an event
                     </button>
                 </div>
             ) : (
@@ -48,7 +48,7 @@ export default function UpcomingMeetings() {
                         return (
                             <div
                                 key={meeting._id}
-                                className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer bg-gradient-to-r from-green-50 to-white"
+                                className={`border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer bg-gradient-to-r ${meeting.meetingType === "external" ? "from-red-50 border-l-4 border-l-red-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
                                 onClick={() => router.push("/staff/meeting-calendar")}
                             >
                                 <div className="flex items-start justify-between">
@@ -73,7 +73,7 @@ export default function UpcomingMeetings() {
                                                 {meeting.description}
                                             </p>
                                         )}
-                                        <p className="text-xs text-gray-500 mt-2">
+                                        <p className="text-[10px] text-gray-500 mt-2">
                                             Created by {meeting.createdByName || "Unknown"}
                                             {meeting.createdByStaffStream && (
                                                 <span className="ml-1 text-gray-400">
@@ -81,6 +81,11 @@ export default function UpcomingMeetings() {
                                                 </span>
                                             )}
                                         </p>
+                                        <div className="flex gap-1 mt-1">
+                                            <span className={`text-[9px] font-bold uppercase tracking-tighter px-1 rounded ${meeting.meetingType === "external" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                                                {meeting.meetingType || "Internal"}
+                                            </span>
+                                        </div>
                                     </div>
                                     {isToday && (
                                         <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
