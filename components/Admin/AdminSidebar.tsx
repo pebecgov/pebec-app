@@ -169,8 +169,12 @@ export default function Sidebar({
     name: "Absence Notice",
     icon: <MapPinIcon className="w-5 h-5" />,
     path: "/admin/holiday-whereabout"
+  }, {
+    name: "Calendar",
+    icon: <CalendarDaysIcon className="w-5 h-5" />,
+    path: "/admin/meeting-calendar"
   },
-  //  {
+  // {
   //   name: "Email Management",
   //   icon: <EnvelopeIcon className="w-5 h-5" />,
   //   path: "/admin/email-management"
@@ -203,6 +207,7 @@ export default function Sidebar({
       <nav className="mt-6 flex-grow overflow-y-hidden hover:overflow-y-auto">
         {menuSections.filter(section => {
           if (shouldShowAllItems) return true;
+          if (section.path === "/admin/meeting-calendar") return true;
           if (section.path) return allowedPaths.includes(section.path);
           if (section.items) {
             return section.items.some(item => allowedPaths.includes(item.path));

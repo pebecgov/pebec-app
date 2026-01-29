@@ -42,7 +42,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
     if (value) {
       const hours = value.getHours();
       const minutes = value.getMinutes();
-      
+
       if (hours >= 8 && hours <= 11) {
         setHour(hours);
         setPeriod('AM');
@@ -53,7 +53,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         setHour(hours - 12);
         setPeriod('PM');
       }
-      
+
       // Round to nearest 15-minute interval
       setMinute(Math.round(minutes / 15) * 15);
     }
@@ -74,11 +74,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
   useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      
+
       const deltaY = dragStartY - e.clientY;
       const minuteChange = Math.round(deltaY / 10) * 15;
       const newMinute = Math.max(0, Math.min(45, dragStartMinute + minuteChange));
-      
+
       setMinute(newMinute);
     };
 
@@ -126,11 +126,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
-    
+
     const deltaY = dragStartY - e.clientY; // Inverted: drag up = positive
     const minuteChange = Math.round(deltaY / 10) * 15; // Every 10px = 15 minutes
     const newMinute = Math.max(0, Math.min(45, dragStartMinute + minuteChange));
-    
+
     setMinute(newMinute);
   };
 
@@ -147,11 +147,11 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging) return;
-    
+
     const deltaY = dragStartY - e.touches[0].clientY;
     const minuteChange = Math.round(deltaY / 10) * 15;
     const newMinute = Math.max(0, Math.min(45, dragStartMinute + minuteChange));
-    
+
     setMinute(newMinute);
     e.preventDefault();
   };
@@ -188,11 +188,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
               {availableHours.map((h) => (
                 <button
                   key={`${h.value}-${h.period}`}
-                  className={`px-2 py-1.5 text-xs rounded border transition-colors ${
-                    hour === h.value && period === h.period
+                  className={`px-2 py-1.5 text-xs rounded border transition-colors ${hour === h.value && period === h.period
                       ? 'bg-green-500 text-white border-green-500'
                       : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                  }`}
+                    }`}
                   onClick={() => {
                     setHour(h.value);
                     setPeriod(h.period);
@@ -209,11 +208,10 @@ export const TimePicker: React.FC<TimePickerProps> = ({
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Minutes (drag to adjust)
             </label>
-            <div 
+            <div
               ref={minuteScrollRef}
-              className={`bg-gray-50 rounded-lg p-3 border-2 border-dashed border-gray-300 cursor-grab select-none transition-all duration-200 ${
-                isDragging ? 'cursor-grabbing bg-green-50 border-green-300' : 'hover:bg-gray-100'
-              }`}
+              className={`bg-gray-50 rounded-lg p-3 border-2 border-dashed border-gray-300 cursor-grab select-none transition-all duration-200 ${isDragging ? 'cursor-grabbing bg-green-50 border-green-300' : 'hover:bg-gray-100'
+                }`}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -224,9 +222,8 @@ export const TimePicker: React.FC<TimePickerProps> = ({
               style={{ userSelect: 'none' }}
             >
               <div className="text-center">
-                <div className={`text-2xl font-bold transition-all duration-200 ${
-                  isDragging ? 'text-green-600' : 'text-green-500'
-                }`}>
+                <div className={`text-2xl font-bold transition-all duration-200 ${isDragging ? 'text-green-600' : 'text-green-500'
+                  }`}>
                   :{minute.toString().padStart(2, '0')}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
@@ -236,9 +233,8 @@ export const TimePicker: React.FC<TimePickerProps> = ({
                   {[0, 15, 30, 45].map((m) => (
                     <div
                       key={m}
-                      className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                        m === minute ? 'bg-green-500' : 'bg-gray-300'
-                      }`}
+                      className={`w-1.5 h-1.5 rounded-full transition-colors ${m === minute ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
                     />
                   ))}
                 </div>

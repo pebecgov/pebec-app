@@ -114,10 +114,10 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
 
   if (!announcements) {
     return (
-      <Card>
+      <Card className="rounded-2xl border border-gray-100 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5" />
+            <CalendarIcon className="w-5 h-5 text-gray-400" />
             Staff Absence
           </CardTitle>
           <CardDescription>Loading announcements...</CardDescription>
@@ -128,18 +128,18 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
 
   if (announcements.length === 0) {
     return (
-      <Card>
+      <Card className="rounded-2xl border border-gray-100 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5" />
-            Staff Absensce
+            <CalendarIcon className="w-5 h-5 text-gray-400" />
+            Staff Absence
           </CardTitle>
           <CardDescription>No staff members are currently absent</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            <UserIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No active holiday announcements</p>
+          <div className="text-center py-8 text-gray-400">
+            <UserIcon className="w-12 h-12 mx-auto mb-4 opacity-30" />
+            <p className="text-sm font-medium">No active holiday announcements</p>
           </div>
         </CardContent>
       </Card>
@@ -178,7 +178,7 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
   };
 
   return (
-    <Card>
+    <Card className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <CalendarIcon className="w-5 h-5" />

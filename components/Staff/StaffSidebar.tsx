@@ -66,7 +66,7 @@ export default function Sidebar({
     name: "Dashboard",
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff"
-  }, 
+  },
   {
     name: "Meeting Rooms",
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
@@ -182,7 +182,13 @@ export default function Sidebar({
       name: "Send Letter",
       path: "/staff/send-letters"
     }]
-  }, {
+  },
+  {
+    name: "Calendar",
+    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+    path: "/staff/meeting-calendar"
+  },
+  {
     name: "Absence Notice",
     icon: <MapPinIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/holiday-whereabout"
@@ -361,6 +367,10 @@ export default function Sidebar({
     if (!section.children) {
       // Allow /staff/messages for receptionist staff even if not in permissions array
       if (section.path === "/staff/messages" && staffStream === "receptionist") {
+        return section;
+      }
+      // Allow /staff/meeting-calendar for all staff even if not in permissions array
+      if (section.path === "/staff/meeting-calendar") {
         return section;
       }
       return allowed.includes(section.path!) ? section : null;

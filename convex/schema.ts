@@ -1017,5 +1017,26 @@ export default defineSchema({
     updatedAt: v.number(),
     createdBy: v.id("users"),
     updatedBy: v.id("users")
-  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"])
+  }).index("byMdaAndPeriod", ["mdaName", "scoringPeriod"]).index("byMdaName", ["mdaName"]).index("byPeriod", ["scoringPeriod"]),
+
+  // Calendar Meetings - Team meetings visible to all staff
+  calendar_meetings: defineTable({
+    name: v.string(),
+    date: v.string(), // yyyy-MM-dd format
+    startTime: v.string(), // HH:mm format
+    endTime: v.string(), // HH:mm format
+    description: v.optional(v.string()),
+    meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
+    internalParticipants: v.optional(v.array(v.object({
+      type: v.union(v.literal("staff"), v.literal("workstream")),
+      id: v.string(),
+      name: v.string()
+    }))),
+    externalParticipants: v.optional(v.array(v.string())),
+    createdBy: v.id("users"),
+    createdByName: v.optional(v.string()),
+    createdByStaffStream: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number())
+  }).index("byDate", ["date"]).index("byCreatedBy", ["createdBy"])
 });
