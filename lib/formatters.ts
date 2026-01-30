@@ -9,7 +9,7 @@
  */
 export function formatRole(role: string): string {
   if (!role) return "";
-  
+
   // Special cases for specific roles
   const roleMappings: Record<string, string> = {
     "reform_champion": "Reform Champion",
@@ -21,12 +21,12 @@ export function formatRole(role: string): string {
     "ngf": "NGF",
     "dmo": "DMO"
   };
-  
+
   // Check if we have a special mapping
   if (roleMappings[role]) {
     return roleMappings[role];
   }
-  
+
   // Default: capitalize first letter
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
@@ -38,19 +38,24 @@ export function formatRole(role: string): string {
  */
 export function formatWorkstream(workstream: string): string {
   if (!workstream) return "";
-  
+
   // Special mappings for workstreams
   const workstreamMappings: Record<string, string> = {
     "investments": "High Impact",
     "innovation": "Innovation & Technology",
-    "receptionist": "Admin/Operations"
+    "receptionist": "Admin/Operations",
+    "auditor": "Audit",
+    "judiciary": "Legislative & Judicial",
+    "communications": "Strategic Communications",
+    "sub-national": "Sub-National",
+
   };
-  
+
   // Check if we have a special mapping
   if (workstreamMappings[workstream]) {
     return workstreamMappings[workstream];
   }
-  
+
   // Default: capitalize first letter
   return workstream.charAt(0).toUpperCase() + workstream.slice(1);
 }
@@ -63,11 +68,11 @@ export function formatWorkstream(workstream: string): string {
  */
 export function formatRoleAndWorkstream(role: string, workstream?: string): string {
   const formattedRole = formatRole(role);
-  
+
   if (role === "staff" && workstream) {
     const formattedWorkstream = formatWorkstream(workstream);
     return `${formattedRole} - ${formattedWorkstream}`;
   }
-  
+
   return formattedRole;
 } 

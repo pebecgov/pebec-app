@@ -8,6 +8,8 @@ import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 import "@/app/calendar.css";
 import { format, isSameDay, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -24,13 +26,23 @@ export default function AdminMeetingCalendarPage() {
     const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
     const allMeetings = useQuery(api.calendar.getCalendarMeetings, {}) || [];
     const allUsers = useQuery(api.users.getAllUsers) || [];
-    const staffMembers = useMemo(() => allUsers.filter(u => u.role === "staff" || u.role === "admin"), [allUsers]);
+    const staffMembers = useMemo(() =>
+        allUsers
+            .filter(u => u.role === "staff" || u.role === "admin")
+            .sort((a, b) => {
+                const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+                const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+                return nameA.localeCompare(nameB);
+            }),
+        [allUsers]
+    );
 
     const createMeeting = useMutation(api.calendar.createCalendarMeeting);
     const updateMeeting = useMutation(api.calendar.updateCalendarMeeting);
     const deleteMeeting = useMutation(api.calendar.deleteCalendarMeeting);
 
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+    const [meetingDate, setMeetingDate] = useState<Date>(new Date());
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingMeeting, setEditingMeeting] = useState<Id<"calendar_meetings"> | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -47,15 +59,15 @@ export default function AdminMeetingCalendarPage() {
     const [newExternalParticipant, setNewExternalParticipant] = useState("");
 
     const WORKSTREAMS = [
-        "regulatory",
-        "sub_national",
-        "innovation",
-        "judiciary",
+        "account",
+        "receptionist",
+        "auditor",
         "communications",
         "investments",
-        "receptionist",
-        "account",
-        "auditor"
+        "innovation",
+        "judiciary",
+        "regulatory",
+        "sub_national"
     ];
 
     // Get meetings for selected date
@@ -74,12 +86,13 @@ export default function AdminMeetingCalendarPage() {
     const handleOpenCreateDialog = () => {
         setEditingMeeting(null);
         setMeetingName("");
+        setMeetingDate(selectedDate);
 
-        // Default to 9:00 AM - 10:00 AM
+        // Default to 10:00 AM - 11:00 AM
         const start = new Date();
-        start.setHours(9, 0, 0, 0);
+        start.setHours(10, 0, 0, 0);
         const end = new Date();
-        end.setHours(10, 0, 0, 0);
+        end.setHours(11, 0, 0, 0);
 
         setStartTime(start);
         setEndTime(end);
@@ -94,6 +107,7 @@ export default function AdminMeetingCalendarPage() {
     const handleOpenEditDialog = (meeting: any) => {
         setEditingMeeting(meeting._id);
         setMeetingName(meeting.name);
+        setMeetingDate(parseISO(meeting.date));
 
         // Convert HH:mm string to Date object
         const [sHour, sMin] = meeting.startTime.split(':').map(Number);
@@ -125,13 +139,13 @@ export default function AdminMeetingCalendarPage() {
             return;
         }
 
-        const dateStr = format(selectedDate, "yyyy-MM-dd");
         const fmt = (d: Date) => {
             const hours = String(d.getHours()).padStart(2, '0');
             const minutes = String(d.getMinutes()).padStart(2, '0');
             return `${hours}:${minutes}`;
         };
 
+        const dateStr = format(meetingDate, "yyyy-MM-dd");
         const startTimeStr = fmt(startTime);
         const endTimeStr = fmt(endTime);
 
@@ -162,6 +176,7 @@ export default function AdminMeetingCalendarPage() {
                 });
                 toast.success("Event created successfully");
             }
+            setSelectedDate(meetingDate);
             setDialogOpen(false);
         } catch (error: any) {
             toast.error(error.message || "Failed to save meeting");
@@ -349,13 +364,13 @@ export default function AdminMeetingCalendarPage() {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Date
+                                Date *
                             </label>
-                            <input
-                                type="text"
-                                value={format(selectedDate, "MMMM d, yyyy")}
-                                disabled
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50"
+                            <DatePicker
+                                selected={meetingDate}
+                                onChange={(date) => setMeetingDate(date || new Date())}
+                                dateFormat="MMMM d, yyyy"
+                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                             />
                         </div>
 
