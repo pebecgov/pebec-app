@@ -723,7 +723,7 @@ function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
         className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 mb-2 relative"
       >
         <MessageSquare className="w-4 h-4" />
-        View Task Updates ({updates?.length || 0})
+        Add Comment or Escalation ({updates?.length || 0})
         {hasNewUpdates && (
           <span className="absolute -top-1 -right-2 flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>

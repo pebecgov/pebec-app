@@ -24,18 +24,15 @@ export const TimePicker: React.FC<TimePickerProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const minuteScrollRef = useRef<HTMLDivElement>(null);
 
-  // Available times (8 AM to 5 PM)
+  // Available times (10 AM to 4 PM)
   const availableHours: Array<{ value: number; period: 'AM' | 'PM' }> = [
-    { value: 8, period: 'AM' },
-    { value: 9, period: 'AM' },
     { value: 10, period: 'AM' },
     { value: 11, period: 'AM' },
     { value: 12, period: 'PM' },
     { value: 1, period: 'PM' },
     { value: 2, period: 'PM' },
     { value: 3, period: 'PM' },
-    { value: 4, period: 'PM' },
-    { value: 5, period: 'PM' }
+    { value: 4, period: 'PM' }
   ];
 
   useEffect(() => {
@@ -178,7 +175,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3 max-h-[80vh] overflow-y-auto">
           <div className="text-center mb-3">
             <h3 className="text-base font-medium text-gray-900">Select Time</h3>
-            <p className="text-xs text-gray-500">8:00 AM - 5:00 PM</p>
+            <p className="text-xs text-gray-500">10:00 AM - 4:00 PM</p>
           </div>
 
           {/* Hour Selection - Compact */}
@@ -189,8 +186,8 @@ export const TimePicker: React.FC<TimePickerProps> = ({
                 <button
                   key={`${h.value}-${h.period}`}
                   className={`px-2 py-1.5 text-xs rounded border transition-colors ${hour === h.value && period === h.period
-                      ? 'bg-green-500 text-white border-green-500'
-                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    ? 'bg-green-500 text-white border-green-500'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
                     }`}
                   onClick={() => {
                     setHour(h.value);
