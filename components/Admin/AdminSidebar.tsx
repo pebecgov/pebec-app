@@ -45,11 +45,13 @@ export default function Sidebar({
     name: "Dashboard",
     icon: <HomeIcon className="w-5 h-5" />,
     path: "/admin"
-  }, {
-    name: "Shared Tasks",
-    icon: <NotebookPenIcon className="w-5 h-5" />,
-    path: "/admin/kanban"
-  }, {
+  },
+  // {
+  //   name: "Shared Tasks",
+  //   icon: <NotebookPenIcon className="w-5 h-5" />,
+  //   path: "/admin/kanban"
+  // },
+  {
     name: "Task Management",
     icon: <ClipboardDocumentIcon className="w-5 h-5" />,
     path: "/admin/tasks"
