@@ -257,7 +257,7 @@ export const requestTaskCompletion = mutation({
         }
 
         // Send email to admin for new requests or resubmissions
-        const adminEmail = "kingnixion@gmail.com";
+        const adminEmail = "mickaelking2002@gmail.com";
         const adminMessage = task.completionRequestStatus === "rejected"
             ? `Task resubmitted: "${task.title}" - Awaiting your approval`
             : `Task completion request: "${task.title}" - Awaiting your approval`;
@@ -363,7 +363,7 @@ export const confirmTaskCompletion = mutation({
         }
 
         // Only the specific admin can confirm task completion
-        const adminEmail = "kingnixion@gmail.com";
+        const adminEmail = "mickaelking2002@gmail.com";
         if (user.email !== adminEmail || user.role !== "admin") {
             throw new Error("Only the designated admin can confirm task completion");
         }
@@ -436,7 +436,7 @@ export const confirmTaskCompletion = mutation({
 export const getPendingCompletionRequests = query({
     handler: async (ctx) => {
         const user = await getCurrentUser(ctx);
-        const adminEmail = "kingnixion@gmail.com";
+        const adminEmail = "mickaelking2002@gmail.com";
 
         // Only the specific admin can view pending requests
         // Return empty array for unauthorized users instead of throwing error
@@ -462,7 +462,7 @@ export const getCompletionDocumentUrl = mutation({
         const user = await getCurrentUser(ctx);
         if (!user) throw new Error("Unauthorized");
 
-        const adminEmail = "kingnixion@gmail.com";
+        const adminEmail = "mickaelking2002@gmail.com";
         const isAdmin = user.email === adminEmail && user.role === "admin";
 
         if (isAdmin) {

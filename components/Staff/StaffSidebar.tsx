@@ -86,7 +86,13 @@ export default function Sidebar({
     name: "My Tasks",
     icon: <ClipboardDocumentIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/tasks"
-  }, {
+  },
+  {
+    name: "Event Calendar",
+    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+    path: "/staff/meeting-calendar"
+  },
+  {
     name: "Users letters",
     icon: <EnvelopeOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/business-letters"
@@ -183,11 +189,7 @@ export default function Sidebar({
       path: "/staff/send-letters"
     }]
   },
-  {
-    name: "Calendar",
-    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/meeting-calendar"
-  },
+
   {
     name: "Absence Notice",
     icon: <MapPinIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,

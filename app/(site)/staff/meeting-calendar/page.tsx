@@ -53,7 +53,7 @@ export default function StaffMeetingCalendarPage() {
     const [startTime, setStartTime] = useState<Date | null>(null);
     const [endTime, setEndTime] = useState<Date | null>(null);
     const [description, setDescription] = useState("");
-    const [meetingType, setMeetingType] = useState<"internal" | "external">("internal");
+    const [meetingType, setMeetingType] = useState<"internal" | "external">("external");
     const [internalParticipants, setInternalParticipants] = useState<{ type: "staff" | "workstream", id: string, name: string }[]>([]);
     const [externalParticipants, setExternalParticipants] = useState<string[]>([]);
     const [newExternalParticipant, setNewExternalParticipant] = useState("");
@@ -97,7 +97,7 @@ export default function StaffMeetingCalendarPage() {
         setStartTime(start);
         setEndTime(end);
         setDescription("");
-        setMeetingType("internal");
+        setMeetingType("external");
         setInternalParticipants([]);
         setExternalParticipants([]);
         setNewExternalParticipant("");
@@ -121,7 +121,7 @@ export default function StaffMeetingCalendarPage() {
         setStartTime(start);
         setEndTime(end);
         setDescription(meeting.description || "");
-        setMeetingType(meeting.meetingType || "internal");
+        setMeetingType(meeting.meetingType || "external");
         setInternalParticipants(meeting.internalParticipants || []);
         setExternalParticipants(meeting.externalParticipants || []);
         setNewExternalParticipant("");
@@ -384,31 +384,6 @@ export default function StaffMeetingCalendarPage() {
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Meeting Type *
-                            </label>
-                            <div className="flex gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        checked={meetingType === "internal"}
-                                        onChange={() => setMeetingType("internal")}
-                                        className="text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm font-medium text-gray-700">Internal</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="radio"
-                                        checked={meetingType === "external"}
-                                        onChange={() => setMeetingType("external")}
-                                        className="text-red-600 focus:ring-red-500"
-                                    />
-                                    <span className="text-sm font-medium text-gray-700">External</span>
-                                </label>
-                            </div>
-                        </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -475,54 +450,51 @@ export default function StaffMeetingCalendarPage() {
                                         </div>
                                     </div>
                                 </div>
-
-                                {meetingType === "external" && (
-                                    <div className="pt-3 border-t border-gray-100">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">External Participants</p>
-                                        <div className="flex gap-2 mb-2">
-                                            <input
-                                                type="text"
-                                                value={newExternalParticipant}
-                                                onChange={(e) => setNewExternalParticipant(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        if (newExternalParticipant.trim()) {
-                                                            setExternalParticipants([...externalParticipants, newExternalParticipant.trim()]);
-                                                            setNewExternalParticipant("");
-                                                        }
-                                                    }
-                                                }}
-                                                className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-red-500 outline-none"
-                                                placeholder="Enter full name..."
-                                            />
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="secondary"
-                                                className="h-8 text-xs"
-                                                onClick={() => {
+                                <div className="pt-3 border-t border-gray-100">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">External Participants</p>
+                                    <div className="flex gap-2 mb-2">
+                                        <input
+                                            type="text"
+                                            value={newExternalParticipant}
+                                            onChange={(e) => setNewExternalParticipant(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
                                                     if (newExternalParticipant.trim()) {
                                                         setExternalParticipants([...externalParticipants, newExternalParticipant.trim()]);
                                                         setNewExternalParticipant("");
                                                     }
-                                                }}
-                                            >
-                                                Add
-                                            </Button>
-                                        </div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {externalParticipants.map((p, i) => (
-                                                <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-700 border border-red-100 uppercase tracking-tighter">
-                                                    {p}
-                                                    <button type="button" onClick={() => setExternalParticipants(externalParticipants.filter((_, idx) => idx !== i))} className="hover:text-red-500">
-                                                        <XMarkIcon className="w-3 h-3" />
-                                                    </button>
-                                                </span>
-                                            ))}
-                                        </div>
+                                                }
+                                            }}
+                                            className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-xs focus:ring-1 focus:ring-red-500 outline-none"
+                                            placeholder="Enter full name..."
+                                        />
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="secondary"
+                                            className="h-8 text-xs"
+                                            onClick={() => {
+                                                if (newExternalParticipant.trim()) {
+                                                    setExternalParticipants([...externalParticipants, newExternalParticipant.trim()]);
+                                                    setNewExternalParticipant("");
+                                                }
+                                            }}
+                                        >
+                                            Add
+                                        </Button>
                                     </div>
-                                )}
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {externalParticipants.map((p, i) => (
+                                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-700 border border-red-100 uppercase tracking-tighter">
+                                                {p}
+                                                <button type="button" onClick={() => setExternalParticipants(externalParticipants.filter((_, idx) => idx !== i))} className="hover:text-red-500">
+                                                    <XMarkIcon className="w-3 h-3" />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

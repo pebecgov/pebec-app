@@ -170,7 +170,7 @@ export default function Sidebar({
     icon: <MapPinIcon className="w-5 h-5" />,
     path: "/admin/holiday-whereabout"
   }, {
-    name: "Calendar",
+    name: "Event Calendar",
     icon: <CalendarDaysIcon className="w-5 h-5" />,
     path: "/admin/meeting-calendar"
   },

@@ -35,7 +35,7 @@ export default function AdminTasks() {
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
 
   // Only the specific admin can view pending requests
-  const isAuthorizedAdmin = currentUser?.email === "kingnixion@gmail.com";
+  const isAuthorizedAdmin = currentUser?.email === "mickaelking2002@gmail.com";
   const pendingRequestsQuery = useQuery(api.tasks.getPendingCompletionRequests);
   // Only show pending requests if user is authorized admin
   const pendingRequests = isAuthorizedAdmin ? pendingRequestsQuery : undefined;
@@ -490,7 +490,7 @@ export default function AdminTasks() {
             <DialogTitle>Assign New Task</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols gap-4">
               {/* <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Task ID (Optional)
@@ -506,6 +506,7 @@ export default function AdminTasks() {
                   Task Title *
                 </label>
                 <Input
+                  className="border border-gray-300 rounded-md px-3 py-2 "
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Enter task title"
