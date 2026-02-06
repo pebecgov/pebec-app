@@ -15,10 +15,6 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search, Users, Eye, Shield, Calendar, Tag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import RoomAvailabilityCard from "@/components/RoomAvailabilityCard";
-import HolidayAnnouncementsDisplay from "@/components/HolidayWhereabout/HolidayAnnouncementsDisplay";
-import MyPerformance from "@/components/StaffPerformance/MyPerformance";
-import StaffLeaderboard from "@/components/StaffPerformance/StaffLeaderboard";
 
 
 
@@ -44,10 +40,7 @@ export default function ProjectsPage() {
     clerkUserId: user?.id ?? ""
   });
 
-  // Today's room availability
-  const todayStr = new Date().toISOString().split("T")[0];
-  const todayRoomStaff = useQuery(api.meetings.listRoomBookingsByDate, { room: "staff_conference", date: todayStr }) || [];
-  const todayRoomDG = useQuery(api.meetings.listRoomBookingsByDate, { room: "dg_conference", date: todayStr }) || [];
+
 
   // Get different types of projects
   const myProjects = useQuery(api.staff_projects.getMyProjects) || [];
@@ -216,27 +209,7 @@ export default function ProjectsPage() {
       </div>
 
 
-      
- 
-      {/* Performance Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <StaffLeaderboard />
-        <MyPerformance />
-      </div>
 
-      {/* Today's Meeting Rooms availability for Investments staff */}
-      <div className="grid grid-cols-1 gap-4 mb-6">
-
-        <RoomAvailabilityCard 
-          title="Staff Conference Room" 
-          bookings={todayRoomStaff} 
-          href="/staff/rooms" 
-          room="staff_conference"
-          showBookButton={true}
-        />
-        {/* Holiday Announcements Display */}
-        <HolidayAnnouncementsDisplay />
-      </div>
 
       {/* Search and Filters */}
       <Card className="mb-6">

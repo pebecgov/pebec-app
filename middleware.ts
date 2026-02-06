@@ -20,27 +20,23 @@ const isWorldBankRoute = createRouteMatcher(["/world_bank(.*)"]);
 const isDmoRoute = createRouteMatcher(["/dmo(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
- const session = await auth();
+  const session = await auth();
   const role = session?.sessionClaims?.metadata?.role;
   const staffStream = session?.sessionClaims?.metadata?.staffStream;
 
   // If not authenticated, redirect to home (except for public routes)
   if (!session) {
-    
+
     if (
       req.nextUrl.pathname !== "/" &&
       req.nextUrl.pathname !== "/sign-in" &&
-      req.nextUrl.pathname !== "/sign-up" 
+      req.nextUrl.pathname !== "/sign-up"
     ) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
 
   // Staff redirects for specific streams
-  if (role === "staff" && staffStream === "investments" && req.nextUrl.pathname === "/staff") {
-    const url = new URL("/staff/projects", req.url);
-    return NextResponse.redirect(url);
-  }
   if (role === "staff" && staffStream === "auditor" && req.nextUrl.pathname === "/staff") {
     const url = new URL("/staff/received-letters", req.url);
     return NextResponse.redirect(url);
@@ -55,11 +51,11 @@ export default clerkMiddleware(async (auth, req) => {
   if ((role === "world_bank" || role === "ngf" || role === "dmo") && !isWorldBankRoute(req) && !isDmoRoute(req)) {
     return NextResponse.redirect(new URL("/world_bank", req.url));
   }
-  
+
   // NGF and DMO roles: restrict access to letters routes
-  if ((role === "ngf" || role === "dmo") && 
-      (req.nextUrl.pathname === "/world_bank/send-letters" || 
-       req.nextUrl.pathname === "/world_bank/received-letters")) {
+  if ((role === "ngf" || role === "dmo") &&
+    (req.nextUrl.pathname === "/world_bank/send-letters" ||
+      req.nextUrl.pathname === "/world_bank/received-letters")) {
     return NextResponse.redirect(new URL("/world_bank", req.url));
   }
 

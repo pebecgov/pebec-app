@@ -375,6 +375,10 @@ export default function Sidebar({
       if (section.path === "/staff/meeting-calendar") {
         return section;
       }
+      // Allow /staff/projects for all staff even if not in permissions array
+      if (section.path === "/staff/projects") {
+        return section;
+      }
       return allowed.includes(section.path!) ? section : null;
     }
     const visibleItems = section.children.filter(item => allowed.includes(item.path));
