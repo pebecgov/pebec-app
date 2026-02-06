@@ -22,23 +22,12 @@ export default function StaffPage() {
     isLoaded
   } = useUser();
   const router = useRouter();
-  const [isInvestmentStream, setIsInvestmentStream] = useState(false);
-  useEffect(() => {
-    if (isLoaded) {
-      const stream = user?.publicMetadata?.stream;
-      if (stream === "investments") {
-        router.replace("/projects-board");
-      } else {
-        setIsInvestmentStream(false);
-      }
-    }
-  }, [isLoaded, user, router]);
+
+
   if (!isLoaded) {
     return <div className="text-center mt-10">Loading...</div>;
   }
-  if (isInvestmentStream) {
-    return null;
-  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       {/* Professional Header */}
