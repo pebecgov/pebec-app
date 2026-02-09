@@ -154,7 +154,8 @@ export default defineSchema({
     updatedAt: v.number(),
     resolutionNote: v.optional(v.string()),
     firstResponseAt: v.optional(v.number()),
-    reassignedAt: v.optional(v.number())
+    reassignedAt: v.optional(v.number()),
+    lastCreatorReminderSentAt: v.optional(v.number()) // Track when last reminder was sent to ticket creator
   }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]),
   ticket_comments: defineTable({
     content: v.string(),

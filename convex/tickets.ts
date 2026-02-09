@@ -1,10 +1,11 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 //@ts-nocheck 
 
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUserOrNull, getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { calculateBusinessHours, addBusinessHours, skipWeekendsHours } from "../lib/businessHours";
 
@@ -1748,5 +1749,244 @@ export const migrateIncidentDates = mutation({
         }
       }
     }
+  }
+});
+
+// Send overdue reminder email to ticket creator (report gov agent)
+export const sendOverdueTicketReminderToCreator = mutation({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      console.log(`❌ Ticket ${ticketId} not found`);
+      return { success: false, reason: "Ticket not found" };
+    }
+
+    // Only send reminders for open tickets
+    if (ticket.status !== "open" && ticket.status !== "in_progress") {
+      console.log(`✅ Ticket ${ticket.ticketNumber} is ${ticket.status}. No reminder needed.`);
+      return { success: false, reason: "Ticket is not open" };
+    }
+
+    // Check if ticket is overdue (more than 72 hours excluding weekends)
+    const startTime = ticket.reassignedAt ?? ticket.createdAt;
+    const now = Date.now();
+    const hoursOpen = skipWeekendHoursCount(startTime, now);
+    
+    if (hoursOpen <= 72) {
+      console.log(`✅ Ticket ${ticket.ticketNumber} is not overdue yet (${hoursOpen} hours)`);
+      return { success: false, reason: "Ticket is not overdue" };
+    }
+
+    // Get ticket creator
+    const creator = await ctx.db.get(ticket.createdBy);
+    if (!creator || !creator.email) {
+      console.log(`❌ No creator email found for ticket ${ticket.ticketNumber}`);
+      return { success: false, reason: "Creator email not found" };
+    }
+
+    // Calculate days overdue
+    const daysOverdue = Math.floor((hoursOpen - 72) / 24);
+    const hoursOverdue = hoursOpen - 72;
+
+    // Get MDA name if assigned
+    let mdaName = "the assigned MDA";
+    if (ticket.assignedMDA) {
+      const mda = await ctx.db.get(ticket.assignedMDA);
+      if (mda) {
+        mdaName = mda.name;
+      }
+    }
+
+    console.log(`📧 Sending overdue reminder to ${creator.email} for ticket ${ticket.ticketNumber}`);
+
+    const emailTemplate = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <div style="background-color: #dc2626; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
+          <strong>🚨 Overdue Ticket Reminder</strong>
+        </div>
+        <div style="padding: 20px; color: #333;">
+          <p style="font-size: 16px;">Dear <strong>${ticket.fullName || creator.firstName || "Valued User"}</strong>,</p>
+          <p>We wanted to inform you that your ticket <strong>#${ticket.ticketNumber}</strong> has been open for <strong>${hoursOverdue} hours</strong> (${daysOverdue > 0 ? `${daysOverdue} day${daysOverdue > 1 ? 's' : ''} ` : ''}overdue).</p>
+          
+          <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Ticket Details:</strong></p>
+            <p style="margin: 5px 0;"><strong>Title:</strong> ${ticket.title}</p>
+            <p style="margin: 5px 0;"><strong>Status:</strong> <span style="color: #dc2626;">${ticket.status.toUpperCase()}</span></p>
+            <p style="margin: 5px 0;"><strong>Assigned to:</strong> ${mdaName}</p>
+            <p style="margin: 5px 0;"><strong>Created:</strong> ${new Date(ticket.createdAt).toLocaleString("en-NG", { timeZone: "Africa/Lagos" })}</p>
+          </div>
+
+          <p>Your ticket is still being processed by ${mdaName}. We understand delays can be frustrating, and we're working to ensure your issue is resolved as soon as possible.</p>
+          
+          <p>You can check the status of your ticket by logging into your account or using the ticket reference number: <strong>${ticket.ticketNumber}</strong></p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="https://www.pebec.gov.ng/portal" 
+               style="display: inline-block; padding: 12px 24px; background-color: #dc2626; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+              View Your Tickets
+            </a>
+          </div>
+
+          <p style="color: #666; font-size: 14px; margin-top: 30px;">
+            If you have any questions or concerns, please don't hesitate to contact our support team.
+          </p>
+        </div>
+        <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px;">
+          <p>© 2025 PEBEC GOV. | <a href="https://www.pebec.gov.ng" style="color: #dc2626;">Visit Website</a></p>
+        </div>
+      </div>
+    `;
+
+    try {
+      await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+        to: creator.email,
+        subject: `Overdue Ticket Reminder: ${ticket.ticketNumber}`,
+        html: emailTemplate
+      });
+
+      // Update last reminder sent timestamp
+      await ctx.db.patch(ticket._id, {
+        lastCreatorReminderSentAt: now
+      });
+
+      console.log(`✅ Overdue reminder sent successfully to ${creator.email} for ticket ${ticket.ticketNumber}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`❌ Failed to send overdue reminder for ticket ${ticket.ticketNumber}:`, error);
+      return { success: false, reason: error instanceof Error ? error.message : String(error) };
+    }
+  }
+});
+
+// Process all overdue tickets and send reminders to creators
+export const processOverdueTicketReminders = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const oneDayAgo = now - (24 * 60 * 60 * 1000); // 24 hours ago
+
+    // Get all open tickets
+    const openTickets = await ctx.db
+      .query("tickets")
+      .withIndex("byStatus", (q) => q.eq("status", "open"))
+      .collect();
+
+    const inProgressTickets = await ctx.db
+      .query("tickets")
+      .withIndex("byStatus", (q) => q.eq("status", "in_progress"))
+      .collect();
+
+    const allTickets = [...openTickets, ...inProgressTickets];
+    let processedCount = 0;
+    let reminderCount = 0;
+    let skippedCount = 0;
+
+    for (const ticket of allTickets) {
+      try {
+        const startTime = ticket.reassignedAt ?? ticket.createdAt;
+        const hoursOpen = skipWeekendHoursCount(startTime, now);
+
+        // Only process tickets that are overdue (more than 72 hours)
+        if (hoursOpen <= 72) {
+          skippedCount++;
+          continue;
+        }
+
+        // Only send reminder if:
+        // 1. No reminder has been sent yet, OR
+        // 2. Last reminder was sent more than 24 hours ago (to avoid spamming)
+        const shouldSendReminder = 
+          !ticket.lastCreatorReminderSentAt || 
+          ticket.lastCreatorReminderSentAt < oneDayAgo;
+
+        if (!shouldSendReminder) {
+          skippedCount++;
+          continue;
+        }
+
+        // Send reminder
+        await ctx.scheduler.runAfter(0, api.tickets.sendOverdueTicketReminderToCreator, {
+          ticketId: ticket._id
+        });
+
+        reminderCount++;
+        processedCount++;
+      } catch (error) {
+        console.error(`❌ Failed to process ticket ${ticket.ticketNumber}:`, error);
+        processedCount++;
+      }
+    }
+
+    console.log(`✅ Processed ${processedCount} tickets. Sent ${reminderCount} reminders, skipped ${skippedCount} tickets.`);
+    return {
+      processed: processedCount,
+      remindersSent: reminderCount,
+      skipped: skippedCount
+    };
+  }
+});
+
+// Internal mutation for cron job
+export const processOverdueTicketRemindersInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const oneDayAgo = now - (24 * 60 * 60 * 1000);
+
+    const openTickets = await ctx.db
+      .query("tickets")
+      .withIndex("byStatus", (q) => q.eq("status", "open"))
+      .collect();
+
+    const inProgressTickets = await ctx.db
+      .query("tickets")
+      .withIndex("byStatus", (q) => q.eq("status", "in_progress"))
+      .collect();
+
+    const allTickets = [...openTickets, ...inProgressTickets];
+    let processedCount = 0;
+    let reminderCount = 0;
+    let skippedCount = 0;
+
+    for (const ticket of allTickets) {
+      try {
+        const startTime = ticket.reassignedAt ?? ticket.createdAt;
+        const hoursOpen = skipWeekendHoursCount(startTime, now);
+
+        if (hoursOpen <= 72) {
+          skippedCount++;
+          continue;
+        }
+
+        const shouldSendReminder = 
+          !ticket.lastCreatorReminderSentAt || 
+          ticket.lastCreatorReminderSentAt < oneDayAgo;
+
+        if (!shouldSendReminder) {
+          skippedCount++;
+          continue;
+        }
+
+        await ctx.scheduler.runAfter(0, api.tickets.sendOverdueTicketReminderToCreator, {
+          ticketId: ticket._id
+        });
+
+        reminderCount++;
+        processedCount++;
+      } catch (error) {
+        console.error(`❌ Failed to process ticket ${ticket.ticketNumber}:`, error);
+        processedCount++;
+      }
+    }
+
+    console.log(`✅ [CRON] Processed ${processedCount} tickets. Sent ${reminderCount} reminders, skipped ${skippedCount} tickets.`);
+    return {
+      processed: processedCount,
+      remindersSent: reminderCount,
+      skipped: skippedCount
+    };
   }
 });
