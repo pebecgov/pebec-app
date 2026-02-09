@@ -56,6 +56,10 @@ export default function Sidebar({
     icon: <ClipboardDocumentIcon className="w-5 h-5" />,
     path: "/admin/tasks"
   }, {
+    name: "My Task",
+    icon: <ClipboardDocumentIcon className="w-5 h-5" />,
+    path: "/admin/my-tasks"
+  }, {
     name: "ReportGov",
     icon: <ExclamationTriangleIcon className="w-5 h-5" />,
     path: "/admin/tickets"

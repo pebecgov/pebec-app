@@ -1329,6 +1329,9 @@ export const getStaffUserActivity = query({
       const user = await ctx.db.get(targetUserId);
 
       // Group activities by day
+      // Helper to sanitize keys for Convex response objects (ASCII only)
+      const sanitizeKey = (key: string) => key.replace(/[^\x20-\x7E]/g, '').trim().replace(/\s+/g, '_');
+
       const dailyActivity: Record<string, number> = {};
       const pageViews: Record<string, number> = {};
       const actions: Record<string, number> = {};
@@ -1338,11 +1341,13 @@ export const getStaffUserActivity = query({
         dailyActivity[date] = (dailyActivity[date] || 0) + 1;
 
         if (activity.activityType === "page_view" && activity.page) {
-          pageViews[activity.page] = (pageViews[activity.page] || 0) + 1;
+          const safePage = sanitizeKey(activity.page);
+          if (safePage) pageViews[safePage] = (pageViews[safePage] || 0) + 1;
         }
 
         if (activity.activityType === "action" && activity.action) {
-          actions[activity.action] = (actions[activity.action] || 0) + 1;
+          const safeAction = sanitizeKey(activity.action);
+          if (safeAction) actions[safeAction] = (actions[safeAction] || 0) + 1;
         }
       });
 
