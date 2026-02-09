@@ -541,15 +541,15 @@ export const updateUserRoleInConvex = mutation({
     }
     if (role === "staff" && staffStream) {
       const permissionMap: Record<string, string[]> = {
-        regulatory: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        sub_national: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        innovation: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        judiciary: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        communications: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
+        regulatory: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        sub_national: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        innovation: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        judiciary: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        communications: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
         investments: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        receptionist: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/letters", "/staff/business-letters", "/staff/messages", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        account: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-        auditor: ["/staff/tasks", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
+        receptionist: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/letters", "/staff/business-letters", "/staff/messages", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        account: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
+        auditor: ["/staff/tasks", "/staff/projects", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
       };
 
       // Get base staff permissions
