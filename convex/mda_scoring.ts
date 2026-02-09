@@ -1570,6 +1570,45 @@ export const saveControversialData = mutation({
   }
 });
 
+// Save Touting & Rentseeking data for a specific MDA and period
+export const saveToutingData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    isTouting: v.boolean(),
+    score: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, isTouting, score }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+
+    const existingData = await ctx.db.query("mda_touting_rentseeking_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+
+    if (existingData) {
+      await ctx.db.patch(existingData._id, {
+        isToutingRentseeking: isTouting,
+        score,
+        updatedAt: Date.now(),
+        updatedBy: user._id
+      });
+    } else {
+      await ctx.db.insert("mda_touting_rentseeking_data", {
+        mdaName,
+        scoringPeriod,
+        isToutingRentseeking: isTouting,
+        score,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: user._id,
+        updatedBy: user._id
+      });
+    }
+
+    return { success: true, message: "Touting & Rentseeking data saved successfully" };
+  }
+});
+
 // Save Innovation data for a specific MDA and period
 export const saveInnovationData = mutation({
   args: {
@@ -1606,6 +1645,53 @@ export const saveInnovationData = mutation({
     }
 
     return { success: true, message: "Innovation data saved successfully" };
+  }
+});
+
+// Save Mystery Shopping Data
+export const saveMysteryData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    score: v.number(),
+    ratings: v.any(), // Flexible object for ratings
+    type: v.string(), // 'hasReportGov' | 'noReportGov'
+    percentage: v.number(),
+    maxPossibleScore: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, score, ratings, type, percentage, maxPossibleScore }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+
+    const existingData = await ctx.db.query("mda_mystery_shopping_data")
+      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+
+    if (existingData) {
+      await ctx.db.patch(existingData._id, {
+        totalScore: score,
+        ratings,
+        mysteryType: type,
+        percentage,
+        maxPossibleScore,
+        updatedAt: Date.now(),
+        updatedBy: user._id
+      });
+    } else {
+      await ctx.db.insert("mda_mystery_shopping_data", {
+        mdaName,
+        scoringPeriod,
+        totalScore: score,
+        ratings,
+        mysteryType: type,
+        percentage,
+        maxPossibleScore,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: user._id,
+        updatedBy: user._id
+      });
+    }
+    return { success: true, message: "Mystery Shopping data saved successfully" };
   }
 });
 
@@ -2710,7 +2796,7 @@ export const getAllMdasMysteryShoppingStatus = query({
     // Create a map using normalized names as keys, but store the original name and data
     // This allows us to match MDAs even if one has an abbreviation prefix and the other doesn't
     const mysteryDataMap = new Map<string, { originalName: string; mysteryType: string; hasData: boolean }>();
-    
+
     allMysteryData.forEach(data => {
       const normalizedKey = normalizeMdaNameForMatching(data.mdaName);
       if (!mysteryDataMap.has(normalizedKey)) {
@@ -2734,7 +2820,7 @@ export const getAllMdasMysteryShoppingStatus = query({
     const result = allMdaNames.map(mdaName => {
       const normalizedKey = normalizeMdaNameForMatching(mdaName);
       const mysteryData = mysteryDataMap.get(normalizedKey);
-      
+
       let status = "No Mystery Shopping Scores";
       if (mysteryData?.hasData) {
         if (mysteryData.mysteryType === "hasReportGov") {
@@ -2753,5 +2839,50 @@ export const getAllMdasMysteryShoppingStatus = query({
     });
 
     return result;
+  }
+});
+
+// Get SLA Rankings for a specific period
+export const getSLARankings = query({
+  args: {
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { scoringPeriod }) => {
+    const rankings = await ctx.db.query("mda_sla_data")
+      .withIndex("byPeriod", q => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+
+    // Sort by percentage descending
+    return rankings.sort((a, b) => b.percentage - a.percentage);
+  }
+});
+
+// Get Mystery Shopping Rankings for a specific period
+export const getMysteryShoppingRankings = query({
+  args: {
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { scoringPeriod }) => {
+    const rankings = await ctx.db.query("mda_mystery_shopping_data")
+      .withIndex("byPeriod", q => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+
+    // Sort by percentage descending
+    return rankings.sort((a, b) => b.percentage - a.percentage);
+  }
+});
+
+// Get Report Gov Rankings for a specific period
+export const getReportGovRankings = query({
+  args: {
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { scoringPeriod }) => {
+    const rankings = await ctx.db.query("mda_reportgov_data")
+      .withIndex("byPeriod", q => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+
+    // Sort by score descending
+    return rankings.sort((a, b) => b.score - a.score);
   }
 });
