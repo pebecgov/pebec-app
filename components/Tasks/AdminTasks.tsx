@@ -28,6 +28,7 @@ export default function AdminTasks() {
 
   const allTasks = useQuery(api.tasks.getAllTasks);
   const staffUsers = useQuery(api.tasks.getUsersByRole, { role: "staff" });
+  const adminUsers = useQuery(api.tasks.getUsersByRole, { role: "admin" });
   const currentUser = useQuery(api.users.getCurrentUsers);
   const createTask = useMutation(api.tasks.createTask);
   const deleteTask = useMutation(api.tasks.deleteTask);
@@ -49,12 +50,17 @@ export default function AdminTasks() {
     { value: "investments", label: "Investments" },
     { value: "receptionist", label: "Receptionist" },
     { value: "account", label: "Account" },
-    { value: "auditor", label: "Auditor" }
+    { value: "auditor", label: "Auditor" },
+    { value: "admin", label: "Admin" }
   ];
 
-  const filteredStaff = selectedStream
-    ? staffUsers?.filter(u => u.staffStream === selectedStream) || []
-    : [];
+  const filteredStaff = selectedStream === "admin"
+    ? adminUsers || []
+    : selectedStream
+      ? staffUsers?.filter(u => u.staffStream === selectedStream) || []
+      : [];
+
+  const allRelevantUsers = [...(staffUsers || []), ...(adminUsers || [])];
 
   const handleCreateTask = async () => {
     if (!title.trim() || !selectedStream) {
@@ -74,7 +80,7 @@ export default function AdminTasks() {
 
     let assignedToName: string | undefined = undefined;
     if (selectedStaffId) {
-      const selectedStaff = staffUsers?.find(u => u._id === selectedStaffId);
+      const selectedStaff = allRelevantUsers.find(u => u._id === selectedStaffId);
       if (selectedStaff) {
         assignedToName = `${selectedStaff.firstName || ""} ${selectedStaff.lastName || ""}`.trim() || selectedStaff.email;
       }
