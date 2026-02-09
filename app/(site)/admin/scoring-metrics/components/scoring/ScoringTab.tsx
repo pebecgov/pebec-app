@@ -563,13 +563,17 @@ export default function ScoringTab({
     const handleSaveMystery = async () => {
         if (!selectedMda) return;
         const score = calculateMysteryScore(mysteryType, mysteryRatings);
+        const maxPossibleScore = 20; // Mystery shopping max score is always 20 points
+        const percentage = maxPossibleScore > 0 ? (score / maxPossibleScore) * 100 : 0;
         try {
             await saveMysteryData({
                 mdaName: selectedMda,
                 scoringPeriod,
                 score,
                 ratings: mysteryRatings,
-                type: mysteryType
+                type: mysteryType,
+                percentage,
+                maxPossibleScore
             });
             toast.success("Mystery Shopping Data saved");
         } catch (error) {
@@ -791,90 +795,134 @@ export default function ScoringTab({
                 </div>
 
                 {/* Metrics Grid */}
-                <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <SLAMetricCard
-                        isLoadingSLAData={!!selectedMda && savedSLAData === undefined}
-                        savedSLAData={!!savedSLAData}
-                        setShowSLARanking={setShowSLARanking}
-                        scoringPeriod={scoringPeriod}
-                        currentYear={currentYear}
-                        monthlySlaData={monthlySlaData}
-                        slaScore={calculateMonthlySlaScore()}
-                        setShowSlaModal={setShowSlaModal}
-                        handleSaveSLAData={handleSaveSLAData}
-                        selectedMda={selectedMda}
-                    />
+                <div className="w-full flex flex-col gap-8">
+                    {/* EFFICIENCY Section */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-gradient-to-r from-blue-500/20 to-transparent" />
+                            <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                Efficiency
+                            </h3>
+                            <div className="h-px flex-1 bg-gradient-to-l from-blue-500/20 to-transparent" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <SLAMetricCard
+                                isLoadingSLAData={!!selectedMda && savedSLAData === undefined}
+                                savedSLAData={!!savedSLAData}
+                                setShowSLARanking={setShowSLARanking}
+                                scoringPeriod={scoringPeriod}
+                                currentYear={currentYear}
+                                monthlySlaData={monthlySlaData}
+                                slaScore={calculateMonthlySlaScore()}
+                                setShowSlaModal={setShowSlaModal}
+                                handleSaveSLAData={handleSaveSLAData}
+                                selectedMda={selectedMda}
+                            />
+                            <MonthlyReportCard
+                                isLoading={isLoadingMonthlyReportData}
+                                isSaved={!!savedMonthlyReportData}
+                                useManual={useManualMonthlyReports}
+                                setUseManual={setUseManualMonthlyReports}
+                                monthlyReportData={calculateMonthlyReportStats()}
+                                scoringPeriod={scoringPeriod}
+                                manualMonthlyReports={manualMonthlyReports}
+                                setManualMonthlyReports={setManualMonthlyReports}
+                                realMonthlyReports={realMonthlyReports || []}
+                                handleSave={handleSaveMonthlyReport}
+                                selectedMda={selectedMda}
+                            />
+                            <TimelinessCard
+                                isLoading={isLoadingTimelinessData}
+                                isSaved={!!savedTimelinessData}
+                                useManual={useManualTimeliness}
+                                setUseManual={setUseManualTimeliness}
+                                timelinessData={calculateTimelinessStats()}
+                                scoringPeriod={scoringPeriod}
+                                manualTimeliness={manualTimeliness}
+                                setManualTimeliness={setManualTimeliness}
+                                realMonthlyReports={realMonthlyReports || []}
+                                handleSave={handleSaveTimeliness}
+                                selectedMda={selectedMda}
+                            />
+                        </div>
+                    </div>
 
-                    <MysteryShoppingCard
-                        isLoading={isLoadingMysteryShoppingData}
-                        isSaved={!!savedMysteryShoppingData}
-                        setShowRanking={setShowMysteryRanking}
-                        setShowModal={setShowMysteryModal}
-                        score={calculateMysteryScore(mysteryType, mysteryRatings)}
-                        handleSave={handleSaveMystery}
-                        selectedMda={selectedMda}
-                        hasRatings={Object.keys(mysteryRatings).length > 0}
-                    />
+                    {/* TRANSPARENCY Section */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-gradient-to-r from-purple-500/20 to-transparent" />
+                            <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                                Transparency
+                            </h3>
+                            <div className="h-px flex-1 bg-gradient-to-l from-purple-500/20 to-transparent" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <MysteryShoppingCard
+                                isLoading={isLoadingMysteryShoppingData}
+                                isSaved={!!savedMysteryShoppingData}
+                                setShowRanking={setShowMysteryRanking}
+                                setShowModal={setShowMysteryModal}
+                                score={calculateMysteryScore(mysteryType, mysteryRatings)}
+                                handleSave={handleSaveMystery}
+                                selectedMda={selectedMda}
+                                hasRatings={Object.keys(mysteryRatings).length > 0}
+                            />
+                            <TransparencyCard
+                                isLoading={isLoadingTransparencyData}
+                                isSaved={!!savedTransparencyData}
+                                skipTransparency={skipTransparency}
+                                setSkipTransparency={setSkipTransparency}
+                                transparencyItems={transparencyItems}
+                                setTransparencyItems={setTransparencyItems}
+                                transparencyQuestions={transparencyQuestions}
+                                transparencyScore={skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0)}
+                                handleSave={handleSaveTransparency}
+                                selectedMda={selectedMda}
+                            />
+                        </div>
+                    </div>
 
-                    <BooleanMetricCard
-                        title="Controversial"
-                        isLoading={isLoadingControversialData}
-                        isSaved={!!savedControversialData}
-                        points={-5}
-                        pointsLabel="Penalty: -5"
-                        value={isControversial}
-                        setValue={setIsControversial}
-                        handleSave={handleSaveControversial}
-                        selectedMda={selectedMda}
-                    />
+                    {/* OTHERS Section */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-gradient-to-r from-green-500/20 to-transparent" />
+                            <h3 className="text-lg font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">
+                                Others
+                            </h3>
+                            <div className="h-px flex-1 bg-gradient-to-l from-green-500/20 to-transparent" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <BooleanMetricCard
+                                title="Innovation"
+                                isLoading={isLoadingInnovationData}
+                                isSaved={!!savedInnovationData}
+                                points={5}
+                                pointsLabel="5 Points"
+                                value={isInnovation}
+                                setValue={setIsInnovation}
+                                handleSave={handleSaveInnovation}
+                                selectedMda={selectedMda}
+                            />
+                            <StakeholderCard
+                                isLoading={isLoadingStakeholderData}
+                                isSaved={!!savedStakeholderData}
+                                rate={stakeholderRate}
+                                setRate={setStakeholderRate}
+                                handleSave={handleSaveStakeholder}
+                                selectedMda={selectedMda}
+                            />
+                        </div>
+                    </div>
 
-                    <BooleanMetricCard
-                        title="Touting & Rentseeking"
-                        isLoading={isLoadingToutingRentseekingData}
-                        isSaved={!!savedToutingRentseekingData}
-                        points={-5}
-                        pointsLabel="Penalty: -5"
-                        value={isTouting}
-                        setValue={setIsTouting}
-                        handleSave={handleSaveTouting}
-                        selectedMda={selectedMda}
-                    />
-
-                    <BooleanMetricCard
-                        title="Innovation"
-                        isLoading={isLoadingInnovationData}
-                        isSaved={!!savedInnovationData}
-                        points={5}
-                        pointsLabel="5 Points"
-                        value={isInnovation}
-                        setValue={setIsInnovation}
-                        handleSave={handleSaveInnovation}
-                        selectedMda={selectedMda}
-                    />
-
-                    <StakeholderCard
-                        isLoading={isLoadingStakeholderData}
-                        isSaved={!!savedStakeholderData}
-                        rate={stakeholderRate}
-                        setRate={setStakeholderRate}
-                        handleSave={handleSaveStakeholder}
-                        selectedMda={selectedMda}
-                    />
-
-                    <TransparencyCard
-                        isLoading={isLoadingTransparencyData}
-                        isSaved={!!savedTransparencyData}
-                        skipTransparency={skipTransparency}
-                        setSkipTransparency={setSkipTransparency}
-                        transparencyItems={transparencyItems}
-                        setTransparencyItems={setTransparencyItems}
-                        transparencyQuestions={transparencyQuestions}
-                        transparencyScore={skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0)}
-                        handleSave={handleSaveTransparency}
-                        selectedMda={selectedMda}
-                    />
-
-                    <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* REPORT GOVERNANCE Section */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-gradient-to-r from-orange-500/20 to-transparent" />
+                            <h3 className="text-lg font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wider">
+                                Report Governance & Resolution
+                            </h3>
+                            <div className="h-px flex-1 bg-gradient-to-l from-orange-500/20 to-transparent" />
+                        </div>
                         <ReportGovCard
                             isLoading={!!selectedMda && (ticketResolutionData === undefined || isLoadingReportGovData)}
                             isSaved={!!savedReportGovData}
@@ -907,33 +955,39 @@ export default function ScoringTab({
                         />
                     </div>
 
-                    <div className="col-span-1 md:col-span-2 lg:col-span-3 flex flex-col md:flex-row gap-6">
-                        <MonthlyReportCard
-                            isLoading={isLoadingMonthlyReportData}
-                            isSaved={!!savedMonthlyReportData}
-                            useManual={useManualMonthlyReports}
-                            setUseManual={setUseManualMonthlyReports}
-                            monthlyReportData={calculateMonthlyReportStats()}
-                            scoringPeriod={scoringPeriod}
-                            manualMonthlyReports={manualMonthlyReports}
-                            setManualMonthlyReports={setManualMonthlyReports}
-                            realMonthlyReports={realMonthlyReports || []}
-                            handleSave={handleSaveMonthlyReport}
-                            selectedMda={selectedMda}
-                        />
-                        <TimelinessCard
-                            isLoading={isLoadingTimelinessData}
-                            isSaved={!!savedTimelinessData}
-                            useManual={useManualTimeliness}
-                            setUseManual={setUseManualTimeliness}
-                            timelinessData={calculateTimelinessStats()}
-                            scoringPeriod={scoringPeriod}
-                            manualTimeliness={manualTimeliness}
-                            setManualTimeliness={setManualTimeliness}
-                            realMonthlyReports={realMonthlyReports || []}
-                            handleSave={handleSaveTimeliness}
-                            selectedMda={selectedMda}
-                        />
+                    {/* PENALTIES Section */}
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-gradient-to-r from-red-500/20 to-transparent" />
+                            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">
+                                Penalties
+                            </h3>
+                            <div className="h-px flex-1 bg-gradient-to-l from-red-500/20 to-transparent" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <BooleanMetricCard
+                                title="Controversial"
+                                isLoading={isLoadingControversialData}
+                                isSaved={!!savedControversialData}
+                                points={-5}
+                                pointsLabel="Penalty: -5"
+                                value={isControversial}
+                                setValue={setIsControversial}
+                                handleSave={handleSaveControversial}
+                                selectedMda={selectedMda}
+                            />
+                            <BooleanMetricCard
+                                title="Touting & Rentseeking"
+                                isLoading={isLoadingToutingRentseekingData}
+                                isSaved={!!savedToutingRentseekingData}
+                                points={-5}
+                                pointsLabel="Penalty: -5"
+                                value={isTouting}
+                                setValue={setIsTouting}
+                                handleSave={handleSaveTouting}
+                                selectedMda={selectedMda}
+                            />
+                        </div>
                     </div>
                 </div>
 

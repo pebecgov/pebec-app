@@ -36,7 +36,7 @@ export default function MonthlyReportCard({
     selectedMda
 }: MonthlyReportCardProps) {
     return (
-        <div className="w-full md:w-1/2 flex flex-col items-center bg-gray-100/50 p-4 rounded-lg">
+        <div className="w-full flex flex-col items-center bg-gray-100/50 p-4 rounded-lg">
             <div className="flex justify-between items-center gap-2 w-full mb-4">
                 <div className="flex items-center gap-2">
                     <div>
