@@ -132,11 +132,11 @@ export default function NewPostForm({
       return;
     }
     try {
-      let postSlug;
       const publishedDate = data.publishedDate ? new Date(data.publishedDate).getTime() : undefined;
       const galleryImageIds = data.galleryImages?.map(id => id as Id<"_storage">) || [];
       
       if (initialData) {
+        // Update existing post
         await updatePost({
           slug: initialData.slug,
           title: data.title,
@@ -146,20 +146,25 @@ export default function NewPostForm({
           galleryImages: galleryImageIds.length > 0 ? galleryImageIds : undefined,
           publishedDate: publishedDate
         });
+        toast.success("Post updated!");
+        router.push(`/posts/${initialData.slug}`);
       } else {
-        postSlug = await createPost({
+        // Create new post
+        const postSlug = await createPost({
           ...data,
           coverImageId: data.coverImageId as Id<"_storage"> | undefined,
           galleryImages: galleryImageIds.length > 0 ? galleryImageIds : undefined,
           content: JSON.stringify(contentJson),
           publishedDate: publishedDate
         });
+        if (!postSlug) throw new Error("Failed to create post");
+        toast.success("Post created!");
+        router.push(`/posts/${postSlug}`);
       }
-      if (!postSlug) throw new Error("Failed to create or update post");
-      router.push(`/posts/${postSlug}`);
-      toast.success(initialData ? "Post updated!" : "Post created!");
-    } catch (error) {
-      toast.error("Failed to create or update post");
+    } catch (error: any) {
+      console.error("Error creating/updating post:", error);
+      const errorMessage = error?.message || "Failed to create or update post";
+      toast.error(errorMessage);
     }
   };
   if (slug && postQuery === undefined) {
