@@ -117,9 +117,17 @@ export default function PostItem({
             </div>
 
             {}
-            {post.coverImageUrl && <div className="sm:w-56 w-full h-36 flex items-center justify-center border rounded-md overflow-hidden bg-gray-100">
-    <Image src={post.coverImageUrl} alt={post.title} width={220} height={160} className="object-contain w-full h-full" />
-  </div>}
+            {(post.coverImageUrl || (post.galleryImageUrls && post.galleryImageUrls.length > 0)) && (
+              <div className="sm:w-56 w-full h-36 flex items-center justify-center border rounded-md overflow-hidden bg-gray-100">
+                <Image 
+                  src={post.coverImageUrl || (post.galleryImageUrls && post.galleryImageUrls[0]) || ''} 
+                  alt={post.title} 
+                  width={220} 
+                  height={160} 
+                  className="object-contain w-full h-full" 
+                />
+              </div>
+            )}
           </div>
         </div>
       </Link>

@@ -6,6 +6,7 @@ export const newPostSchema = z.object({
   slug: z.string().min(1, 'Slug is required.'),
   excerpt: z.string().min(1, 'Please enter an excerpt.'),
   coverImageId: z.string().optional(),
+  galleryImages: z.array(z.string()).optional(),
   content: z.custom<JSONContent>(),
   publishedDate: z.string().min(1, 'Please select a publication date.')
 });

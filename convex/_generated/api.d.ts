@@ -13,8 +13,8 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import type * as ai_helpers from "../ai_helpers.js";
 import type * as ai_helper_scoring from "../ai_helper_scoring.js";
+import type * as ai_helpers from "../ai_helpers.js";
 import type * as bulkImportStateScores from "../bulkImportStateScores.js";
 import type * as business_letters from "../business_letters.js";
 import type * as calendar from "../calendar.js";
@@ -68,8 +68,8 @@ import type * as staff_projects from "../staff_projects.js";
 import type * as stateUtils from "../stateUtils.js";
 import type * as state_scores from "../state_scores.js";
 import type * as tasks from "../tasks.js";
-import type * as tickets from "../tickets.js";
 import type * as ticket_comments from "../ticket_comments.js";
+import type * as tickets from "../tickets.js";
 import type * as ungaThankYouEmail from "../ungaThankYouEmail.js";
 import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
@@ -86,8 +86,8 @@ import type * as workshop from "../workshop.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  ai_helpers: typeof ai_helpers;
   ai_helper_scoring: typeof ai_helper_scoring;
+  ai_helpers: typeof ai_helpers;
   bulkImportStateScores: typeof bulkImportStateScores;
   business_letters: typeof business_letters;
   calendar: typeof calendar;
@@ -141,8 +141,8 @@ declare const fullApi: ApiFromModules<{
   stateUtils: typeof stateUtils;
   state_scores: typeof state_scores;
   tasks: typeof tasks;
-  tickets: typeof tickets;
   ticket_comments: typeof ticket_comments;
+  tickets: typeof tickets;
   ungaThankYouEmail: typeof ungaThankYouEmail;
   upload: typeof upload;
   uploadTicketsPdf: typeof uploadTicketsPdf;

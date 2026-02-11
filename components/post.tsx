@@ -14,6 +14,14 @@ import { ThumbsUp, Edit, Trash, ArrowLeft } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Id } from "@/convex/_generated/dataModel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import Image from "next/image";
 export default function Post({
   slug
 }: {
@@ -80,9 +88,73 @@ export default function Post({
         </div>
 
         {}
-        {post.coverImageUrl && <div className="w-full mb-8 rounded-md overflow-hidden border">
-            <img src={post.coverImageUrl} alt={post.title} className="w-full max-h-[500px] object-contain bg-white" />
-          </div>}
+        {/* Image Gallery Carousel */}
+        {(post.coverImageUrl || (post.galleryImageUrls && post.galleryImageUrls.length > 0)) && (
+          <div className="w-full mb-8">
+            {/* Combine cover image and gallery images */}
+            {(() => {
+              const allImages: string[] = [];
+              
+              // If cover image exists, use it; otherwise use first gallery image as cover
+              const coverImage = post.coverImageUrl || (post.galleryImageUrls && post.galleryImageUrls.length > 0 ? post.galleryImageUrls[0] : null);
+              
+              if (coverImage) {
+                allImages.push(coverImage);
+              }
+              
+              if (post.galleryImageUrls && post.galleryImageUrls.length > 0) {
+                // Add gallery images that aren't already the cover image
+                post.galleryImageUrls.forEach(url => {
+                  if (url && url !== coverImage) {
+                    allImages.push(url);
+                  }
+                });
+              }
+
+              if (allImages.length === 0) return null;
+
+              // Single image - no carousel needed
+              if (allImages.length === 1) {
+                return (
+                  <div className="w-full rounded-md overflow-hidden border">
+                    <Image
+                      src={allImages[0]}
+                      alt={post.title}
+                      width={1200}
+                      height={600}
+                      className="w-full max-h-[500px] object-contain bg-white"
+                      priority
+                    />
+                  </div>
+                );
+              }
+
+              // Multiple images - show carousel
+              return (
+                <Carousel className="w-full relative">
+                  <CarouselContent>
+                    {allImages.map((imageUrl, index) => (
+                      <CarouselItem key={index}>
+                        <div className="w-full rounded-md overflow-hidden border">
+                          <Image
+                            src={imageUrl}
+                            alt={`${post.title} - Image ${index + 1}`}
+                            width={1200}
+                            height={600}
+                            className="w-full max-h-[500px] object-contain bg-white"
+                            priority={index === 0}
+                          />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white" />
+                  <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white" />
+                </Carousel>
+              );
+            })()}
+          </div>
+        )}
 
         {}
         <div className="flex justify-between items-center border-y py-4 mb-6 text-gray-600 dark:text-gray-300">
