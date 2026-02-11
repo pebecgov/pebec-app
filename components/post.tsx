@@ -93,30 +93,47 @@ export default function Post({
             {(() => {
               const allImages: string[] = [];
               
-              // If cover image exists, use it; otherwise use first gallery image as cover
+              // If a custom cover image is set, use it; otherwise use first gallery image as cover
+              const hasCustomCover = post.coverImageUrl && post.coverImageId;
               const coverImage = post.coverImageUrl || (post.galleryImageUrls && post.galleryImageUrls.length > 0 ? post.galleryImageUrls[0] : null);
               
+              // Add cover image first
               if (coverImage) {
                 allImages.push(coverImage);
               }
               
+              // Add all gallery images
+              // If there's a custom cover, add all gallery images
+              // If no custom cover, skip the first gallery image (since it's already used as cover)
               if (post.galleryImageUrls && post.galleryImageUrls.length > 0) {
-                // Add gallery images that aren't already the cover image
-                post.galleryImageUrls.forEach(url => {
-                  if (url && url !== coverImage) {
-                    allImages.push(url);
-                  }
-                });
+                if (hasCustomCover) {
+                  // Custom cover exists - add ALL gallery images
+                  post.galleryImageUrls.forEach(url => {
+                    if (url && url.trim() !== '') {
+                      allImages.push(url);
+                    }
+                  });
+                } else {
+                  // No custom cover - skip first gallery image (already used as cover)
+                  post.galleryImageUrls.slice(1).forEach(url => {
+                    if (url && url.trim() !== '') {
+                      allImages.push(url);
+                    }
+                  });
+                }
               }
 
-              if (allImages.length === 0) return null;
+              // Remove duplicates while preserving order
+              const uniqueImages = Array.from(new Set(allImages));
+
+              if (uniqueImages.length === 0) return null;
 
               // Single image - no carousel needed
-              if (allImages.length === 1) {
+              if (uniqueImages.length === 1) {
                 return (
                   <div className="w-full rounded-md overflow-hidden border">
                     <Image
-                      src={allImages[0]}
+                      src={uniqueImages[0]}
                       alt={post.title}
                       width={1200}
                       height={600}
@@ -131,7 +148,7 @@ export default function Post({
               return (
                 <Carousel className="w-full relative">
                   <CarouselContent>
-                    {allImages.map((imageUrl, index) => (
+                    {uniqueImages.map((imageUrl, index) => (
                       <CarouselItem key={index}>
                         <div className="w-full rounded-md overflow-hidden border">
                           <Image
