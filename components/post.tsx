@@ -67,9 +67,7 @@ export default function Post({
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white leading-tight mb-2">
           {post.title}
         </h1>
-        <p className="text-gray-500 dark:text-gray-400 text-base mb-6">
-          {post.excerpt}
-        </p>
+     
 
         {}
         <div className="flex items-center gap-4 mb-6">
