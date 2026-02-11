@@ -21,6 +21,23 @@ export const getPosts = query({
       if (!author) {
         console.warn(`🚨 Author not found for post: ${post._id}`);
       }
+      
+      const galleryImageUrls = post.galleryImages && post.galleryImages.length > 0
+        ? await Promise.all(
+            post.galleryImages.map(async (imageId) => 
+              (await ctx.storage.getUrl(imageId)) ?? ""
+            )
+          )
+        : [];
+
+      // Get cover image URL, or use first gallery image if no cover image is set
+      let coverImageUrl: string | null = null;
+      if (post.coverImageId) {
+        coverImageUrl = (await ctx.storage.getUrl(post.coverImageId)) ?? null;
+      } else if (galleryImageUrls.length > 0 && galleryImageUrls[0]) {
+        coverImageUrl = galleryImageUrls[0];
+      }
+
       return {
         ...post,
         author: author ? {
@@ -40,11 +57,25 @@ export const getPosts = query({
           email: "unknown@example.com",
           imageUrl: ""
         },
-        ...(post.coverImageId ? {
-          coverImageUrl: (await ctx.storage.getUrl(post.coverImageId)) ?? ""
-        } : {})
+        coverImageUrl,
+        galleryImageUrls
       };
     }));
+  }
+});
+
+export const getImageUrls = query({
+  args: {
+    storageIds: v.array(v.id("_storage"))
+  },
+  handler: async (ctx, { storageIds }) => {
+    const urls = await Promise.all(
+      storageIds.map(async (storageId) => ({
+        storageId,
+        url: (await ctx.storage.getUrl(storageId)) ?? ""
+      }))
+    );
+    return urls;
   }
 });
 export const getRecentPosts = query({
@@ -59,9 +90,26 @@ export const getRecentPosts = query({
     }).slice(0, 4);
     return Promise.all(sortedPosts.map(async post => {
       const author = await ctx.db.get(post.authorId);
+      const galleryImageUrls = post.galleryImages && post.galleryImages.length > 0
+        ? await Promise.all(
+            post.galleryImages.map(async (imageId) => 
+              (await ctx.storage.getUrl(imageId)) ?? ""
+            )
+          )
+        : [];
+      // Get cover image URL, or use first gallery image if no cover image is set
+      let coverImageUrl: string | null = null;
+      if (post.coverImageId) {
+        coverImageUrl = (await ctx.storage.getUrl(post.coverImageId)) ?? null;
+      } else if (galleryImageUrls.length > 0 && galleryImageUrls[0]) {
+        coverImageUrl = galleryImageUrls[0];
+      }
+
       return {
         ...post,
-        author
+        author,
+        coverImageUrl,
+        galleryImageUrls
       };
     }));
   }
@@ -78,12 +126,27 @@ export const getPostBySlug = query({
       return null;
     }
     const author = await ctx.db.get(post.authorId);
+    const galleryImageUrls = post.galleryImages && post.galleryImages.length > 0
+      ? await Promise.all(
+          post.galleryImages.map(async (imageId) => 
+            (await ctx.storage.getUrl(imageId)) ?? ""
+          )
+        )
+      : [];
+
+    // Get cover image URL, or use first gallery image if no cover image is set
+    let coverImageUrl: string | null = null;
+    if (post.coverImageId) {
+      coverImageUrl = (await ctx.storage.getUrl(post.coverImageId)) ?? null;
+    } else if (galleryImageUrls.length > 0 && galleryImageUrls[0]) {
+      coverImageUrl = galleryImageUrls[0];
+    }
+
     return {
       ...post,
       author,
-      ...(post.coverImageId ? {
-        coverImageUrl: (await ctx.storage.getUrl(post.coverImageId)) ?? ""
-      } : {})
+      coverImageUrl,
+      galleryImageUrls
     };
   }
 });
@@ -94,6 +157,7 @@ export const createPost = mutation({
     excerpt: v.string(),
     content: v.string(),
     coverImageId: v.optional(v.id("_storage")),
+    galleryImages: v.optional(v.array(v.id("_storage"))),
     publishedDate: v.optional(v.number()) // Optional in schema for backward compatibility, but required in UI
   },
   handler: async (ctx, args) => {
@@ -108,8 +172,12 @@ export const createPost = mutation({
       attempt++;
       existingPost = await ctx.db.query("posts").withIndex("bySlug", q => q.eq("slug", slug)).unique();
     }
+    // If no cover image is set but gallery images exist, use the first gallery image as cover
+    const coverImageId = args.coverImageId || (args.galleryImages && args.galleryImages.length > 0 ? args.galleryImages[0] : undefined);
+    
     const data = {
       ...args,
+      coverImageId,
       slug,
       authorId: user._id,
       likes: 0
@@ -164,6 +232,7 @@ export const editPost = mutation({
     excerpt: v.string(),
     content: v.string(),
     coverImageId: v.optional(v.id("_storage")),
+    galleryImages: v.optional(v.array(v.id("_storage"))),
     publishedDate: v.optional(v.number())
   },
   handler: async (ctx, args) => {
@@ -179,11 +248,16 @@ export const editPost = mutation({
       throw new Error("🚨 Content cannot be empty when editing a post!");
     }
     console.log("✏️ Updating post with content:", args.content);
+    
+    // If no cover image is set but gallery images exist, use the first gallery image as cover
+    const coverImageId = args.coverImageId || (args.galleryImages && args.galleryImages.length > 0 ? args.galleryImages[0] : undefined);
+    
     await ctx.db.patch(post._id, {
       title: args.title,
       excerpt: args.excerpt,
       content: args.content,
-      coverImageId: args.coverImageId,
+      coverImageId: coverImageId,
+      galleryImages: args.galleryImages,
       publishedDate: args.publishedDate
     });
     return true;
@@ -371,6 +445,23 @@ export const getPostsForHomePageManagement = query({
     const posts = await ctx.db.query("posts").collect();
     return Promise.all(posts.map(async post => {
       const author = await ctx.db.get(post.authorId);
+      
+      const galleryImageUrls = post.galleryImages && post.galleryImages.length > 0
+        ? await Promise.all(
+            post.galleryImages.map(async (imageId) => 
+              (await ctx.storage.getUrl(imageId)) ?? ""
+            )
+          )
+        : [];
+      
+      // Get cover image URL, or use first gallery image if no cover image is set
+      let coverImageUrl: string | null = null;
+      if (post.coverImageId) {
+        coverImageUrl = (await ctx.storage.getUrl(post.coverImageId)) ?? null;
+      } else if (galleryImageUrls.length > 0 && galleryImageUrls[0]) {
+        coverImageUrl = galleryImageUrls[0];
+      }
+      
       return {
         ...post,
         author: author ? {
@@ -382,9 +473,8 @@ export const getPostsForHomePageManagement = query({
           firstName: "Pebec Gov",
           lastName: "",
         },
-        ...(post.coverImageId ? {
-          coverImageUrl: (await ctx.storage.getUrl(post.coverImageId)) ?? ""
-        } : {})
+        coverImageUrl,
+        galleryImageUrls
       };
     }));
   }

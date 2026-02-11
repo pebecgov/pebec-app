@@ -185,7 +185,8 @@ export default defineSchema({
     slug: v.string(),
     excerpt: v.string(),
     content: v.string(),
-    coverImageId: v.optional(v.id("_storage")),
+    coverImageId: v.optional(v.id("_storage")), // Main/featured image (for backward compatibility and thumbnail)
+    galleryImages: v.optional(v.array(v.id("_storage"))), // Array of images for carousel
     authorId: v.id("users"),
     likes: v.number(),
     publishedDate: v.optional(v.number()), // Date the article was published/occurred, not when created
