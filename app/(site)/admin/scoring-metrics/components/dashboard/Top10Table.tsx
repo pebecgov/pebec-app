@@ -7,6 +7,7 @@ interface Top10TableProps {
     mdaFilter: 'all' | 'withData';
     ministryFilter: 'all' | 'ministries-only' | 'without-ministries';
     selectedMetric: string;
+    dashboardYear: number;
 }
 
 // Helper function to get metric label
@@ -22,7 +23,9 @@ function getMetricLabel(selectedMetric: string): string {
         reportGovResolution: 'Report Gov Resolution',
         monthlyReport: 'Monthly Report Submission',
         timeliness: 'Timeliness',
-        totalScore: 'Total Score'
+        totalScore: 'Total Score',
+        others: 'Others (Dynamic)',
+        penalties: 'Penalties'
     };
     return labels[selectedMetric] || 'Score';
 }
@@ -40,6 +43,8 @@ function getMetricValue(mda: any, metric: string): number {
     if (metric === 'reportGovResolution') return mda.reportGovResolution?.score || 0;
     if (metric === 'monthlyReport') return mda.monthlyReport?.score || 0;
     if (metric === 'timeliness') return mda.timeliness?.score || 0;
+    if (metric === 'others') return mda.others?.score || 0;
+    if (metric === 'penalties') return mda.penalties?.score || 0;
     return 0;
 }
 
@@ -58,11 +63,12 @@ function calculatePercentage(mda: any, metric: string): number {
         transparency: 5,
         reportGovResolution: 15,
         monthlyReport: 3,
-        timeliness: 2
+        timeliness: 2,
+        others: 45
     };
 
     const maxScore = maxScores[metric] || 100;
-    if (metric === 'controversial' || metric === 'toutingRentseeking') {
+    if (metric === 'controversial' || metric === 'toutingRentseeking' || metric === 'penalties') {
         return score; // Display raw penalty value
     }
     return maxScore > 0 ? (score / maxScore) * 100 : 0;
@@ -72,7 +78,8 @@ export default function Top10Table({
     processDashboardMdaData,
     mdaFilter,
     ministryFilter,
-    selectedMetric
+    selectedMetric,
+    dashboardYear
 }: Top10TableProps) {
     const allMdasArray = processDashboardMdaData(mdaFilter, ministryFilter);
 

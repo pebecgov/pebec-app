@@ -17,6 +17,9 @@ interface MonthlySLAModalProps {
     monthlySlaData: MonthlySlaData;
     setMonthlySlaData: React.Dispatch<React.SetStateAction<MonthlySlaData>>;
     currentYear: number;
+    periodMonths?: Array<{ month: number; year: number; monthName: string }>;
+    pointsPerMonth?: number;
+    maxPoints?: number;
 }
 
 export default function MonthlySLAModal({
@@ -25,7 +28,10 @@ export default function MonthlySLAModal({
     scoringPeriod,
     monthlySlaData,
     setMonthlySlaData,
-    currentYear
+    currentYear,
+    periodMonths,
+    pointsPerMonth = 5,
+    maxPoints = 30
 }: MonthlySLAModalProps) {
     const [processingMonthlyFiles, setProcessingMonthlyFiles] = useState<Record<string, boolean>>({});
     const [showResultModal, setShowResultModal] = useState(false);
@@ -36,7 +42,7 @@ export default function MonthlySLAModal({
     const processSlaData = useAction(api.ai_helper_scoring.processSlaData);
 
     const calculateStats = () => {
-        const months = getMonthsForPeriod(scoringPeriod);
+        const months = periodMonths || getMonthsForPeriod(scoringPeriod);
         const totalMonths = months.length;
         let monthsWithData = 0;
         let totalScore = 0;
@@ -50,7 +56,7 @@ export default function MonthlySLAModal({
             }
         });
 
-        const percentage = totalMonths > 0 ? (totalScore / (totalMonths * 5)) * 100 : 0;
+        const percentage = maxPoints > 0 ? (totalScore / maxPoints) * 100 : 0;
 
         return { totalScore, monthsWithData, totalMonths, percentage };
     };
@@ -72,13 +78,13 @@ export default function MonthlySLAModal({
                 <div className="p-6">
                     <div className="text-center mb-6">
                         <h1 className="text-2xl font-bold text-gray-800 mb-2">Monthly SLA Scoring</h1>
-                        <p className="text-gray-600">{scoringPeriod} - 5 points per month</p>
+                        <p className="text-gray-600">{scoringPeriod} - {pointsPerMonth.toFixed(1)} points per month</p>
                     </div>
 
                     {/* Monthly SLA Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                        {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
-                            const monthName = new Date(periodMonth.year, periodMonth.month, 1)
+                        {(periodMonths || getMonthsForPeriod(scoringPeriod)).map((periodMonth, index) => {
+                            const monthName = periodMonth.monthName || new Date(periodMonth.year, periodMonth.month, 1)
                                 .toLocaleString('default', { month: 'long' });
                             const monthKey = `${periodMonth.year}-${periodMonth.month}`;
                             const monthData = monthlySlaData[monthKey] || {
@@ -95,7 +101,7 @@ export default function MonthlySLAModal({
                                     <div className="flex justify-between items-center mb-3">
                                         <h3 className="font-semibold text-lg">{monthName}</h3>
                                         <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                                            5 Points
+                                            {pointsPerMonth.toFixed(1)} Points
                                         </span>
                                     </div>
 
@@ -188,7 +194,7 @@ export default function MonthlySLAModal({
                                                                             rating: 0,
                                                                             overallPercentage: processResult.overallPercentage,
                                                                             results: processResult.processedData,
-                                                                            score: processResult.overallPercentage ? (processResult.overallPercentage / 100) * 5 : 0
+                                                                            score: processResult.overallPercentage ? (processResult.overallPercentage / 100) * pointsPerMonth : 0
                                                                         }
                                                                     }));
                                                                     toast.success(`✅ ${monthName} processed`);
@@ -221,7 +227,7 @@ export default function MonthlySLAModal({
                                                             ...prev[monthKey] || {},
                                                             method: 'rating',
                                                             rating: rating,
-                                                            score: (rating / 10) * 5
+                                                            score: (rating / 10) * pointsPerMonth
                                                         } as any
                                                     }));
                                                 }}
@@ -246,7 +252,7 @@ export default function MonthlySLAModal({
                                                 <div className="text-sm font-medium">
                                                     Score: {monthData.method === 'file'
                                                         ? (monthData.overallPercentage !== null ? `${monthData.overallPercentage.toFixed(1)}%` : 'N/A')
-                                                        : `${((monthData.rating / 10) * 5).toFixed(1)}/5`
+                                                        : `${((monthData.rating / 10) * pointsPerMonth).toFixed(1)}/${pointsPerMonth.toFixed(1)}`
                                                     }
                                                 </div>
                                                 {monthData.method === 'file' && monthData.results && monthData.results.length > 0 && (
@@ -281,7 +287,7 @@ export default function MonthlySLAModal({
                             <div>
                                 <span className="font-medium">Total Score:</span>
                                 <div className="text-lg font-bold text-blue-600">
-                                    {stats.totalScore.toFixed(1)}/30
+                                    {stats.totalScore.toFixed(1)}/{maxPoints}
                                 </div>
                             </div>
                             <div>

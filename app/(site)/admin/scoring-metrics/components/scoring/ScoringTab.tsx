@@ -19,6 +19,8 @@ import ReportGovCard from './ReportGovCard';
 import MonthlyReportCard from './MonthlyReportCard';
 import TimelinessCard from './TimelinessCard';
 import FinalScoreButton from './FinalScoreButton';
+import DynamicOthersCard from './DynamicOthersCard';
+import DynamicPenaltiesCard from './DynamicPenaltiesCard';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -82,7 +84,7 @@ export default function ScoringTab({
 
     // Mystery Shopping State
     const [mysteryRatings, setMysteryRatings] = useState<Record<string, number>>({});
-    const [mysteryType, setMysteryType] = useState<MysteryShoppingType>('hasReportGov');
+    const [mysteryType, setMysteryType] = useState<string>('hasReportGov');
 
     // Boolean/Rate Metrics State
     const [isControversial, setIsControversial] = useState(false);
@@ -114,6 +116,10 @@ export default function ScoringTab({
     const [manualTimeliness, setManualTimeliness] = useState<Record<string, boolean>>({});
     const [useManualTimeliness, setUseManualTimeliness] = useState(false);
 
+    // Dynamic State for 2026+ (Others & Penalties)
+    const [othersValues, setOthersValues] = useState<Record<string, boolean | number>>({});
+    const [penaltyValues, setPenaltyValues] = useState<Record<string, boolean>>({});
+
     // Modal Visibility
     const [showSlaModal, setShowSlaModal] = useState(false);
     const [showMysteryModal, setShowMysteryModal] = useState(false);
@@ -123,6 +129,72 @@ export default function ScoringTab({
     const [showMysteryRanking, setShowMysteryRanking] = useState(false);
     const [showSLARanking, setShowSLARanking] = useState(false);
     const [showReportGovRanking, setShowReportGovRanking] = useState(false);
+
+    // Dynamic Mutations
+    const saveOthersItems = useMutation(api.mda_scoring.saveOthersData);
+    const savePenaltiesItems = useMutation(api.mda_scoring.savePenaltiesData);
+
+    // --- Year Detection & Configuration (2026+) ---
+    const getScoringYear = (period: string): number => {
+        const match = period.match(/\d{4}/);
+        return match ? parseInt(match[0]) : currentYear;
+    };
+    const scoringYear = getScoringYear(scoringPeriod);
+    const useDynamicConfig = scoringYear >= 2026;
+
+    // Configuration Queries (2026+ only)
+    const efficiencyConfig = useQuery(
+        api.scoring_config.getEfficiencyPeriod,
+        useDynamicConfig ? { year: scoringYear } : "skip"
+    );
+    const mysteryConfig = useQuery(
+        api.scoring_config.getMysteryShoppingTypesWithQuestions,
+        useDynamicConfig ? { year: scoringYear } : "skip"
+    );
+    const othersConfig = useQuery(
+        api.scoring_config.getOthersItems,
+        useDynamicConfig ? { year: scoringYear } : "skip"
+    );
+    const penaltyConfig = useQuery(
+        api.scoring_config.getPenaltyItems,
+        useDynamicConfig ? { year: scoringYear } : "skip"
+    );
+
+    // Calculate Report Gov Points
+    const reportGovPoints = useDynamicConfig
+        ? (efficiencyConfig?.reportGovPoints ?? 15)
+        : 15;
+
+    // Helper to generate months from config
+    const getMonthsFromConfig = (config: any): Array<{ month: number; year: number; monthName: string }> => {
+        if (!config) return [];
+        const months: Array<{ month: number; year: number; monthName: string }> = [];
+        const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+
+        const startMonthIndex = monthNames.indexOf(config.startMonth);
+        let currentYear = config.startYear;
+        let currentMonth = startMonthIndex;
+
+        for (let i = 0; i < config.totalMonths; i++) {
+            months.push({
+                month: currentMonth,
+                year: currentYear,
+                monthName: `${monthNames[currentMonth]} ${currentYear}`
+            });
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+        }
+        return months;
+    };
+
+    // Get period months based on year
+    const periodMonths = useDynamicConfig && efficiencyConfig
+        ? getMonthsFromConfig(efficiencyConfig)
+        : getMonthsForPeriod(scoringPeriod);
 
     // --- Queries ---
     const mdaScoringStatus = useQuery(
@@ -188,6 +260,16 @@ export default function ScoringTab({
         selectedMda ? { mdaName: selectedMda, scoringPeriod } : "skip"
     );
 
+    // Dynamic Data Queries (2026+)
+    const savedOthersData = useQuery(
+        api.mda_scoring.getOthersData,
+        selectedMda && useDynamicConfig ? { mdaName: selectedMda, scoringPeriod } : "skip"
+    );
+    const savedPenaltiesData = useQuery(
+        api.mda_scoring.getPenaltiesData,
+        selectedMda && useDynamicConfig ? { mdaName: selectedMda, scoringPeriod } : "skip"
+    );
+
     // --- Loading States ---
     const isLoadingSLAData = !!selectedMda && savedSLAData === undefined;
     const isLoadingReportGovData = !!selectedMda && savedReportGovData === undefined;
@@ -199,6 +281,8 @@ export default function ScoringTab({
     const isLoadingTransparencyData = !!selectedMda && savedTransparencyData === undefined;
     const isLoadingMonthlyReportData = !!selectedMda && savedMonthlyReportData === undefined;
     const isLoadingTimelinessData = !!selectedMda && savedTimelinessData === undefined;
+    const isLoadingOthersData = !!selectedMda && useDynamicConfig && savedOthersData === undefined;
+    const isLoadingPenaltiesData = !!selectedMda && useDynamicConfig && savedPenaltiesData === undefined;
 
     // Leaderboard Queries for Ranking Modals
     const mysteryRankings = useQuery(api.mda_scoring.getMysteryShoppingRankings, { scoringPeriod });
@@ -280,9 +364,12 @@ export default function ScoringTab({
                 else if (averageResolutionTime <= 144) score += 1;
             }
 
-            setReportgovRate(Math.min(score, 15));
+            // Scale to dynamic points
+            const scaledScore = (score / 15) * reportGovPoints;
+
+            setReportgovRate(Math.min(scaledScore, reportGovPoints));
         }
-    }, [ticketResolutionData]);
+    }, [ticketResolutionData, reportGovPoints]);
 
     // Load saved Report Gov data when available
     useEffect(() => {
@@ -311,11 +398,23 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingMysteryShoppingData && savedMysteryShoppingData && selectedMda) {
             const data = savedMysteryShoppingData as any;
-            setMysteryType((data.mysteryType || data.type) as MysteryShoppingType);
+            setMysteryType((data.mysteryType || data.type));
             setMysteryRatings(data.ratings || {});
             toast.success(`🛍️ Loaded saved Mystery Shopping data for ${selectedMda}`);
         }
     }, [savedMysteryShoppingData, selectedMda, scoringPeriod, isLoadingMysteryShoppingData]);
+
+    // Auto-select first mystery type from config for 2026+
+    useEffect(() => {
+        if (useDynamicConfig && mysteryConfig && Array.isArray(mysteryConfig) && mysteryConfig.length > 0) {
+            const firstTypeId = mysteryConfig[0].typeId || mysteryConfig[0].typeName;
+            // Only auto-select if no saved data and current type doesn't match any config type
+            const hasValidType = mysteryConfig.some((t: any) => (t.typeId || t.typeName) === mysteryType);
+            if (!savedMysteryShoppingData && !hasValidType) {
+                setMysteryType(firstTypeId);
+            }
+        }
+    }, [useDynamicConfig, mysteryConfig, savedMysteryShoppingData]);
 
     // Load saved Controversial data
     useEffect(() => {
@@ -380,12 +479,33 @@ export default function ScoringTab({
         }
     }, [savedTimelinessData, selectedMda, scoringPeriod, isLoadingTimelinessData]);
 
+    // Load saved Others data (2026+)
+    useEffect(() => {
+        if (!isLoadingOthersData && savedOthersData && selectedMda && useDynamicConfig) {
+            setOthersValues(savedOthersData.values || {});
+            // toast.success(`📊 Loaded saved Others data for ${selectedMda}`);
+        }
+    }, [savedOthersData, selectedMda, scoringPeriod, isLoadingOthersData, useDynamicConfig]);
+
+    // Load saved Penalties data (2026+)
+    useEffect(() => {
+        if (!isLoadingPenaltiesData && savedPenaltiesData && selectedMda && useDynamicConfig) {
+            setPenaltyValues(savedPenaltiesData.values || {});
+            // toast.success(`⚠️ Loaded saved Penalties data for ${selectedMda}`);
+        }
+    }, [savedPenaltiesData, selectedMda, scoringPeriod, isLoadingPenaltiesData, useDynamicConfig]);
+
     // --- Calculators ---
     const calculateMonthlySlaScore = () => {
-        const months = getMonthsForPeriod(scoringPeriod);
+        const months = periodMonths;
         const totalMonths = months.length;
         let monthsWithData = 0;
         let totalScore = 0;
+
+        // Calculate points per month
+        const pointsPerMonth = useDynamicConfig
+            ? ((efficiencyConfig?.slaPoints ?? 30) / (efficiencyConfig?.totalMonths ?? 12))
+            : 5; // 2025 default
 
         months.forEach(month => {
             const key = `${month.year}-${month.month}`;
@@ -396,14 +516,19 @@ export default function ScoringTab({
             }
         });
 
-        const percentage = totalMonths > 0 ? (totalScore / (totalMonths * 5)) * 100 : 0;
-        return { totalScore, monthsWithData, totalMonths, percentage };
+        const maxPossibleScore = useDynamicConfig
+            ? (efficiencyConfig?.slaPoints ?? 30)
+            : (totalMonths * pointsPerMonth); // 2025 fallback
+
+        const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+        return { totalScore, monthsWithData, totalMonths, percentage, maxPossibleScore, pointsPerMonth };
     };
 
     const calculateManualReportGovScore = () => {
         if (!manualTotalTickets) return 0;
         const resolutionRate = manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0;
         let score = 0;
+        // Base calculation (out of 15)
         if (resolutionRate >= 100) score += 7;
         else if (resolutionRate >= 95) score += 6;
         else if (resolutionRate >= 90) score += 5;
@@ -422,13 +547,19 @@ export default function ScoringTab({
         else if (manualAverageResolutionTime <= 120) score += 2;
         else if (manualAverageResolutionTime <= 144) score += 1;
 
-        return Math.min(score, 15);
+        // Scale to dynamic points
+        const scaledScore = (score / 15) * reportGovPoints;
+
+        return Math.min(scaledScore, reportGovPoints);
     };
 
     const calculateMonthlyReportStats = () => {
-        const months = getMonthsForPeriod(scoringPeriod);
+        const months = periodMonths;
         const total = months.length;
-        const totalPossibleScore = 3;
+
+        const totalPossibleScore = useDynamicConfig
+            ? (efficiencyConfig?.reportSubmissionPoints ?? 3)
+            : 3; // 2025 default
 
         let submittedCount = 0;
 
@@ -462,9 +593,13 @@ export default function ScoringTab({
     };
 
     const calculateTimelinessStats = () => {
-        const months = getMonthsForPeriod(scoringPeriod);
+        const months = periodMonths;
         const total = months.length;
-        const totalPossibleScore = 2;
+
+        const totalPossibleScore = useDynamicConfig
+            ? (efficiencyConfig?.timelinessPoints ?? 2)
+            : 2; // 2025 default
+
         let onTimeCount = 0;
 
         if (useManualTimeliness) {
@@ -488,54 +623,96 @@ export default function ScoringTab({
     };
 
     const calculateFinalScores = () => {
+        // Core metrics (Common)
         const sla = calculateMonthlySlaScore().totalScore;
         const mystery = calculateMysteryScore(mysteryType, mysteryRatings);
-        const controversial = isControversial ? -5 : 0; // New format logic per user snippet
-        const touting = isTouting ? -5 : 0;
-        const innovation = isInnovation ? 5 : 0;
-        const stakeholder = stakeholderRate;
-        const transparency = skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0);
         const reportGov = skipReportGov ? 0 : (useManualReportGov ? manualReportGovRate : reportgovRate);
         const monthlyReport = calculateMonthlyReportStats().score;
         const timeliness = calculateTimelinessStats().score;
 
+        let controversial = 0;
+        let touting = 0;
+        let innovation = 0;
+        let stakeholder = 0;
+        let transparency = 0;
+        let othersScore = 0;
+        let penaltyScore = 0;
+
         let currentMaxPoints = 100;
-        if (skipReportGov) currentMaxPoints -= 15;
-        if (skipTransparency) currentMaxPoints -= 10;
 
-        let totalScore = sla + mystery + innovation + stakeholder + transparency + reportGov + monthlyReport + timeliness + controversial + touting;
-        totalScore = Math.max(0, totalScore); // No negative total?
+        if (useDynamicConfig) {
+            // 2026+ Dynamic
+            // Others
+            if (othersConfig) {
+                othersConfig.forEach((item: any) => {
+                    const value = othersValues[item.itemId];
+                    if (item.answerType === 'yes_no') {
+                        if (value) othersScore += item.weight;
+                    } else {
+                        const numValue = typeof value === 'number' ? value : 0;
+                        othersScore += (numValue / 10) * item.weight;
+                    }
+                });
+            }
 
-        // Apply averaging logic if needed (handled in backend usually, but for display:)
-        let baseTotalScore = totalScore;
-        let finalDisplayScore = totalScore;
+            // Penalties ( Deductions )
+            if (penaltyConfig) {
+                penaltyConfig.forEach((item: any) => {
+                    if (penaltyValues[item.penaltyId]) {
+                        // Assuming penaltyValue is positive in DB (e.g. 5), so we subtract it
+                        penaltyScore -= item.penaltyValue;
+                    }
+                });
+            }
 
-        if (pastScoringData && pastScoringData.lastScored) {
-            // Mock averaging logic for display
-            // Real calculation happens in backend 'calculateScore' mutation
-            // But we need to show preview
-            // logic: 70% current + 30% past
-            // pastScores is string, need parsing? No, 'pastScores' is just descriptive string
-            // Wait, pastScoringData has actual scores?
-            // Typically backend handles this.
-            // We'll trust the backend return or just show "Pending Calculation"
+            // Adjust max points if skipped
+            if (skipReportGov) currentMaxPoints -= reportGovPoints;
+            // Transparency is now in Others, so skipping logic depends on if "Transparency" item exists and is skippable?
+            // For now, let's assume valid max points is 100 unless specific items are skipped.
+            // But skipTransparency state variable is still there.
+            // In 2026, transparency is just another item. If it's not applicable, maybe it's removed from config?
+            // Or maybe we still support skipTransparency for specific transparency items?
+            // Let's assume standard 100 max for now for 2026, minus ReportGov if skipped.
+
+        } else {
+            // 2025 Static
+            controversial = isControversial ? -5 : 0;
+            touting = isTouting ? -5 : 0;
+            innovation = isInnovation ? 5 : 0;
+            stakeholder = stakeholderRate;
+            transparency = skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0);
+
+            if (skipReportGov) currentMaxPoints -= reportGovPoints;
+            if (skipTransparency) currentMaxPoints -= 10;
         }
 
+        // Total
+        let totalScore = 0;
+        if (useDynamicConfig) {
+            totalScore = sla + mystery + reportGov + monthlyReport + timeliness + othersScore + penaltyScore;
+        } else {
+            totalScore = sla + mystery + innovation + stakeholder + transparency + reportGov + monthlyReport + timeliness + controversial + touting;
+        }
+
+        totalScore = Math.max(0, totalScore); 
+
         return {
-            totalPercentage: (totalScore / currentMaxPoints) * 100,
+            totalPercentage: currentMaxPoints > 0 ? (totalScore / currentMaxPoints) * 100 : 0,
             totalScore,
             maxPossiblePoints: currentMaxPoints,
             scores: {
                 serviceLevelAgreement: sla,
                 mysteryShopping: mystery,
-                controversial,
-                toutingRentseeking: touting,
-                innovation,
-                stakeholderEngagement: stakeholder,
-                transparency,
+                controversial: useDynamicConfig ? 0 : controversial, 
+                toutingRentseeking: useDynamicConfig ? 0 : touting,
+                innovation: useDynamicConfig ? 0 : innovation,
+                stakeholderEngagement: useDynamicConfig ? 0 : stakeholder,
+                transparency: useDynamicConfig ? 0 : transparency,
                 reportGovernanceResolution: reportGov,
                 monthlyReportSubmission: monthlyReport,
-                timelinessInSubmitting: timeliness
+                timelinessInSubmitting: timeliness,
+                others: othersScore,
+                penalties: penaltyScore
             }
         };
     };
@@ -562,14 +739,26 @@ export default function ScoringTab({
 
     const handleSaveMystery = async () => {
         if (!selectedMda) return;
-        const score = calculateMysteryScore(mysteryType, mysteryRatings);
+        const maxPossibleScore = useDynamicConfig && Array.isArray(mysteryConfig)
+            ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
+            : 20;
+
+        const score = calculateMysteryScore(
+            mysteryType,
+            mysteryRatings,
+            useDynamicConfig ? mysteryConfig : undefined,
+            maxPossibleScore
+        );
+
         try {
             await saveMysteryData({
                 mdaName: selectedMda,
                 scoringPeriod,
                 score,
                 ratings: mysteryRatings,
-                type: mysteryType
+                type: mysteryType,
+                maxPossibleScore,
+                percentage: maxPossibleScore > 0 ? (score / maxPossibleScore) * 100 : 0
             });
             toast.success("Mystery Shopping Data saved");
         } catch (error) {
@@ -628,6 +817,63 @@ export default function ScoringTab({
             });
             toast.success("Stakeholder score saved");
         } catch (e) { toast.error("Failed to save"); }
+    };
+
+    const handleSaveOthers = async () => {
+        if (!selectedMda || !othersConfig) return;
+        try {
+            // Calculate scores
+            const scores: Record<string, number> = {};
+            let totalScore = 0;
+
+            othersConfig.forEach((item: any) => {
+                const value = othersValues[item.itemId];
+                let itemScore = 0;
+                if (item.answerType === 'yes_no') {
+                    itemScore = value ? item.weight : 0;
+                } else { // scale_1_10
+                    const numValue = typeof value === 'number' ? value : 0;
+                    itemScore = (numValue / 10) * item.weight;
+                }
+                scores[item.itemId] = itemScore;
+                totalScore += itemScore;
+            });
+
+            await saveOthersItems({
+                mdaName: selectedMda,
+                scoringPeriod,
+                values: othersValues,
+                scores,
+                totalScore
+            });
+            toast.success("Result saved");
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to save");
+        }
+    };
+
+    const handleSavePenalties = async () => {
+        if (!selectedMda || !penaltyConfig) return;
+        try {
+            let totalPenalty = 0;
+            penaltyConfig.forEach((item: any) => {
+                if (penaltyValues[item.penaltyId]) {
+                    totalPenalty += item.penaltyValue;
+                }
+            });
+
+            await savePenaltiesItems({
+                mdaName: selectedMda,
+                scoringPeriod,
+                values: penaltyValues,
+                totalPenalty
+            });
+            toast.success("Result saved");
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to save");
+        }
     };
 
     const handleSaveTransparency = async () => {
@@ -741,6 +987,8 @@ export default function ScoringTab({
                 reportGovernanceResolutionScore: finalScores.scores.reportGovernanceResolution,
                 monthlyReportSubmissionScore: finalScores.scores.monthlyReportSubmission,
                 timelinessInSubmittingScore: finalScores.scores.timelinessInSubmitting,
+                othersScore: finalScores.scores.others,
+                penaltiesScore: finalScores.scores.penalties,
 
                 // Performance Data
                 ...performanceData,
@@ -780,101 +1028,87 @@ export default function ScoringTab({
                     />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <ScoringPeriodInfo
-                            scoringPeriod={scoringPeriod}
-                            currentYear={currentYear}
-                        />
+                        {!useDynamicConfig && (
+                            <ScoringPeriodInfo
+                                scoringPeriod={scoringPeriod}
+                                currentYear={currentYear}
+                            />
+                        )}
                         <PastPerformanceInfo
                             pastScoringData={pastScoringData || null}
                         />
                     </div>
                 </div>
 
-                {/* Metrics Grid */}
-                <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <SLAMetricCard
-                        isLoadingSLAData={!!selectedMda && savedSLAData === undefined}
-                        savedSLAData={!!savedSLAData}
-                        setShowSLARanking={setShowSLARanking}
-                        scoringPeriod={scoringPeriod}
-                        currentYear={currentYear}
-                        monthlySlaData={monthlySlaData}
-                        slaScore={calculateMonthlySlaScore()}
-                        setShowSlaModal={setShowSlaModal}
-                        handleSaveSLAData={handleSaveSLAData}
-                        selectedMda={selectedMda}
-                    />
+                {/* --- Efficiency Section --- */}
+                <div className="w-full space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Efficiency & Compliance</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <SLAMetricCard
+                            isLoadingSLAData={!!selectedMda && savedSLAData === undefined}
+                            savedSLAData={!!savedSLAData}
+                            setShowSLARanking={setShowSLARanking}
+                            scoringPeriod={scoringPeriod}
+                            currentYear={currentYear}
+                            monthlySlaData={monthlySlaData}
+                            slaScore={calculateMonthlySlaScore()}
+                            setShowSlaModal={setShowSlaModal}
+                            handleSaveSLAData={handleSaveSLAData}
+                            selectedMda={selectedMda}
+                            periodMonths={periodMonths}
+                            useDynamicConfig={useDynamicConfig}
+                            efficiencyConfig={efficiencyConfig}
+                        />
+                        <MonthlyReportCard
+                            isLoading={isLoadingMonthlyReportData}
+                            isSaved={!!savedMonthlyReportData}
+                            monthlyReportData={calculateMonthlyReportStats()}
+                            scoringPeriod={scoringPeriod}
+                            realMonthlyReports={realMonthlyReports || []}
+                            handleSave={handleSaveMonthlyReport}
+                            selectedMda={selectedMda}
+                            periodMonths={periodMonths}
+                            maxPoints={useDynamicConfig && efficiencyConfig ? efficiencyConfig.reportSubmissionPoints : 3}
+                        />
+                        <TimelinessCard
+                            isLoading={isLoadingTimelinessData}
+                            isSaved={!!savedTimelinessData}
+                            timelinessData={calculateTimelinessStats()}
+                            scoringPeriod={scoringPeriod}
+                            realMonthlyReports={realMonthlyReports || []}
+                            handleSave={handleSaveTimeliness}
+                            selectedMda={selectedMda}
+                            periodMonths={periodMonths}
+                            maxPoints={useDynamicConfig && efficiencyConfig ? efficiencyConfig.timelinessPoints : 2}
+                        />
+                    </div>
+                </div>
 
-                    <MysteryShoppingCard
-                        isLoading={isLoadingMysteryShoppingData}
-                        isSaved={!!savedMysteryShoppingData}
-                        setShowRanking={setShowMysteryRanking}
-                        setShowModal={setShowMysteryModal}
-                        score={calculateMysteryScore(mysteryType, mysteryRatings)}
-                        handleSave={handleSaveMystery}
-                        selectedMda={selectedMda}
-                        hasRatings={Object.keys(mysteryRatings).length > 0}
-                    />
-
-                    <BooleanMetricCard
-                        title="Controversial"
-                        isLoading={isLoadingControversialData}
-                        isSaved={!!savedControversialData}
-                        points={-5}
-                        pointsLabel="Penalty: -5"
-                        value={isControversial}
-                        setValue={setIsControversial}
-                        handleSave={handleSaveControversial}
-                        selectedMda={selectedMda}
-                    />
-
-                    <BooleanMetricCard
-                        title="Touting & Rentseeking"
-                        isLoading={isLoadingToutingRentseekingData}
-                        isSaved={!!savedToutingRentseekingData}
-                        points={-5}
-                        pointsLabel="Penalty: -5"
-                        value={isTouting}
-                        setValue={setIsTouting}
-                        handleSave={handleSaveTouting}
-                        selectedMda={selectedMda}
-                    />
-
-                    <BooleanMetricCard
-                        title="Innovation"
-                        isLoading={isLoadingInnovationData}
-                        isSaved={!!savedInnovationData}
-                        points={5}
-                        pointsLabel="5 Points"
-                        value={isInnovation}
-                        setValue={setIsInnovation}
-                        handleSave={handleSaveInnovation}
-                        selectedMda={selectedMda}
-                    />
-
-                    <StakeholderCard
-                        isLoading={isLoadingStakeholderData}
-                        isSaved={!!savedStakeholderData}
-                        rate={stakeholderRate}
-                        setRate={setStakeholderRate}
-                        handleSave={handleSaveStakeholder}
-                        selectedMda={selectedMda}
-                    />
-
-                    <TransparencyCard
-                        isLoading={isLoadingTransparencyData}
-                        isSaved={!!savedTransparencyData}
-                        skipTransparency={skipTransparency}
-                        setSkipTransparency={setSkipTransparency}
-                        transparencyItems={transparencyItems}
-                        setTransparencyItems={setTransparencyItems}
-                        transparencyQuestions={transparencyQuestions}
-                        transparencyScore={skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0)}
-                        handleSave={handleSaveTransparency}
-                        selectedMda={selectedMda}
-                    />
-
-                    <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* --- Mystery Shopping & ReportGov Section --- */}
+                <div className="w-full space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Mystery Shopping & ReportGov</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <MysteryShoppingCard
+                            isLoading={isLoadingMysteryShoppingData}
+                            isSaved={!!savedMysteryShoppingData}
+                            setShowRanking={setShowMysteryRanking}
+                            setShowModal={setShowMysteryModal}
+                            score={calculateMysteryScore(
+                                mysteryType,
+                                mysteryRatings,
+                                useDynamicConfig ? mysteryConfig : undefined,
+                                useDynamicConfig && Array.isArray(mysteryConfig)
+                                    ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
+                                    : 20
+                            )}
+                            handleSave={handleSaveMystery}
+                            selectedMda={selectedMda}
+                            hasRatings={Object.keys(mysteryRatings).length > 0}
+                            maxPoints={useDynamicConfig && Array.isArray(mysteryConfig)
+                                ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
+                                : 20
+                            }
+                        />
                         <ReportGovCard
                             isLoading={!!selectedMda && (ticketResolutionData === undefined || isLoadingReportGovData)}
                             isSaved={!!savedReportGovData}
@@ -904,36 +1138,101 @@ export default function ScoringTab({
                             mdasList={mdasList}
                             mdasWithScores={mdasWithScores || []}
                             periodTicketData={ticketResolutionData || null}
+                            maxPoints={reportGovPoints}
                         />
                     </div>
+                </div>
 
-                    <div className="col-span-1 md:col-span-2 lg:col-span-3 flex flex-col md:flex-row gap-6">
-                        <MonthlyReportCard
-                            isLoading={isLoadingMonthlyReportData}
-                            isSaved={!!savedMonthlyReportData}
-                            useManual={useManualMonthlyReports}
-                            setUseManual={setUseManualMonthlyReports}
-                            monthlyReportData={calculateMonthlyReportStats()}
-                            scoringPeriod={scoringPeriod}
-                            manualMonthlyReports={manualMonthlyReports}
-                            setManualMonthlyReports={setManualMonthlyReports}
-                            realMonthlyReports={realMonthlyReports || []}
-                            handleSave={handleSaveMonthlyReport}
-                            selectedMda={selectedMda}
-                        />
-                        <TimelinessCard
-                            isLoading={isLoadingTimelinessData}
-                            isSaved={!!savedTimelinessData}
-                            useManual={useManualTimeliness}
-                            setUseManual={setUseManualTimeliness}
-                            timelinessData={calculateTimelinessStats()}
-                            scoringPeriod={scoringPeriod}
-                            manualTimeliness={manualTimeliness}
-                            setManualTimeliness={setManualTimeliness}
-                            realMonthlyReports={realMonthlyReports || []}
-                            handleSave={handleSaveTimeliness}
-                            selectedMda={selectedMda}
-                        />
+                {/* --- Others & Penalties Section --- */}
+                <div className="w-full space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Other Metrics</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {useDynamicConfig ? (
+                            <>
+                                {othersConfig && (
+                                    <DynamicOthersCard
+                                        othersConfig={othersConfig}
+                                        othersValues={othersValues}
+                                        onValueChange={(id, val) => setOthersValues(prev => ({ ...prev, [id]: val }))}
+                                        onSave={handleSaveOthers}
+                                        isLoading={isLoadingOthersData}
+                                        isSaved={!!savedOthersData}
+                                        selectedMda={selectedMda}
+                                    />
+                                )}
+                                {penaltyConfig && (
+                                    <DynamicPenaltiesCard
+                                        penaltyConfig={penaltyConfig}
+                                        penaltyValues={penaltyValues}
+                                        onValueChange={(id, val) => setPenaltyValues(prev => ({ ...prev, [id]: val }))}
+                                        onSave={handleSavePenalties}
+                                        isLoading={isLoadingPenaltiesData}
+                                        isSaved={!!savedPenaltiesData}
+                                        selectedMda={selectedMda}
+                                    />
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <BooleanMetricCard
+                                    title="Controversial"
+                                    isLoading={isLoadingControversialData}
+                                    isSaved={!!savedControversialData}
+                                    points={-5}
+                                    pointsLabel="Penalty: -5"
+                                    value={isControversial}
+                                    setValue={setIsControversial}
+                                    handleSave={handleSaveControversial}
+                                    selectedMda={selectedMda}
+                                />
+
+                                <BooleanMetricCard
+                                    title="Touting & Rentseeking"
+                                    isLoading={isLoadingToutingRentseekingData}
+                                    isSaved={!!savedToutingRentseekingData}
+                                    points={-5}
+                                    pointsLabel="Penalty: -5"
+                                    value={isTouting}
+                                    setValue={setIsTouting}
+                                    handleSave={handleSaveTouting}
+                                    selectedMda={selectedMda}
+                                />
+
+                                <BooleanMetricCard
+                                    title="Innovation"
+                                    isLoading={isLoadingInnovationData}
+                                    isSaved={!!savedInnovationData}
+                                    points={5}
+                                    pointsLabel="5 Points"
+                                    value={isInnovation}
+                                    setValue={setIsInnovation}
+                                    handleSave={handleSaveInnovation}
+                                    selectedMda={selectedMda}
+                                />
+
+                                <StakeholderCard
+                                    isLoading={isLoadingStakeholderData}
+                                    isSaved={!!savedStakeholderData}
+                                    rate={stakeholderRate}
+                                    setRate={setStakeholderRate}
+                                    handleSave={handleSaveStakeholder}
+                                    selectedMda={selectedMda}
+                                />
+
+                                <TransparencyCard
+                                    isLoading={isLoadingTransparencyData}
+                                    isSaved={!!savedTransparencyData}
+                                    skipTransparency={skipTransparency}
+                                    setSkipTransparency={setSkipTransparency}
+                                    transparencyItems={transparencyItems}
+                                    setTransparencyItems={setTransparencyItems}
+                                    transparencyQuestions={transparencyQuestions}
+                                    transparencyScore={skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0)}
+                                    handleSave={handleSaveTransparency}
+                                    selectedMda={selectedMda}
+                                />
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -952,8 +1251,21 @@ export default function ScoringTab({
                 onRatingChange={(key, value) => setMysteryRatings(prev => ({ ...prev, [key]: value }))}
                 mysteryType={mysteryType}
                 onTypeChange={setMysteryType}
-                calculateScore={() => calculateMysteryScore(mysteryType, mysteryRatings)}
+                calculateScore={() => calculateMysteryScore(
+                    mysteryType,
+                    mysteryRatings,
+                    useDynamicConfig ? mysteryConfig : undefined,
+                    useDynamicConfig && Array.isArray(mysteryConfig)
+                        ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
+                        : 20
+                )}
                 onSave={handleSaveMystery}
+                useDynamicConfig={useDynamicConfig}
+                mysteryConfig={mysteryConfig}
+                maxPoints={useDynamicConfig && Array.isArray(mysteryConfig)
+                    ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
+                    : 20
+                }
             />
 
             <MonthlySLAModal
@@ -963,6 +1275,9 @@ export default function ScoringTab({
                 monthlySlaData={monthlySlaData}
                 setMonthlySlaData={setMonthlySlaData}
                 currentYear={currentYear}
+                periodMonths={periodMonths}
+                pointsPerMonth={calculateMonthlySlaScore().pointsPerMonth || 5}
+                maxPoints={calculateMonthlySlaScore().maxPossibleScore || 30}
             />
 
             <FinalScoreModal

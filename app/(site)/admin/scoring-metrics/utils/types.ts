@@ -16,7 +16,7 @@ export type MonthlySlaData = {
 };
 
 // Mystery shopping types
-export type MysteryShoppingType = 'hasReportGov' | 'noReportGov';
+export type MysteryShoppingType = string | 'hasReportGov' | 'noReportGov';
 
 export type MysteryRatings = {
     [key: string]: number;
