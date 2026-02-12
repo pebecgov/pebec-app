@@ -484,30 +484,97 @@ export const getRealMonthlyReports = query({
 
     // Filter reports by the selected scoring period BEFORE processing
     let filteredReports = allReports;
-    if (scoringPeriod) {
-      const currentYear = new Date().getFullYear();
+    let monthsToCheck: { month: number; year: number }[] = [];
 
+    // Default current date info
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    if (scoringPeriod) {
       // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
       const yearMatch = scoringPeriod.match(/\d{4}/);
       const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
 
-      let startDate: number, endDate: number;
+      let startDate: number = 0;
+      let endDate: number = 0;
 
-      if (scoringPeriod.includes("1st Half")) {
-        startDate = new Date(targetYear, 0, 1).getTime(); // January 1
-        endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
-      } else if (scoringPeriod.includes("2nd Half")) {
-        startDate = new Date(targetYear, 6, 1).getTime();  // July 1
-        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
-      } else if (scoringPeriod === String(targetYear)) {
-        // Full Year
-        startDate = new Date(targetYear, 0, 1).getTime();
-        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
-      } else {
-        // Default: From January to current month
-        const currentMonth = new Date().getMonth();
-        startDate = new Date(targetYear, 0, 1).getTime();
-        endDate = new Date(targetYear, currentMonth + 1, 0, 23, 59, 59).getTime();
+      // Check for dynamic efficiency period configuration for 2026+
+      let usedDynamicPeriod = false;
+      if (targetYear >= 2026) {
+        const efficiencyConfig = await ctx.db.query("efficiency_periods")
+          .withIndex("byYear", q => q.eq("year", targetYear))
+          .first();
+
+        if (efficiencyConfig) {
+          const startMonth = getMonthNumber(efficiencyConfig.startMonth);
+          const endMonth = getMonthNumber(efficiencyConfig.endMonth);
+
+          // Start date: 1st day of start month in start year
+          startDate = new Date(efficiencyConfig.startYear, startMonth, 1).getTime();
+
+          // End date: Last day of end month in end year
+          endDate = new Date(efficiencyConfig.endYear, endMonth + 1, 0, 23, 59, 59).getTime();
+
+          // Generate monthsToCheck based on config
+          const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+
+          let iterYear = efficiencyConfig.startYear;
+          let iterMonth = startMonth;
+
+          for (let i = 0; i < (efficiencyConfig.totalMonths || 12); i++) {
+            monthsToCheck.push({ month: iterMonth, year: iterYear });
+            iterMonth++;
+            if (iterMonth > 11) {
+              iterMonth = 0;
+              iterYear++;
+            }
+          }
+
+          usedDynamicPeriod = true;
+        }
+      }
+
+      if (!usedDynamicPeriod) {
+        if (scoringPeriod.includes("1st Half")) {
+          startDate = new Date(targetYear, 0, 1).getTime(); // January 1
+          endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
+
+          // January to June of target year
+          monthsToCheck = [
+            { month: 0, year: targetYear }, { month: 1, year: targetYear },
+            { month: 2, year: targetYear }, { month: 3, year: targetYear },
+            { month: 4, year: targetYear }, { month: 5, year: targetYear }
+          ];
+        } else if (scoringPeriod.includes("2nd Half")) {
+          startDate = new Date(targetYear, 6, 1).getTime();  // July 1
+          endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
+
+          // July to December of target year
+          monthsToCheck = [
+            { month: 6, year: targetYear }, { month: 7, year: targetYear },
+            { month: 8, year: targetYear }, { month: 9, year: targetYear },
+            { month: 10, year: targetYear }, { month: 11, year: targetYear }
+          ];
+        } else if (scoringPeriod === String(targetYear)) {
+          // Full Year
+          startDate = new Date(targetYear, 0, 1).getTime();
+          endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
+
+          // All months of target year
+          for (let month = 0; month <= 11; month++) {
+            monthsToCheck.push({ month, year: targetYear });
+          }
+        } else {
+          // Default: From January to current month
+          startDate = new Date(targetYear, 0, 1).getTime();
+          endDate = new Date(targetYear, currentMonth + 1, 0, 23, 59, 59).getTime();
+
+          for (let month = 0; month <= currentMonth; month++) {
+            monthsToCheck.push({ month, year: targetYear });
+          }
+        }
       }
 
       // Filter reports by date range
@@ -519,53 +586,10 @@ export const getRealMonthlyReports = query({
 
     // Group reports by month and year based on scoring period
     const monthlyData = [];
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
-
-    // Extract year from scoring period for monthsToCheck
-    const yearMatch = scoringPeriod?.match(/\d{4}/);
-    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
 
     // Debug: Log the scoring period and filtering results
-    console.log('getRealMonthlyReports - Scoring Period:', scoringPeriod);
-    console.log('getRealMonthlyReports - Target Year:', targetYear);
-    console.log('getRealMonthlyReports - Total reports found:', allReports.length);
-    console.log('getRealMonthlyReports - Filtered reports:', filteredReports.length);
-
-    let monthsToCheck = [];
-
-    if (scoringPeriod?.includes("1st Half")) {
-      // January to June of target year
-      monthsToCheck = [
-        { month: 0, year: targetYear },   // January
-        { month: 1, year: targetYear },   // February
-        { month: 2, year: targetYear },   // March
-        { month: 3, year: targetYear },   // April
-        { month: 4, year: targetYear },   // May
-        { month: 5, year: targetYear }    // June
-      ];
-    } else if (scoringPeriod?.includes("2nd Half")) {
-      // July to December of target year
-      monthsToCheck = [
-        { month: 6, year: targetYear },   // July
-        { month: 7, year: targetYear },   // August
-        { month: 8, year: targetYear },   // September
-        { month: 9, year: targetYear },   // October
-        { month: 10, year: targetYear },  // November
-        { month: 11, year: targetYear }   // December
-      ];
-    } else if (scoringPeriod === String(targetYear)) {
-      // All months of target year
-      for (let month = 0; month <= 11; month++) {
-        monthsToCheck.push({ month, year: targetYear });
-      }
-    } else {
-      // Default: From January to current month (not 7 months)
-      for (let month = 0; month <= currentMonth; month++) {
-        monthsToCheck.push({ month, year: targetYear });
-      }
-    }
+    // console.log('getRealMonthlyReports - Scoring Period:', scoringPeriod);
+    // console.log('getRealMonthlyReports - Filtered reports:', filteredReports.length);
 
     // Track which reports have been assigned to a month by name (to avoid duplicates)
     const reportsAssignedByName = new Set<string>();
@@ -603,9 +627,6 @@ export const getRealMonthlyReports = query({
 
         return matchesByDate;
       });
-
-      // Debug: Log reports found for this month
-      console.log(`Month ${monthName} ${year}: Found ${monthReports.length} reports`);
 
       // Calculate deadline (last Friday of the month)
       const lastDay = new Date(year, month + 1, 0);
@@ -793,12 +814,12 @@ export const getPeriodTicketData = query({
         const startMonth = getMonthNumber(efficiencyConfig.startMonth);
         const endMonth = getMonthNumber(efficiencyConfig.endMonth);
 
-        // Start date: 1st day of start month
-        startDate = new Date(targetYear, startMonth, 1).getTime();
+        // Start date: 1st day of start month in start year
+        startDate = new Date(efficiencyConfig.startYear, startMonth, 1).getTime();
 
-        // End date: Last day of end month
+        // End date: Last day of end month in end year
         // logic: day 0 of next month gives last day of current month
-        endDate = new Date(targetYear, endMonth + 1, 0, 23, 59, 59).getTime();
+        endDate = new Date(efficiencyConfig.endYear, endMonth + 1, 0, 23, 59, 59).getTime();
 
         usedDynamicPeriod = true;
       }
