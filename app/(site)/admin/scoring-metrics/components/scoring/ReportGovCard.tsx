@@ -1,13 +1,12 @@
 'use client';
 
 import React from 'react';
+import { Save } from 'lucide-react';
 
 interface ReportGovCardProps {
     isLoading: boolean;
     isSaved: boolean;
     setShowRanking: (show: boolean) => void;
-    useManual: boolean;
-    setUseManual: (val: boolean) => void;
     skip: boolean;
     setSkip: (val: boolean) => void;
     scoringPeriod: string;
@@ -15,20 +14,6 @@ interface ReportGovCardProps {
     ticketResolutionData: any;
     reportgovRate: number;
     setReportgovRate: (val: number) => void;
-
-    // Manual inputs
-    manualTotalTickets: number;
-    setManualTotalTickets: (val: number) => void;
-    manualResolvedTickets: number;
-    setManualResolvedTickets: (val: number) => void;
-    manualAverageResponseTime: number;
-    setManualAverageResponseTime: (val: number) => void;
-    manualAverageResolutionTime: number;
-    setManualAverageResolutionTime: (val: number) => void;
-
-    calculateManualRate: () => number;
-    manualRate: number;
-    setManualRate: (val: number) => void;
 
     handleSave: () => void;
     selectedMda: string;
@@ -42,8 +27,6 @@ export default function ReportGovCard({
     isLoading,
     isSaved,
     setShowRanking,
-    useManual,
-    setUseManual,
     skip,
     setSkip,
     scoringPeriod,
@@ -51,17 +34,6 @@ export default function ReportGovCard({
     ticketResolutionData,
     reportgovRate,
     setReportgovRate,
-    manualTotalTickets,
-    setManualTotalTickets,
-    manualResolvedTickets,
-    setManualResolvedTickets,
-    manualAverageResponseTime,
-    setManualAverageResponseTime,
-    manualAverageResolutionTime,
-    setManualAverageResolutionTime,
-    calculateManualRate,
-    manualRate,
-    setManualRate,
     handleSave,
     selectedMda,
     mdasList,
@@ -69,6 +41,8 @@ export default function ReportGovCard({
     periodTicketData,
     maxPoints = 15 // Default to 15 for backward compatibility
 }: ReportGovCardProps) {
+    // Local state for toggling manual input (removed)
+    const [useManual, setUseManual] = React.useState(false);
     const periodYear = scoringPeriod.match(/\d{4}/)?.[0] || String(currentYear);
 
     // Logic to determine data source text
@@ -97,7 +71,7 @@ export default function ReportGovCard({
             ? (periodTicketData ?
                 `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` :
                 'No period data available')
-            : 'Use manual input below';
+            : 'No data found';
     };
 
     return (
@@ -130,13 +104,13 @@ export default function ReportGovCard({
                 </div>
             </div>
 
-            {/* Toggle between automatic, manual, and skip */}
+            {/* Toggle between automatic and skip */}
             <div className="flex gap-4 mb-3">
                 <label className="flex items-center">
                     <input
                         type="radio"
                         name="reportgov-mode"
-                        checked={!useManual && !skip}
+                        checked={!skip}
                         onChange={() => {
                             setUseManual(false);
                             setSkip(false);
@@ -144,19 +118,6 @@ export default function ReportGovCard({
                         className="mr-2"
                     />
                     Automatic
-                </label>
-                <label className="flex items-center">
-                    <input
-                        type="radio"
-                        name="reportgov-mode"
-                        checked={useManual && !skip}
-                        onChange={() => {
-                            setUseManual(true);
-                            setSkip(false);
-                        }}
-                        className="mr-2"
-                    />
-                    Manual
                 </label>
                 <label className="flex items-center">
                     <input
@@ -173,140 +134,44 @@ export default function ReportGovCard({
                 </label>
             </div>
 
-            {!useManual ? (
-                <>
-                    <div className="text-sm mb-3">
-                        <p className="text-xs text-blue-600 mb-2">
-                            📅 Evaluating: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${periodYear}` :
-                                scoringPeriod.includes("2nd Half") ? `Jul-Dec ${periodYear}` : "All Periods"}
-                        </p>
-                        <p>Total Tickets: {ticketResolutionData.totalTickets}</p>
-                        <p>Resolved: {ticketResolutionData.resolvedTickets}</p>
-                        <p>Resolution Rate: {ticketResolutionData.resolutionRate.toFixed(1)}%</p>
-                        <p className="text-xs text-gray-500">
-                            Data Source: {getDataSourceText()}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                            Period Data: {getPeriodDataText()}
-                        </p>
-                        <p>Avg Response Time: {ticketResolutionData.averageResponseTime.toFixed(1)} hours</p>
-                        <p>Avg Resolution Time: {ticketResolutionData.averageResolutionTime.toFixed(1)} hours</p>
-                        <p className="text-xs text-gray-500">
-                            Base Calculation (out of 15): Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts).
-                            Final score scaled to {maxPoints}.
-                        </p>
-                    </div>
+            <div className="text-sm mb-3">
+                <p className="text-xs text-blue-600 mb-2">
+                    📅 Evaluating: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${periodYear}` :
+                        scoringPeriod.includes("2nd Half") ? `Jul-Dec ${periodYear}` : "All Periods"}
+                </p>
+                <p>Total Tickets: {ticketResolutionData?.totalTickets || 0}</p>
+                <p>Resolved: {ticketResolutionData?.resolvedTickets || 0}</p>
+                <p>Resolution Rate: {(ticketResolutionData?.resolutionRate || 0).toFixed(1)}%</p>
+                <p className="text-xs text-gray-500">
+                    Data Source: {getDataSourceText()}
+                </p>
+                <p className="text-xs text-gray-500">
+                    Period Data: {getPeriodDataText()}
+                </p>
+                <p>Avg Response Time: {(ticketResolutionData?.averageResponseTime || 0).toFixed(1)} hours</p>
+                <p>Avg Resolution Time: {(ticketResolutionData?.averageResolutionTime || 0).toFixed(1)} hours</p>
+                <p className="text-xs text-gray-500">
+                    Base Calculation (out of 15): Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts).
+                    Final score scaled to {maxPoints}.
+                </p>
+            </div>
 
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setReportgovRate(ticketResolutionData.score)}
-                            className="flex-1 bg-green-500 text-white py-2 rounded hover:bg-green-600"
-                        >
-                            Calculate Score
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={!selectedMda}
-                            className={`px-4 py-2 rounded text-white text-sm font-medium transition-colors duration-300 ${!selectedMda
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : 'bg-blue-500 hover:bg-blue-600'
-                                }`}
-                        >
-                            💾 Save
-                        </button>
-                    </div>
-                </>
-            ) : (
-                <div className="space-y-3">
-                    <div className="text-sm mb-3">
-                        <p className="text-xs text-blue-600 mb-2">
-                            📅 Manual Input for: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${periodYear}` :
-                                scoringPeriod.includes("2nd Half") ? `Jul-Dec ${periodYear}` : "All Periods"}
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Total Tickets</label>
-                            <input
-                                type="number"
-                                min="0"
-                                value={manualTotalTickets}
-                                onChange={(e) => setManualTotalTickets(Number(e.target.value))}
-                                className="w-full border rounded px-3 py-2"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Resolved Tickets</label>
-                            <input
-                                type="number"
-                                min="0"
-                                max={manualTotalTickets}
-                                value={manualResolvedTickets}
-                                onChange={(e) => {
-                                    const value = Number(e.target.value);
-                                    if (value > manualTotalTickets) {
-                                        setManualResolvedTickets(manualTotalTickets);
-                                    } else {
-                                        setManualResolvedTickets(value);
-                                    }
-                                }}
-                                className="w-full border rounded px-3 py-2"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Avg Response Time (hours)</label>
-                            <input
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                value={manualAverageResponseTime}
-                                onChange={(e) => setManualAverageResponseTime(Number(e.target.value))}
-                                className="w-full border rounded px-3 py-2"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Avg Resolution Time (hours)</label>
-                            <input
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                value={manualAverageResolutionTime}
-                                onChange={(e) => setManualAverageResolutionTime(Number(e.target.value))}
-                                className="w-full border rounded px-3 py-2"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="text-xs text-gray-500 space-y-1">
-                        <p>Resolution Rate: {manualTotalTickets > 0 ? ((manualResolvedTickets / manualTotalTickets) * 100).toFixed(1) : 0}%</p>
-                        <p>Base Calculation (out of 15): Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts)</p>
-                        <p>Final score scaled to {maxPoints}.</p>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setManualRate(calculateManualRate())}
-                            className="flex-1 bg-green-500 text-white py-2 rounded hover:bg-green-600"
-                        >
-                            Calculate Manual Score
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={!selectedMda}
-                            className={`px-4 py-2 rounded text-white text-sm font-medium transition-colors duration-300 ${!selectedMda
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : 'bg-blue-500 hover:bg-blue-600'
-                                }`}
-                        >
-                            💾 Save
-                        </button>
-                    </div>
-                </div>
-            )}
+            <div className="flex justify-center w-full mt-4">
+                <button
+                    onClick={handleSave}
+                    disabled={!selectedMda}
+                    className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-white text-sm font-medium transition-all duration-300 shadow-sm ${!selectedMda
+                        ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                        : 'bg-green-600 hover:bg-green-700 hover:shadow-md active:scale-[0.99]'
+                        }`}
+                >
+                    <Save className="w-4 h-4" />
+                    Save Report Gov Data
+                </button>
+            </div>
 
             <div className="text-center mt-3">
-                Score: {useManual ? manualRate.toFixed(2) : reportgovRate.toFixed(2)}/{maxPoints}
+                Score: {reportgovRate.toFixed(2)}/{maxPoints}
             </div>
         </div>
     );

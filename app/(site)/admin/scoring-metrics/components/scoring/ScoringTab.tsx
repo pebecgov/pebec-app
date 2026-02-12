@@ -100,13 +100,7 @@ export default function ScoringTab({
 
     // ReportGov State
     const [reportgovRate, setReportgovRate] = useState(0);
-    const [manualReportGovRate, setManualReportGovRate] = useState(0);
-    const [useManualReportGov, setUseManualReportGov] = useState(false);
     const [skipReportGov, setSkipReportGov] = useState(false);
-    const [manualTotalTickets, setManualTotalTickets] = useState(0);
-    const [manualResolvedTickets, setManualResolvedTickets] = useState(0);
-    const [manualAverageResponseTime, setManualAverageResponseTime] = useState(0);
-    const [manualAverageResolutionTime, setManualAverageResolutionTime] = useState(0);
 
     // Monthly Report State
     const [manualMonthlyReports, setManualMonthlyReports] = useState<Record<string, boolean>>({});
@@ -310,13 +304,7 @@ export default function ScoringTab({
             setMysteryRatings({});
             setTransparencyItems({ serviceLevelPublishing: false });
             setReportgovRate(0);
-            setManualReportGovRate(0);
-            setUseManualReportGov(false);
             setSkipReportGov(false);
-            setManualTotalTickets(0);
-            setManualResolvedTickets(0);
-            setManualAverageResponseTime(0);
-            setManualAverageResolutionTime(0);
             setManualMonthlyReports({});
             setUseManualMonthlyReports(false);
             setManualTimeliness({});
@@ -376,17 +364,7 @@ export default function ScoringTab({
         if (!isLoadingReportGovData && savedReportGovData && selectedMda) {
             if (savedReportGovData.isSkipped) {
                 setSkipReportGov(true);
-                setUseManualReportGov(false);
-            } else if (savedReportGovData.isManual) {
-                setUseManualReportGov(true);
-                setSkipReportGov(false);
-                setManualTotalTickets(savedReportGovData.totalTickets);
-                setManualResolvedTickets(savedReportGovData.resolvedTickets);
-                setManualAverageResponseTime(savedReportGovData.averageResponseTime);
-                setManualAverageResolutionTime(savedReportGovData.averageResolutionTime);
-                setManualReportGovRate(savedReportGovData.score);
             } else {
-                setUseManualReportGov(false);
                 setSkipReportGov(false);
                 setReportgovRate(savedReportGovData.score);
             }
@@ -524,35 +502,6 @@ export default function ScoringTab({
         return { totalScore, monthsWithData, totalMonths, percentage, maxPossibleScore, pointsPerMonth };
     };
 
-    const calculateManualReportGovScore = () => {
-        if (!manualTotalTickets) return 0;
-        const resolutionRate = manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0;
-        let score = 0;
-        // Base calculation (out of 15)
-        if (resolutionRate >= 100) score += 7;
-        else if (resolutionRate >= 95) score += 6;
-        else if (resolutionRate >= 90) score += 5;
-        else if (resolutionRate >= 85) score += 4;
-        else if (resolutionRate >= 80) score += 3;
-        else if (resolutionRate >= 75) score += 2;
-        else if (resolutionRate >= 70) score += 1;
-
-        if (manualAverageResponseTime <= 24) score += 3;
-        else if (manualAverageResponseTime <= 48) score += 2;
-        else if (manualAverageResponseTime <= 72) score += 1;
-
-        if (manualAverageResolutionTime <= 48) score += 5;
-        else if (manualAverageResolutionTime <= 72) score += 4;
-        else if (manualAverageResolutionTime <= 96) score += 3;
-        else if (manualAverageResolutionTime <= 120) score += 2;
-        else if (manualAverageResolutionTime <= 144) score += 1;
-
-        // Scale to dynamic points
-        const scaledScore = (score / 15) * reportGovPoints;
-
-        return Math.min(scaledScore, reportGovPoints);
-    };
-
     const calculateMonthlyReportStats = () => {
         const months = periodMonths;
         const total = months.length;
@@ -626,7 +575,7 @@ export default function ScoringTab({
         // Core metrics (Common)
         const sla = calculateMonthlySlaScore().totalScore;
         const mystery = calculateMysteryScore(mysteryType, mysteryRatings);
-        const reportGov = skipReportGov ? 0 : (useManualReportGov ? manualReportGovRate : reportgovRate);
+        const reportGov = skipReportGov ? 0 : reportgovRate;
         const monthlyReport = calculateMonthlyReportStats().score;
         const timeliness = calculateTimelinessStats().score;
 
@@ -694,7 +643,7 @@ export default function ScoringTab({
             totalScore = sla + mystery + innovation + stakeholder + transparency + reportGov + monthlyReport + timeliness + controversial + touting;
         }
 
-        totalScore = Math.max(0, totalScore); 
+        totalScore = Math.max(0, totalScore);
 
         return {
             totalPercentage: currentMaxPoints > 0 ? (totalScore / currentMaxPoints) * 100 : 0,
@@ -703,7 +652,7 @@ export default function ScoringTab({
             scores: {
                 serviceLevelAgreement: sla,
                 mysteryShopping: mystery,
-                controversial: useDynamicConfig ? 0 : controversial, 
+                controversial: useDynamicConfig ? 0 : controversial,
                 toutingRentseeking: useDynamicConfig ? 0 : touting,
                 innovation: useDynamicConfig ? 0 : innovation,
                 stakeholderEngagement: useDynamicConfig ? 0 : stakeholder,
@@ -894,14 +843,7 @@ export default function ScoringTab({
     const handleSaveReportGov = async () => {
         if (!selectedMda) return;
         try {
-            const ticketData = useManualReportGov ? {
-                totalTickets: manualTotalTickets,
-                resolvedTickets: manualResolvedTickets,
-                averageResponseTime: manualAverageResponseTime,
-                averageResolutionTime: manualAverageResolutionTime,
-                resolutionRate: manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0,
-                score: manualReportGovRate
-            } : {
+            const ticketData = {
                 totalTickets: ticketResolutionData?.totalTickets || 0,
                 resolvedTickets: ticketResolutionData?.resolvedTickets || 0,
                 averageResponseTime: ticketResolutionData?.averageResponseTime || 0,
@@ -913,7 +855,7 @@ export default function ScoringTab({
             await saveReportGovData({
                 mdaName: selectedMda,
                 scoringPeriod,
-                isManual: useManualReportGov,
+                isManual: false,
                 isSkipped: skipReportGov,
                 ...ticketData
             });
@@ -955,21 +897,13 @@ export default function ScoringTab({
         if (!selectedMda) return;
         try {
             const finalScores = calculateFinalScores();
-            const performanceData = useManualReportGov
-                ? {
-                    totalTickets: manualTotalTickets,
-                    resolvedTickets: manualResolvedTickets,
-                    averageResponseTime: manualAverageResponseTime,
-                    averageResolutionTime: manualAverageResolutionTime,
-                    resolutionRate: manualTotalTickets > 0 ? (manualResolvedTickets / manualTotalTickets) * 100 : 0
-                }
-                : {
-                    totalTickets: ticketResolutionData?.totalTickets || 0,
-                    resolvedTickets: ticketResolutionData?.resolvedTickets || 0,
-                    averageResponseTime: ticketResolutionData?.averageResponseTime || 0,
-                    averageResolutionTime: ticketResolutionData?.averageResolutionTime || 0,
-                    resolutionRate: ticketResolutionData?.resolutionRate || 0
-                };
+            const performanceData = {
+                totalTickets: ticketResolutionData?.totalTickets || 0,
+                resolvedTickets: ticketResolutionData?.resolvedTickets || 0,
+                averageResponseTime: ticketResolutionData?.averageResponseTime || 0,
+                averageResolutionTime: ticketResolutionData?.averageResolutionTime || 0,
+                resolutionRate: ticketResolutionData?.resolutionRate || 0
+            };
 
             // Trigger backend calculation and save
             await calculateScore({
@@ -1113,8 +1047,6 @@ export default function ScoringTab({
                             isLoading={!!selectedMda && (ticketResolutionData === undefined || isLoadingReportGovData)}
                             isSaved={!!savedReportGovData}
                             setShowRanking={setShowReportGovRanking}
-                            useManual={useManualReportGov}
-                            setUseManual={setUseManualReportGov}
                             skip={skipReportGov}
                             setSkip={setSkipReportGov}
                             scoringPeriod={scoringPeriod}
@@ -1122,17 +1054,6 @@ export default function ScoringTab({
                             ticketResolutionData={ticketResolutionData || { totalTickets: 0, resolvedTickets: 0, resolutionRate: 0, averageResponseTime: 0, averageResolutionTime: 0, score: 0 }}
                             reportgovRate={reportgovRate}
                             setReportgovRate={setReportgovRate}
-                            manualTotalTickets={manualTotalTickets}
-                            setManualTotalTickets={setManualTotalTickets}
-                            manualResolvedTickets={manualResolvedTickets}
-                            setManualResolvedTickets={setManualResolvedTickets}
-                            manualAverageResponseTime={manualAverageResponseTime}
-                            setManualAverageResponseTime={setManualAverageResponseTime}
-                            manualAverageResolutionTime={manualAverageResolutionTime}
-                            setManualAverageResolutionTime={setManualAverageResolutionTime}
-                            calculateManualRate={calculateManualReportGovScore}
-                            manualRate={manualReportGovRate}
-                            setManualRate={setManualReportGovRate}
                             handleSave={handleSaveReportGov}
                             selectedMda={selectedMda}
                             mdasList={mdasList}
