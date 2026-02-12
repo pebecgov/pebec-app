@@ -28,6 +28,8 @@ import {
 } from "./utils/helpers";
 
 import LiveDashboardTab from "./components/tabs/LiveDashboardTab";
+import ConfigurationTab from "./components/tabs/ConfigurationTab";
+
 
 
 export default function ScoringMetricsPage() {
@@ -39,7 +41,8 @@ export default function ScoringMetricsPage() {
   const currentYear = new Date().getFullYear();
   const [scoringYear, setScoringYear] = useState(currentYear);
   const [scoringHalf, setScoringHalf] = useState<'1st Half' | '2nd Half'>('1st Half');
-  const scoringPeriod = `${scoringHalf} ${scoringYear}`;
+  // For 2025, use half-year periods. For 2026+, use full year.
+  const scoringPeriod = scoringYear === 2025 ? `${scoringHalf} ${scoringYear}` : String(scoringYear);
   // Live Dashboard state
   const [dashboardYear, setDashboardYear] = useState(new Date().getFullYear());
   const [sortColumn, setSortColumn] = useState<string>('totalScore');
@@ -47,7 +50,7 @@ export default function ScoringMetricsPage() {
   const [selectedMetric, setSelectedMetric] = useState<string>('totalScore');
   const [mdaFilter, setMdaFilter] = useState<'all' | 'withData'>('all');
   const [ministryFilter, setMinistryFilter] = useState<'all' | 'ministries-only' | 'without-ministries'>('all');
-  
+
 
   // View Details Modal state
   const [viewDetailsMda, setViewDetailsMda] = useState<string | null>(null);
@@ -65,6 +68,26 @@ export default function ScoringMetricsPage() {
 
   // State scores (used for regional average PDF)
   const stateScores = useQuery(api.saveStateScore.getStateScores, {});
+  // Fetch all configurations for the selected year
+  const allConfigs = useQuery(api.scoring_config.getAllConfigurationsForYear, { year: dashboardYear });
+
+  // Extract specific configs from allConfigs for clarity
+  const efficiencyConfig = allConfigs?.efficiencyPeriod;
+  const penaltyConfig = allConfigs?.penaltyItems;
+  const mysteryConfig = allConfigs?.mysteryShoppingTypes;
+  const transparencyItems = allConfigs?.othersItems;
+  const innovationItems = allConfigs?.innovationItems;
+  const stakeholderItems = allConfigs?.stakeholderItems;
+
+  // Combine others items for dashboard table (columns)
+  const othersConfig = useMemo(() => {
+    if (!allConfigs) return undefined;
+    return [
+      ...(transparencyItems || []),
+      ...(innovationItems || []),
+      ...(stakeholderItems || [])
+    ].sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [allConfigs, transparencyItems, innovationItems, stakeholderItems]);
 
   // Detailed data query for view modal
   const detailedScoringData = useQuery(
@@ -171,14 +194,17 @@ export default function ScoringMetricsPage() {
         reportGovResolution: null,
         monthlyReport: null,
         timeliness: null,
+        others: null,
+        penalties: null,
         totalScore: 0,
         totalPercentage: 0
       });
     });
 
     // Merge with saved data from backend
-    if (liveDashboardData && Array.isArray(liveDashboardData)) {
-      liveDashboardData.forEach((mda: any) => {
+    const dashboardItems = liveDashboardData?.data || [];
+    if (dashboardItems && Array.isArray(dashboardItems)) {
+      dashboardItems.forEach((mda: any) => {
         // Find matching MDA name from mdasList
         const matchingMdaName = findMatchingMdaName(mda.mdaName);
 
@@ -197,12 +223,18 @@ export default function ScoringMetricsPage() {
             innovation: mda.innovation != null ? mda.innovation : existing.innovation,
             stakeholder: mda.stakeholder != null ? mda.stakeholder : existing.stakeholder,
             transparency: mda.transparency != null ? mda.transparency : existing.transparency,
+            others: mda.others != null ? mda.others : existing.others,
+            penalties: mda.penalties != null ? mda.penalties : existing.penalties,
             reportGovResolution: mda.reportGovResolution != null ? {
               ...mda.reportGovResolution,
               // Preserve all fields including hasFirstHalf, hasSecondHalf, firstHalfScore, secondHalfScore
             } : existing.reportGovResolution,
             monthlyReport: mda.monthlyReport != null ? mda.monthlyReport : existing.monthlyReport,
             timeliness: mda.timeliness != null ? mda.timeliness : existing.timeliness,
+            totalGrossScore: mda.totalGrossScore != null ? mda.totalGrossScore : existing.totalGrossScore,
+            totalScore: mda.totalScore != null ? mda.totalScore : existing.totalScore,
+            totalPercentage: mda.totalPercentage != null ? mda.totalPercentage : existing.totalPercentage,
+            maxPossiblePoints: mda.maxPossiblePoints != null ? mda.maxPossiblePoints : existing.maxPossiblePoints
           };
 
           allMdasMap.set(matchingMdaName, merged);
@@ -229,6 +261,9 @@ export default function ScoringMetricsPage() {
           // So: newScore = oldScore * (pointsPerMonth10 / pointsPerMonth12)
           slaScore = mda.sla.score * (pointsPerMonth10 / pointsPerMonth12);
         }
+      } else if (dashboardYear >= 2026 && efficiencyConfig) {
+        // For 2026+, specific recalculation if needed, otherwise rely on backend score
+        // Currently assuming backend/ScoringTab saves correct score based on dynamic config
       }
 
       // Recalculate Monthly Report score based on 10 months instead of 12
@@ -252,10 +287,17 @@ export default function ScoringMetricsPage() {
       const stakeholderScore = mda.stakeholder?.score || 0;
       const transparencyScore = mda.transparency?.score || 0;
       const reportGovResScore = mda.reportGovResolution?.score || 0;
+      const othersScore = mda.others?.score || 0;
 
-      // Calculate base total score (all metrics except controversial and touting & rentseeking)
-      const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
-        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+      // Calculate base total score (all metrics except controversial and touting & rentseeking/penalties)
+      let baseTotalScore = 0;
+      if (dashboardYear < 2026) {
+        baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
+          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+      } else {
+        // Dynamic Calculation 2026+: othersScore replaces legacy metrics
+        baseTotalScore = slaScore + mysteryScore + othersScore + reportGovResScore + monthlyReportScore + timelinessScore;
+      }
 
       // Controversial: Handle both old and new data formats
       // OLD FORMAT: isControversial=false â†’ score=5, isControversial=true â†’ score=0
@@ -281,20 +323,34 @@ export default function ScoringMetricsPage() {
       // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
       let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
 
-      // Calculate penalties (convert negative scores to positive penalty values)
-      const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
-      const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
-      const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
+      // Calculate penalties
+      let penaltyValue = 0;
+      if (dashboardYear < 2026) {
+        const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
+        const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
+        penaltyValue = controversialPenalty + toutingRentseekingPenalty;
+      } else {
+        // penalties.score is already negative or raw points to subtract
+        penaltyValue = Math.abs(mda.penalties?.score || 0);
+      }
+
+      const totalScore = baseTotalScore - penaltyValue;
 
       // Check if optional metrics are skipped
       const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
       const isTransparencySkipped = mda.transparency?.isSkipped || false;
-      let maxPossiblePoints = 90;
-      if (isTransparencySkipped) {
-        maxPossiblePoints -= 5;
-      }
-      if (isReportGovSkipped) {
-        maxPossiblePoints -= 15;
+
+      // Use backend maxPossiblePoints if available (Single Source of Truth)
+      // or fallback to efficiency config calculation if needed (though backend should handle it)
+      let maxPossiblePoints = mda.maxPossiblePoints || 100;
+
+      // Only specific subtractions if backend didn't handle them (backend typically handles skipped items too)
+      // But we can trust backend's 'maxPossiblePoints' which already subtracts skipped items weights.
+
+      // Legacy fallback for < 2026 if backend didn't provide it
+      if (dashboardYear < 2026 && !mda.maxPossiblePoints) {
+        if (isTransparencySkipped) maxPossiblePoints -= 5;
+        if (isReportGovSkipped) maxPossiblePoints -= 15;
       }
 
       const totalPercentage = maxPossiblePoints > 0
@@ -306,7 +362,7 @@ export default function ScoringMetricsPage() {
         sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
         monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
         timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
-        baseTotalScore,
+        totalGrossScore: baseTotalScore,
         totalScore,
         totalPercentage,
         isReportGovSkipped,
@@ -337,7 +393,7 @@ export default function ScoringMetricsPage() {
 
   // Handle dashboard PDF generation
   const handleGenerateDashboardPDF = async () => {
-    if (!liveDashboardData || !Array.isArray(liveDashboardData)) {
+    if (!liveDashboardData?.data || !Array.isArray(liveDashboardData.data)) {
       return;
     }
 
@@ -414,14 +470,17 @@ export default function ScoringMetricsPage() {
                 <MenuItem key={year} value={year}>{year}</MenuItem>
               ))}
             </Select>
-            <Select
-              value={scoringHalf}
-              onChange={(e) => setScoringHalf(e.target.value as '1st Half' | '2nd Half')}
-              className="min-w-[130px]"
-            >
-              <MenuItem value="1st Half">1st Half</MenuItem>
-              <MenuItem value="2nd Half">2nd Half</MenuItem>
-            </Select>
+            {/* Only show half-year selector for 2025 (legacy system) */}
+            {scoringYear === 2025 && (
+              <Select
+                value={scoringHalf}
+                onChange={(e) => setScoringHalf(e.target.value as '1st Half' | '2nd Half')}
+                className="min-w-[130px]"
+              >
+                <MenuItem value="1st Half">1st Half</MenuItem>
+                <MenuItem value="2nd Half">2nd Half</MenuItem>
+              </Select>
+            )}
           </div>
         </div>
 
@@ -456,6 +515,15 @@ export default function ScoringMetricsPage() {
                   }`}
               >
                 Score MDAs
+              </button>
+              <button
+                onClick={() => setActiveTab('configuration')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'configuration'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+              >
+                Configuration
               </button>
             </nav>
           </div>
@@ -565,6 +633,10 @@ export default function ScoringMetricsPage() {
         {activeTab === 'live-dashboard' ? (
           <LiveDashboardTab
             liveDashboardData={liveDashboardData}
+            efficiencyConfig={efficiencyConfig}
+            othersConfig={othersConfig}
+            penaltyConfig={penaltyConfig}
+            mysteryConfig={mysteryConfig}
             selectedMetric={selectedMetric}
             setSelectedMetric={setSelectedMetric}
             mdaFilter={mdaFilter}
@@ -583,6 +655,11 @@ export default function ScoringMetricsPage() {
             processDashboardMdaData={processDashboardMdaData}
             handleGenerateDashboardPDF={handleGenerateDashboardPDF}
             convex={convex}
+          />
+        ) : activeTab === 'configuration' ? (
+          <ConfigurationTab
+            currentYear={scoringYear}
+            onYearChange={(year) => setScoringYear(year)}
           />
         ) : (
           <ScoringTab

@@ -1,0 +1,888 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { toast } from "sonner";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
+
+interface ConfigurationTabProps {
+    currentYear: number;
+    onYearChange?: (year: number) => void;
+}
+
+const MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+];
+
+export default function ConfigurationTab({ currentYear, onYearChange }: ConfigurationTabProps) {
+    const [selectedYear, setSelectedYear] = useState(currentYear);
+
+    // Load all configurations for the selected year
+    const configurations = useQuery(api.scoring_config.getAllConfigurationsForYear, { year: selectedYear });
+
+    const handleYearChange = (year: number) => {
+        setSelectedYear(year);
+        onYearChange?.(year);
+    };
+
+    return (
+        <div className="space-y-6">
+            {/* Year Selector */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Year Configuration</CardTitle>
+                    <CardDescription>
+                        Configure scoring parameters for each year independently
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center gap-4">
+                        <Label>Select Year</Label>
+                        <Select
+                            value={selectedYear.toString()}
+                            onValueChange={(value) => handleYearChange(parseInt(value))}
+                        >
+                            <SelectTrigger className="w-[200px]">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="2025">2025 (Legacy)</SelectItem>
+                                <SelectItem value="2026">2026</SelectItem>
+                                <SelectItem value="2027">2027</SelectItem>
+                                <SelectItem value="2028">2028</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {selectedYear === 2025 && (
+                        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <p className="text-sm text-yellow-800">
+                                <strong>Note:</strong> 2025 uses the legacy hardcoded configuration system.
+                                Configuration changes are only available for 2026 and beyond.
+                            </p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Configuration Tabs - Only show for 2026+ */}
+            {selectedYear >= 2026 && (
+                <Tabs defaultValue="efficiency" className="w-full">
+                    <TabsList className="grid w-full grid-cols-4">
+                        <TabsTrigger value="efficiency">Efficiency</TabsTrigger>
+                        <TabsTrigger value="mystery">Mystery Shopping</TabsTrigger>
+                        <TabsTrigger value="penalties">Penalties</TabsTrigger>
+                        <TabsTrigger value="others">Others</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="efficiency">
+                        <EfficiencyConfiguration year={selectedYear} config={configurations?.efficiencyPeriod} />
+                    </TabsContent>
+
+                    <TabsContent value="mystery">
+                        <MysteryShoppingConfiguration
+                            year={selectedYear}
+                            mysteryShoppingTypes={configurations?.mysteryShoppingTypes || []}
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="penalties">
+                        <PenaltyConfiguration
+                            year={selectedYear}
+                            items={configurations?.penaltyItems || []}
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="others">
+                        <OthersConfiguration
+                            year={selectedYear}
+                            othersItems={configurations?.othersItems || []}
+                        />
+                    </TabsContent>
+                </Tabs>
+            )}
+        </div>
+    );
+}
+
+// ============================================
+// EFFICIENCY PERIOD CONFIGURATION
+// ============================================
+
+function EfficiencyConfiguration({ year, config }: any) {
+    const [startMonth, setStartMonth] = useState(config?.startMonth || "January");
+    const [startYear, setStartYear] = useState(config?.startYear || year - 1);
+    const [endMonth, setEndMonth] = useState(config?.endMonth || "December");
+    const [endYear, setEndYear] = useState(config?.endYear || year);
+    const [slaPoints, setSlaPoints] = useState(config?.slaPoints || 30);
+    const [reportSubmissionPoints, setReportSubmissionPoints] = useState(config?.reportSubmissionPoints || 3);
+    const [reportGovPoints, setReportGovPoints] = useState(config?.reportGovPoints || 15);
+    const [timelinessPoints, setTimelinessPoints] = useState(config?.timelinessPoints || 2);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const saveEfficiencyPeriod = useMutation(api.scoring_config.saveEfficiencyPeriod);
+
+    const calculateMonths = () => {
+        const startIdx = MONTHS.indexOf(startMonth);
+        const endIdx = MONTHS.indexOf(endMonth);
+
+        if (startYear === endYear) {
+            return Math.max(0, endIdx - startIdx + 1);
+        } else {
+            const monthsInStartYear = 12 - startIdx;
+            const yearsDiff = endYear - startYear - 1;
+            const monthsInEndYear = endIdx + 1;
+            return monthsInStartYear + (yearsDiff * 12) + monthsInEndYear;
+        }
+    };
+
+    const totalMonths = calculateMonths();
+    const totalEfficiencyPoints = slaPoints + reportSubmissionPoints + reportGovPoints + timelinessPoints;
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await saveEfficiencyPeriod({
+                year,
+                periodName: `${year} Efficiency Period`,
+                startMonth,
+                startYear,
+                endMonth,
+                endYear,
+                totalMonths,
+                slaPoints,
+                reportSubmissionPoints,
+                reportGovPoints,
+                timelinessPoints
+            });
+            toast.success("Efficiency period configuration saved!");
+        } catch (error) {
+            toast.error("Failed to save configuration");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Efficiency Period Configuration</CardTitle>
+                <CardDescription>
+                    Set the month range for SLA, Timeliness, and Report Submission calculations
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                    {/* Start Month/Year */}
+                    <div className="space-y-2">
+                        <Label>Start Period</Label>
+                        <div className="flex gap-2">
+                            <Select value={startMonth} onValueChange={setStartMonth}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {MONTHS.map(month => (
+                                        <SelectItem key={month} value={month}>{month}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Input
+                                type="number"
+                                value={startYear}
+                                onChange={(e) => setStartYear(parseInt(e.target.value))}
+                                className="w-24"
+                            />
+                        </div>
+                    </div>
+
+                    {/* End Month/Year */}
+                    <div className="space-y-2">
+                        <Label>End Period</Label>
+                        <div className="flex gap-2">
+                            <Select value={endMonth} onValueChange={setEndMonth}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {MONTHS.map(month => (
+                                        <SelectItem key={month} value={month}>{month}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Input
+                                type="number"
+                                value={endYear}
+                                onChange={(e) => setEndYear(parseInt(e.target.value))}
+                                className="w-24"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Summary */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm text-blue-900">
+                        <strong>Period:</strong> {startMonth} {startYear} to {endMonth} {endYear}
+                    </p>
+                    <p className="text-sm text-blue-900 mt-1">
+                        <strong>Total Months:</strong> {totalMonths} months (same for all 3 metrics)
+                    </p>
+                    <p className="text-sm text-blue-900 mt-1">
+                        <strong>Total Efficiency Points:</strong> {totalEfficiencyPoints} points
+                    </p>
+                </div>
+
+                {/* Individual Metric Points */}
+                <div className="space-y-4 p-4 border rounded-md bg-gray-50">
+                    <h4 className="font-semibold text-sm">Points Per Metric</h4>
+
+                    <div className="grid grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs">SLA Points</Label>
+                            <Input
+                                type="number"
+                                value={slaPoints}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setSlaPoints(isNaN(val) ? 0 : val);
+                                }}
+                                className="w-full"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs">Report Submission Points</Label>
+                            <Input
+                                type="number"
+                                value={reportSubmissionPoints}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setReportSubmissionPoints(isNaN(val) ? 0 : val);
+                                }}
+                                className="w-full"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs">Report Governance Points</Label>
+                            <Input
+                                type="number"
+                                value={reportGovPoints}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setReportGovPoints(isNaN(val) ? 0 : val);
+                                }}
+                                className="w-full"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs">Timeliness Points</Label>
+                            <Input
+                                type="number"
+                                value={timelinessPoints}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setTimelinessPoints(isNaN(val) ? 0 : val);
+                                }}
+                                className="w-full"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Efficiency Configuration
+                        </>
+                    )}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+// ============================================
+// MYSTERY SHOPPING CONFIGURATION (Hierarchical)
+// ============================================
+
+function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
+    const [totalMysteryPoints, setTotalMysteryPoints] = useState(20); // Fixed total for ALL types
+    const [types, setTypes] = useState(mysteryShoppingTypes?.length > 0 ? mysteryShoppingTypes : [
+        {
+            typeId: '1',
+            typeName: 'Physical Visit',
+            order: 0,
+            questions: [
+                { questionId: '1-1', questionText: '', weight: 5, answerType: 'yes_no', order: 0 }
+            ]
+        }
+    ]);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const saveMysteryShoppingConfiguration = useMutation(api.scoring_config.saveMysteryShoppingConfiguration);
+
+    // Type Management
+    const addType = () => {
+        setTypes([...types, {
+            typeId: Date.now().toString(),
+            typeName: '',
+            order: types.length,
+            questions: []
+        }]);
+    };
+
+    const removeType = (index: number) => {
+        setTypes(types.filter((_: any, i: number) => i !== index));
+    };
+
+    const updateType = (index: number, field: string, value: any) => {
+        const updated = [...types];
+        updated[index] = { ...updated[index], [field]: value };
+        setTypes(updated);
+    };
+
+    // Question Management
+    const addQuestion = (typeIndex: number) => {
+        const updated = [...types];
+        const type = updated[typeIndex];
+        type.questions = type.questions || [];
+        type.questions.push({
+            questionId: `${type.typeId}-${Date.now()}`,
+            questionText: '',
+            weight: 5,
+            answerType: 'yes_no',
+            order: type.questions.length
+        });
+        setTypes(updated);
+    };
+
+    const removeQuestion = (typeIndex: number, questionIndex: number) => {
+        const updated = [...types];
+        updated[typeIndex].questions = updated[typeIndex].questions.filter((_: any, i: number) => i !== questionIndex);
+        setTypes(updated);
+    };
+
+    const updateQuestion = (typeIndex: number, questionIndex: number, field: string, value: any) => {
+        const updated = [...types];
+        updated[typeIndex].questions[questionIndex] = {
+            ...updated[typeIndex].questions[questionIndex],
+            [field]: value
+        };
+        setTypes(updated);
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await saveMysteryShoppingConfiguration({ year, types });
+            toast.success("Mystery shopping configuration saved!");
+        } catch (error) {
+            toast.error("Failed to save configuration");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Calculate points per type
+    const getTypePoints = (type: any) => {
+        return (type.questions || []).reduce((sum: number, q: any) => sum + (q.weight || 0), 0);
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Mystery Shopping Configuration</CardTitle>
+                <CardDescription>
+                    Create types (e.g., Physical Visit, Phone Call) and add questions under each type. All types share the same total point budget.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {/* Fixed Total Points */}
+                <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-md">
+                    <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                            <Label className="text-sm font-semibold">Total Mystery Shopping Points (Fixed)</Label>
+                            <p className="text-xs text-gray-600">
+                                All types will share this same point total. Each type's questions should divide these points.
+                            </p>
+                        </div>
+                        <Input
+                            type="number"
+                            value={totalMysteryPoints}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setTotalMysteryPoints(isNaN(val) ? 0 : val);
+                            }}
+                            className="w-24 font-bold text-lg"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    {types.map((type: any, typeIndex: number) => {
+                        const typeTotal = getTypePoints(type);
+                        const isExactMatch = typeTotal === totalMysteryPoints;
+                        const isOverBudget = typeTotal > totalMysteryPoints;
+                        const isUnderBudget = typeTotal < totalMysteryPoints && type.questions?.length > 0;
+
+                        return (
+                            <div key={type.typeId} className={`border-2 rounded-lg p-4 space-y-3 ${isOverBudget ? 'bg-red-50 border-red-300' :
+                                isUnderBudget ? 'bg-yellow-50 border-yellow-300' :
+                                    'bg-gray-50 border-gray-200'
+                                }`}>
+                                {/* Type Header */}
+                                <div className="flex gap-2 items-center">
+                                    <GripVertical className="h-5 w-5 text-gray-400" />
+
+                                    <Input
+                                        placeholder="Type name (e.g., Physical Visit)"
+                                        value={type.typeName}
+                                        onChange={(e) => updateType(typeIndex, 'typeName', e.target.value)}
+                                        className="flex-1 font-semibold"
+                                    />
+
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeType(typeIndex)}
+                                        className="text-red-500"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+
+                                {/* Budget Warning */}
+                                {type.questions?.length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className={`text-sm px-3 py-2 rounded ${isOverBudget ? 'bg-red-100 text-red-800 border border-red-300' :
+                                            isUnderBudget ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                                                'bg-green-100 text-green-800 border border-green-300'
+                                            }`}>
+                                            <strong>Budget:</strong> {typeTotal} / {totalMysteryPoints} points {
+                                                isOverBudget ? '⚠️ Over budget!' :
+                                                    isUnderBudget ? '⚠️ Under budget' :
+                                                        '✓ Exact match!'
+                                            }
+                                        </div>
+
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => {
+                                                const updated = [...types];
+                                                const questionsCount = type.questions.length;
+                                                if (questionsCount === 0) {
+                                                    toast.error("Add questions first to distribute points.");
+                                                    return;
+                                                }
+                                                const equalWeight = totalMysteryPoints / questionsCount;
+
+                                                updated[typeIndex].questions = type.questions.map((q: any) => ({
+                                                    ...q,
+                                                    weight: equalWeight
+                                                }));
+                                                setTypes(updated);
+                                                toast.success(`Each of ${questionsCount} questions now has ${equalWeight} points`);
+                                            }}
+                                            className="w-full"
+                                        >
+                                            ⚡ Divide {totalMysteryPoints} Points Equally
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {/* Questions under this type */}
+                                <div className="ml-6 space-y-2 border-l-2 border-blue-300 pl-4">
+                                    {type.questions && type.questions.length > 0 ? (
+                                        type.questions.map((question: any, questionIndex: number) => (
+                                            <div key={question.questionId} className="flex gap-2 items-start p-3 border rounded-md bg-white">
+                                                <div className="flex-1 space-y-2">
+                                                    <Input
+                                                        placeholder="Question text"
+                                                        value={question.questionText}
+                                                        onChange={(e) => updateQuestion(typeIndex, questionIndex, 'questionText', e.target.value)}
+                                                    />
+
+                                                    <div className="flex gap-2">
+                                                        <Select
+                                                            value={question.answerType}
+                                                            onValueChange={(value) => updateQuestion(typeIndex, questionIndex, 'answerType', value)}
+                                                        >
+                                                            <SelectTrigger className="w-[150px]">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="yes_no">Yes / No</SelectItem>
+                                                                <SelectItem value="scale_1_10">Scale 1-10</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="Weight"
+                                                            value={question.weight}
+                                                            onChange={(e) => {
+                                                                const val = parseInt(e.target.value);
+                                                                updateQuestion(typeIndex, questionIndex, 'weight', isNaN(val) ? 0 : val);
+                                                            }}
+                                                            className="w-24"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => removeQuestion(typeIndex, questionIndex)}
+                                                    className="text-red-500"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-gray-500 italic">No questions added yet</p>
+                                    )}
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => addQuestion(typeIndex)}
+                                        className="w-full"
+                                    >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add Question to {type.typeName || 'this type'}
+                                    </Button>
+                                </div>
+
+                                {/* Type Summary */}
+                                <div className="text-sm text-gray-600 ml-6">
+                                    {type.questions?.length || 0} question(s) • {typeTotal} points
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <Button variant="outline" onClick={addType} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Mystery Shopping Type
+                </Button>
+
+                <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Mystery Shopping Configuration
+                        </>
+                    )}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+
+
+// ============================================
+// PENALTY CONFIGURATION
+// ============================================
+
+function PenaltyConfiguration({ year, items }: any) {
+    const [itemList, setItemList] = useState(items.length > 0 ? items : [
+        { penaltyId: '1', penaltyName: 'Touting & Rentseeking', penaltyValue: -10, order: 0 }
+    ]);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const savePenaltyItems = useMutation(api.scoring_config.savePenaltyItems);
+
+    const addItem = () => {
+        setItemList([...itemList, {
+            penaltyId: Date.now().toString(),
+            penaltyName: '',
+            penaltyValue: -5,
+            order: itemList.length
+        }]);
+    };
+
+    const removeItem = (index: number) => {
+        setItemList(itemList.filter((_: any, i: number) => i !== index));
+    };
+
+    const updateItem = (index: number, field: string, value: any) => {
+        const updated = [...itemList];
+        updated[index] = { ...updated[index], [field]: value };
+        setItemList(updated);
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await savePenaltyItems({ year, items: itemList });
+            toast.success("Penalty items saved!");
+        } catch (error) {
+            toast.error("Failed to save penalties");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Penalty Configuration</CardTitle>
+                <CardDescription>
+                    Configure penalty items and their negative point values
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-3">
+                    {itemList.map((item: any, index: number) => (
+                        <div key={item.penaltyId} className="flex gap-2 items-start p-3 border rounded-md">
+                            <GripVertical className="h-5 w-5 text-gray-400 mt-2" />
+
+                            <div className="flex-1 space-y-2">
+                                <Input
+                                    placeholder="Penalty name"
+                                    value={item.penaltyName}
+                                    onChange={(e) => updateItem(index, 'penaltyName', e.target.value)}
+                                />
+
+                                <Input
+                                    type="number"
+                                    placeholder="Points (negative)"
+                                    value={item.penaltyValue}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        updateItem(index, 'penaltyValue', isNaN(val) ? 0 : val);
+                                    }}
+                                    className="w-32"
+                                />
+                            </div>
+
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(index)}
+                                className="text-red-500"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+
+                <Button variant="outline" onClick={addItem} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Penalty
+                </Button>
+
+                <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Penalty Configuration
+                        </>
+                    )}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+
+
+// ============================================
+// OTHERS CONFIGURATION (Custom Metrics)
+// ============================================
+
+function OthersConfiguration({ year, othersItems }: any) {
+    const [isSaving, setIsSaving] = useState(false);
+    
+    const [items, setItems] = useState(() => {
+        // If we have saved items, use them
+        if (othersItems && othersItems.length > 0) {
+            return othersItems.map((item: any) => ({
+                ...item,
+                answerType: item.answerType || item.inputType || 'yes_no'
+            }));
+        }
+
+        // Default initialization for new year
+        return [
+            {
+                itemId: '1',
+                itemName: 'Service Level Agreement Publishing',
+                weight: 5,
+                answerType: 'yes_no',
+                order: 0
+            }
+        ];
+    });
+
+    // Update items when othersItems prop changes (e.g. year change)
+    // This is important because the initial state function only runs once on mount
+    React.useEffect(() => {
+        if (othersItems && othersItems.length > 0) {
+            setItems(othersItems.map((item: any) => ({
+                ...item,
+                answerType: item.answerType || item.inputType || 'yes_no'
+            })));
+        } else {
+             setItems([
+                {
+                    itemId: '1',
+                    itemName: 'Service Level Agreement Publishing',
+                    weight: 5,
+                    answerType: 'yes_no',
+                    order: 0
+                }
+            ]);
+        }
+    }, [othersItems]);
+
+    const saveOthersItems = useMutation(api.scoring_config.saveOthersItems);
+
+    const addItem = () => {
+        setItems([...items, {
+            itemId: Date.now().toString(),
+            itemName: '',
+            weight: 5,
+            answerType: 'yes_no',
+            order: items.length
+        }]);
+    };
+
+    const removeItem = (index: number) => {
+        setItems(items.filter((_: any, i: number) => i !== index));
+    };
+
+    const updateItem = (index: number, field: string, value: any) => {
+        const updated = [...items];
+        updated[index] = { ...updated[index], [field]: value };
+        setItems(updated);
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await saveOthersItems({ year, items });
+            toast.success("Others configuration saved!");
+        } catch (error) {
+            toast.error("Failed to save configuration");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Other Metrics Configuration</CardTitle>
+                <CardDescription>
+                    Add custom metrics (Transparency, Innovation, Engagement, etc.) with answer types and point values
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+
+                <div className="space-y-3">
+                    {items.map((item: any, index: number) => (
+                        <div key={item.itemId} className="flex gap-2 items-start p-3 border rounded-md bg-gray-50">
+                            <GripVertical className="h-5 w-5 text-gray-400 mt-2" />
+
+                            <div className="flex-1 space-y-2">
+                                <Input
+                                    placeholder="Metric name (e.g., Service Level Agreement Publishing)"
+                                    value={item.itemName}
+                                    onChange={(e) => updateItem(index, 'itemName', e.target.value)}
+                                />
+
+                                <div className="flex gap-2">
+                                    <Select
+                                        value={item.answerType}
+                                        onValueChange={(value) => updateItem(index, 'answerType', value)}
+                                    >
+                                        <SelectTrigger className="w-[150px]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="yes_no">Yes / No</SelectItem>
+                                            <SelectItem value="scale_1_10">Scale 1-10</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Input
+                                        type="number"
+                                        placeholder="Points"
+                                        value={item.weight}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            updateItem(index, 'weight', isNaN(val) ? 0 : val);
+                                        }}
+                                        className="w-24"
+                                    />
+                                </div>
+                            </div>
+
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(index)}
+                                className="text-red-500"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+
+                <Button variant="outline" onClick={addItem} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Custom Metric
+                </Button>
+
+                <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Others Configuration
+                        </>
+                    )}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}

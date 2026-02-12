@@ -15,10 +15,15 @@ interface SLAMetricCardProps {
         totalScore: number;
         monthsWithData: number;
         totalMonths: number;
+        maxPossibleScore?: number;
+        pointsPerMonth?: number;
     };
     setShowSlaModal: (show: boolean) => void;
     handleSaveSLAData: () => void;
     selectedMda: string;
+    periodMonths?: Array<{ month: number; year: number; monthName: string }>;
+    useDynamicConfig?: boolean;
+    efficiencyConfig?: any;
 }
 
 export default function SLAMetricCard({
@@ -31,9 +36,17 @@ export default function SLAMetricCard({
     slaScore,
     setShowSlaModal,
     handleSaveSLAData,
-    selectedMda
+    selectedMda,
+    periodMonths,
+    useDynamicConfig,
+    efficiencyConfig
 }: SLAMetricCardProps) {
     const periodYear = scoringPeriod.match(/\d{4}/)?.[0] || String(currentYear);
+
+    // Use dynamic or legacy month calculation
+    const months = periodMonths || getMonthsForPeriod(scoringPeriod);
+    const maxPoints = slaScore.maxPossibleScore || 30;
+    const pointsPerMonth = slaScore.pointsPerMonth || 5;
 
     return (
         <div className="bg-gray-100/50 p-4 rounded-lg">
@@ -60,7 +73,7 @@ export default function SLAMetricCard({
                         📊 Rankings
                     </button>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                        30 Points
+                        {maxPoints} Points
                     </span>
                 </div>
             </div>
@@ -73,8 +86,8 @@ export default function SLAMetricCard({
                     </p>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs mb-4">
-                        {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
-                            const monthName = new Date(periodMonth.year, periodMonth.month, 1)
+                        {months.map((periodMonth, index) => {
+                            const monthName = periodMonth.monthName || new Date(periodMonth.year, periodMonth.month, 1)
                                 .toLocaleString('default', { month: 'short' });
                             const monthKey = `${periodMonth.year}-${periodMonth.month}`;
                             const monthData = monthlySlaData[monthKey];
@@ -87,7 +100,7 @@ export default function SLAMetricCard({
                                     }`}>
                                     <div className="font-medium">{monthName}</div>
                                     <div className="text-xs">
-                                        {hasData ? '✓ 5pts' : '0pts'}
+                                        {hasData ? `✓ ${pointsPerMonth.toFixed(1)}pts` : '0pts'}
                                     </div>
                                 </div>
                             );
@@ -96,7 +109,7 @@ export default function SLAMetricCard({
 
                     <div className="text-center space-y-2">
                         <div className="text-lg font-semibold">
-                            Score: {slaScore.totalScore.toFixed(1)}/30
+                            Score: {slaScore.totalScore.toFixed(1)}/{maxPoints}
                         </div>
                         <div className="text-sm text-gray-600">
                             {slaScore.monthsWithData}/{slaScore.totalMonths} months completed

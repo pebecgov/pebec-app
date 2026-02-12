@@ -83,6 +83,8 @@ export default defineSchema({
     reportGovernanceResolutionScore: v.number(),
     monthlyReportSubmissionScore: v.number(),
     timelinessInSubmittingScore: v.number(),
+    othersScore: v.optional(v.number()),
+    penaltiesScore: v.optional(v.number()),
     // Total scores
     totalScore: v.number(),
     totalPercentage: v.number(),
@@ -115,6 +117,26 @@ export default defineSchema({
     calculatedBy: v.id("users"),
     calculatedAt: v.number()
   }).index("byPeriod", ["scoringPeriod"]).index("byMdaPeriod", ["mdaName", "scoringPeriod"]),
+
+  // New tables for dynamic scoring (2026+)
+  saved_others_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(), // Record<itemId, boolean | number>
+    scores: v.any(), // Record<itemId, number>
+    totalScore: v.number(),
+    updatedAt: v.number()
+  }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
+    .index("byPeriod", ["scoringPeriod"]),
+
+  saved_penalties_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(), // Record<penaltyId, boolean>
+    totalPenalty: v.number(),
+    updatedAt: v.number()
+  }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
+    .index("byPeriod", ["scoringPeriod"]),
 
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
@@ -1040,5 +1062,130 @@ export default defineSchema({
     createdByStaffStream: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
-  }).index("byDate", ["date"]).index("byCreatedBy", ["createdBy"])
+  }).index("byDate", ["date"]).index("byCreatedBy", ["createdBy"]),
+
+  // ============================================
+  // BFA SCORING CONFIGURATION TABLES (2026+)
+  // ============================================
+
+  // Year-based scoring configuration
+  scoring_configurations: defineTable({
+    year: v.number(),
+    isActive: v.boolean(),
+    isFullYear: v.boolean(), // false for partial years like 2025
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"]),
+
+  // Efficiency period configuration (flexible month ranges)
+  efficiency_periods: defineTable({
+    year: v.number(),
+    periodName: v.string(),
+    startMonth: v.string(), // "November"
+    startYear: v.number(), // 2025
+    endMonth: v.string(), // "October"
+    endYear: v.number(), // 2026
+    totalMonths: v.number(), // calculated
+    slaPoints: v.number(), // e.g., 30
+    reportSubmissionPoints: v.number(), // e.g., 3
+    reportGovPoints: v.optional(v.number()), // e.g., 15 (Report Governance Resolution)
+    timelinessPoints: v.number(), // e.g., 2
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"]),
+
+
+
+  // Mystery shopping types configuration
+  mystery_shopping_types: defineTable({
+    year: v.number(),
+    typeId: v.string(),
+    typeName: v.string(), // "Physical Visit", "Phone Call", "Online Service"
+    order: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"]),
+
+  // Mystery shopping questions configuration
+  mystery_shopping_questions: defineTable({
+    year: v.number(),
+    typeId: v.string(), // Links to mystery_shopping_types
+    questionId: v.string(),
+    questionText: v.string(),
+    weight: v.number(), // points for this question
+    answerType: v.union(
+      v.literal("yes_no"),
+      v.literal("scale_1_10")
+    ),
+    order: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"])
+    .index("byYearAndType", ["year", "typeId"])
+    .index("byYearTypeAndActive", ["year", "typeId", "isActive"]),
+
+
+  // Transparency items configuration
+  transparency_items: defineTable({
+    year: v.number(),
+    itemId: v.string(),
+    itemName: v.string(),
+    weight: v.number(), // points for this item
+    answerType: v.optional(v.union(
+      v.literal("yes_no"),
+      v.literal("scale_1_10")
+    )),
+    isActive: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"]),
+
+  // Penalty items configuration
+  penalty_items: defineTable({
+    year: v.number(),
+    penaltyId: v.string(),
+    penaltyName: v.string(),
+    penaltyValue: v.number(), // negative points
+    isActive: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"]),
+
+  // Innovation and stakeholder engagement items configuration
+  innovation_stakeholder_items: defineTable({
+    year: v.number(),
+    itemId: v.string(),
+    itemType: v.union(
+      v.literal("innovation"),
+      v.literal("stakeholder")
+    ),
+    itemName: v.string(),
+    weight: v.number(), // points for this item
+    inputType: v.union(
+      v.literal("yes_no"),
+      v.literal("scale_1_10")
+    ),
+    isActive: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndType", ["year", "itemType"])
+    .index("byYearTypeAndActive", ["year", "itemType", "isActive"])
 });

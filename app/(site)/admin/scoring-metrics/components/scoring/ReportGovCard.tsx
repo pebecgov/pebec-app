@@ -35,6 +35,7 @@ interface ReportGovCardProps {
     mdasList: any[];
     mdasWithScores: any[] | undefined;
     periodTicketData: any;
+    maxPoints: number;
 }
 
 export default function ReportGovCard({
@@ -65,7 +66,8 @@ export default function ReportGovCard({
     selectedMda,
     mdasList,
     mdasWithScores,
-    periodTicketData
+    periodTicketData,
+    maxPoints = 15 // Default to 15 for backward compatibility
 }: ReportGovCardProps) {
     const periodYear = scoringPeriod.match(/\d{4}/)?.[0] || String(currentYear);
 
@@ -123,7 +125,7 @@ export default function ReportGovCard({
                         📊 Rankings
                     </button>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                        15 Points
+                        {maxPoints} Points
                     </span>
                 </div>
             </div>
@@ -190,7 +192,8 @@ export default function ReportGovCard({
                         <p>Avg Response Time: {ticketResolutionData.averageResponseTime.toFixed(1)} hours</p>
                         <p>Avg Resolution Time: {ticketResolutionData.averageResolutionTime.toFixed(1)} hours</p>
                         <p className="text-xs text-gray-500">
-                            Scoring: Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts)
+                            Base Calculation (out of 15): Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts).
+                            Final score scaled to {maxPoints}.
                         </p>
                     </div>
 
@@ -277,7 +280,8 @@ export default function ReportGovCard({
 
                     <div className="text-xs text-gray-500 space-y-1">
                         <p>Resolution Rate: {manualTotalTickets > 0 ? ((manualResolvedTickets / manualTotalTickets) * 100).toFixed(1) : 0}%</p>
-                        <p>Scoring: Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts)</p>
+                        <p>Base Calculation (out of 15): Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts)</p>
+                        <p>Final score scaled to {maxPoints}.</p>
                     </div>
 
                     <div className="flex gap-2">
@@ -302,7 +306,7 @@ export default function ReportGovCard({
             )}
 
             <div className="text-center mt-3">
-                Score: {useManual ? manualRate.toFixed(1) : reportgovRate.toFixed(1)}/15
+                Score: {useManual ? manualRate.toFixed(2) : reportgovRate.toFixed(2)}/{maxPoints}
             </div>
         </div>
     );

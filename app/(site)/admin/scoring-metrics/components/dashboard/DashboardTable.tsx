@@ -7,6 +7,10 @@ import { toast } from 'sonner';
 
 interface DashboardTableProps {
     liveDashboardData: any[] | undefined;
+    efficiencyConfig: any;
+    othersConfig: any;
+    penaltyConfig: any;
+    mysteryConfig: any;
     processDashboardMdaData: (filter: 'all' | 'withData', ministryFilter: 'all' | 'ministries-only' | 'without-ministries') => any[];
     mdaFilter: 'all' | 'withData';
     ministryFilter: 'all' | 'ministries-only' | 'without-ministries';
@@ -19,6 +23,10 @@ interface DashboardTableProps {
 
 export default function DashboardTable({
     liveDashboardData,
+    efficiencyConfig,
+    othersConfig,
+    penaltyConfig,
+    mysteryConfig,
     processDashboardMdaData,
     mdaFilter,
     ministryFilter,
@@ -52,29 +60,60 @@ export default function DashboardTable({
                                 <>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SLA (Efficiency)</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mystery Shopping</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Innovation</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stakeholder</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transparency</th>
+
+                                    {dashboardYear < 2026 ? (
+                                        <>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Innovation</th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stakeholder</th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transparency</th>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {othersConfig?.map((item: any) => (
+                                                <th key={item.itemId} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    {item.itemName}
+                                                </th>
+                                            ))}
+                                        </>
+                                    )}
+
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov Resolution</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Submission</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timeliness</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Controversial</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Touting & Rentseeking</th>
+
+                                    {dashboardYear < 2026 ? (
+                                        <>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Controversial</th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Touting & Rentseeking</th>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {penaltyConfig?.map((item: any) => (
+                                                <th key={item.penaltyId} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    {item.penaltyName}
+                                                </th>
+                                            ))}
+                                        </>
+                                    )}
+
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final Score</th>
                                 </>
                             ) : (
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                     {selectedMetric === 'mysteryShopping' ? 'Mystery Shopping' :
                                         selectedMetric === 'sla' ? 'Service Level Agreement' :
-                                            selectedMetric === 'controversial' ? 'Controversial' :
-                                                selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
-                                                    selectedMetric === 'innovation' ? 'Innovation' :
-                                                        selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
-                                                            selectedMetric === 'transparency' ? 'Transparency' :
-                                                                selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
-                                                                    selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
-                                                                        selectedMetric === 'timeliness' ? 'Timeliness' : 'Score'} (Overall %)
+                                            selectedMetric === 'efficiency' ? 'Efficiency (SLA + Reporting + Timeliness)' :
+                                                selectedMetric === 'controversial' ? 'Controversial' :
+                                                    selectedMetric === 'toutingRentseeking' ? 'Touting & Rentseeking' :
+                                                        selectedMetric === 'innovation' ? 'Innovation' :
+                                                            selectedMetric === 'stakeholder' ? 'Stakeholder Engagement' :
+                                                                selectedMetric === 'transparency' ? 'Transparency' :
+                                                                    selectedMetric === 'others' ? 'Others (Dynamic)' :
+                                                                        selectedMetric === 'penalties' ? 'Penalties' :
+                                                                            selectedMetric === 'reportGovResolution' ? 'Report Gov Resolution' :
+                                                                                selectedMetric === 'monthlyReport' ? 'Monthly Report Submission' :
+                                                                                    selectedMetric === 'timeliness' ? 'Timeliness' : 'Score'} (Overall %)
                                 </th>
                             )}
                             {selectedMetric === 'totalScore' && (
@@ -95,8 +134,8 @@ export default function DashboardTable({
                                 let bValue: any = 0;
 
                                 if (selectedMetric === 'totalScore') {
-                                    aValue = a.totalPercentage || 0;
-                                    bValue = b.totalPercentage || 0;
+                                    aValue = a.totalScore || 0;
+                                    bValue = b.totalScore || 0;
                                 } else if (selectedMetric === 'mysteryShopping') {
                                     aValue = a.mysteryShopping?.score || 0;
                                     bValue = b.mysteryShopping?.score || 0;
@@ -124,9 +163,18 @@ export default function DashboardTable({
                                 } else if (selectedMetric === 'monthlyReport') {
                                     aValue = a.monthlyReport?.score || 0;
                                     bValue = b.monthlyReport?.score || 0;
+                                } else if (selectedMetric === 'others') {
+                                    aValue = a.others?.score || 0;
+                                    bValue = b.others?.score || 0;
+                                } else if (selectedMetric === 'penalties') {
+                                    aValue = a.penalties?.score || 0;
+                                    bValue = b.penalties?.score || 0;
                                 } else if (selectedMetric === 'timeliness') {
                                     aValue = a.timeliness?.score || 0;
                                     bValue = b.timeliness?.score || 0;
+                                } else if (selectedMetric === 'efficiency') {
+                                    aValue = (a.sla?.score || 0) + (a.monthlyReport?.score || 0) + (a.timeliness?.score || 0);
+                                    bValue = (b.sla?.score || 0) + (b.monthlyReport?.score || 0) + (b.timeliness?.score || 0);
                                 }
 
                                 return bValue - aValue;
@@ -167,9 +215,18 @@ export default function DashboardTable({
                                 } else if (selectedMetric === 'monthlyReport') {
                                     aValue = a.monthlyReport?.score || 0;
                                     bValue = b.monthlyReport?.score || 0;
+                                } else if (selectedMetric === 'others') {
+                                    aValue = a.others?.score || 0;
+                                    bValue = b.others?.score || 0;
+                                } else if (selectedMetric === 'penalties') {
+                                    aValue = a.penalties?.score || 0;
+                                    bValue = b.penalties?.score || 0;
                                 } else if (selectedMetric === 'timeliness') {
                                     aValue = a.timeliness?.score || 0;
                                     bValue = b.timeliness?.score || 0;
+                                } else if (selectedMetric === 'efficiency') {
+                                    aValue = (a.sla?.score || 0) + (a.monthlyReport?.score || 0) + (a.timeliness?.score || 0);
+                                    bValue = (b.sla?.score || 0) + (b.monthlyReport?.score || 0) + (b.timeliness?.score || 0);
                                 }
 
                                 return bValue - aValue;
@@ -228,9 +285,24 @@ export default function DashboardTable({
                                     score = mda.monthlyReport?.score || 0;
                                     maxScore = 3;
                                     overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                                } else if (selectedMetric === 'others') {
+                                    score = mda.others?.score || 0;
+                                    const othersTotal = 45; // TODO: make dynamic?
+                                    maxScore = othersTotal;
+                                    overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                                } else if (selectedMetric === 'penalties') {
+                                    score = mda.penalties?.score || 0;
+                                    overallPercentage = score; // Usually negative or points
                                 } else if (selectedMetric === 'timeliness') {
                                     score = mda.timeliness?.score || 0;
                                     maxScore = 2;
+                                    overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                                } else if (selectedMetric === 'efficiency') {
+                                    const slaScore = mda.sla?.score || 0;
+                                    const reportScore = mda.monthlyReport?.score || 0;
+                                    const timelinessScore = mda.timeliness?.score || 0;
+                                    score = slaScore + reportScore + timelinessScore;
+                                    maxScore = (mda.sla?.maxPossibleScore || 30) + (mda.monthlyReport?.maxPossibleScore || 3) + (mda.timeliness?.maxPossibleScore || 2);
                                     overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
                                 }
 
@@ -247,8 +319,8 @@ export default function DashboardTable({
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {mda.sla ? (
                                                         <div>
-                                                            <div className="font-semibold">{mda.sla.score.toFixed(1)}/30</div>
-                                                            <div className="text-xs text-gray-400">{mda.sla.monthsWithData}/10 months</div>
+                                                            <div className="font-semibold">{mda.sla.score.toFixed(1)}/{mda.sla.maxPossibleScore || 30}</div>
+                                                            <div className="text-xs text-gray-400">{mda.sla.monthsWithData}/{mda.sla.totalMonths || 12} months</div>
                                                         </div>
                                                     ) : (
                                                         <span className="text-gray-400">—</span>
@@ -256,44 +328,66 @@ export default function DashboardTable({
                                                 </td>
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {mda.mysteryShopping ? (
-                                                        <span className="font-semibold">{mda.mysteryShopping.score.toFixed(1)}/20</span>
+                                                        <span className="font-semibold">{mda.mysteryShopping.score.toFixed(1)}/{mda.mysteryShopping.maxPossibleScore || 20}</span>
                                                     ) : (
                                                         <span className="text-gray-400">—</span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {mda.innovation ? (
-                                                        <span className="font-semibold">{mda.innovation.score.toFixed(1)}/5</span>
-                                                    ) : (
-                                                        <span className="text-gray-400">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {mda.stakeholder ? (
-                                                        <span className="font-semibold">{mda.stakeholder.score.toFixed(1)}/10</span>
-                                                    ) : (
-                                                        <span className="text-gray-400">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {mda.transparency ? (
-                                                        <span className="font-semibold">{mda.transparency.score.toFixed(1)}/5</span>
-                                                    ) : (
-                                                        <span className="text-gray-400">—</span>
-                                                    )}
-                                                </td>
+                                                {dashboardYear < 2026 ? (
+                                                    <>
+                                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {mda.innovation ? (
+                                                                <span className="font-semibold">{mda.innovation.score.toFixed(1)}/5</span>
+                                                            ) : (
+                                                                <span className="text-gray-400">—</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {mda.stakeholder ? (
+                                                                <span className="font-semibold">{mda.stakeholder.score.toFixed(1)}/10</span>
+                                                            ) : (
+                                                                <span className="text-gray-400">—</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {mda.transparency ? (
+                                                                <span className="font-semibold">{mda.transparency.score.toFixed(1)}/5</span>
+                                                            ) : (
+                                                                <span className="text-gray-400">—</span>
+                                                            )}
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {othersConfig?.map((item: any) => {
+                                                            const itemScore = mda.others?.scores?.[item.itemId] || 0;
+                                                            const itemValue = mda.others?.values?.[item.itemId];
+                                                            return (
+                                                                <td key={item.itemId} className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                    <div>
+                                                                        <div className="font-semibold">{itemScore.toFixed(1)}/{item.weight}</div>
+                                                                        <div className="text-xs text-gray-400">
+                                                                            {typeof itemValue === 'boolean' ? (itemValue ? 'Yes' : 'No') :
+                                                                                typeof itemValue === 'number' ? itemValue : '—'}
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </>
+                                                )}
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {mda.reportGovResolution ? (
                                                         <div>
                                                             {mda.reportGovResolution.isSkipped ? (
                                                                 <div>
-                                                                    <div className="font-semibold text-gray-400 line-through">0/15</div>
+                                                                    <div className="font-semibold text-gray-400 line-through">0/{mda.reportGovResolution?.maxPossibleScore || 15}</div>
                                                                     <div className="text-xs text-yellow-600 mt-1">⚠️ Skipped</div>
                                                                 </div>
                                                             ) : (
                                                                 <>
-                                                                    <div className="font-semibold">{mda.reportGovResolution.score.toFixed(1)}/15</div>
-                                                                    {mda.reportGovResolution.hasFirstHalf !== undefined && (
+                                                                    <div className="font-semibold">{mda.reportGovResolution.score.toFixed(1)}/{mda.reportGovResolution.maxPossibleScore || 15}</div>
+                                                                    {dashboardYear < 2026 && mda.reportGovResolution.hasFirstHalf !== undefined && (
                                                                         <div className="text-xs text-gray-400 mt-1">
                                                                             {mda.reportGovResolution.hasFirstHalf && mda.reportGovResolution.hasSecondHalf ? (
                                                                                 <span>1st: {mda.reportGovResolution.firstHalfScore?.toFixed(1) || 'N/A'}, 2nd: {mda.reportGovResolution.secondHalfScore?.toFixed(1) || 'N/A'}</span>
@@ -314,8 +408,8 @@ export default function DashboardTable({
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {mda.monthlyReport ? (
                                                         <div>
-                                                            <div className="font-semibold">{mda.monthlyReport.score.toFixed(1)}/3</div>
-                                                            <div className="text-xs text-gray-400">{mda.monthlyReport.monthsWithData}/10 months</div>
+                                                            <div className="font-semibold">{mda.monthlyReport.score.toFixed(1)}/{mda.monthlyReport.maxPossibleScore || 3}</div>
+                                                            <div className="text-xs text-gray-400">{mda.monthlyReport.monthsWithData}/{mda.monthlyReport.totalMonths || 12} months</div>
                                                         </div>
                                                     ) : (
                                                         <span className="text-gray-400">—</span>
@@ -324,8 +418,8 @@ export default function DashboardTable({
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {mda.timeliness ? (
                                                         <div>
-                                                            <div className="font-semibold">{mda.timeliness.score.toFixed(1)}/2</div>
-                                                            <div className="text-xs text-gray-400">{mda.timeliness.monthsWithData}/10 months</div>
+                                                            <div className="font-semibold">{mda.timeliness.score.toFixed(1)}/{mda.timeliness.maxPossibleScore || 2}</div>
+                                                            <div className="text-xs text-gray-400">{mda.timeliness.monthsWithData}/{mda.timeliness.totalMonths || 12} months</div>
                                                         </div>
                                                     ) : (
                                                         <span className="text-gray-400">—</span>
@@ -333,45 +427,54 @@ export default function DashboardTable({
                                                 </td>
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`font-bold ${mda.totalPercentage >= 90 ? 'text-green-600' :
-                                                            mda.totalPercentage >= 80 ? 'text-blue-600' :
-                                                                mda.totalPercentage >= 70 ? 'text-yellow-600' :
-                                                                    mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
-                                                            }`}>
-                                                            {mda.baseTotalScore.toFixed(1)}
+                                                        <span className="font-bold text-gray-700">
+                                                            {(mda.totalGrossScore || 0).toFixed(1)}
                                                         </span>
-                                                        {mda.isReportGovSkipped && (
-                                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" title="Report Gov Resolution skipped - using 75 points for normalization">
-                                                                ⚠️ Using 75
+                                                        {mda.reportGovResolution?.isSkipped && (
+                                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" title="Report Gov Resolution skipped - points normalized">
+                                                                ⚠️ Normalized
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className={`text-xs mt-1 ${mda.totalPercentage >= 90 ? 'text-green-600' :
-                                                        mda.totalPercentage >= 80 ? 'text-blue-600' :
-                                                            mda.totalPercentage >= 70 ? 'text-yellow-600' :
-                                                                mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
-                                                        }`}>
-                                                        <span>{mda.baseTotalScore.toFixed(1)}/{mda.maxPossiblePoints}</span>
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        <span>{(mda.totalGrossScore || 0).toFixed(1)}/{mda.maxPossiblePoints}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {mda.controversial ? (
-                                                        <span className={`font-semibold ${mda.controversial.score < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                                            {mda.controversial.score.toFixed(1)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-gray-400">0.0</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {mda.toutingRentseeking ? (
-                                                        <span className={`font-semibold ${mda.toutingRentseeking.score < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                                            {mda.toutingRentseeking.score.toFixed(1)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-gray-400">0.0</span>
-                                                    )}
-                                                </td>
+                                                {dashboardYear < 2026 ? (
+                                                    <>
+                                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {mda.controversial ? (
+                                                                <span className={`font-semibold ${mda.controversial.score < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                                                    {mda.controversial.score.toFixed(1)}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-400">0.0</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {mda.toutingRentseeking ? (
+                                                                <span className={`font-semibold ${mda.toutingRentseeking.score < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                                                    {mda.toutingRentseeking.score.toFixed(1)}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-400">0.0</span>
+                                                            )}
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {penaltyConfig?.map((item: any) => {
+                                                            const hasPenalty = mda.penalties?.values?.[item.penaltyId] === true;
+                                                            return (
+                                                                <td key={item.penaltyId} className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                    <span className={`font-semibold ${hasPenalty ? 'text-red-600' : 'text-gray-500'}`}>
+                                                                        {hasPenalty ? `${item.penaltyValue}` : "0.0"}
+                                                                    </span>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </>
+                                                )}
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm">
                                                     <div className="flex items-center gap-2">
                                                         <span className={`font-bold ${mda.totalPercentage >= 90 ? 'text-green-600' :
@@ -452,6 +555,6 @@ export default function DashboardTable({
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div >
     );
 }
