@@ -329,33 +329,73 @@ export default function ScoringTab({
     // Populate Automated ReportGov Data
     useEffect(() => {
         if (ticketResolutionData) {
-            let score = 0;
             const { resolutionRate, averageResponseTime, averageResolutionTime, totalTickets } = ticketResolutionData;
 
+            // Weights logic
+            // Resolution Rate: 46.67% of total
+            // Response Time: 20% of total
+            // Resolution Time: 33.33% of total
+
+            const maxResRatePoints = reportGovPoints * 0.4667;
+            const maxResponsePoints = reportGovPoints * 0.20;
+            const maxResolutionTimePoints = reportGovPoints * 0.3333;
+
+
+
+            let resRateScore = 0;
+            let responseScore = 0;
+            let resolutionTimeScore = 0;
+
             if (totalTickets > 0) {
-                if (resolutionRate >= 100) score += 7;
-                else if (resolutionRate >= 95) score += 6;
-                else if (resolutionRate >= 90) score += 5;
-                else if (resolutionRate >= 85) score += 4;
-                else if (resolutionRate >= 80) score += 3;
-                else if (resolutionRate >= 75) score += 2;
-                else if (resolutionRate >= 70) score += 1;
+                // Resolution Rate Scoring (Based on 7 tiers)
+                // >= 100% : 7/7
+                // 90-99%  : 6/7
+                // 80-89%  : 5/7
+                // 70-79%  : 4/7
+                // 60-69%  : 3/7
+                // 50-59%  : 2/7
+                // 40-49%  : 1/7
+                // < 40%   : 0
+                if (resolutionRate >= 100) resRateScore = maxResRatePoints * (7 / 7);
+                else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
+                else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
+                else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
+                else if (resolutionRate >= 60) resRateScore = maxResRatePoints * (3 / 7);
+                else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
+                else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
+                else resRateScore = 0;
 
-                if (averageResponseTime <= 24) score += 3;
-                else if (averageResponseTime <= 48) score += 2;
-                else if (averageResponseTime <= 72) score += 1;
+                // Response Time Scoring (Base 3 tiers)
+                // <= 24h : 3/3
+                // <= 48h : 2/3
+                // <= 72h : 1/3
+                if (averageResponseTime > 0) {
+                    if (averageResponseTime <= 24) responseScore = maxResponsePoints * (3 / 3);
+                    else if (averageResponseTime <= 48) responseScore = maxResponsePoints * (2 / 3);
+                    else if (averageResponseTime <= 72) responseScore = maxResponsePoints * (1 / 3);
+                    else responseScore = 0;
+                }
 
-                if (averageResolutionTime <= 48) score += 5;
-                else if (averageResolutionTime <= 72) score += 4;
-                else if (averageResolutionTime <= 96) score += 3;
-                else if (averageResolutionTime <= 120) score += 2;
-                else if (averageResolutionTime <= 144) score += 1;
+                // Resolution Time Scoring (Base 5 tiers)
+                // <= 48h  : 5/5
+                // <= 72h  : 4/5
+                // <= 96h  : 3/5
+                // <= 120h : 2/5
+                // <= 144h : 1/5
+                if (averageResolutionTime > 0) {
+                    if (averageResolutionTime <= 48) resolutionTimeScore = maxResolutionTimePoints * (5 / 5);
+                    else if (averageResolutionTime <= 72) resolutionTimeScore = maxResolutionTimePoints * (4 / 5);
+                    else if (averageResolutionTime <= 96) resolutionTimeScore = maxResolutionTimePoints * (3 / 5);
+                    else if (averageResolutionTime <= 120) resolutionTimeScore = maxResolutionTimePoints * (2 / 5);
+                    else if (averageResolutionTime <= 144) resolutionTimeScore = maxResolutionTimePoints * (1 / 5);
+                    else resolutionTimeScore = 0;
+                }
             }
 
-            // Scale to dynamic points
-            const scaledScore = (score / 15) * reportGovPoints;
 
-            setReportgovRate(Math.min(scaledScore, reportGovPoints));
+
+            const totalScore = resRateScore + responseScore + resolutionTimeScore;
+            setReportgovRate(Math.min(totalScore, reportGovPoints));
         }
     }, [ticketResolutionData, reportGovPoints]);
 
@@ -366,7 +406,9 @@ export default function ScoringTab({
                 setSkipReportGov(true);
             } else {
                 setSkipReportGov(false);
-                setReportgovRate(savedReportGovData.score);
+                // For automated ReportGov, we always recalculate based on ticket data
+                // instead of using the saved score, to ensure it reflects current data/config.
+                // setReportgovRate(savedReportGovData.score); 
             }
             toast.success(`📊 Loaded saved Report Gov data for ${selectedMda}`);
         }
