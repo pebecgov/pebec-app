@@ -150,9 +150,11 @@ export default function ReportGovCard({
                 </p>
                 <p>Avg Response Time: {(ticketResolutionData?.averageResponseTime || 0).toFixed(1)} hours</p>
                 <p>Avg Resolution Time: {(ticketResolutionData?.averageResolutionTime || 0).toFixed(1)} hours</p>
-                <p className="text-xs text-gray-500">
-                    Base Calculation (out of 15): Resolution Rate (7pts) + Response Time (3pts) + Resolution Time (5pts).
-                    Final score scaled to {maxPoints}.
+                <p className="text-xs text-gray-500 mt-2">
+                    <strong>Score Breakdown (Total: {maxPoints} pts):</strong><br />
+                    • Resolution Rate ({(maxPoints * 0.4667).toFixed(1)} pts)<br />
+                    • Response Time ({(maxPoints * 0.20).toFixed(1)} pts)<br />
+                    • Resolution Time ({(maxPoints * 0.3333).toFixed(1)} pts)
                 </p>
             </div>
 
