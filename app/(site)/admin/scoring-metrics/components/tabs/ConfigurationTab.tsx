@@ -392,10 +392,25 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await saveMysteryShoppingConfiguration({ year, types });
+            // Clean up types and limit to allowed fields
+            const cleanedTypes = types.map((type: any) => ({
+                typeId: type.typeId,
+                typeName: type.typeName,
+                order: type.order,
+                questions: (type.questions || []).map((q: any) => ({
+                    questionId: q.questionId,
+                    questionText: q.questionText,
+                    weight: q.weight,
+                    answerType: q.answerType,
+                    order: q.order
+                }))
+            }));
+
+            await saveMysteryShoppingConfiguration({ year, types: cleanedTypes });
             toast.success("Mystery shopping configuration saved!");
         } catch (error) {
             toast.error("Failed to save configuration");
+            console.error(error);
         } finally {
             setIsSaving(false);
         }
@@ -641,10 +656,19 @@ function PenaltyConfiguration({ year, items }: any) {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await savePenaltyItems({ year, items: itemList });
+            // Clean up items and limit to allowed fields
+            const cleanedItems = itemList.map((item: any) => ({
+                penaltyId: item.penaltyId,
+                penaltyName: item.penaltyName,
+                penaltyValue: item.penaltyValue,
+                order: item.order
+            }));
+
+            await savePenaltyItems({ year, items: cleanedItems });
             toast.success("Penalty items saved!");
         } catch (error) {
             toast.error("Failed to save penalties");
+            console.error(error);
         } finally {
             setIsSaving(false);
         }
@@ -726,7 +750,7 @@ function PenaltyConfiguration({ year, items }: any) {
 
 function OthersConfiguration({ year, othersItems }: any) {
     const [isSaving, setIsSaving] = useState(false);
-    
+
     const [items, setItems] = useState(() => {
         // If we have saved items, use them
         if (othersItems && othersItems.length > 0) {
@@ -757,7 +781,7 @@ function OthersConfiguration({ year, othersItems }: any) {
                 answerType: item.answerType || item.inputType || 'yes_no'
             })));
         } else {
-             setItems([
+            setItems([
                 {
                     itemId: '1',
                     itemName: 'Service Level Agreement Publishing',
@@ -794,10 +818,20 @@ function OthersConfiguration({ year, othersItems }: any) {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await saveOthersItems({ year, items });
+            // Clean up items and limit to allowed fields
+            const cleanedItems = items.map((item: any) => ({
+                itemId: item.itemId,
+                itemName: item.itemName,
+                weight: item.weight,
+                answerType: item.answerType,
+                order: item.order
+            }));
+
+            await saveOthersItems({ year, items: cleanedItems });
             toast.success("Others configuration saved!");
         } catch (error) {
             toast.error("Failed to save configuration");
+            console.error(error);
         } finally {
             setIsSaving(false);
         }
