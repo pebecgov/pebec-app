@@ -1237,10 +1237,11 @@ export default function ScoringTab({
                 scoringPeriod={scoringPeriod}
                 monthlySlaData={monthlySlaData}
                 setMonthlySlaData={setMonthlySlaData}
-                currentYear={currentYear}
+                currentYear={scoringYear}
                 periodMonths={periodMonths}
-                pointsPerMonth={calculateMonthlySlaScore().pointsPerMonth || 5}
-                maxPoints={calculateMonthlySlaScore().maxPossibleScore || 30}
+                pointsPerMonth={useDynamicConfig ? ((efficiencyConfig?.slaPoints ?? 30) / (efficiencyConfig?.totalMonths ?? 12)) : 5}
+                maxPoints={useDynamicConfig ? (efficiencyConfig?.slaPoints ?? 30) : 30}
+                mdaName={selectedMda}
             />
 
             <FinalScoreModal
