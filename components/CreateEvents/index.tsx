@@ -1,8 +1,8 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import React, { useState } from "react";
-import { useMutation } from "convex/react";
+import React, { useState, useEffect } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useToast } from "@/hooks/use-toast";
@@ -14,12 +14,28 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Plus, CheckCircle, X, Trash2 } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-export default function CreateEventPage() {
-  const {
-    toast
-  } = useToast();
+import { useRouter } from "next/navigation";
+
+type QuestionItem = {
+  text: string;
+  type: "text" | "number" | "email" | "scale" | "radio" | "checkbox" | "textarea";
+  section?: string;
+  order?: number;
+  isRequired?: boolean;
+  options?: string[];
+  _id?: Id<"event_questions">;
+};
+
+export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> }) {
+  const { toast } = useToast();
+  const router = useRouter();
   const createEventMutation = useMutation(api.events.createEvent);
+  const editEventMutation = useMutation(api.events.editEvent);
   const createEventQuestionMutation = useMutation(api.events.createEventQuestion);
+  const event = useQuery(api.events.getEventDetails, eventId ? { eventId } : "skip");
+  const existingQuestions = useQuery(api.events.getEventQuestions, eventId && event ? { eventId } : "skip");
+  const [formLoaded, setFormLoaded] = useState(false);
+  const [questionsLoadedFromServer, setQuestionsLoadedFromServer] = useState(false);
   const [imageSelectedButNotUploaded, setImageSelectedButNotUploaded] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -36,14 +52,7 @@ export default function CreateEventPage() {
   const [isRequired, setIsRequired] = useState(false);
   const [questionOptions, setQuestionOptions] = useState<string[]>([]);
   const [newOption, setNewOption] = useState("");
-  const [questions, setQuestions] = useState<{
-    text: string;
-    type: "text" | "number" | "email" | "scale" | "radio" | "checkbox" | "textarea";
-    section?: string;
-    order?: number;
-    isRequired?: boolean;
-    options?: string[];
-  }[]>([]);
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [openModal, setOpenModal] = useState(false);
   const [eventType, setEventType] = useState<"vip" | "general" | "vip_and_general">("general");
   const [vipAccessCode, setVipAccessCode] = useState("");
@@ -52,82 +61,124 @@ export default function CreateEventPage() {
   const [ticketLimit, setTicketLimit] = useState<number | "">("");
   const [customUrl, setCustomUrl] = useState("");
   const [customUrlError, setCustomUrlError] = useState("");
-  const handleCreateEvent = async (e?: React.FormEvent) => {
+
+  // Pre-fill form when editing an existing event
+  useEffect(() => {
+    if (!eventId || !event || formLoaded) return;
+    setTitle(event.title ?? "");
+    setDescription(event.description ?? "");
+    setEventDate(event.eventDate ? new Date(event.eventDate).toISOString().slice(0, 16) : "");
+    setRegistrationDeadline(event.registrationDeadline ? new Date(event.registrationDeadline).toISOString().slice(0, 16) : "");
+    setLocation(event.location ?? "");
+    setHost(event.host ?? "");
+    setCoverImageId(event.coverImageId ?? undefined);
+    setEventType(event.eventType ?? "general");
+    setVipAccessCode(event.vipAccessCode ?? "");
+    setTicketLimit(event.ticketLimit ?? "");
+    setVipLimit(event.vipTicketLimit ?? "");
+    setGeneralLimit(event.generalTicketLimit ?? "");
+    setCustomUrl(event.customUrl ?? "");
+    setIsSpecialEvent(event.isSpecialEvent ?? false);
+    setFormLoaded(true);
+  }, [eventId, event, formLoaded]);
+
+  useEffect(() => {
+    if (!eventId || existingQuestions === undefined || questionsLoadedFromServer) return;
+    setQuestionsLoadedFromServer(true);
+    setQuestions(existingQuestions.map(q => ({
+      text: q.questionText,
+      type: (q.questionType ?? "text") as QuestionItem["type"],
+      section: q.section ?? undefined,
+      order: q.order ?? undefined,
+      isRequired: q.isRequired ?? false,
+      options: q.options ?? undefined,
+      _id: q._id
+    })));
+  }, [eventId, existingQuestions, questionsLoadedFromServer]);
+
+  const handleSubmitEvent = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
-    // Validate custom URL format
     if (customUrl && !/^[a-zA-Z0-9-_]+$/.test(customUrl)) {
       setCustomUrlError("Custom URL can only contain letters, numbers, hyphens, and underscores");
       return;
     }
-    
+    const payload = {
+      title,
+      description,
+      eventDate: new Date(eventDate).getTime(),
+      registrationDeadline: registrationDeadline ? new Date(registrationDeadline).getTime() : undefined,
+      location,
+      host,
+      coverImageId,
+      eventType,
+      vipAccessCode: vipAccessCode || undefined,
+      ticketLimit: eventType === "vip_and_general" ? undefined : ticketLimit === "" ? undefined : ticketLimit,
+      vipTicketLimit: eventType === "vip_and_general" && vipLimit !== "" ? vipLimit : undefined,
+      generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined,
+      customUrl: customUrl.trim() || undefined,
+      isSpecialEvent: isSpecialEvent || undefined
+    };
     try {
-      const createdEventId = await createEventMutation({
-        title,
-        description,
-        eventDate: new Date(eventDate).getTime(),
-        registrationDeadline: registrationDeadline ? new Date(registrationDeadline).getTime() : undefined,
-        location,
-        host,
-        coverImageId,
-        eventType,
-        vipAccessCode: vipAccessCode || undefined,
-        ticketLimit: eventType === "vip_and_general" ? undefined : ticketLimit === "" ? undefined : ticketLimit,
-        vipTicketLimit: eventType === "vip_and_general" && vipLimit !== "" ? vipLimit : undefined,
-        generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined,
-        customUrl: customUrl.trim() || undefined,
-        isSpecialEvent: isSpecialEvent || undefined
-      });
-      await Promise.all(questions.map((question, index) => createEventQuestionMutation({
-        eventId: createdEventId,
-        questionText: question.text,
-        questionType: question.type,
-        isRequired: question.isRequired,
-        options: question.options,
-        section: question.section,
-        order: question.order ?? index
-      })));
-      setTitle("");
-      setDescription("");
-      setEventDate("");
-      setRegistrationDeadline("");
-      setLocation("");
-      setHost("");
-      setCustomUrl("");
-      setCustomUrlError("");
-      setCoverImageId(undefined);
-      setQuestions([]);
-      setQuestionText("");
-      setQuestionType("text");
-      setQuestionSection("");
-      setQuestionOrder("");
-      setIsRequired(false);
-      setQuestionOptions([]);
-      setNewOption("");
-      setIsSpecialEvent(false);
-      setEventType("general");
-      setVipAccessCode("");
-      setTicketLimit("");
-      setVipLimit("");
-      setGeneralLimit("");
-      toast({
-        title: "Success!",
-        description: "Event created successfully!"
-      });
-    } catch (error) {
-      console.error("Error creating event:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to create event. Try again!";
-      
-      // Handle custom URL validation errors
-      if (errorMessage.includes("Custom URL")) {
-        setCustomUrlError(errorMessage);
+      if (eventId) {
+        await editEventMutation({
+          eventId,
+          ...payload,
+          isSaberEvent: event?.isSaberEvent,
+          isSpecialEvent: isSpecialEvent || undefined
+        });
+        const newQuestions = questions.filter(q => !q._id);
+        await Promise.all(newQuestions.map((question, index) => createEventQuestionMutation({
+          eventId,
+          questionText: question.text,
+          questionType: question.type,
+          isRequired: question.isRequired,
+          options: question.options,
+          section: question.section,
+          order: question.order ?? (existingQuestions?.length ?? 0) + index
+        })));
+        toast({ title: "Success!", description: "Event updated successfully!" });
+        router.push(`/admin/events/${eventId}`);
+      } else {
+        const createdEventId = await createEventMutation(payload);
+        await Promise.all(questions.map((question, index) => createEventQuestionMutation({
+          eventId: createdEventId,
+          questionText: question.text,
+          questionType: question.type,
+          isRequired: question.isRequired,
+          options: question.options,
+          section: question.section,
+          order: question.order ?? index
+        })));
+        setTitle("");
+        setDescription("");
+        setEventDate("");
+        setRegistrationDeadline("");
+        setLocation("");
+        setHost("");
+        setCustomUrl("");
+        setCustomUrlError("");
+        setCoverImageId(undefined);
+        setQuestions([]);
+        setQuestionText("");
+        setQuestionType("text");
+        setQuestionSection("");
+        setQuestionOrder("");
+        setIsRequired(false);
+        setQuestionOptions([]);
+        setNewOption("");
+        setIsSpecialEvent(false);
+        setEventType("general");
+        setVipAccessCode("");
+        setTicketLimit("");
+        setVipLimit("");
+        setGeneralLimit("");
+        toast({ title: "Success!", description: "Event created successfully!" });
       }
-      
-      toast({
-        title: "Error!",
-        description: errorMessage,
-        variant: "destructive"
-      });
+    } catch (error) {
+      console.error(eventId ? "Error updating event:" : "Error creating event:", error);
+      const errorMessage = error instanceof Error ? error.message : (eventId ? "Failed to update event." : "Failed to create event. Try again!");
+      if (errorMessage.includes("Custom URL")) setCustomUrlError(errorMessage);
+      toast({ title: "Error!", description: errorMessage, variant: "destructive" });
     }
   };
   const handleAddQuestion = () => {
@@ -169,7 +220,7 @@ export default function CreateEventPage() {
   };
   return <div className="flex justify-center items-center min-h-screen px-4 sm:px-6">
       <div className="max-w-3xl w-full p-6 sm:p-8 bg-white shadow-lg rounded-lg">
-        <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-6">Create New Event</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-6">{eventId ? "Edit Event" : "Create New Event"}</h1>
 
         <div className="mb-4">
         <ImageUploader setImageId={storageId => {
@@ -183,7 +234,7 @@ export default function CreateEventPage() {
           setOpenModal(true);
           return;
         }
-        handleCreateEvent(e);
+        handleSubmitEvent(e);
       }} className="space-y-5">
           <div>
             <Label>Event Title</Label>
@@ -353,16 +404,31 @@ export default function CreateEventPage() {
                 {(questionType === "radio" || questionType === "checkbox") && (
                   <div className="space-y-2">
                     <Label>Options *</Label>
-                    <div className="flex gap-2">
+                    <p className="text-xs text-gray-500">
+                      Add an option named &quot;Other&quot; to let respondents enter their own text when they select it.
+                    </p>
+                    <div className="flex flex-wrap gap-2 items-center">
                       <Input 
                         value={newOption} 
                         onChange={e => setNewOption(e.target.value)}
                         onKeyPress={e => e.key === "Enter" && (e.preventDefault(), handleAddOption())}
                         placeholder="Add option"
+                        className="flex-1 min-w-[140px]"
                       />
                       <Button type="button" onClick={handleAddOption} className="bg-blue-600 hover:bg-blue-700">
                         <Plus className="w-4 h-4" />
                       </Button>
+                      {!questionOptions.includes("Other") && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setQuestionOptions(prev => [...prev, "Other"]);
+                          }}
+                        >
+                          Add &quot;Other&quot; (user can type their answer)
+                        </Button>
+                      )}
                     </div>
                     {questionOptions.length > 0 && (
                       <div className="space-y-1">
@@ -400,26 +466,29 @@ export default function CreateEventPage() {
                   <h4 className="font-semibold">Added Questions ({questions.length})</h4>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {questions.map((q, index) => (
-                      <div key={index} className="bg-gray-50 p-3 rounded flex items-start justify-between">
+                      <div key={q._id ?? index} className="bg-gray-50 p-3 rounded flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{q.section && `${q.section} - `}{q.text}</span>
                             {q.isRequired && <span className="text-red-600 text-xs">*</span>}
+                            {q._id && <span className="text-xs text-gray-500">(existing)</span>}
                           </div>
                           <div className="text-xs text-gray-600 mt-1">
                             Type: {q.type}
                             {q.options && ` (${q.options.length} options)`}
                           </div>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setQuestions(questions.filter((_, i) => i !== index))}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {!q._id && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setQuestions(questions.filter((_, i) => i !== index))}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -429,7 +498,7 @@ export default function CreateEventPage() {
           )}
 
           <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2">
-            <CheckCircle className="w-5 h-5" /> Create Event
+            <CheckCircle className="w-5 h-5" /> {eventId ? "Update Event" : "Create Event"}
           </Button>
         </form>
 
@@ -444,7 +513,7 @@ export default function CreateEventPage() {
       </Button>
       <Button variant="destructive" onClick={() => {
               setOpenModal(false);
-              handleCreateEvent();
+              handleSubmitEvent();
             }}>
         Yes, Continue
       </Button>

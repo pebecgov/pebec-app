@@ -413,22 +413,27 @@ export default function EventPage() {
     }
   };
 
-  const handleCheckboxChange = (questionId: Id<"event_questions">, option: string, checked: boolean) => {
+  const handleCheckboxChange = (questionId: Id<"event_questions">, option: string, checked: boolean, optionList?: string[]) => {
     setStructuredResponses(prev => {
       const current = (prev[questionId] as string[]) || [];
       if (checked) {
         return { ...prev, [questionId]: [...current, option] };
-      } else {
-        return { ...prev, [questionId]: current.filter(o => o !== option) };
       }
+      // When unchecking "Other", also remove the custom text value (any value not in the option list)
+      if (option === "Other" && optionList?.length) {
+        const cleaned = current.filter(v => v !== "Other" && optionList.includes(v));
+        return { ...prev, [questionId]: cleaned };
+      }
+      return { ...prev, [questionId]: current.filter(o => o !== option) };
     });
-    // Also update legacy format
     setAnswers(prevAnswers => {
       const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
       const currentValue = existingAnswer?.answer ? existingAnswer.answer.split(", ") : [];
       let newValue: string[];
       if (checked) {
         newValue = [...currentValue, option];
+      } else if (option === "Other" && optionList?.length) {
+        newValue = currentValue.filter(v => v !== "Other" && optionList.includes(v));
       } else {
         newValue = currentValue.filter(o => o !== option);
       }
@@ -436,10 +441,7 @@ export default function EventPage() {
         existingAnswer.answer = newValue.join(", ");
         return [...prevAnswers];
       }
-      return [...prevAnswers, {
-        questionId,
-        answer: newValue.join(", ")
-      }];
+      return [...prevAnswers, { questionId, answer: newValue.join(", ") }];
     });
   };
   
@@ -634,7 +636,7 @@ export default function EventPage() {
                                 <input
                                   type="checkbox"
                                   checked={checked}
-                                  onChange={e => handleCheckboxChange(questionId, option, e.target.checked)}
+                                  onChange={e => handleCheckboxChange(questionId, option, e.target.checked, question.options ?? undefined)}
                                   className="w-4 h-4 text-green-600"
                                 />
                                 <span className="text-sm">{option}</span>
@@ -642,23 +644,35 @@ export default function EventPage() {
                             );
                           })}
                           {question.options.includes("Other") && (
-                            <Input
-                              type="text"
-                              placeholder="Please specify"
-                              value={Array.isArray(currentValue) && currentValue.includes("Other") ? currentValue.find(v => v !== "Other" && !question.options?.includes(v)) || "" : ""}
-                              onChange={e => {
-                                const otherValue = e.target.value;
-                                const withoutOther = Array.isArray(currentValue) ? currentValue.filter(v => v !== "Other" && !question.options?.includes(v)) : [];
-                                if (otherValue.trim()) {
-                                  handleCheckboxChange(questionId, "Other", true);
-                                  setStructuredResponses(prev => ({
-                                    ...prev,
-                                    [questionId]: [...withoutOther, "Other", otherValue]
-                                  }));
-                                }
-                              }}
-                              className="mt-2 ml-6"
-                            />
+                            <>
+                              {Array.isArray(currentValue) && currentValue.includes("Other") && (
+                                <div className="mt-2 ml-6">
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">Please specify:</label>
+                                  <Input
+                                    type="text"
+                                    placeholder="Enter your answer"
+                                    value={(() => {
+                                      const arr = currentValue as string[];
+                                      return arr.find(v => v !== "Other" && !question.options?.includes(v)) ?? "";
+                                    })()}
+                                    onChange={e => {
+                                      const otherValue = e.target.value;
+                                      const withoutOtherAndCustom = (currentValue as string[]).filter(v => v !== "Other" && question.options?.includes(v));
+                                      if (otherValue.trim()) {
+                                        handleCheckboxChange(questionId, "Other", true);
+                                        setStructuredResponses(prev => ({
+                                          ...prev,
+                                          [questionId]: [...withoutOtherAndCustom, "Other", otherValue]
+                                        }));
+                                      } else {
+                                        handleCheckboxChange(questionId, "Other", false, question.options);
+                                      }
+                                    }}
+                                    className="w-full"
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       ) : question.questionType === "scale" ? (
