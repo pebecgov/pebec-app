@@ -65,6 +65,12 @@ export default function EventPage() {
   const coverImageUrl = storageId ? coverImageUrlQuery : "";
   const rsvpEventMutation = useMutation(api.events.rsvpEvent);
   const isPastEvent = event ? new Date(event.eventDate) < new Date() : false;
+  // Registration closes at deadline (if set) or at event time
+  const isRegistrationClosed = event
+    ? event.registrationDeadline != null
+      ? Date.now() > event.registrationDeadline
+      : isPastEvent
+    : false;
   const [ticketsLeft, setTicketsLeft] = useState<{
     vip: number | null;
     general: number | null;
@@ -559,7 +565,7 @@ export default function EventPage() {
         </div>
 
         {event?.isSpecialEvent && questions ? (
-          // Special event: Group by section and render advanced fields
+          // Special event: Group by section and render with decimal numbering (Section 1, 1.1, 1.2, Section 2, 2.1, ...)
           (() => {
             const sections = questions.reduce((acc, q) => {
               const section = q.section || "General";
@@ -572,20 +578,26 @@ export default function EventPage() {
             Object.keys(sections).forEach(section => {
               sections[section].sort((a, b) => (a.order || 0) - (b.order || 0));
             });
+            // Section order: by minimum question order in each section
+            const sectionNames = Object.keys(sections).sort(
+              (a, b) => Math.min(...sections[a].map(q => q.order ?? 0)) - Math.min(...sections[b].map(q => q.order ?? 0))
+            );
 
-            return Object.entries(sections).map(([sectionName, sectionQuestions]) => (
+            return sectionNames.map((sectionName, sectionIndex) => {
+              const sectionNumber = sectionIndex + 1;
+              const sectionQuestions = sections[sectionName];
+              return (
               <div key={sectionName} className="space-y-4 border-t pt-4 mt-4">
-                {sectionName !== "General" && (
-                  <h3 className="text-lg font-semibold text-gray-800">{sectionName}</h3>
-                )}
-                {sectionQuestions.map(question => {
+                <h3 className="text-lg font-semibold text-gray-800">Section {sectionNumber}: {sectionName}</h3>
+                {sectionQuestions.map((question, questionIndex) => {
+                  const questionNumber = questionIndex + 1;
                   const questionId = question._id as Id<"event_questions">;
                   const currentValue = structuredResponses[questionId];
                   
                   return (
                     <div key={question._id} className="space-y-2">
                       <label className="text-xs font-semibold text-gray-500">
-                        {question.questionText}
+                        {sectionNumber}.{questionNumber} {question.questionText}
                         {question.isRequired && <span className="text-red-600 ml-1">*</span>}
                       </label>
                       
@@ -679,7 +691,8 @@ export default function EventPage() {
                   );
                 })}
               </div>
-            ));
+              );
+            });
           })()
         ) : (
           // Legacy event: Simple questions
@@ -695,8 +708,8 @@ export default function EventPage() {
           ))
         )}
 
-        <Button type="submit" disabled={loading || isPastEvent || isFormIncomplete} className={`w-full text-white ${isPastEvent || isFormIncomplete ? "bg-gray-400 cursor-not-allowed" : loading ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
-          {isPastEvent ? "Event Closed" : loading ? "Generating Ticket..." : "Sign Up & Get Ticket"}
+        <Button type="submit" disabled={loading || isRegistrationClosed || isFormIncomplete} className={`w-full text-white ${isRegistrationClosed || isFormIncomplete ? "bg-gray-400 cursor-not-allowed" : loading ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
+          {isRegistrationClosed ? (event?.registrationDeadline != null ? "Registration Closed" : "Event Closed") : loading ? "Generating Ticket..." : "Sign Up & Get Ticket"}
         </Button>
       </form>
     </>}
@@ -720,14 +733,14 @@ export default function EventPage() {
       <ul className="space-y-2 text-sm">
         <li className="flex items-center gap-2">
           <span className="text-blue-300">📅</span>
-          <span className="font-medium">Date:</span>
+          <span className="font-medium">Event Date:</span>
           <span>
             {event?.eventDate ? new Date(event.eventDate).toLocaleDateString() : "TBD"}
           </span>
         </li>
         <li className="flex items-center gap-2">
           <span className="text-yellow-300">⏰</span>
-          <span className="font-medium">Time:</span>
+          <span className="font-medium">Event Time:</span>
           <span>
             {event?.eventDate ? new Date(event.eventDate).toLocaleTimeString([], {
                     hour: "2-digit",
@@ -735,6 +748,16 @@ export default function EventPage() {
                   }) : "TBD"}
           </span>
         </li>
+        {event?.registrationDeadline != null && (
+          <li className="flex items-center gap-2">
+            <span className="text-amber-300">📋</span>
+            <span className="font-medium">Registration closes:</span>
+            <span>
+              {new Date(event.registrationDeadline).toLocaleDateString()} at{" "}
+              {new Date(event.registrationDeadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </li>
+        )}
         <li className="flex items-center gap-2">
           <span className="text-purple-300">👤</span>
           <span className="font-medium">Host:</span>

@@ -38,6 +38,36 @@ export default function EventDetailsPage() {
   const specialEventData = useQuery(api.events.getSpecialEventResponses, event?.isSpecialEvent ? {
     eventId
   } : "skip");
+  // Decimal numbering for special event questions (Section 1 → 1.1, 1.2; Section 2 → 2.1, 2.2, ...)
+  const specialEventQuestionsWithLabels = useMemo(() => {
+    if (!specialEventData?.questions?.length) return [];
+    const questions = specialEventData.questions;
+    const sections = questions.reduce((acc: Record<string, typeof questions>, q) => {
+      const section = q.section || "General";
+      if (!acc[section]) acc[section] = [];
+      acc[section].push(q);
+      return acc;
+    }, {});
+    Object.keys(sections).forEach(section => {
+      sections[section].sort((a, b) => (a.order || 0) - (b.order || 0));
+    });
+    const sectionNames = Object.keys(sections).sort(
+      (a, b) => Math.min(...sections[a].map(q => q.order ?? 0)) - Math.min(...sections[b].map(q => q.order ?? 0))
+    );
+    const result: { questionId: Id<"event_questions">; label: string; question: (typeof questions)[0] }[] = [];
+    sectionNames.forEach((sectionName, sectionIndex) => {
+      const sectionNumber = sectionIndex + 1;
+      sections[sectionName].forEach((q, questionIndex) => {
+        const questionNumber = questionIndex + 1;
+        result.push({
+          questionId: q._id,
+          label: `${sectionNumber}.${questionNumber} ${q.questionText}`,
+          question: q
+        });
+      });
+    });
+    return result;
+  }, [specialEventData?.questions]);
   const filteredRegistrations = useMemo(() => {
     if (!registrations) return [];
     return registrations.filter(reg => {
@@ -75,14 +105,12 @@ export default function EventDetailsPage() {
           'Ticket Type': reg.isVip ? 'VIP' : 'General',
           'Registered At': new Date(reg.registeredAt).toLocaleString()
         };
-        // Add all question responses
-        if (reg.structuredResponses) {
-          Object.entries(reg.structuredResponses).forEach(([questionId, data]: [string, any]) => {
-            const question = specialEventData.questions.find(q => q._id === questionId);
-            if (question) {
-              const answer = Array.isArray(data.answer) ? data.answer.join("; ") : data.answer;
-              row[question.questionText] = answer || '';
-            }
+        // Add all question responses with decimal labels (e.g. "5.1 Question text")
+        if (reg.structuredResponses && specialEventQuestionsWithLabels.length) {
+          specialEventQuestionsWithLabels.forEach(({ questionId, label }) => {
+            const data = reg.structuredResponses?.[questionId];
+            const answer = data?.answer;
+            row[label] = Array.isArray(answer) ? answer.join("; ") : (answer ?? '');
           });
         }
         return row;
@@ -178,7 +206,10 @@ export default function EventDetailsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
     <div>
-      <p className="text-gray-600"><strong>Date:</strong> {format(new Date(event.eventDate), 'PPpp')}</p>
+      <p className="text-gray-600"><strong>Event Date:</strong> {format(new Date(event.eventDate), 'PPpp')}</p>
+      {event.registrationDeadline != null && (
+        <p className="text-gray-600"><strong>Registration Deadline:</strong> {format(new Date(event.registrationDeadline), 'PPpp')}</p>
+      )}
       <p className="text-gray-600"><strong>Host:</strong> {event.host}</p>
       <p className="text-gray-600"><strong>Location:</strong> {event.location}</p>
     </div>
@@ -343,16 +374,11 @@ export default function EventDetailsPage() {
                         'Designation': reg.designation || '',
                         'Registered At': new Date(reg.registeredAt).toLocaleString()
                       };
-                      // Add all question responses
-                      if (reg.structuredResponses) {
-                        Object.entries(reg.structuredResponses).forEach(([questionId, data]: [string, any]) => {
-                          const question = specialEventData.questions.find(q => q._id === questionId);
-                          if (question) {
-                            const answer = Array.isArray(data.answer) ? data.answer.join("; ") : data.answer;
-                            row[question.questionText] = answer || '';
-                          }
-                        });
-                      }
+                      specialEventQuestionsWithLabels.forEach(({ questionId, label }) => {
+                        const data = reg.structuredResponses?.[questionId];
+                        const answer = data?.answer;
+                        row[label] = Array.isArray(answer) ? answer.join("; ") : (answer ?? '');
+                      });
                       exportData.push(row);
                     });
                     exportToExcel(exportData, `${event.title}_Responses`);
@@ -372,10 +398,10 @@ export default function EventDetailsPage() {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Organization</TableHead>
-                      {specialEventData.questions.map(q => (
-                        <TableHead key={q._id} className="max-w-xs">
-                          {q.questionText}
-                          {q.isRequired && <span className="text-red-600 ml-1">*</span>}
+                      {specialEventQuestionsWithLabels.map(({ questionId, label, question }) => (
+                        <TableHead key={questionId} className="max-w-xs">
+                          {label}
+                          {question.isRequired && <span className="text-red-600 ml-1">*</span>}
                         </TableHead>
                       ))}
                     </TableRow>
@@ -387,11 +413,11 @@ export default function EventDetailsPage() {
                         <TableCell>{reg.firstName} {reg.lastName}</TableCell>
                         <TableCell>{reg.email}</TableCell>
                         <TableCell>{reg.organization}</TableCell>
-                        {specialEventData.questions.map(q => {
-                          const response = reg.structuredResponses?.[q._id];
+                        {specialEventQuestionsWithLabels.map(({ questionId, question }) => {
+                          const response = reg.structuredResponses?.[questionId];
                           const answer = response?.answer;
                           return (
-                            <TableCell key={q._id} className="max-w-xs">
+                            <TableCell key={questionId} className="max-w-xs">
                               {Array.isArray(answer) ? (
                                 <div className="space-y-1">
                                   {answer.map((a, idx) => (

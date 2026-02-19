@@ -313,6 +313,7 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     eventDate: v.number(),
+    registrationDeadline: v.optional(v.number()), // When registration closes (defaults to event date if not set)
     location: v.string(),
     host: v.string(),
     coverImageId: v.optional(v.id("_storage")),
