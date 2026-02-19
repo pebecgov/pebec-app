@@ -179,11 +179,11 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
       if (errorMessage.includes("Custom URL")) {
         setCustomUrlError(errorMessage);
       }
-    } catch (error) {
-      console.error(eventId ? "Error updating event:" : "Error creating event:", error);
-      const errorMessage = error instanceof Error ? error.message : (eventId ? "Failed to update event." : "Failed to create event. Try again!");
-      if (errorMessage.includes("Custom URL")) setCustomUrlError(errorMessage);
-      toast({ title: "Error!", description: errorMessage, variant: "destructive" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : (eventId ? "Failed to update event." : "Failed to create event. Try again!");
+      console.error(eventId ? "Error updating event:" : "Error creating event:", err);
+      if (msg.includes("Custom URL")) setCustomUrlError(msg);
+      toast({ title: "Error!", description: msg, variant: "destructive" });
     }
   };
   const handleAddQuestion = () => {
