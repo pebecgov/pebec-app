@@ -24,6 +24,7 @@ export default function CreateEventPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [registrationDeadline, setRegistrationDeadline] = useState("");
   const [location, setLocation] = useState("");
   const [host, setHost] = useState("");
   const [coverImageId, setCoverImageId] = useState<Id<"_storage"> | undefined>(undefined);
@@ -65,6 +66,7 @@ export default function CreateEventPage() {
         title,
         description,
         eventDate: new Date(eventDate).getTime(),
+        registrationDeadline: registrationDeadline ? new Date(registrationDeadline).getTime() : undefined,
         location,
         host,
         coverImageId,
@@ -88,6 +90,7 @@ export default function CreateEventPage() {
       setTitle("");
       setDescription("");
       setEventDate("");
+      setRegistrationDeadline("");
       setLocation("");
       setHost("");
       setCustomUrl("");
@@ -193,8 +196,20 @@ export default function CreateEventPage() {
           </div>
 
           <div>
-            <Label>Event Date</Label>
+            <Label>Event Date & Time</Label>
             <Input type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)} required />
+          </div>
+
+          <div>
+            <Label>Registration Deadline (optional)</Label>
+            <Input
+              type="datetime-local"
+              value={registrationDeadline}
+              onChange={e => setRegistrationDeadline(e.target.value)}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              When registration closes. Leave empty to allow registration until the event date.
+            </p>
           </div>
 
           <div>

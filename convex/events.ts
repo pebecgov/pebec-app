@@ -14,6 +14,7 @@ export const createEvent = mutation({
     title: v.string(),
     description: v.string(),
     eventDate: v.number(),
+    registrationDeadline: v.optional(v.number()),
     location: v.string(),
     host: v.string(),
     coverImageId: v.optional(v.id("_storage")),
@@ -49,6 +50,7 @@ export const createEvent = mutation({
       title: args.title,
       description: args.description,
       eventDate: args.eventDate,
+      registrationDeadline: args.registrationDeadline,
       location: args.location,
       host: args.host,
       coverImageId: args.coverImageId,
@@ -636,6 +638,7 @@ export const editEvent = mutation({
     title: v.string(),
     description: v.string(),
     eventDate: v.number(),
+    registrationDeadline: v.optional(v.number()),
     location: v.string(),
     host: v.string(),
     coverImageId: v.optional(v.id("_storage")),
@@ -655,7 +658,8 @@ export const editEvent = mutation({
     const changes: string[] = [];
     if (event.title !== updateData.title) changes.push(`Title: "${event.title}" → "${updateData.title}"`);
     if (event.description !== updateData.description) changes.push(`Description was updated`);
-    if (event.eventDate !== updateData.eventDate) changes.push(`Date: ${new Date(event.eventDate).toLocaleString()} → ${new Date(updateData.eventDate).toLocaleString()}`);
+    if (event.eventDate !== updateData.eventDate) changes.push(`Event date: ${new Date(event.eventDate).toLocaleString()} → ${new Date(updateData.eventDate).toLocaleString()}`);
+    if (event.registrationDeadline !== updateData.registrationDeadline) changes.push(`Registration deadline was updated`);
     if (event.location !== updateData.location) changes.push(`Location: "${event.location}" → "${updateData.location}"`);
     if (event.host !== updateData.host) changes.push(`Host: "${event.host}" → "${updateData.host}"`);
     if (event.eventType !== updateData.eventType) changes.push(`Type: "${event.eventType}" → "${updateData.eventType}"`);
