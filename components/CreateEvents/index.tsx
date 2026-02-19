@@ -118,73 +118,71 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
       customUrl: customUrl.trim() || undefined,
       isSpecialEvent: isSpecialEvent || undefined
     };
-    try {
-      const createdEventId = await createEventMutation({
-        title,
-        description,
-        eventDate: new Date(eventDate).getTime(),
-        registrationDeadline: registrationDeadline ? new Date(registrationDeadline).getTime() : undefined,
-        location,
-        host,
-        coverImageId,
-        eventType,
-        vipAccessCode: vipAccessCode || undefined,
-        ticketLimit: eventType === "vip_and_general" ? undefined : ticketLimit === "" ? undefined : ticketLimit,
-        vipTicketLimit: eventType === "vip_and_general" && vipLimit !== "" ? vipLimit : undefined,
-        generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined,
-        customUrl: customUrl.trim() || undefined,
-        isSpecialEvent: isSpecialEvent || undefined
-      });
-      await Promise.all(questions.map((question, index) => createEventQuestionMutation({
-        eventId: createdEventId,
-        questionText: question.text,
-        questionType: question.type,
-        isRequired: question.isRequired,
-        options: question.options,
-        section: question.section,
-        order: question.order ?? index
-      })));
-      setTitle("");
-      setDescription("");
-      setEventDate("");
-      setRegistrationDeadline("");
-      setLocation("");
-      setHost("");
-      setCustomUrl("");
-      setCustomUrlError("");
-      setCoverImageId(undefined);
-      setQuestions([]);
-      setQuestionText("");
-      setQuestionType("text");
-      setQuestionSection("");
-      setQuestionOrder("");
-      setIsRequired(false);
-      setQuestionOptions([]);
-      setNewOption("");
-      setIsSpecialEvent(false);
-      setEventType("general");
-      setVipAccessCode("");
-      setTicketLimit("");
-      setVipLimit("");
-      setGeneralLimit("");
-      toast({
-        title: "Success!",
-        description: "Event created successfully!"
-      });
-    } catch (error) {
-      console.error("Error creating event:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to create event. Try again!";
-      
-      // Handle custom URL validation errors
-      if (errorMessage.includes("Custom URL")) {
-        setCustomUrlError(errorMessage);
+
+    const run = async () => {
+      if (eventId) {
+        await editEventMutation({
+          eventId,
+          ...payload,
+          isSaberEvent: event?.isSaberEvent,
+          isSpecialEvent: isSpecialEvent || undefined
+        });
+        const newQuestions = questions.filter(q => !q._id);
+        await Promise.all(newQuestions.map((question, index) => createEventQuestionMutation({
+          eventId,
+          questionText: question.text,
+          questionType: question.type,
+          isRequired: question.isRequired,
+          options: question.options,
+          section: question.section,
+          order: question.order ?? (existingQuestions?.length ?? 0) + index
+        })));
+        toast({ title: "Success!", description: "Event updated successfully!" });
+        router.push(`/admin/events/${eventId}`);
+      } else {
+        const createdEventId = await createEventMutation(payload);
+        await Promise.all(questions.map((question, index) => createEventQuestionMutation({
+          eventId: createdEventId,
+          questionText: question.text,
+          questionType: question.type,
+          isRequired: question.isRequired,
+          options: question.options,
+          section: question.section,
+          order: question.order ?? index
+        })));
+        setTitle("");
+        setDescription("");
+        setEventDate("");
+        setRegistrationDeadline("");
+        setLocation("");
+        setHost("");
+        setCustomUrl("");
+        setCustomUrlError("");
+        setCoverImageId(undefined);
+        setQuestions([]);
+        setQuestionText("");
+        setQuestionType("text");
+        setQuestionSection("");
+        setQuestionOrder("");
+        setIsRequired(false);
+        setQuestionOptions([]);
+        setNewOption("");
+        setIsSpecialEvent(false);
+        setEventType("general");
+        setVipAccessCode("");
+        setTicketLimit("");
+        setVipLimit("");
+        setGeneralLimit("");
+        toast({ title: "Success!", description: "Event created successfully!" });
       }
-    } catch (err) {
+    };
+
+    run().catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : (eventId ? "Failed to update event." : "Failed to create event. Try again!");
       console.error(eventId ? "Error updating event:" : "Error creating event:", err);
-      if (msg.includes("Custom URL")) setCustomUrlError(msg);
-      toast({ title: "Error!", description: msg, variant: "destructive" });
-    }
+      if (typeof msg === "string" && msg.includes("Custom URL")) setCustomUrlError(msg);
+      toast({ title: "Error!", description: String(msg), variant: "destructive" });
+    });
   };
   const handleAddQuestion = () => {
     if (!questionText.trim()) return;
