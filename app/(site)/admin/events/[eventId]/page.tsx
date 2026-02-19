@@ -12,10 +12,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Id } from '@/convex/_generated/dataModel';
 import * as XLSX from 'xlsx';
-import { Link } from 'lucide-react';
+import { Link, Download } from 'lucide-react';
 import { useRouter } from "next/navigation";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function EventDetailsPage() {
   const params = useParams();
   const rawEventId = params.eventId as string;
@@ -34,6 +35,9 @@ export default function EventDetailsPage() {
     eventId,
     ticketType: ticketType === 'all' ? undefined : ticketType
   });
+  const specialEventData = useQuery(api.events.getSpecialEventResponses, event?.isSpecialEvent ? {
+    eventId
+  } : "skip");
   const filteredRegistrations = useMemo(() => {
     if (!registrations) return [];
     return registrations.filter(reg => {
@@ -55,14 +59,44 @@ export default function EventDetailsPage() {
   const handleExport = (format: 'pdf' | 'excel', filter?: 'vip' | 'general') => {
     if (!filteredRegistrations || !event) return;
     const filteredData = filter ? filteredRegistrations.filter(reg => filter === 'vip' ? reg.isVip : !reg.isVip) : filteredRegistrations;
-    const exportData = filteredData.map(reg => ({
-      'Ticket Number': reg.ticketNumber,
-      'First Name': reg.firstName || '',
-      'Last Name': reg.lastName || '',
-      'Email': reg.email || '',
-      'Phone': reg.phone || '',
-      'Ticket Type': reg.isVip ? 'VIP' : 'General'
-    }));
+    
+    // For special events, include structured responses
+    let exportData: any[];
+    if (event.isSpecialEvent && specialEventData) {
+      exportData = filteredData.map(reg => {
+        const row: any = {
+          'Ticket Number': reg.ticketNumber,
+          'First Name': reg.firstName || '',
+          'Last Name': reg.lastName || '',
+          'Email': reg.email || '',
+          'Phone': reg.phone || '',
+          'Organization': reg.organization || '',
+          'Designation': reg.designation || '',
+          'Ticket Type': reg.isVip ? 'VIP' : 'General',
+          'Registered At': new Date(reg.registeredAt).toLocaleString()
+        };
+        // Add all question responses
+        if (reg.structuredResponses) {
+          Object.entries(reg.structuredResponses).forEach(([questionId, data]: [string, any]) => {
+            const question = specialEventData.questions.find(q => q._id === questionId);
+            if (question) {
+              const answer = Array.isArray(data.answer) ? data.answer.join("; ") : data.answer;
+              row[question.questionText] = answer || '';
+            }
+          });
+        }
+        return row;
+      });
+    } else {
+      exportData = filteredData.map(reg => ({
+        'Ticket Number': reg.ticketNumber,
+        'First Name': reg.firstName || '',
+        'Last Name': reg.lastName || '',
+        'Email': reg.email || '',
+        'Phone': reg.phone || '',
+        'Ticket Type': reg.isVip ? 'VIP' : 'General'
+      }));
+    }
     if (format === 'excel') {
       exportToExcel(exportData, filter ? `Attendees_${filter}` : 'Attendees_All');
     } else {
@@ -257,30 +291,153 @@ export default function EventDetailsPage() {
     </div>
 
 
-      <div className="overflow-x-auto bg-white rounded-md shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Ticket Number</TableHead>
-              <TableHead>First Name</TableHead>
-              <TableHead>Last Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Ticket Type</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginated.map(reg => <TableRow key={reg._id}>
-                <TableCell>{reg.ticketNumber}</TableCell>
-                <TableCell>{reg.firstName}</TableCell>
-                <TableCell>{reg.lastName}</TableCell>
-                <TableCell>{reg.email}</TableCell>
-                <TableCell>{reg.phone}</TableCell>
-                <TableCell>{reg.isVip ? 'VIP' : 'General'}</TableCell>
-              </TableRow>)}
-          </TableBody>
-        </Table>
-      </div>
+      {event.isSpecialEvent && specialEventData ? (
+        <Tabs defaultValue="attendees" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="attendees">Attendees</TabsTrigger>
+            <TabsTrigger value="responses">Form Responses</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="attendees">
+            <div className="overflow-x-auto bg-white rounded-md shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ticket Number</TableHead>
+                    <TableHead>First Name</TableHead>
+                    <TableHead>Last Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Ticket Type</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginated.map(reg => <TableRow key={reg._id}>
+                      <TableCell>{reg.ticketNumber}</TableCell>
+                      <TableCell>{reg.firstName}</TableCell>
+                      <TableCell>{reg.lastName}</TableCell>
+                      <TableCell>{reg.email}</TableCell>
+                      <TableCell>{reg.phone}</TableCell>
+                      <TableCell>{reg.isVip ? 'VIP' : 'General'}</TableCell>
+                    </TableRow>)}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="responses">
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => {
+                    if (!specialEventData) return;
+                    const exportData: any[] = [];
+                    specialEventData.registrations.forEach(reg => {
+                      const row: any = {
+                        'Ticket Number': reg.ticketNumber,
+                        'First Name': reg.firstName || '',
+                        'Last Name': reg.lastName || '',
+                        'Email': reg.email || '',
+                        'Phone': reg.phone || '',
+                        'Organization': reg.organization || '',
+                        'Designation': reg.designation || '',
+                        'Registered At': new Date(reg.registeredAt).toLocaleString()
+                      };
+                      // Add all question responses
+                      if (reg.structuredResponses) {
+                        Object.entries(reg.structuredResponses).forEach(([questionId, data]: [string, any]) => {
+                          const question = specialEventData.questions.find(q => q._id === questionId);
+                          if (question) {
+                            const answer = Array.isArray(data.answer) ? data.answer.join("; ") : data.answer;
+                            row[question.questionText] = answer || '';
+                          }
+                        });
+                      }
+                      exportData.push(row);
+                    });
+                    exportToExcel(exportData, `${event.title}_Responses`);
+                  }}
+                  className="bg-green-600 text-white hover:bg-green-700"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export All Responses (Excel)
+                </Button>
+              </div>
+              
+              <div className="overflow-x-auto bg-white rounded-md shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ticket #</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Organization</TableHead>
+                      {specialEventData.questions.map(q => (
+                        <TableHead key={q._id} className="max-w-xs">
+                          {q.questionText}
+                          {q.isRequired && <span className="text-red-600 ml-1">*</span>}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {specialEventData.registrations.map(reg => (
+                      <TableRow key={reg._id}>
+                        <TableCell className="font-medium">{reg.ticketNumber}</TableCell>
+                        <TableCell>{reg.firstName} {reg.lastName}</TableCell>
+                        <TableCell>{reg.email}</TableCell>
+                        <TableCell>{reg.organization}</TableCell>
+                        {specialEventData.questions.map(q => {
+                          const response = reg.structuredResponses?.[q._id];
+                          const answer = response?.answer;
+                          return (
+                            <TableCell key={q._id} className="max-w-xs">
+                              {Array.isArray(answer) ? (
+                                <div className="space-y-1">
+                                  {answer.map((a, idx) => (
+                                    <div key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">{a}</div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-sm">{answer || '-'}</span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <div className="overflow-x-auto bg-white rounded-md shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ticket Number</TableHead>
+                <TableHead>First Name</TableHead>
+                <TableHead>Last Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Ticket Type</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginated.map(reg => <TableRow key={reg._id}>
+                  <TableCell>{reg.ticketNumber}</TableCell>
+                  <TableCell>{reg.firstName}</TableCell>
+                  <TableCell>{reg.lastName}</TableCell>
+                  <TableCell>{reg.email}</TableCell>
+                  <TableCell>{reg.phone}</TableCell>
+                  <TableCell>{reg.isVip ? 'VIP' : 'General'}</TableCell>
+                </TableRow>)}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <div className="flex justify-between items-center mt-4">
         <Button disabled={page === 1} onClick={() => setPage(page - 1)}>
