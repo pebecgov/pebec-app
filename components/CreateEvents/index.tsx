@@ -272,7 +272,6 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
             <Label>Host Name</Label>
             <Input value={host} onChange={e => setHost(e.target.value)} required />
           </div>
-
           <div>
             <Label>Custom URL (optional)</Label>
             <Input 
