@@ -590,7 +590,7 @@ export default function EventPage() {
               const sectionQuestions = sections[sectionName];
               return (
               <div key={sectionName} className="space-y-4 border-t pt-4 mt-4">
-                <h3 className="text-lg font-semibold text-gray-800">Section {sectionNumber}: {sectionName}</h3>
+                <h3 className="text-lg font-semibold text-gray-800">{sectionName}</h3>
                 {sectionQuestions.map((question, questionIndex) => {
                   const questionNumber = questionIndex + 1;
                   const questionId = question._id as Id<"event_questions">;

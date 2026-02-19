@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Plus, CheckCircle, X, Trash2 } from "lucide-react";
+import { Plus, CheckCircle, X, Trash2, Pencil } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 
@@ -32,6 +32,11 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
   const createEventMutation = useMutation(api.events.createEvent);
   const editEventMutation = useMutation(api.events.editEvent);
   const createEventQuestionMutation = useMutation(api.events.createEventQuestion);
+  const updateEventQuestionMutation = useMutation(api.events.updateEventQuestion);
+  const [editingQuestionId, setEditingQuestionId] = useState<Id<"event_questions"> | null>(null);
+  const [editSection, setEditSection] = useState("");
+  const [editOrder, setEditOrder] = useState<number | "">("");
+  const [editIsRequired, setEditIsRequired] = useState(false);
   const event = useQuery(api.events.getEventDetails, eventId ? { eventId } : "skip");
   const existingQuestions = useQuery(api.events.getEventQuestions, eventId && event ? { eventId } : "skip");
   const [formLoaded, setFormLoaded] = useState(false);
@@ -470,30 +475,105 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
               {questions.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <h4 className="font-semibold">Added Questions ({questions.length})</h4>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <p className="text-xs text-gray-500">Use the same Section name for questions in the same section (e.g. &quot;Section 2: Challenges Experienced&quot;). Order controls 2.1, 2.2, 2.3 within that section.</p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
                     {questions.map((q, index) => (
-                      <div key={q._id ?? index} className="bg-gray-50 p-3 rounded flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{q.section && `${q.section} - `}{q.text}</span>
-                            {q.isRequired && <span className="text-red-600 text-xs">*</span>}
-                            {q._id && <span className="text-xs text-gray-500">(existing)</span>}
+                      <div key={q._id ?? index} className="bg-gray-50 p-3 rounded flex flex-col gap-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{q.section && `${q.section} - `}{q.text}</span>
+                              {q.isRequired && <span className="text-red-600 text-xs">*</span>}
+                              {q._id && <span className="text-xs text-gray-500">(existing)</span>}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              Type: {q.type}
+                              {q.options && ` (${q.options.length} options)`}
+                            </div>
                           </div>
-                          <div className="text-xs text-gray-600 mt-1">
-                            Type: {q.type}
-                            {q.options && ` (${q.options.length} options)`}
-                          </div>
+                          {!q._id ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setQuestions(questions.filter((_, i) => i !== index))}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          ) : eventId && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingQuestionId(q._id!);
+                                setEditSection(q.section ?? "");
+                                setEditOrder(q.order ?? "");
+                                setEditIsRequired(q.isRequired ?? false);
+                              }}
+                              className="text-green-700"
+                            >
+                              <Pencil className="w-4 h-4 mr-1" /> Section & order
+                            </Button>
+                          )}
                         </div>
-                        {!q._id && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setQuestions(questions.filter((_, i) => i !== index))}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                        {q._id && editingQuestionId === q._id && (
+                          <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-gray-200">
+                            <div className="flex-1 min-w-[180px]">
+                              <Label className="text-xs">Section (same name = same section)</Label>
+                              <Input
+                                value={editSection}
+                                onChange={e => setEditSection(e.target.value)}
+                                placeholder="e.g. Section 2: Challenges Experienced"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div className="w-24">
+                              <Label className="text-xs">Order</Label>
+                              <Input
+                                type="number"
+                                value={editOrder}
+                                onChange={e => setEditOrder(e.target.value === "" ? "" : Number(e.target.value))}
+                                placeholder="0"
+                                className="mt-1"
+                              />
+                            </div>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editIsRequired}
+                                onChange={e => setEditIsRequired(e.target.checked)}
+                                className="w-4 h-4"
+                              />
+                              <span className="text-xs font-medium">Required</span>
+                            </label>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await updateEventQuestionMutation({
+                                    questionId: q._id!,
+                                    section: editSection.trim() || undefined,
+                                    order: editOrder === "" ? undefined : Number(editOrder),
+                                    isRequired: editIsRequired
+                                  });
+                                  setQuestions(prev => prev.map(x => x._id === q._id ? { ...x, section: editSection.trim() || undefined, order: editOrder === "" ? undefined : Number(editOrder), isRequired: editIsRequired } : x));
+                                  setEditingQuestionId(null);
+                                  toast({ title: "Saved", description: "Section, order and required updated." });
+                                } catch (err) {
+                                  toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to update", variant: "destructive" });
+                                }
+                              }}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              Save
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => setEditingQuestionId(null)}>
+                              Cancel
+                            </Button>
+                          </div>
                         )}
                       </div>
                     ))}

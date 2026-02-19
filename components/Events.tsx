@@ -7,9 +7,7 @@ import Image from 'next/image';
 import { Spinner } from '@/components/ui/spinner';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock } from 'lucide-react';
 export const metadata = {
   title: 'Upcoming Events - PEBEC',
   description: 'Discover and join our upcoming events!'
@@ -48,96 +46,63 @@ export default function EventsPage() {
 
         {!events ? <div className="flex h-40 items-center justify-center">
           <Spinner size="lg" />
-        </div> : <ul className="grid gap-6 md:grid-cols-2">
-          {/* Workshop Event Card */}
+        </div> : <ul className="grid gap-6 grid-cols-1">
+          {/* Workshop Event Card - image left, details right */}
           {isWorkshopUpcoming && (
-            <li className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden">
-              <div className="relative w-full bg-white">
+            <li className="flex flex-row bg-white border rounded-xl shadow-sm hover:shadow-md transition overflow-hidden">
+              <div className="relative w-full min-w-[45%] max-w-[50%] aspect-[4/3] md:aspect-auto md:min-h-[280px] shrink-0">
                 <Image
                   src="/images/workshop-banner.png"
                   alt="Strategic Engagement Workshop"
-                  width={800}
-                  height={600}
-                  className="w-full h-auto object-contain"
+                  fill
+                  className="object-cover object-center"
                 />
               </div>
-
-              <div className="p-4 flex flex-col flex-grow justify-between space-y-3">
-                <div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Strategic Engagement on Business Facilitation & Investment Access</h3>
-                      <p className="text-sm text-gray-600">
-                        Hosted by PEBEC & Embassy of the United Arab Emirates, Abuja
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge className="text-xs bg-green-600 text-white px-2 py-1">
-                        Oct 14, 2024
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-gray-500 mt-1">Presenting Strategic Investment opportunities in the UAE and Highlighting Nigeria's Business and Investment Climate</p>
-
-                  <div className="flex items-center text-sm text-gray-600 gap-2 mt-1">
-                    <Clock className="w-4 h-4" />
-                    11:00 AM
-                  </div>
+              <div className="flex flex-col justify-between p-6 flex-1">
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-green-700">Strategic Engagement on Business Facilitation & Investment Access</h3>
+                  <p className="text-sm text-gray-600">Date: Oct 14, 2024</p>
+                  <p className="text-sm text-gray-600">Time: 11:00 AM</p>
+                  <p className="text-sm text-gray-600">Hosted by: PEBEC & Embassy of the United Arab Emirates, Abuja</p>
+                  <p className="text-sm text-gray-500 mt-2 line-clamp-2">Presenting Strategic Investment opportunities in the UAE and Highlighting Nigeria's Business and Investment Climate</p>
                 </div>
-
-                <Link href="/workshop">
-                  <Button className="w-full bg-green-600 hover:bg-green-700 text-white mt-3">
-                    Register Now
+                <Link href="/workshop" className="mt-4">
+                  <Button className="w-full sm:w-auto bg-gray-800 hover:bg-gray-900 text-white">
+                    Register
                   </Button>
                 </Link>
               </div>
             </li>
           )}
 
-
-          {/* Regular Events */}
-          {upcomingEvents.map(event => <li key={event._id} className="flex flex-col justify-between bg-white border rounded-lg shadow-sm hover:shadow-md transition overflow-hidden min-h-[420px]">
-            { }
-            <div className="relative w-full h-40 bg-white">
-              <Image src={event.coverImageUrl || '/placeholder.jpg'} alt={event.title} fill className="object-cover object-center" />
-            </div>
-
-            { }
-            <div className="p-4 flex flex-col flex-grow justify-between space-y-3">
-              <div>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
-                    <p className="text-sm text-gray-600">
-                      Hosted by {event.host || 'PEBEC'}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge className="text-xs bg-green-600 text-white px-2 py-1">
-                      {format(new Date(event.eventDate), 'PP')}
-                    </Badge>
-
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-500 mt-1">{event.description}</p>
-
-                <div className="flex items-center text-sm text-gray-600 gap-2 mt-1">
-                  <Clock className="w-4 h-4" />
-                  {format(new Date(event.eventDate), 'p')}
-                </div>
-
-                { }
+          {/* Regular Events - image left, details right */}
+          {upcomingEvents.map(event => (
+            <li key={event._id} className="flex flex-row bg-white border rounded-xl shadow-sm hover:shadow-md transition overflow-hidden">
+              <div className="relative w-full min-w-[45%] max-w-[50%] aspect-[4/3] md:aspect-auto md:min-h-[280px] shrink-0">
+                <Image
+                  src={event.coverImageUrl || '/placeholder.jpg'}
+                  alt={event.title}
+                  fill
+                  className="object-cover object-center"
+                />
               </div>
-
-              <Link href={`/events/${event.customUrl || event._id}`}>
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white mt-3">
-                  View Details
-                </Button>
-              </Link>
-            </div>
-          </li>)}
+              <div className="flex flex-col justify-between p-6 flex-1">
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold text-green-700">{event.title}</h3>
+                  <p className="text-sm text-gray-600">Date: {format(new Date(event.eventDate), 'do MMMM yyyy')}</p>
+                  <p className="text-sm text-gray-600">Time: {format(new Date(event.eventDate), 'hh:mm a')}</p>
+                  {event.location && <p className="text-sm text-gray-600">Location: {event.location}</p>}
+                  <p className="text-sm text-gray-600">Hosted by: {event.host || 'PEBEC'}</p>
+                  {event.description && <p className="text-sm text-gray-500 mt-2 line-clamp-3">{event.description}</p>}
+                </div>
+                <Link href={`/events/${event.customUrl || event._id}`} className="mt-4">
+                  <Button className="w-full sm:w-auto bg-gray-800 hover:bg-gray-900 text-white">
+                    Register
+                  </Button>
+                </Link>
+              </div>
+            </li>
+          ))}
         </ul>}
       </div>
 

@@ -146,6 +146,26 @@ export const createEventQuestion = mutation({
     return question;
   }
 });
+
+export const updateEventQuestion = mutation({
+  args: {
+    questionId: v.id("event_questions"),
+    section: v.optional(v.string()),
+    order: v.optional(v.number()),
+    isRequired: v.optional(v.boolean())
+  },
+  handler: async (ctx, { questionId, section, order, isRequired }) => {
+    await getCurrentUserOrThrow(ctx);
+    const question = await ctx.db.get(questionId);
+    if (!question) throw new Error("Question not found");
+    const patch: { section?: string; order?: number; isRequired?: boolean } = {};
+    if (section !== undefined) patch.section = section || undefined;
+    if (order !== undefined) patch.order = order;
+    if (isRequired !== undefined) patch.isRequired = isRequired;
+    await ctx.db.patch(questionId, patch);
+  }
+});
+
 export const getEventQuestions = query({
   args: {
     eventId: v.id("events")
