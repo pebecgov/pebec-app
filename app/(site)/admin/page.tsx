@@ -15,44 +15,48 @@ import TicketSummary from "@/components/TicketsStats";
 import EventAnalyticsDashboard from "@/components/EventsStats";
 import HolidayAnnouncementsDisplay from "@/components/HolidayWhereabout/HolidayAnnouncementsDisplay";
 import SeventyTwoHourResolutionDashboard from "@/components/SeventyTwoHourResolutionDashboard";
+import UpcomingMeetings from "@/components/StaffAnalytics/UpcomingMeetings";
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("tickets");
   return <div className="mt-5">
-        <div className="mt-5 mb-5">
-        <SeventyTwoHourResolutionDashboard />
-        </div>
-        <div className="mt-5 mb-5">
-        <TicketSummary />
-        </div>
-         <div className="mt-5 mb-5">
-        <UsersCard />
-        </div>
-        <div className="mt-5 mb-5">
-        <LetterStatsDashboard />
-        </div>
-      <div className="mt-5 mb-5">
-        <TicketsChart />
-        </div>
+    <div className="mt-5 mb-5">
+      <SeventyTwoHourResolutionDashboard />
+    </div>
+    <div className="mt-5 mb-5">
+      <TicketSummary />
+    </div>
+    <div className="mt-5 mb-5">
+      <UpcomingMeetings baseUrl="/admin/meeting-calendar" />
+    </div>
+    <div className="mt-5 mb-5">
+      <UsersCard />
+    </div>
+    <div className="mt-5 mb-5">
+      <LetterStatsDashboard />
+    </div>
+    <div className="mt-5 mb-5">
+      <TicketsChart />
+    </div>
 
-       
 
-     
 
-        <div className="mt-5 mb-5">
-        <MdaChart />
-        </div>
 
-        <div className="mt-5 mb-5">
-        <AdminMonthlyTicketsReport />
-        </div>
 
-        <div className="mt-5 mb-5">
-        <EventAnalyticsDashboard />
-        </div>
+    <div className="mt-5 mb-5">
+      <MdaChart />
+    </div>
 
-        <div className="mt-5 mb-5">
-        <HolidayAnnouncementsDisplay />
-        </div>
-        
-        </div>;
+    <div className="mt-5 mb-5">
+      <AdminMonthlyTicketsReport />
+    </div>
+
+    <div className="mt-5 mb-5">
+      <EventAnalyticsDashboard />
+    </div>
+
+    <div className="mt-5 mb-5">
+      <HolidayAnnouncementsDisplay />
+    </div>
+
+  </div>;
 }

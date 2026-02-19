@@ -8,7 +8,11 @@ import { CalendarDaysIcon, ClockIcon, ArrowRightIcon } from "@heroicons/react/24
 import { format, parseISO } from "date-fns";
 import { formatWorkstream } from "@/lib/formatters";
 
-export default function UpcomingMeetings() {
+interface UpcomingMeetingsProps {
+    baseUrl?: string;
+}
+
+export default function UpcomingMeetings({ baseUrl = "/staff/meeting-calendar" }: UpcomingMeetingsProps) {
     const router = useRouter();
     const upcomingMeetings = useQuery(api.calendar.getUpcomingMeetings, { limit: 5 }) || [];
 
@@ -20,7 +24,7 @@ export default function UpcomingMeetings() {
                     <h2 className="text-xl font-semibold text-gray-800">Events of the Week</h2>
                 </div>
                 <button
-                    onClick={() => router.push("/staff/meeting-calendar")}
+                    onClick={() => router.push(baseUrl)}
                     className="text-sm text-green-600 hover:text-green-700 font-medium flex items-center gap-1"
                 >
                     View All
@@ -33,7 +37,7 @@ export default function UpcomingMeetings() {
                     <CalendarDaysIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 text-sm">No upcoming events</p>
                     <button
-                        onClick={() => router.push("/staff/meeting-calendar")}
+                        onClick={() => router.push(baseUrl)}
                         className="mt-3 text-sm text-green-600 hover:text-green-700 font-medium"
                     >
                         Create an event
@@ -42,14 +46,17 @@ export default function UpcomingMeetings() {
             ) : (
                 <div className="space-y-3">
                     {upcomingMeetings.map((meeting) => {
-                        const meetingDate = parseISO(meeting.date);
-                        const isToday = format(new Date(), "yyyy-MM-dd") === meeting.date;
+                        const startDate = parseISO(meeting.date);
+                        const endDate = meeting.endDate ? parseISO(meeting.endDate) : startDate;
+                        const todayStr = format(new Date(), "yyyy-MM-dd");
+                        const isToday = todayStr >= meeting.date && todayStr <= (meeting.endDate || meeting.date);
+                        const isMultiDay = meeting.endDate && meeting.endDate !== meeting.date;
 
                         return (
                             <div
                                 key={meeting._id}
                                 className={`border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer bg-gradient-to-r ${meeting.meetingType === "external" ? "from-red-50 border-l-4 border-l-red-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
-                                onClick={() => router.push("/staff/meeting-calendar")}
+                                onClick={() => router.push(baseUrl)}
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
@@ -59,7 +66,11 @@ export default function UpcomingMeetings() {
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
                                             <CalendarDaysIcon className="w-4 h-4" />
                                             <span>
-                                                {isToday ? "Today" : format(meetingDate, "MMM d, yyyy")}
+                                                {isMultiDay ? (
+                                                    `${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")}`
+                                                ) : (
+                                                    isToday ? "Today" : format(startDate, "MMM d, yyyy")
+                                                )}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
@@ -68,6 +79,7 @@ export default function UpcomingMeetings() {
                                                 {meeting.startTime} - {meeting.endTime}
                                             </span>
                                         </div>
+
                                         {meeting.description && (
                                             <p className="text-xs text-gray-500 mt-2 line-clamp-2">
                                                 {meeting.description}
