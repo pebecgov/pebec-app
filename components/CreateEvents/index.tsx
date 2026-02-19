@@ -118,7 +118,8 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
       customUrl: customUrl.trim() || undefined,
       isSpecialEvent: isSpecialEvent || undefined
     };
-    try {
+
+    const run = async () => {
       if (eventId) {
         await editEventMutation({
           eventId,
@@ -174,12 +175,14 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
         setGeneralLimit("");
         toast({ title: "Success!", description: "Event created successfully!" });
       }
-    } catch (err) {
+    };
+
+    run().catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : (eventId ? "Failed to update event." : "Failed to create event. Try again!");
       console.error(eventId ? "Error updating event:" : "Error creating event:", err);
-      if (msg.includes("Custom URL")) setCustomUrlError(msg);
-      toast({ title: "Error!", description: msg, variant: "destructive" });
-    }
+      if (typeof msg === "string" && msg.includes("Custom URL")) setCustomUrlError(msg);
+      toast({ title: "Error!", description: String(msg), variant: "destructive" });
+    });
   };
   const handleAddQuestion = () => {
     if (!questionText.trim()) return;
