@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -472,21 +472,47 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
                 </Button>
               </div>
 
-              {questions.length > 0 && (
+              {questions.length > 0 && (() => {
+                // Same numbering logic as registration form: group by section, sort sections by min order, then number as 1.1, 1.2, 2.1, 2.2, 2.3, etc.
+                const sections = questions.reduce((acc: Record<string, QuestionItem[]>, q) => {
+                  const sec = q.section || "General";
+                  if (!acc[sec]) acc[sec] = [];
+                  acc[sec].push(q);
+                  return acc;
+                }, {});
+                Object.keys(sections).forEach(sec => sections[sec].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+                const sectionNames = Object.keys(sections).sort(
+                  (a, b) => Math.min(...sections[a].map(q => q.order ?? 0)) - Math.min(...sections[b].map(q => q.order ?? 0))
+                );
+                const questionToDisplayNumber: Map<QuestionItem, string> = new Map();
+                sectionNames.forEach((name, sIdx) => {
+                  sections[name].forEach((q, qIdx) => {
+                    questionToDisplayNumber.set(q, `${sIdx + 1}.${qIdx + 1}`);
+                  });
+                });
+                // Sort questions in display order (section 1, then section 2, etc.)
+                const sortedQuestions = sectionNames.flatMap(name => sections[name]);
+                return (
                 <div className="mt-4 space-y-2">
                   <h4 className="font-semibold">Added Questions ({questions.length})</h4>
-                  <p className="text-xs text-gray-500">Use the same Section name for questions in the same section (e.g. &quot;Section 2: Challenges Experienced&quot;). Order controls 2.1, 2.2, 2.3 within that section.</p>
+                  <p className="text-xs text-gray-500">Shown as on the form. To move e.g. 3.1 → 2.3: click &quot;Edit&quot; and set Section to the <strong>exact same</strong> as 2.1/2.2 (e.g. &quot;Section 2: Challenges Experienced&quot;) and Order to 2.</p>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {questions.map((q, index) => (
+                    {sortedQuestions.map((q, index) => {
+                      const displayNum = questionToDisplayNumber.get(q) ?? "?";
+                      const originalIndex = questions.indexOf(q);
+                      return (
                       <div key={q._id ?? index} className="bg-gray-50 p-3 rounded flex flex-col gap-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{q.section && `${q.section} - `}{q.text}</span>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono font-semibold text-green-700 shrink-0">{displayNum}</span>
+                              <span className="font-medium break-words">{q.text}</span>
                               {q.isRequired && <span className="text-red-600 text-xs">*</span>}
                               {q._id && <span className="text-xs text-gray-500">(existing)</span>}
                             </div>
                             <div className="text-xs text-gray-600 mt-1">
+                              {q.section && <span>Section: {q.section}</span>}
+                              {q.section && " · "}
                               Type: {q.type}
                               {q.options && ` (${q.options.length} options)`}
                             </div>
@@ -496,15 +522,15 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
                               type="button"
                               variant="ghost"
                               size="sm"
-                              onClick={() => setQuestions(questions.filter((_, i) => i !== index))}
-                              className="text-red-600 hover:text-red-700"
+                              onClick={() => setQuestions(questions.filter((_, i) => i !== originalIndex))}
+                              className="text-red-600 hover:text-red-700 shrink-0"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           ) : eventId && (
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => {
                                 setEditingQuestionId(q._id!);
@@ -512,16 +538,16 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
                                 setEditOrder(q.order ?? "");
                                 setEditIsRequired(q.isRequired ?? false);
                               }}
-                              className="text-green-700"
+                              className="text-green-700 shrink-0"
                             >
-                              <Pencil className="w-4 h-4 mr-1" /> Section & order
+                              <Pencil className="w-4 h-4 mr-1" /> Edit
                             </Button>
                           )}
                         </div>
                         {q._id && editingQuestionId === q._id && (
                           <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-gray-200">
                             <div className="flex-1 min-w-[180px]">
-                              <Label className="text-xs">Section (same name = same section)</Label>
+                              <Label className="text-xs">Section — use exact same text as 2.1/2.2 to make this 2.3</Label>
                               <Input
                                 value={editSection}
                                 onChange={e => setEditSection(e.target.value)}
@@ -530,7 +556,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
                               />
                             </div>
                             <div className="w-24">
-                              <Label className="text-xs">Order</Label>
+                              <Label className="text-xs">Order (e.g. 2 for 2.3)</Label>
                               <Input
                                 type="number"
                                 value={editOrder}
@@ -576,10 +602,11 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
                           </div>
                         )}
                       </div>
-                    ))}
+                    ); })}
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
