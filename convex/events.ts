@@ -23,7 +23,8 @@ export const createEvent = mutation({
     vipTicketLimit: v.optional(v.number()),
     generalTicketLimit: v.optional(v.number()),
     isSaberEvent: v.optional(v.boolean()),
-    customUrl: v.optional(v.string())
+    customUrl: v.optional(v.string()),
+    isSpecialEvent: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -60,7 +61,8 @@ export const createEvent = mutation({
       vipTicketLimit: args.vipTicketLimit,
       generalTicketLimit: args.generalTicketLimit,
       isSaberEvent: args.isSaberEvent || false,
-      customUrl: args.customUrl
+      customUrl: args.customUrl,
+      isSpecialEvent: args.isSpecialEvent || false
     });
     return event;
   }
@@ -111,12 +113,20 @@ export const createEventQuestion = mutation({
   args: {
     eventId: v.id("events"),
     questionText: v.string(),
-    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale"))
+    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale"), v.literal("radio"), v.literal("checkbox"), v.literal("textarea")),
+    isRequired: v.optional(v.boolean()),
+    options: v.optional(v.array(v.string())),
+    section: v.optional(v.string()),
+    order: v.optional(v.number())
   },
   handler: async (ctx, {
     eventId,
     questionText,
-    questionType
+    questionType,
+    isRequired,
+    options,
+    section,
+    order
   }) => {
     const user = await getCurrentUserOrThrow(ctx);
     const createdAt = Date.now();
@@ -124,6 +134,10 @@ export const createEventQuestion = mutation({
       eventId,
       questionText,
       questionType,
+      isRequired: isRequired ?? false,
+      options: options ?? undefined,
+      section: section ?? undefined,
+      order: order ?? undefined,
       createdBy: user._id,
       createdAt
     });
@@ -148,6 +162,7 @@ export const rsvpEvent = mutation({
       questionId: v.id("event_questions"),
       answer: v.string()
     })),
+    structuredResponses: v.optional(v.any()), // For special events: { questionId: { answer: string | string[], questionText: string } }
     userId: v.optional(v.id("users")),
     email: v.optional(v.string()),
     firstName: v.optional(v.string()),
@@ -162,6 +177,7 @@ export const rsvpEvent = mutation({
   handler: async (ctx, {
     eventId,
     answers,
+    structuredResponses,
     userId,
     email,
     qrCode,
@@ -194,6 +210,7 @@ export const rsvpEvent = mutation({
       organization: organization,
       designation: designation,
       questionnaireAnswers: answers.map(a => a.answer),
+      structuredResponses: structuredResponses ?? undefined,
       ticketNumber,
       qrCode,
       ticketPdfId,
@@ -664,6 +681,51 @@ export const editEvent = mutation({
     }
   }
 });
+// Get special event registrations with structured responses
+export const getSpecialEventResponses = query({
+  args: {
+    eventId: v.id("events")
+  },
+  handler: async (ctx, { eventId }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin") {
+      throw new Error("Only admins can view event responses");
+    }
+    
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found");
+    
+    const registrations = await ctx.db.query("event_registrations")
+      .withIndex("byEvent", q => q.eq("eventId", eventId))
+      .collect();
+    
+    const questions = await ctx.db.query("event_questions")
+      .withIndex("byEvent", q => q.eq("eventId", eventId))
+      .collect();
+    
+    // Sort questions by section and order
+    const sortedQuestions = questions.sort((a, b) => {
+      if (a.section !== b.section) {
+        return (a.section || "").localeCompare(b.section || "");
+      }
+      return (a.order || 0) - (b.order || 0);
+    });
+    
+    const registrationsWithUrls = await Promise.all(
+      registrations.map(async (reg) => ({
+        ...reg,
+        ticketPdfUrl: reg.ticketPdfId ? await ctx.storage.getUrl(reg.ticketPdfId) : null
+      }))
+    );
+
+    return {
+      event,
+      questions: sortedQuestions,
+      registrations: registrationsWithUrls
+    };
+  }
+});
+
 export const deleteEvent = mutation({
   args: {
     eventId: v.id("events")

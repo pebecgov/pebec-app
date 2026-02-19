@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Plus, CheckCircle } from "lucide-react";
+import { Plus, CheckCircle, X, Trash2 } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 export default function CreateEventPage() {
   const {
@@ -27,11 +27,21 @@ export default function CreateEventPage() {
   const [location, setLocation] = useState("");
   const [host, setHost] = useState("");
   const [coverImageId, setCoverImageId] = useState<Id<"_storage"> | undefined>(undefined);
+  const [isSpecialEvent, setIsSpecialEvent] = useState(false);
   const [questionText, setQuestionText] = useState("");
-  const [questionType, setQuestionType] = useState<"text" | "number" | "email" | "scale">("text");
+  const [questionType, setQuestionType] = useState<"text" | "number" | "email" | "scale" | "radio" | "checkbox" | "textarea">("text");
+  const [questionSection, setQuestionSection] = useState("");
+  const [questionOrder, setQuestionOrder] = useState<number | "">("");
+  const [isRequired, setIsRequired] = useState(false);
+  const [questionOptions, setQuestionOptions] = useState<string[]>([]);
+  const [newOption, setNewOption] = useState("");
   const [questions, setQuestions] = useState<{
     text: string;
-    type: "text" | "number" | "email" | "scale";
+    type: "text" | "number" | "email" | "scale" | "radio" | "checkbox" | "textarea";
+    section?: string;
+    order?: number;
+    isRequired?: boolean;
+    options?: string[];
   }[]>([]);
   const [openModal, setOpenModal] = useState(false);
   const [eventType, setEventType] = useState<"vip" | "general" | "vip_and_general">("general");
@@ -63,12 +73,17 @@ export default function CreateEventPage() {
         ticketLimit: eventType === "vip_and_general" ? undefined : ticketLimit === "" ? undefined : ticketLimit,
         vipTicketLimit: eventType === "vip_and_general" && vipLimit !== "" ? vipLimit : undefined,
         generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined,
-        customUrl: customUrl.trim() || undefined
+        customUrl: customUrl.trim() || undefined,
+        isSpecialEvent: isSpecialEvent || undefined
       });
-      await Promise.all(questions.map(question => createEventQuestionMutation({
+      await Promise.all(questions.map((question, index) => createEventQuestionMutation({
         eventId: createdEventId,
         questionText: question.text,
-        questionType: question.type
+        questionType: question.type,
+        isRequired: question.isRequired,
+        options: question.options,
+        section: question.section,
+        order: question.order ?? index
       })));
       setTitle("");
       setDescription("");
@@ -81,6 +96,12 @@ export default function CreateEventPage() {
       setQuestions([]);
       setQuestionText("");
       setQuestionType("text");
+      setQuestionSection("");
+      setQuestionOrder("");
+      setIsRequired(false);
+      setQuestionOptions([]);
+      setNewOption("");
+      setIsSpecialEvent(false);
       setEventType("general");
       setVipAccessCode("");
       setTicketLimit("");
@@ -108,12 +129,40 @@ export default function CreateEventPage() {
   };
   const handleAddQuestion = () => {
     if (!questionText.trim()) return;
+    if ((questionType === "radio" || questionType === "checkbox") && questionOptions.length === 0) {
+      toast({
+        title: "Error!",
+        description: "Please add at least one option for radio/checkbox questions",
+        variant: "destructive"
+      });
+      return;
+    }
     setQuestions([...questions, {
       text: questionText,
-      type: questionType
+      type: questionType,
+      section: questionSection || undefined,
+      order: questionOrder === "" ? undefined : Number(questionOrder),
+      isRequired: isRequired,
+      options: questionOptions.length > 0 ? questionOptions : undefined
     }]);
     setQuestionText("");
     setQuestionType("text");
+    setQuestionSection("");
+    setQuestionOrder("");
+    setIsRequired(false);
+    setQuestionOptions([]);
+    setNewOption("");
+  };
+
+  const handleAddOption = () => {
+    if (newOption.trim() && !questionOptions.includes(newOption.trim())) {
+      setQuestionOptions([...questionOptions, newOption.trim()]);
+      setNewOption("");
+    }
+  };
+
+  const handleRemoveOption = (index: number) => {
+    setQuestionOptions(questionOptions.filter((_, i) => i !== index));
   };
   return <div className="flex justify-center items-center min-h-screen px-4 sm:px-6">
       <div className="max-w-3xl w-full p-6 sm:p-8 bg-white shadow-lg rounded-lg">
@@ -204,7 +253,165 @@ export default function CreateEventPage() {
               <Input type="number" value={ticketLimit} onChange={e => setTicketLimit(e.target.value === "" ? "" : Number(e.target.value))} min={1} />
             </div>}
 
-          {}
+          <div className="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              id="specialEvent" 
+              checked={isSpecialEvent}
+              onChange={(e) => setIsSpecialEvent(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <Label htmlFor="specialEvent" className="cursor-pointer">
+              Special Event (with advanced form fields)
+            </Label>
+          </div>
+
+          {isSpecialEvent && (
+            <div className="border-t pt-5 space-y-4">
+              <h3 className="text-lg font-semibold">Add Questions</h3>
+              
+              <div className="space-y-3">
+                <div>
+                  <Label>Section (e.g., "Section 1: General Information")</Label>
+                  <Input 
+                    value={questionSection} 
+                    onChange={e => setQuestionSection(e.target.value)} 
+                    placeholder="Optional"
+                  />
+                </div>
+                
+                <div>
+                  <Label>Order (optional)</Label>
+                  <Input 
+                    type="number" 
+                    value={questionOrder} 
+                    onChange={e => setQuestionOrder(e.target.value === "" ? "" : Number(e.target.value))} 
+                    placeholder="Order within section"
+                  />
+                </div>
+
+                <div>
+                  <Label>Question Text *</Label>
+                  <Textarea 
+                    value={questionText} 
+                    onChange={e => setQuestionText(e.target.value)} 
+                    placeholder="Enter your question"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label>Question Type *</Label>
+                  <select 
+                    value={questionType} 
+                    onChange={e => {
+                      setQuestionType(e.target.value as any);
+                      if (e.target.value !== "radio" && e.target.value !== "checkbox") {
+                        setQuestionOptions([]);
+                      }
+                    }} 
+                    className="border p-2 rounded-md w-full"
+                  >
+                    <option value="text">Text Input</option>
+                    <option value="textarea">Text Area</option>
+                    <option value="radio">Radio Buttons (Single Choice)</option>
+                    <option value="checkbox">Checkboxes (Multiple Choice)</option>
+                    <option value="number">Number</option>
+                    <option value="email">Email</option>
+                    <option value="scale">Scale (1-5)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    id="isRequired" 
+                    checked={isRequired}
+                    onChange={(e) => setIsRequired(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <Label htmlFor="isRequired" className="cursor-pointer">
+                    Required Field
+                  </Label>
+                </div>
+
+                {(questionType === "radio" || questionType === "checkbox") && (
+                  <div className="space-y-2">
+                    <Label>Options *</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        value={newOption} 
+                        onChange={e => setNewOption(e.target.value)}
+                        onKeyPress={e => e.key === "Enter" && (e.preventDefault(), handleAddOption())}
+                        placeholder="Add option"
+                      />
+                      <Button type="button" onClick={handleAddOption} className="bg-blue-600 hover:bg-blue-700">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {questionOptions.length > 0 && (
+                      <div className="space-y-1">
+                        {questionOptions.map((option, index) => (
+                          <div key={index} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                            <span className="flex-1">{option}</span>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleRemoveOption(index)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <Button 
+                  type="button" 
+                  onClick={handleAddQuestion}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  disabled={!questionText.trim()}
+                >
+                  <Plus className="w-4 h-4 mr-2" /> Add Question
+                </Button>
+              </div>
+
+              {questions.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className="font-semibold">Added Questions ({questions.length})</h4>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {questions.map((q, index) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{q.section && `${q.section} - `}{q.text}</span>
+                            {q.isRequired && <span className="text-red-600 text-xs">*</span>}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            Type: {q.type}
+                            {q.options && ` (${q.options.length} options)`}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setQuestions(questions.filter((_, i) => i !== index))}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2">
             <CheckCircle className="w-5 h-5" /> Create Event
