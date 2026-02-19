@@ -1052,10 +1052,13 @@ export default defineSchema({
   // Calendar Meetings - Team meetings visible to all staff
   calendar_meetings: defineTable({
     name: v.string(),
-    date: v.string(), // yyyy-MM-dd format
+    date: v.string(), // yyyy-MM-dd format (Start Date)
+    endDate: v.optional(v.string()), // yyyy-MM-dd format
     startTime: v.string(), // HH:mm format
     endTime: v.string(), // HH:mm format
     description: v.optional(v.string()),
+
+
     meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
     internalParticipants: v.optional(v.array(v.object({
       type: v.union(v.literal("staff"), v.literal("workstream")),
