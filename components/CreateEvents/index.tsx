@@ -404,30 +404,34 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
                 {(questionType === "radio" || questionType === "checkbox") && (
                   <div className="space-y-2">
                     <Label>Options *</Label>
-                    <p className="text-xs text-gray-500">
-                      Add an option named &quot;Other&quot; to let respondents enter their own text when they select it.
-                    </p>
-                    <div className="flex flex-wrap gap-2 items-center">
+                    <div className="flex gap-2 items-center">
                       <Input 
                         value={newOption} 
                         onChange={e => setNewOption(e.target.value)}
                         onKeyPress={e => e.key === "Enter" && (e.preventDefault(), handleAddOption())}
                         placeholder="Add option"
-                        className="flex-1 min-w-[140px]"
+                        className="flex-1 min-w-0"
                       />
-                      <Button type="button" onClick={handleAddOption} className="bg-blue-600 hover:bg-blue-700">
+                      <Button type="button" onClick={handleAddOption} className="bg-blue-600 hover:bg-blue-700 shrink-0">
                         <Plus className="w-4 h-4" />
                       </Button>
-                      {!questionOptions.includes("Other") && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setQuestionOptions(prev => [...prev, "Other"]);
-                          }}
-                        >
-                          Add &quot;Other&quot; (user can type their answer)
-                        </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {questionOptions.includes("Other") ? (
+                        <span className="text-sm text-green-600">✓ &quot;Other&quot; added — respondents can type their answer when they select it.</span>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setQuestionOptions(prev => [...prev, "Other"])}
+                            className="shrink-0"
+                          >
+                            + Add &quot;Other&quot;
+                          </Button>
+                          <span className="text-xs text-gray-500">Let respondents type their own answer when they check this.</span>
+                        </>
                       )}
                     </div>
                     {questionOptions.length > 0 && (
