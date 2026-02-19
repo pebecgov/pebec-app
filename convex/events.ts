@@ -646,15 +646,32 @@ export const editEvent = mutation({
     vipAccessCode: v.optional(v.string()),
     ticketLimit: v.optional(v.number()),
     vipTicketLimit: v.optional(v.number()),
-    generalTicketLimit: v.optional(v.number())
+    generalTicketLimit: v.optional(v.number()),
+    customUrl: v.optional(v.string()),
+    isSaberEvent: v.optional(v.boolean()),
+    isSpecialEvent: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const {
       eventId,
+      customUrl,
       ...updateData
     } = args;
     const event = await ctx.db.get(eventId);
     if (!event) throw new Error("Event not found");
+    // Validate custom URL uniqueness when provided (exclude current event)
+    if (customUrl !== undefined) {
+      const urlSafePattern = /^[a-zA-Z0-9-_]+$/;
+      if (customUrl && !urlSafePattern.test(customUrl)) {
+        throw new Error("Custom URL can only contain letters, numbers, hyphens, and underscores");
+      }
+      if (customUrl) {
+        const existing = await ctx.db.query("events").withIndex("byCustomUrl", q => q.eq("customUrl", customUrl)).first();
+        if (existing && existing._id !== eventId) {
+          throw new Error("Custom URL is already taken. Please choose a different one.");
+        }
+      }
+    }
     const changes: string[] = [];
     if (event.title !== updateData.title) changes.push(`Title: "${event.title}" → "${updateData.title}"`);
     if (event.description !== updateData.description) changes.push(`Description was updated`);
@@ -665,6 +682,9 @@ export const editEvent = mutation({
     if (event.eventType !== updateData.eventType) changes.push(`Type: "${event.eventType}" → "${updateData.eventType}"`);
     await ctx.db.patch(eventId, {
       ...updateData,
+      ...(customUrl !== undefined && { customUrl: customUrl || undefined }),
+      ...(args.isSaberEvent !== undefined && { isSaberEvent: args.isSaberEvent }),
+      ...(args.isSpecialEvent !== undefined && { isSpecialEvent: args.isSpecialEvent }),
       updatedAt: Date.now()
     });
     const registrations = await ctx.db.query("event_registrations").withIndex("byEvent", q => q.eq("eventId", eventId)).collect();

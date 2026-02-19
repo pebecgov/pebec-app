@@ -237,8 +237,9 @@ export default function EventDetailsPage() {
   </Button>
 
   <div className="mt-4 flex gap-4">
-  {}
-
+  <Link href={`/admin/create-events/${eventId}`}>
+    <Button variant="outline">✏️ Edit Event</Button>
+  </Link>
   <Dialog>
     <DialogTrigger asChild>
       <Button variant="destructive">🗑️ Delete Event</Button>
