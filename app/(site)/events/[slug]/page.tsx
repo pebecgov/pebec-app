@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useParams } from "next/navigation";
 import { Id } from "@/convex/_generated/dataModel";
 import Image from "next/image";
@@ -22,6 +23,7 @@ export default function EventPage() {
     questionId: Id<"event_questions">;
     answer: string;
   }[]>([]);
+  const [structuredResponses, setStructuredResponses] = useState<Record<string, string | string[]>>({});
   const [showMobileTicket, setShowMobileTicket] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,7 +212,21 @@ export default function EventPage() {
       console.error("🚨 Event not found or questions still loading");
       return;
     }
-    const allAnswered = questions.every(q => answers.some(a => a.questionId === q._id && a.answer.trim() !== ""));
+    // Validate required fields for special events
+    let allAnswered = true;
+    if (event.isSpecialEvent) {
+      allAnswered = questions.every(q => {
+        if (!q.isRequired) return true;
+        if (q.questionType === "checkbox") {
+          const response = structuredResponses[q._id] as string[] | undefined;
+          return response && response.length > 0;
+        }
+        const answer = structuredResponses[q._id] as string | undefined;
+        return answer && answer.toString().trim() !== "";
+      });
+    } else {
+      allAnswered = questions.every(q => answers.some(a => a.questionId === q._id && a.answer.trim() !== ""));
+    }
     if (!currentUser && (!email.trim() || !firstName.trim() || !lastName.trim() || !phone.trim())) {
       setError("❌ Please enter your full name, email, and phone number.");
       return;
@@ -312,9 +328,24 @@ export default function EventPage() {
       const {
         storageId
       } = await response.json();
+      // Build structured responses for special events
+      const structuredResp: Record<string, { answer: string | string[], questionText: string }> = {};
+      if (event.isSpecialEvent && questions) {
+        questions.forEach(q => {
+          const response = structuredResponses[q._id];
+          if (response !== undefined) {
+            structuredResp[q._id] = {
+              answer: response,
+              questionText: q.questionText
+            };
+          }
+        });
+      }
+
       await rsvpEventMutation({
         eventId: event._id,
         answers,
+        structuredResponses: event.isSpecialEvent ? structuredResp : undefined,
         userId: currentUser?._id ?? undefined,
         email: !currentUser ? email : undefined,
         firstName: !currentUser ? firstName : undefined,
@@ -342,15 +373,66 @@ export default function EventPage() {
   };
   
   const handleChange = (questionId: Id<"event_questions">, value: string) => {
+    // Legacy support for non-special events
+    if (!event?.isSpecialEvent) {
+      setAnswers(prevAnswers => {
+        const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
+        if (existingAnswer) {
+          existingAnswer.answer = value;
+          return [...prevAnswers];
+        }
+        return [...prevAnswers, {
+          questionId,
+          answer: value
+        }];
+      });
+    } else {
+      // Special event: use structured responses
+      setStructuredResponses(prev => ({
+        ...prev,
+        [questionId]: value
+      }));
+      // Also update legacy format for compatibility
+      setAnswers(prevAnswers => {
+        const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
+        if (existingAnswer) {
+          existingAnswer.answer = value;
+          return [...prevAnswers];
+        }
+        return [...prevAnswers, {
+          questionId,
+          answer: value
+        }];
+      });
+    }
+  };
+
+  const handleCheckboxChange = (questionId: Id<"event_questions">, option: string, checked: boolean) => {
+    setStructuredResponses(prev => {
+      const current = (prev[questionId] as string[]) || [];
+      if (checked) {
+        return { ...prev, [questionId]: [...current, option] };
+      } else {
+        return { ...prev, [questionId]: current.filter(o => o !== option) };
+      }
+    });
+    // Also update legacy format
     setAnswers(prevAnswers => {
       const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
+      const currentValue = existingAnswer?.answer ? existingAnswer.answer.split(", ") : [];
+      let newValue: string[];
+      if (checked) {
+        newValue = [...currentValue, option];
+      } else {
+        newValue = currentValue.filter(o => o !== option);
+      }
       if (existingAnswer) {
-        existingAnswer.answer = value;
+        existingAnswer.answer = newValue.join(", ");
         return [...prevAnswers];
       }
       return [...prevAnswers, {
         questionId,
-        answer: value
+        answer: newValue.join(", ")
       }];
     });
   };
@@ -476,10 +558,142 @@ export default function EventPage() {
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" required />
         </div>
 
-        {questions?.map(question => <div key={question._id}>
-            <label className="text-xs font-semibold text-gray-500">{question.questionText}</label>
-            <input type={question.questionType} onChange={e => handleChange(question._id as Id<"event_questions">, e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" />
-          </div>)}
+        {event?.isSpecialEvent && questions ? (
+          // Special event: Group by section and render advanced fields
+          (() => {
+            const sections = questions.reduce((acc, q) => {
+              const section = q.section || "General";
+              if (!acc[section]) acc[section] = [];
+              acc[section].push(q);
+              return acc;
+            }, {} as Record<string, typeof questions>);
+            
+            // Sort questions within each section by order
+            Object.keys(sections).forEach(section => {
+              sections[section].sort((a, b) => (a.order || 0) - (b.order || 0));
+            });
+
+            return Object.entries(sections).map(([sectionName, sectionQuestions]) => (
+              <div key={sectionName} className="space-y-4 border-t pt-4 mt-4">
+                {sectionName !== "General" && (
+                  <h3 className="text-lg font-semibold text-gray-800">{sectionName}</h3>
+                )}
+                {sectionQuestions.map(question => {
+                  const questionId = question._id as Id<"event_questions">;
+                  const currentValue = structuredResponses[questionId];
+                  
+                  return (
+                    <div key={question._id} className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500">
+                        {question.questionText}
+                        {question.isRequired && <span className="text-red-600 ml-1">*</span>}
+                      </label>
+                      
+                      {question.questionType === "textarea" ? (
+                        <textarea
+                          value={(currentValue as string) || ""}
+                          onChange={e => handleChange(questionId, e.target.value)}
+                          className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500 min-h-[100px]"
+                          required={question.isRequired}
+                        />
+                      ) : question.questionType === "radio" && question.options ? (
+                        <div className="space-y-2">
+                          {question.options.map((option, idx) => (
+                            <label key={idx} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`question-${questionId}`}
+                                value={option}
+                                checked={currentValue === option}
+                                onChange={e => handleChange(questionId, e.target.value)}
+                                className="w-4 h-4 text-green-600"
+                                required={question.isRequired}
+                              />
+                              <span className="text-sm">{option}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : question.questionType === "checkbox" && question.options ? (
+                        <div className="space-y-2">
+                          {question.options.map((option, idx) => {
+                            const checked = Array.isArray(currentValue) && currentValue.includes(option);
+                            return (
+                              <label key={idx} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={e => handleCheckboxChange(questionId, option, e.target.checked)}
+                                  className="w-4 h-4 text-green-600"
+                                />
+                                <span className="text-sm">{option}</span>
+                              </label>
+                            );
+                          })}
+                          {question.options.includes("Other") && (
+                            <Input
+                              type="text"
+                              placeholder="Please specify"
+                              value={Array.isArray(currentValue) && currentValue.includes("Other") ? currentValue.find(v => v !== "Other" && !question.options?.includes(v)) || "" : ""}
+                              onChange={e => {
+                                const otherValue = e.target.value;
+                                const withoutOther = Array.isArray(currentValue) ? currentValue.filter(v => v !== "Other" && !question.options?.includes(v)) : [];
+                                if (otherValue.trim()) {
+                                  handleCheckboxChange(questionId, "Other", true);
+                                  setStructuredResponses(prev => ({
+                                    ...prev,
+                                    [questionId]: [...withoutOther, "Other", otherValue]
+                                  }));
+                                }
+                              }}
+                              className="mt-2 ml-6"
+                            />
+                          )}
+                        </div>
+                      ) : question.questionType === "scale" ? (
+                        <div className="flex items-center gap-4">
+                          {[1, 2, 3, 4, 5].map(num => (
+                            <label key={num} className="flex flex-col items-center gap-1 cursor-pointer">
+                              <span className="text-xs">{num}</span>
+                              <input
+                                type="radio"
+                                name={`question-${questionId}`}
+                                value={num.toString()}
+                                checked={currentValue === num.toString()}
+                                onChange={e => handleChange(questionId, e.target.value)}
+                                className="w-4 h-4 text-green-600"
+                                required={question.isRequired}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <input
+                          type={question.questionType === "number" ? "number" : question.questionType === "email" ? "email" : "text"}
+                          value={(currentValue as string) || ""}
+                          onChange={e => handleChange(questionId, e.target.value)}
+                          className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500"
+                          required={question.isRequired}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ));
+          })()
+        ) : (
+          // Legacy event: Simple questions
+          questions?.map(question => (
+            <div key={question._id}>
+              <label className="text-xs font-semibold text-gray-500">{question.questionText}</label>
+              <input 
+                type={question.questionType === "number" ? "number" : question.questionType === "email" ? "email" : "text"} 
+                onChange={e => handleChange(question._id as Id<"event_questions">, e.target.value)} 
+                className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" 
+              />
+            </div>
+          ))
+        )}
 
         <Button type="submit" disabled={loading || isPastEvent || isFormIncomplete} className={`w-full text-white ${isPastEvent || isFormIncomplete ? "bg-gray-400 cursor-not-allowed" : loading ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
           {isPastEvent ? "Event Closed" : loading ? "Generating Ticket..." : "Sign Up & Get Ticket"}
