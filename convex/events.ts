@@ -498,6 +498,25 @@ export const getEventRegistration = query({
     };
   }
 });
+
+export const checkInAttendee = mutation({
+  args: {
+    ticketNumber: v.string()
+  },
+  handler: async (ctx, { ticketNumber }) => {
+    const registration = await ctx.db.query("event_registrations").withIndex("byTicketNumber", q => q.eq("ticketNumber", ticketNumber)).first();
+    if (!registration) {
+      throw new Error("Ticket not found");
+    }
+    if (registration.checkedInAt) {
+      throw new Error("Already checked in");
+    }
+    await ctx.db.patch(registration._id, {
+      checkedInAt: Date.now()
+    });
+    return { success: true, checkedInAt: Date.now() };
+  }
+});
 export const getEventResponses = query({
   args: {},
   handler: async ctx => {

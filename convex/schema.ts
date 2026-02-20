@@ -348,7 +348,8 @@ export default defineSchema({
     qrCode: v.optional(v.string()),
     ticketPdfId: v.optional(v.id("_storage")),
     email: v.optional(v.string()),
-    isVip: v.optional(v.boolean())
+    isVip: v.optional(v.boolean()),
+    checkedInAt: v.optional(v.number()) // Timestamp when attendee was checked in via QR code
   }).index("byEvent", ["eventId"]).index("byUser", ["userId"]).index("byTicketNumber", ["ticketNumber"]),
 
   // Workshop registrations for Strategic Engagement event

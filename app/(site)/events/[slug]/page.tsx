@@ -282,12 +282,9 @@ export default function EventPage() {
       const index = String(count + 1).padStart(3, "0");
       const ticketNumber = `PEBEC-EV-${day}${month}${year}-${index}`;
       
-      // Use custom URL if available, otherwise use event ID
-      const eventUrl = event.customUrl 
-        ? `https://www.pebec.gov.ng/events/${event.customUrl}`
-        : `https://www.pebec.gov.ng/events/${event._id}`;
-      
-      const qrCodeUrl = await QRCode.toDataURL(eventUrl);
+      // QR code encodes check-in URL with ticket number
+      const checkInUrl = `https://www.pebec.gov.ng/check-in/${ticketNumber}`;
+      const qrCodeUrl = await QRCode.toDataURL(checkInUrl);
       const ticketOwner = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : `${firstName} ${lastName}`;
       const userAnswers = answers.map(a => ({
         questionText: questions.find(q => q._id === a.questionId)?.questionText || "Unknown Question",
