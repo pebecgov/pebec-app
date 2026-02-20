@@ -67,6 +67,11 @@ export default function CheckInPage() {
 
   const isCheckedIn = !!registration.checkedInAt;
   const event = registration.event;
+  const eventDate = event.eventDate ? new Date(event.eventDate) : null;
+  const now = new Date();
+  const eventDay = eventDate ? new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()) : null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const canCheckIn = eventDay ? today >= eventDay : true; // Allow if event date is today or past
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-gray-50 py-8 px-4">
@@ -219,10 +224,22 @@ export default function CheckInPage() {
         {/* Check In Button */}
         {/* {!isCheckedIn && (
           <div className="bg-white rounded-lg shadow-md p-6">
+            {!canCheckIn && eventDay && (
+              <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  <strong>Check-in not yet available.</strong> Check-in will be available on or after{" "}
+                  {format(eventDay, "PP")} (the event date).
+                </p>
+              </div>
+            )}
             <Button
               onClick={handleCheckIn}
-              disabled={isCheckingIn}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-semibold"
+              disabled={isCheckingIn || !canCheckIn}
+              className={`w-full py-6 text-lg font-semibold ${
+                canCheckIn
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-gray-400 cursor-not-allowed text-gray-600"
+              }`}
             >
               {isCheckingIn ? (
                 <>
@@ -232,7 +249,7 @@ export default function CheckInPage() {
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5 mr-2" />
-                  Check In Attendee
+                  {canCheckIn ? "Check In Attendee" : "Check-in Not Available Yet"}
                 </>
               )}
             </Button>

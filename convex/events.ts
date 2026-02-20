@@ -511,6 +511,19 @@ export const checkInAttendee = mutation({
     if (registration.checkedInAt) {
       throw new Error("Already checked in");
     }
+    // Check if event date has passed - allow check-in only on or after event date
+    const event = await ctx.db.get(registration.eventId);
+    if (!event) {
+      throw new Error("Event not found");
+    }
+    const eventDate = new Date(event.eventDate);
+    const now = new Date();
+    // Compare dates (ignore time) - allow check-in on event day or after
+    const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (today < eventDay) {
+      throw new Error(`Check-in is only available on or after the event date: ${eventDay.toLocaleDateString()}`);
+    }
     await ctx.db.patch(registration._id, {
       checkedInAt: Date.now()
     });
