@@ -25,7 +25,8 @@ export const createEvent = mutation({
     generalTicketLimit: v.optional(v.number()),
     isSaberEvent: v.optional(v.boolean()),
     customUrl: v.optional(v.string()),
-    isSpecialEvent: v.optional(v.boolean())
+    isSpecialEvent: v.optional(v.boolean()),
+    hideOrganizationDesignation: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -64,7 +65,8 @@ export const createEvent = mutation({
       generalTicketLimit: args.generalTicketLimit,
       isSaberEvent: args.isSaberEvent || false,
       customUrl: args.customUrl,
-      isSpecialEvent: args.isSpecialEvent || false
+      isSpecialEvent: args.isSpecialEvent || false,
+      hideOrganizationDesignation: args.hideOrganizationDesignation || false
     });
     return event;
   }
@@ -190,8 +192,8 @@ export const rsvpEvent = mutation({
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     phone: v.optional(v.string()),
-    organization: v.string(),
-    designation: v.string(),
+    organization: v.optional(v.string()),
+    designation: v.optional(v.string()),
     qrCode: v.string(),
     ticketPdfId: v.id("_storage"),
     isVip: v.optional(v.boolean())
@@ -229,8 +231,8 @@ export const rsvpEvent = mutation({
       firstName: firstName ?? undefined,
       lastName: lastName ?? undefined,
       phone: phone ?? undefined,
-      organization: organization,
-      designation: designation,
+      organization: organization ?? undefined,
+      designation: designation ?? undefined,
       questionnaireAnswers: answers.map(a => a.answer),
       structuredResponses: structuredResponses ?? undefined,
       ticketNumber,
@@ -669,12 +671,14 @@ export const editEvent = mutation({
     generalTicketLimit: v.optional(v.number()),
     customUrl: v.optional(v.string()),
     isSaberEvent: v.optional(v.boolean()),
-    isSpecialEvent: v.optional(v.boolean())
+    isSpecialEvent: v.optional(v.boolean()),
+    hideOrganizationDesignation: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const {
       eventId,
       customUrl,
+      hideOrganizationDesignation,
       ...updateData
     } = args;
     const event = await ctx.db.get(eventId);
@@ -705,6 +709,7 @@ export const editEvent = mutation({
       ...(customUrl !== undefined && { customUrl: customUrl || undefined }),
       ...(args.isSaberEvent !== undefined && { isSaberEvent: args.isSaberEvent }),
       ...(args.isSpecialEvent !== undefined && { isSpecialEvent: args.isSpecialEvent }),
+      ...(hideOrganizationDesignation !== undefined && { hideOrganizationDesignation }),
       updatedAt: Date.now()
     });
     const registrations = await ctx.db.query("event_registrations").withIndex("byEvent", q => q.eq("eventId", eventId)).collect();

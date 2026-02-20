@@ -329,7 +329,8 @@ export default defineSchema({
     isVip: v.optional(v.boolean()),
     isSaberEvent: v.optional(v.boolean()),
     customUrl: v.optional(v.string()),
-    isSpecialEvent: v.optional(v.boolean()) // Flag for special events with advanced forms
+    isSpecialEvent: v.optional(v.boolean()), // Flag for special events with advanced forms
+    hideOrganizationDesignation: v.optional(v.boolean()) // When true, registration form does not show org/designation (use form questions instead)
   }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]).index("bySpecialEvent", ["isSpecialEvent"]),
   event_registrations: defineTable({
     eventId: v.id("events"),

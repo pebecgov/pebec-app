@@ -50,6 +50,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
   const [host, setHost] = useState("");
   const [coverImageId, setCoverImageId] = useState<Id<"_storage"> | undefined>(undefined);
   const [isSpecialEvent, setIsSpecialEvent] = useState(false);
+  const [hideOrganizationDesignation, setHideOrganizationDesignation] = useState(false);
   const [questionText, setQuestionText] = useState("");
   const [questionType, setQuestionType] = useState<"text" | "number" | "email" | "scale" | "radio" | "checkbox" | "textarea">("text");
   const [questionSection, setQuestionSection] = useState("");
@@ -84,6 +85,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
     setGeneralLimit(event.generalTicketLimit ?? "");
     setCustomUrl(event.customUrl ?? "");
     setIsSpecialEvent(event.isSpecialEvent ?? false);
+    setHideOrganizationDesignation(event.hideOrganizationDesignation ?? false);
     setFormLoaded(true);
   }, [eventId, event, formLoaded]);
 
@@ -121,7 +123,8 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
       vipTicketLimit: eventType === "vip_and_general" && vipLimit !== "" ? vipLimit : undefined,
       generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined,
       customUrl: customUrl.trim() || undefined,
-      isSpecialEvent: isSpecialEvent || undefined
+      isSpecialEvent: isSpecialEvent || undefined,
+      hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined
     };
 
     const run = async () => {
@@ -130,7 +133,8 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
           eventId,
           ...payload,
           isSaberEvent: event?.isSaberEvent,
-          isSpecialEvent: isSpecialEvent || undefined
+          isSpecialEvent: isSpecialEvent || undefined,
+          hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined
         });
         const newQuestions = questions.filter(q => !q._id);
         await Promise.all(newQuestions.map((question, index) => createEventQuestionMutation({
@@ -173,6 +177,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
         setQuestionOptions([]);
         setNewOption("");
         setIsSpecialEvent(false);
+        setHideOrganizationDesignation(false);
         setEventType("general");
         setVipAccessCode("");
         setTicketLimit("");
@@ -338,6 +343,21 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
               Special Event (with advanced form fields)
             </Label>
           </div>
+
+          {isSpecialEvent && (
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                id="hideOrgDesignation" 
+                checked={hideOrganizationDesignation}
+                onChange={(e) => setHideOrganizationDesignation(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <Label htmlFor="hideOrgDesignation" className="cursor-pointer text-sm">
+                Hide organization & designation on registration (collect via form questions instead)
+              </Label>
+            </div>
+          )}
 
           {isSpecialEvent && (
             <div className="border-t pt-5 space-y-4">
