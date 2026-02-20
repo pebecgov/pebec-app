@@ -217,7 +217,7 @@ export default function CheckInPage() {
         )}
 
         {/* Check In Button */}
-        {!isCheckedIn && (
+        {/* {!isCheckedIn && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <Button
               onClick={handleCheckIn}
@@ -237,7 +237,7 @@ export default function CheckInPage() {
               )}
             </Button>
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );
