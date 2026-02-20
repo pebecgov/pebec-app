@@ -77,35 +77,35 @@ export default function StatsCards() {
     progressBar: true
   }];
   return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {statsData.map((stat, index) => <div key={index} className="bg-white rounded-xl p-4 shadow-sm border flex flex-col justify-between relative">
-          {}
-          <div className="absolute -top-5 right-4">
-            <div className={`rounded-xl p-2 shadow-lg ${stat.iconBg}`}>
-              {stat.icon}
-            </div>
-          </div>
+    {statsData.map((stat, index) => <div key={index} className="bg-white rounded-xl p-4 shadow-sm border flex flex-col justify-between relative">
+      { }
+      <div className="absolute -top-5 right-4">
+        <div className={`rounded-xl p-2 shadow-lg ${stat.iconBg}`}>
+          {stat.icon}
+        </div>
+      </div>
 
-          <div className="pt-6">
-            <p className="text-sm text-gray-500 font-medium">{stat.title}</p>
-            <h3 className="text-2xl font-semibold text-gray-900">{stat.value}</h3>
-          </div>
+      <div className="pt-6">
+        <p className="text-sm text-gray-500 font-medium">{stat.title}</p>
+        <h3 className="text-2xl font-semibold text-gray-900">{stat.value}</h3>
+      </div>
 
-          {}
-          {stat.progressBar ? <div className="mt-4">
-              <div className="w-full h-2 bg-gray-200 rounded-full">
-                <div className="h-2 bg-purple-500 rounded-full transition-all duration-300" style={{
+      { }
+      {stat.progressBar ? <div className="mt-4">
+        <div className="w-full h-2 bg-gray-200 rounded-full">
+          <div className="h-2 bg-purple-500 rounded-full transition-all duration-300" style={{
             width: `${resolvedPercentage}%`
           }} />
-              </div>
-            </div> : <div className="mt-2 text-sm flex items-center">
-              <TrendingUp className={`w-4 h-4 mr-1 ${stat.changeType === "up" ? "text-green-500" : "text-red-500 rotate-180"}`} />
-              <span className={`font-medium ${stat.changeType === "up" ? "text-green-500" : "text-red-500"}`}>
-                {stat.change}
-              </span>
-              <span className="ml-1 text-gray-500">
-                than {stat.timeframe}
-              </span>
-            </div>}
-        </div>)}
-    </div>;
+        </div>
+      </div> : <div className="mt-2 text-sm flex items-center">
+        <TrendingUp className={`w-4 h-4 mr-1 ${stat.changeType === "up" ? "text-green-500" : "text-red-500 rotate-180"}`} />
+        <span className={`font-medium ${stat.changeType === "up" ? "text-green-500" : "text-red-500"}`}>
+          {stat.change}
+        </span>
+        <span className="ml-1 text-gray-500">
+          than {stat.timeframe}
+        </span>
+      </div>}
+    </div>)}
+  </div>;
 }
