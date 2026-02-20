@@ -237,7 +237,7 @@ export default function EventPage() {
       setError("❌ Please enter your full name, email, and phone number.");
       return;
     }
-    if (!organization.trim() || !designation.trim()) {
+    if (!event.hideOrganizationDesignation && (!organization.trim() || !designation.trim())) {
       setError("❌ Please enter your organization and designation.");
       return;
     }
@@ -357,8 +357,8 @@ export default function EventPage() {
         firstName: !currentUser ? firstName : undefined,
         lastName: !currentUser ? lastName : undefined,
         phone: !currentUser ? phone : undefined,
-        organization: organization,
-        designation: designation,
+        organization: event.hideOrganizationDesignation ? undefined : organization,
+        designation: event.hideOrganizationDesignation ? undefined : designation,
         qrCode: qrCodeUrl,
         ticketPdfId: storageId as Id<"_storage">,
         isVip
@@ -484,7 +484,8 @@ export default function EventPage() {
     }
   };
   
-  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || !organization.trim() || !designation.trim() || questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim()) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
+  const requireOrgDesignation = event && !event.hideOrganizationDesignation;
+  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || (requireOrgDesignation && (!organization.trim() || !designation.trim())) || (event?.isSpecialEvent && questions?.some(q => q.isRequired && !structuredResponses[q._id])) || (!event?.isSpecialEvent && questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim())) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
   
   return <div className="relative mx-auto w-full bg-white pt-12 mt-30 px-10 md:px-30 lg:px-30 md:mb-20  ">
       <div className="flex flex-col md:flex-row gap-8">
@@ -553,14 +554,18 @@ export default function EventPage() {
           <label className="text-xs font-semibold text-gray-500">Phone Number</label>
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" required />
         </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500">Organization *</label>
-          <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Company/Institution" required />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500">Designation *</label>
-          <input type="text" value={designation} onChange={e => setDesignation(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Your position/role" required />
-        </div>
+        {!event?.hideOrganizationDesignation && (
+          <>
+            <div>
+              <label className="text-xs font-semibold text-gray-500">Organization *</label>
+              <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Company/Institution" required />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500">Designation *</label>
+              <input type="text" value={designation} onChange={e => setDesignation(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Your position/role" required />
+            </div>
+          </>
+        )}
         <div>
           <label className="text-xs font-semibold text-gray-500">Email Address</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" required />
