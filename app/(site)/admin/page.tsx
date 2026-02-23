@@ -56,12 +56,10 @@ export default function AdminDashboard() {
           </div>
           <div className="space-y-8">
             <SeventyTwoHourResolutionDashboard />
+            <UsersCard />
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-              <div className="xl:col-span-2">
+              <div className="xl:col-span-3">
                 <TicketSummary />
-              </div>
-              <div className="xl:col-span-1">
-                <UsersCard />
               </div>
             </div>
           </div>
