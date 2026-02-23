@@ -77,10 +77,10 @@ export default function CheckInPage() {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-gray-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="mt-20 bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-3xl font-bold text-gray-900">Event Check-In</h1>
-            {isCheckedIn ? (
+            {/* {isCheckedIn ? (
               <div className="flex items-center gap-2 text-green-600">
                 <CheckCircle className="w-6 h-6" />
                 <span className="font-semibold">Checked In</span>
@@ -90,7 +90,7 @@ export default function CheckInPage() {
                 <XCircle className="w-6 h-6" />
                 <span className="font-semibold">Not Checked In</span>
               </div>
-            )}
+            )} */}
           </div>
           {isCheckedIn && registration.checkedInAt && (
             <p className="text-sm text-gray-600">
