@@ -77,7 +77,7 @@ export default function StatsCards() {
     progressBar: true
   }];
   return <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-    {statsData.map((stat, index) => <div key={index} className="bg-white rounded-xl p-4 shadow-sm border flex flex-col justify-between relative">
+    {statsData.map((stat, index) => <div key={index} className="bg-white rounded-xl p-3 shadow-sm border flex flex-col justify-between relative min-w-0">
       { }
       <div className="absolute -top-5 right-4">
         <div className={`rounded-xl p-2 shadow-lg ${stat.iconBg}`}>
@@ -92,17 +92,19 @@ export default function StatsCards() {
 
       { }
       {stat.progressBar ? <div className="mt-4">
-        <div className="w-full h-2 bg-gray-200 rounded-full">
-          <div className="h-2 bg-purple-500 rounded-full transition-all duration-300" style={{
+        <div className="w-full h-1.5 bg-gray-200 rounded-full">
+          <div className="h-1.5 bg-purple-500 rounded-full transition-all duration-300" style={{
             width: `${resolvedPercentage}%`
           }} />
         </div>
-      </div> : <div className="mt-2 text-sm flex items-center">
-        <TrendingUp className={`w-4 h-4 mr-1 ${stat.changeType === "up" ? "text-green-500" : "text-red-500 rotate-180"}`} />
-        <span className={`font-medium ${stat.changeType === "up" ? "text-green-500" : "text-red-500"}`}>
-          {stat.change}
-        </span>
-        <span className="ml-1 text-gray-500">
+      </div> : <div className="mt-2 text-xs sm:text-sm flex items-center flex-wrap gap-1">
+        <div className="flex items-center">
+          <TrendingUp className={`w-3.5 h-3.5 mr-1 ${stat.changeType === "up" ? "text-green-500" : "text-red-500 rotate-180"}`} />
+          <span className={`font-semibold ${stat.changeType === "up" ? "text-green-500" : "text-red-500"}`}>
+            {stat.change}
+          </span>
+        </div>
+        <span className="text-gray-400 whitespace-nowrap">
           than {stat.timeframe}
         </span>
       </div>}
