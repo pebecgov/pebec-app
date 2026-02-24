@@ -330,8 +330,21 @@ export default defineSchema({
     isSaberEvent: v.optional(v.boolean()),
     customUrl: v.optional(v.string()),
     isSpecialEvent: v.optional(v.boolean()), // Flag for special events with advanced forms
-    hideOrganizationDesignation: v.optional(v.boolean()) // When true, registration form does not show org/designation (use form questions instead)
+    hideOrganizationDesignation: v.optional(v.boolean()), // When true, registration form does not show org/designation (use form questions instead)
+    requiresEligibilityModal: v.optional(v.boolean()) // When true, show participant info + foreign ownership pop-up before main form (e.g. Foreign Direct Investors Roundtable)
   }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]).index("bySpecialEvent", ["isSpecialEvent"]),
+  // Submissions from the eligibility pop-up (participant info + foreign ownership); status: eligible = can proceed, pending_review = holding message
+  event_eligibility_submissions: defineTable({
+    eventId: v.id("events"),
+    fullName: v.string(),
+    companyName: v.string(),
+    jobTitle: v.optional(v.string()),
+    email: v.string(),
+    phone: v.string(),
+    foreignOwnershipAnswer: v.union(v.literal("yes"), v.literal("no"), v.literal("not_sure")),
+    status: v.union(v.literal("eligible"), v.literal("pending_review")),
+    submittedAt: v.number()
+  }).index("byEvent", ["eventId"]).index("byEventAndEmail", ["eventId", "email"]),
   event_registrations: defineTable({
     eventId: v.id("events"),
     userId: v.optional(v.id("users")),

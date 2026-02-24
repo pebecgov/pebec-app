@@ -67,6 +67,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
   const [ticketLimit, setTicketLimit] = useState<number | "">("");
   const [customUrl, setCustomUrl] = useState("");
   const [customUrlError, setCustomUrlError] = useState("");
+  const [requiresEligibilityModal, setRequiresEligibilityModal] = useState(false);
 
   // Pre-fill form when editing an existing event
   useEffect(() => {
@@ -86,6 +87,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
     setCustomUrl(event.customUrl ?? "");
     setIsSpecialEvent(event.isSpecialEvent ?? false);
     setHideOrganizationDesignation(event.hideOrganizationDesignation ?? false);
+    setRequiresEligibilityModal((event as { requiresEligibilityModal?: boolean }).requiresEligibilityModal ?? false);
     setFormLoaded(true);
   }, [eventId, event, formLoaded]);
 
@@ -124,7 +126,8 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
       generalTicketLimit: eventType === "vip_and_general" && generalLimit !== "" ? generalLimit : undefined,
       customUrl: customUrl.trim() || undefined,
       isSpecialEvent: isSpecialEvent || undefined,
-      hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined
+      hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined,
+      requiresEligibilityModal: requiresEligibilityModal || undefined
     };
 
     const run = async () => {
@@ -134,7 +137,8 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
           ...payload,
           isSaberEvent: event?.isSaberEvent,
           isSpecialEvent: isSpecialEvent || undefined,
-          hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined
+          hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined,
+          requiresEligibilityModal: requiresEligibilityModal || undefined
         });
         const newQuestions = questions.filter(q => !q._id);
         await Promise.all(newQuestions.map((question, index) => createEventQuestionMutation({
@@ -358,6 +362,19 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
               </Label>
             </div>
           )}
+
+          <div className="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              id="requiresEligibilityModal" 
+              checked={requiresEligibilityModal}
+              onChange={(e) => setRequiresEligibilityModal(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <Label htmlFor="requiresEligibilityModal" className="cursor-pointer text-sm">
+              Require participant info &amp; eligibility pop-up (e.g. Foreign Direct Investors Roundtable)
+            </Label>
+          </div>
 
           {isSpecialEvent && (
             <div className="border-t pt-5 space-y-4">
