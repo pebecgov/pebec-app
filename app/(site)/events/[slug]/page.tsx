@@ -14,6 +14,7 @@ import { jsPDF } from "jspdf";
 import Ticket from "@/components/Ticket";
 import html2canvas from "html2canvas";
 import ReactDOMServer from "react-dom/server";
+import { ParticipantInfoModal } from "@/components/ParticipantInfoModal";
 
 export default function EventPage() {
   const { slug } = useParams();
@@ -55,6 +56,8 @@ export default function EventPage() {
   const currentUser = useQuery(api.users.getCurrentUsers) || null;
   const [vipCodeError, setVipCodeError] = useState<string | null>(null);
   const [vipCodeValid, setVipCodeValid] = useState(false);
+  const [eligibilityModalOpen, setEligibilityModalOpen] = useState(false);
+  const [eligibilityPassed, setEligibilityPassed] = useState(false);
   const userEmail = (currentUser as any)?.email ?? "";
   const userPhone = (currentUser as any)?.phoneNumber ?? "";
   const convex = useConvex();
@@ -105,7 +108,28 @@ export default function EventPage() {
   useEffect(() => {
     setIsClient(true);
   }, []);
-  
+
+  // Prefill and skip eligibility gate when arriving from list page after passing modal
+  useEffect(() => {
+    if (!event || !isClient) return;
+    try {
+      const raw = typeof window !== "undefined" ? window.sessionStorage.getItem("eventEligibilityPrefill") : null;
+      if (!raw) return;
+      const data = JSON.parse(raw) as { eventId: string; firstName: string; lastName: string; organization: string; designation: string; email: string; phone: string };
+      if (data.eventId !== event._id) return;
+      setFirstName(data.firstName ?? "");
+      setLastName(data.lastName ?? "");
+      setOrganization(data.organization ?? "");
+      setDesignation(data.designation ?? "");
+      setEmail(data.email ?? "");
+      setPhone(data.phone ?? "");
+      setEligibilityPassed(true);
+      window.sessionStorage.removeItem("eventEligibilityPrefill");
+    } catch {
+      // ignore
+    }
+  }, [event?._id, isClient]);
+
   if (!isClient) {
     return <p className="text-center text-gray-500">Loading...</p>;
   }
@@ -483,7 +507,9 @@ export default function EventPage() {
   
   const requireOrgDesignation = event && !event.hideOrganizationDesignation;
   const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || (requireOrgDesignation && (!organization.trim() || !designation.trim())) || (event?.isSpecialEvent && questions?.some(q => q.isRequired && !structuredResponses[q._id])) || (!event?.isSpecialEvent && questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim())) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
-  
+  const requiresEligibilityModal = Boolean(event?.requiresEligibilityModal);
+  const showEligibilityGate = requiresEligibilityModal && !eligibilityPassed;
+
   return <div className="relative mx-auto w-full bg-white pt-12 mt-30 px-10 md:px-30 lg:px-30 md:mb-20  ">
       <div className="flex flex-col md:flex-row gap-8">
 
@@ -492,9 +518,40 @@ export default function EventPage() {
   {event?.signUpsDisabled ? <div className="bg-red-100 border border-red-300 text-red-700 p-6 rounded-lg shadow-sm">
       <h2 className="text-xl font-semibold mb-2">⚠️ Sign-Ups Disabled</h2>
       <p>You cannot sign up for this event anymore.</p>
-    </div> : <>
-     
-
+    </div> : showEligibilityGate ? (
+      <>
+        <h1 className="text-2xl font-medium text-green-700 sm:text-3xl">
+          Sign Up for this Event
+          <span className="mt-2 block h-1 w-10 bg-green-600"></span>
+        </h1>
+        <p className="mt-2 text-gray-600 text-sm">Click Register to provide your details and complete the registration form.</p>
+        <Button
+          type="button"
+          onClick={() => setEligibilityModalOpen(true)}
+          disabled={isRegistrationClosed}
+          className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white"
+        >
+          {isRegistrationClosed ? "Registration Closed" : "Register"}
+        </Button>
+        {event && (
+          <ParticipantInfoModal
+            open={eligibilityModalOpen}
+            onOpenChange={setEligibilityModalOpen}
+            eventId={event._id}
+            onEligible={(prefill) => {
+              setFirstName(prefill.firstName);
+              setLastName(prefill.lastName);
+              setOrganization(prefill.organization);
+              setDesignation(prefill.designation);
+              setEmail(prefill.email);
+              setPhone(prefill.phone);
+              setEligibilityPassed(true);
+            }}
+            onPendingReview={() => {}}
+          />
+        )}
+      </>
+    ) : <>
       <h1 className="text-2xl font-medium text-green-700 sm:text-3xl">
         Sign Up for this Event
         <span className="mt-2 block h-1 w-10 bg-green-600"></span>

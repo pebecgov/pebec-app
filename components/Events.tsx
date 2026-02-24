@@ -1,22 +1,29 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import Image from 'next/image';
 import { Spinner } from '@/components/ui/spinner';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { ParticipantInfoModal } from '@/components/ParticipantInfoModal';
+import { Id } from '@/convex/_generated/dataModel';
 export const metadata = {
   title: 'Upcoming Events - PEBEC',
   description: 'Discover and join our upcoming events!'
 };
 export default function EventsPage() {
+  const router = useRouter();
   const events = useQuery(api.events.getEvents);
   const now = new Date();
   const upcomingEvents = events?.filter(event => new Date(event.eventDate) >= now) || [];
   const pastEvents = events?.filter(event => new Date(event.eventDate) < now) || [];
+  const [eligibilityModalOpen, setEligibilityModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<{ _id: Id<'events'>; customUrl?: string } | null>(null);
 
   // Hardcoded workshop event date
   const workshopEventDate = new Date('2024-10-14T11:00:00');
@@ -95,11 +102,23 @@ export default function EventsPage() {
                   <p className="text-sm text-gray-600">Hosted by: {event.host || 'PEBEC'}</p>
                   {event.description && <p className="text-sm text-gray-500 mt-2 line-clamp-3">{event.description}</p>}
                 </div>
-                <Link href={`/events/${event.customUrl || event._id}`} className="mt-4">
-                  <Button className="w-full sm:w-auto bg-gray-800 hover:bg-gray-900 text-white">
+                {(event as { requiresEligibilityModal?: boolean }).requiresEligibilityModal ? (
+                  <Button
+                    className="mt-4 w-full sm:w-auto bg-gray-800 hover:bg-gray-900 text-white"
+                    onClick={() => {
+                      setSelectedEvent({ _id: event._id, customUrl: event.customUrl });
+                      setEligibilityModalOpen(true);
+                    }}
+                  >
                     Register
                   </Button>
-                </Link>
+                ) : (
+                  <Link href={`/events/${event.customUrl || event._id}`} className="mt-4">
+                    <Button className="w-full sm:w-auto bg-gray-800 hover:bg-gray-900 text-white">
+                      Register
+                    </Button>
+                  </Link>
+                )}
               </div>
             </li>
           ))}
@@ -152,6 +171,29 @@ export default function EventsPage() {
           </div>}
         </div>
       </div>
+
+      {selectedEvent && (
+        <ParticipantInfoModal
+          open={eligibilityModalOpen}
+          onOpenChange={(open) => {
+            if (!open) setSelectedEvent(null);
+            setEligibilityModalOpen(open);
+          }}
+          eventId={selectedEvent._id}
+          onEligible={(prefill) => {
+            if (typeof window !== 'undefined') {
+              window.sessionStorage.setItem('eventEligibilityPrefill', JSON.stringify({
+                eventId: selectedEvent._id,
+                ...prefill
+              }));
+            }
+            setEligibilityModalOpen(false);
+            setSelectedEvent(null);
+            router.push(`/events/${selectedEvent.customUrl || selectedEvent._id}`);
+          }}
+          onPendingReview={() => {}}
+        />
+      )}
     </div>
   </div>;
 }

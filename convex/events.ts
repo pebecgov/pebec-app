@@ -26,7 +26,8 @@ export const createEvent = mutation({
     isSaberEvent: v.optional(v.boolean()),
     customUrl: v.optional(v.string()),
     isSpecialEvent: v.optional(v.boolean()),
-    hideOrganizationDesignation: v.optional(v.boolean())
+    hideOrganizationDesignation: v.optional(v.boolean()),
+    requiresEligibilityModal: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -66,7 +67,8 @@ export const createEvent = mutation({
       isSaberEvent: args.isSaberEvent || false,
       customUrl: args.customUrl,
       isSpecialEvent: args.isSpecialEvent || false,
-      hideOrganizationDesignation: args.hideOrganizationDesignation || false
+      hideOrganizationDesignation: args.hideOrganizationDesignation || false,
+      requiresEligibilityModal: args.requiresEligibilityModal ?? false
     });
     return event;
   }
@@ -288,6 +290,37 @@ export const rsvpEvent = mutation({
     };
   }
 });
+
+// Submit eligibility pop-up (participant info + foreign ownership) for events with requiresEligibilityModal
+export const submitEligibilityForm = mutation({
+  args: {
+    eventId: v.id("events"),
+    fullName: v.string(),
+    companyName: v.string(),
+    jobTitle: v.optional(v.string()),
+    email: v.string(),
+    phone: v.string(),
+    foreignOwnershipAnswer: v.union(v.literal("yes"), v.literal("no"), v.literal("not_sure"))
+  },
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId);
+    if (!event) throw new Error("Event not found");
+    const status = args.foreignOwnershipAnswer === "yes" ? "eligible" : "pending_review";
+    await ctx.db.insert("event_eligibility_submissions", {
+      eventId: args.eventId,
+      fullName: args.fullName.trim(),
+      companyName: args.companyName.trim(),
+      jobTitle: args.jobTitle?.trim() || undefined,
+      email: args.email.trim().toLowerCase(),
+      phone: args.phone.trim(),
+      foreignOwnershipAnswer: args.foreignOwnershipAnswer,
+      status,
+      submittedAt: Date.now()
+    });
+    return { success: true, status };
+  }
+});
+
 export const getUserTickets = query({
   args: {
     clerkUserId: v.string()
@@ -704,13 +737,15 @@ export const editEvent = mutation({
     customUrl: v.optional(v.string()),
     isSaberEvent: v.optional(v.boolean()),
     isSpecialEvent: v.optional(v.boolean()),
-    hideOrganizationDesignation: v.optional(v.boolean())
+    hideOrganizationDesignation: v.optional(v.boolean()),
+    requiresEligibilityModal: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const {
       eventId,
       customUrl,
       hideOrganizationDesignation,
+      requiresEligibilityModal,
       ...updateData
     } = args;
     const event = await ctx.db.get(eventId);
@@ -742,6 +777,7 @@ export const editEvent = mutation({
       ...(args.isSaberEvent !== undefined && { isSaberEvent: args.isSaberEvent }),
       ...(args.isSpecialEvent !== undefined && { isSpecialEvent: args.isSpecialEvent }),
       ...(hideOrganizationDesignation !== undefined && { hideOrganizationDesignation }),
+      ...(requiresEligibilityModal !== undefined && { requiresEligibilityModal }),
       updatedAt: Date.now()
     });
     const registrations = await ctx.db.query("event_registrations").withIndex("byEvent", q => q.eq("eventId", eventId)).collect();

@@ -38,6 +38,7 @@ export default function NewPostForm({
     }]
   };
   const [filePickerIsOpen, setFilePickerIsOpen] = useState(false);
+  const [isSubmittingViaButton, setIsSubmittingViaButton] = useState(false);
   const {
     register,
     setValue,
@@ -173,8 +174,6 @@ export default function NewPostForm({
         <p>Loading post data...</p>
       </div>;
   }
-  const [isSubmittingViaButton, setIsSubmittingViaButton] = useState(false);
-
   return <form 
       onSubmit={(e) => {
         // Only submit if triggered by the submit button, not keyboard shortcuts
