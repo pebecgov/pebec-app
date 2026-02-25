@@ -55,7 +55,7 @@ export default function UpcomingMeetings({ baseUrl = "/staff/meeting-calendar" }
                         return (
                             <div
                                 key={meeting._id}
-                                className={`border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer bg-gradient-to-r ${meeting.meetingType === "external" ? "from-red-50 border-l-4 border-l-red-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
+                                className={`border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer bg-gradient-to-r ${meeting.meetingType === "external" ? "from-green-50 border-l-4 border-l-green-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
                                 onClick={() => router.push(baseUrl)}
                             >
                                 <div className="flex items-start justify-between">
@@ -94,7 +94,7 @@ export default function UpcomingMeetings({ baseUrl = "/staff/meeting-calendar" }
                                             )}
                                         </p>
                                         <div className="flex gap-1 mt-1">
-                                            <span className={`text-[9px] font-bold uppercase tracking-tighter px-1 rounded ${meeting.meetingType === "external" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                                            <span className={`text-[9px] font-bold uppercase tracking-tighter px-1 rounded ${meeting.meetingType === "external" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
                                                 {meeting.meetingType || "Internal"}
                                             </span>
                                         </div>
