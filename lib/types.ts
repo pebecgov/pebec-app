@@ -5,6 +5,8 @@ export type Post = {
   _creationTime: number;
   coverImageId?: string;
   coverImageUrl?: string | null;
+  galleryImages?: string[];
+  galleryImageUrls?: string[];
   title: string;
   slug: string;
   excerpt: string;

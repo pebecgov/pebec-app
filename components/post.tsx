@@ -14,6 +14,14 @@ import { ThumbsUp, Edit, Trash, ArrowLeft } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Id } from "@/convex/_generated/dataModel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import Image from "next/image";
 export default function Post({
   slug
 }: {
@@ -59,9 +67,7 @@ export default function Post({
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white leading-tight mb-2">
           {post.title}
         </h1>
-        <p className="text-gray-500 dark:text-gray-400 text-base mb-6">
-          {post.excerpt}
-        </p>
+     
 
         {}
         <div className="flex items-center gap-4 mb-6">
@@ -80,9 +86,90 @@ export default function Post({
         </div>
 
         {}
-        {post.coverImageUrl && <div className="w-full mb-8 rounded-md overflow-hidden border">
-            <img src={post.coverImageUrl} alt={post.title} className="w-full max-h-[500px] object-contain bg-white" />
-          </div>}
+        {/* Image Gallery Carousel */}
+        {(post.coverImageUrl || (post.galleryImageUrls && post.galleryImageUrls.length > 0)) && (
+          <div className="w-full mb-8">
+            {/* Combine cover image and gallery images */}
+            {(() => {
+              const allImages: string[] = [];
+              
+              // If a custom cover image is set, use it; otherwise use first gallery image as cover
+              const hasCustomCover = post.coverImageUrl && post.coverImageId;
+              const coverImage = post.coverImageUrl || (post.galleryImageUrls && post.galleryImageUrls.length > 0 ? post.galleryImageUrls[0] : null);
+              
+              // Add cover image first
+              if (coverImage) {
+                allImages.push(coverImage);
+              }
+              
+              // Add all gallery images
+              // If there's a custom cover, add all gallery images
+              // If no custom cover, skip the first gallery image (since it's already used as cover)
+              if (post.galleryImageUrls && post.galleryImageUrls.length > 0) {
+                if (hasCustomCover) {
+                  // Custom cover exists - add ALL gallery images
+                  post.galleryImageUrls.forEach(url => {
+                    if (url && url.trim() !== '') {
+                      allImages.push(url);
+                    }
+                  });
+                } else {
+                  // No custom cover - skip first gallery image (already used as cover)
+                  post.galleryImageUrls.slice(1).forEach(url => {
+                    if (url && url.trim() !== '') {
+                      allImages.push(url);
+                    }
+                  });
+                }
+              }
+
+              // Remove duplicates while preserving order
+              const uniqueImages = Array.from(new Set(allImages));
+
+              if (uniqueImages.length === 0) return null;
+
+              // Single image - no carousel needed
+              if (uniqueImages.length === 1) {
+                return (
+                  <div className="w-full rounded-md overflow-hidden border">
+                    <Image
+                      src={uniqueImages[0]}
+                      alt={post.title}
+                      width={1200}
+                      height={600}
+                      className="w-full max-h-[500px] object-contain bg-white"
+                      priority
+                    />
+                  </div>
+                );
+              }
+
+              // Multiple images - show carousel
+              return (
+                <Carousel className="w-full relative">
+                  <CarouselContent>
+                    {uniqueImages.map((imageUrl, index) => (
+                      <CarouselItem key={index}>
+                        <div className="w-full rounded-md overflow-hidden border">
+                          <Image
+                            src={imageUrl}
+                            alt={`${post.title} - Image ${index + 1}`}
+                            width={1200}
+                            height={600}
+                            className="w-full max-h-[500px] object-contain bg-white"
+                            priority={index === 0}
+                          />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white" />
+                  <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white" />
+                </Carousel>
+              );
+            })()}
+          </div>
+        )}
 
         {}
         <div className="flex justify-between items-center border-y py-4 mb-6 text-gray-600 dark:text-gray-300">

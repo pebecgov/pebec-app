@@ -248,44 +248,66 @@ export const calculatePerformance = (actualDays: number | null, expectedDays: nu
  */
 export const calculateMysteryScore = (
     mysteryType: MysteryShoppingType,
-    mysteryRatings: MysteryRatings
+    mysteryRatings: MysteryRatings,
+    mysteryConfig?: any,
+    configMaxPoints?: number
 ): number => {
-    const questions = mysteryType === 'hasReportGov' ? HAS_REPORTGOV_QUESTIONS : NO_REPORTGOV_QUESTIONS;
+    // Use dynamic questions from config or fallback to legacy constants
+    let questions;
+    let maxPoints = configMaxPoints || 20;
+
+    if (mysteryConfig && Array.isArray(mysteryConfig)) {
+        // Find the type config that matches the selected mysteryType
+        const typeConfig = mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType);
+        questions = typeConfig?.questions || [];
+    } else if (mysteryConfig?.questions) {
+        // Fallback or legacy single-object config (unlikely given new structure)
+        questions = mysteryConfig.questions;
+    } else {
+        // Legacy hardcoded types
+        questions = mysteryType === 'hasReportGov' ? HAS_REPORTGOV_QUESTIONS : NO_REPORTGOV_QUESTIONS;
+    }
 
     let totalScore = 0;
     let maxPossibleScore = 0;
 
-    questions.forEach(question => {
-        const rating = mysteryRatings[question.key] || 0;
+    questions.forEach((question: any) => {
+        const rating = mysteryRatings[question.key || question.questionId] || 0;
 
-        if (question.type === 'rating') {
-            // Rating questions: scale 0-5 to 0-1 point each
-            totalScore += (rating / 5) * 1;
-            maxPossibleScore += 1;
+        if (question.type === 'rating' || question.questionType === 'scale_1_10') {
+            // Rating/Scale questions: scale 0-10 to 0-weight points each
+            const weight = question.weight || 1;
+            totalScore += (rating / 10) * weight;
+            maxPossibleScore += weight;
         } else {
-            // Yes/No questions: 1 point for Yes, 0 for No
-            totalScore += rating;
-            maxPossibleScore += 1;
+            // Yes/No questions: weight points for Yes (1), 0 for No (0)
+            const weight = question.weight || 1;
+            totalScore += rating * weight;
+            maxPossibleScore += weight;
         }
     });
 
-    // Scale to 20 points total
-    const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 20 : 0;
-    return Math.min(scaledScore, 20); // Cap at 20
+    // Scale to maxPoints total
+    const scaledScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * maxPoints : 0;
+    return Math.min(scaledScore, maxPoints);
 };
 
 /**
  * Get months for a scoring period
  */
-export const getMonthsForPeriod = (period: string): Array<{ month: number; year: number }> => {
+export const getMonthsForPeriod = (period: string): Array<{ month: number; year: number; monthName: string }> => {
     const currentYear = new Date().getFullYear();
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
 
     // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
     const yearMatch = period.match(/\d{4}/);
     const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
 
+    let months: Array<{ month: number; year: number }> = [];
+
     if (period.includes("1st Half")) {
-        return [
+        months = [
             { month: 0, year: targetYear },   // January
             { month: 1, year: targetYear },   // February
             { month: 2, year: targetYear },   // March
@@ -294,7 +316,7 @@ export const getMonthsForPeriod = (period: string): Array<{ month: number; year:
             { month: 5, year: targetYear }    // June
         ];
     } else if (period.includes("2nd Half")) {
-        return [
+        months = [
             { month: 6, year: targetYear },   // July
             { month: 7, year: targetYear },   // August
             { month: 8, year: targetYear },   // September
@@ -306,10 +328,13 @@ export const getMonthsForPeriod = (period: string): Array<{ month: number; year:
         // Default: From January to current month of target year
         const currentDate = new Date();
         const currentMonth = currentDate.getMonth();
-        const months: Array<{ month: number; year: number }> = [];
         for (let month = 0; month <= currentMonth; month++) {
             months.push({ month, year: targetYear });
         }
-        return months;
     }
+
+    return months.map(m => ({
+        ...m,
+        monthName: monthNames[m.month]
+    }));
 };

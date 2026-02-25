@@ -159,13 +159,17 @@ export default function ManageEventsPage() {
                     </Button>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="flex flex-wrap gap-2">
                   <Link href={`/admin/events/${event._id}`}>
                     <Button variant="outline" size="sm">
                       View details & attendees
                     </Button>
                   </Link>
-                
+                  <Link href={`/admin/create-events/${event._id}`}>
+                    <Button variant="outline" size="sm" className="text-green-700 border-green-700">
+                      Edit event
+                    </Button>
+                  </Link>
                 </TableCell>
               </TableRow>)}
           </TableBody>

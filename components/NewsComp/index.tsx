@@ -22,7 +22,7 @@ export default function LatestNewsSection() {
       // If neither has order, sort by publishedDate (newest first)
       return (b.publishedDate ?? 0) - (a.publishedDate ?? 0);
     })
-    .slice(0, 3);
+    .slice(0, 6);
   return <section className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         {}

@@ -342,6 +342,7 @@ export default function Admin() {
               <TableHead>Phone</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Stream / MDA</TableHead>
+              {selectedRoleFilter === "saber_agent" && <TableHead>State</TableHead>}
               <TableHead>Last Approval</TableHead>
               <TableHead className="text-center">Action</TableHead>
             </TableRow>
@@ -391,6 +392,12 @@ export default function Admin() {
               ? (user.staffStream ? formatWorkstream(user.staffStream) : "—")
               : (user.mdaName ?? "—")}
           </TableCell>
+
+          {selectedRoleFilter === "saber_agent" && (
+            <TableCell className="text-sm text-gray-700 whitespace-nowrap">
+              {user.state ?? "—"}
+            </TableCell>
+          )}
 
           <TableCell className="text-sm text-gray-700 whitespace-nowrap">
             {latestApproval ? (

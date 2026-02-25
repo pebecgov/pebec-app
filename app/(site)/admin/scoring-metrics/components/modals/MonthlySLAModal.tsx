@@ -10,6 +10,7 @@ import { getMonthsForPeriod } from '../../utils/helpers';
 import { MonthlySlaData } from '../../utils/types';
 import { ResultTable } from '../tables/ResultTable';
 
+// ... imports
 interface MonthlySLAModalProps {
     show: boolean;
     onHide: () => void;
@@ -17,6 +18,10 @@ interface MonthlySLAModalProps {
     monthlySlaData: MonthlySlaData;
     setMonthlySlaData: React.Dispatch<React.SetStateAction<MonthlySlaData>>;
     currentYear: number;
+    periodMonths?: Array<{ month: number; year: number; monthName: string }>;
+    pointsPerMonth?: number;
+    maxPoints?: number;
+    mdaName?: string; // Add mdaName prop
 }
 
 export default function MonthlySLAModal({
@@ -25,18 +30,93 @@ export default function MonthlySLAModal({
     scoringPeriod,
     monthlySlaData,
     setMonthlySlaData,
-    currentYear
+    currentYear,
+    periodMonths,
+    pointsPerMonth = 5,
+    maxPoints = 30,
+    mdaName = "" // Default
 }: MonthlySLAModalProps) {
     const [processingMonthlyFiles, setProcessingMonthlyFiles] = useState<Record<string, boolean>>({});
+    const [isAutoProcessing, setIsAutoProcessing] = useState(false);
     const [showResultModal, setShowResultModal] = useState(false);
     const [viewResults, setViewResults] = useState<any[]>([]);
     const [viewOverallPercentage, setViewOverallPercentage] = useState<number | null>(null);
 
     const matchHeaders = useAction(api.ai_helper_scoring.matchHeaders);
     const processSlaData = useAction(api.ai_helper_scoring.processSlaData);
+    const processMonthlyReportFromDB = useAction(api.ai_helper_scoring.processMonthlyReportFromDB);
+
+    const handleAutoProcess = async () => {
+        if (!mdaName) {
+            toast.error("MDA Name is missing");
+            return;
+        }
+
+        setIsAutoProcessing(true);
+        const months = periodMonths || getMonthsForPeriod(scoringPeriod);
+        let processedCount = 0;
+        let skippedCount = 0;
+        let failCount = 0;
+
+        toast.info(`Starting auto-process for ${months.length} months...`);
+
+        // Process sequentially to avoid overwhelming the server or client
+        for (const month of months) {
+            const monthKey = `${month.year}-${month.month}`;
+
+            // Visual feedback
+            setProcessingMonthlyFiles(prev => ({ ...prev, [monthKey]: true }));
+
+            try {
+                const result = await processMonthlyReportFromDB({
+                    mdaName,
+                    month: month.month,
+                    year: month.year
+                });
+
+                if (result.success) {
+                    setMonthlySlaData(prev => ({
+                        ...prev,
+                        [monthKey]: {
+                            method: 'file',
+                            file: null, // No file object on client
+                            rating: 0,
+                            overallPercentage: result.overallPercentage,
+                            results: result.results,
+                            score: result.overallPercentage ? (result.overallPercentage / 100) * pointsPerMonth : 0
+                        }
+                    }));
+                    processedCount++;
+                } else {
+                    if (result.reason === 'not_found' || result.reason === 'no_file') {
+                        skippedCount++;
+                    } else {
+                        failCount++;
+                        console.warn(`Failed to process ${month.monthName}: ${result.message}`);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error processing ${month.monthName}:`, error);
+                failCount++;
+            } finally {
+                setProcessingMonthlyFiles(prev => ({ ...prev, [monthKey]: false }));
+            }
+        }
+
+        setIsAutoProcessing(false);
+        if (processedCount > 0) {
+            toast.success(`Auto-process complete: ${processedCount} processed, ${skippedCount} skipped, ${failCount} failed.`);
+        } else if (failCount > 0) {
+            toast.error(`Auto-process finished with errors: ${failCount} failed.`);
+        } else {
+            toast.info(`Auto-process complete: No reports found to process.`);
+        }
+    };
+
+    // ... calculateStats ...
 
     const calculateStats = () => {
-        const months = getMonthsForPeriod(scoringPeriod);
+        const months = periodMonths || getMonthsForPeriod(scoringPeriod);
         const totalMonths = months.length;
         let monthsWithData = 0;
         let totalScore = 0;
@@ -50,7 +130,7 @@ export default function MonthlySLAModal({
             }
         });
 
-        const percentage = totalMonths > 0 ? (totalScore / (totalMonths * 5)) * 100 : 0;
+        const percentage = maxPoints > 0 ? (totalScore / maxPoints) * 100 : 0;
 
         return { totalScore, monthsWithData, totalMonths, percentage };
     };
@@ -70,15 +150,47 @@ export default function MonthlySLAModal({
                 </button>
 
                 <div className="p-6">
-                    <div className="text-center mb-6">
+                    <div className="text-center mb-6 relative">
                         <h1 className="text-2xl font-bold text-gray-800 mb-2">Monthly SLA Scoring</h1>
-                        <p className="text-gray-600">{scoringPeriod} - 5 points per month</p>
+                        <p className="text-gray-600">{scoringPeriod} - {pointsPerMonth.toFixed(1)} points per month</p>
+
+                        {/* Auto Process Button */}
+                        <div className="absolute right-0 top-0 hidden md:block">
+                            <button
+                                onClick={handleAutoProcess}
+                                disabled={isAutoProcessing}
+                                className={`flex items-center gap-2 px-4 py-2 rounded text-white text-sm font-medium transition-colors ${isAutoProcessing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                                    }`}
+                            >
+                                {isAutoProcessing ? (
+                                    <>
+                                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        ⚡ Auto-Process All
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        {/* Mobile button visible below title */}
+                        <div className="mt-2 md:hidden">
+                            <button
+                                onClick={handleAutoProcess}
+                                disabled={isAutoProcessing}
+                                className={`flex items-center justify-center gap-2 w-full px-4 py-2 rounded text-white text-sm font-medium transition-colors ${isAutoProcessing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                                    }`}
+                            >
+                                {isAutoProcessing ? 'Processing...' : '⚡ Auto-Process All'}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Monthly SLA Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                        {getMonthsForPeriod(scoringPeriod).map((periodMonth, index) => {
-                            const monthName = new Date(periodMonth.year, periodMonth.month, 1)
+                        {(periodMonths || getMonthsForPeriod(scoringPeriod)).map((periodMonth, index) => {
+                            const monthName = periodMonth.monthName || new Date(periodMonth.year, periodMonth.month, 1)
                                 .toLocaleString('default', { month: 'long' });
                             const monthKey = `${periodMonth.year}-${periodMonth.month}`;
                             const monthData = monthlySlaData[monthKey] || {
@@ -95,7 +207,7 @@ export default function MonthlySLAModal({
                                     <div className="flex justify-between items-center mb-3">
                                         <h3 className="font-semibold text-lg">{monthName}</h3>
                                         <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
-                                            5 Points
+                                            {pointsPerMonth.toFixed(1)} Points
                                         </span>
                                     </div>
 
@@ -161,8 +273,46 @@ export default function MonthlySLAModal({
                                                             try {
                                                                 const data = new Uint8Array(event.target?.result as ArrayBuffer);
                                                                 const workbook = XLSX.read(data, { type: 'array' });
-                                                                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                                                                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                                                                const firstSheetName = workbook.SheetNames[0];
+                                                                const firstSheet = workbook.Sheets[firstSheetName];
+
+                                                                // Convert to array of arrays first to find the header row
+                                                                const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+
+                                                                // Find header row index
+                                                                let headerRowIndex = 0;
+                                                                const searchKeywords = ['CUSTOMER', 'SERVICE', 'DATE', 'PHONE', 'COST', 'AMOUNT', 'EMAIL', 'ADDRESS'];
+
+                                                                // Scan first 20 rows or total rows if less
+                                                                let maxMatches = 0;
+
+                                                                for (let i = 0; i < Math.min(rawData.length, 20); i++) {
+                                                                    const row = rawData[i];
+                                                                    let matchCount = 0;
+
+                                                                    // Count keyword matches in this row
+                                                                    row.forEach((cell: any) => {
+                                                                        if (!cell) return;
+                                                                        const cellStr = String(cell).toUpperCase();
+                                                                        if (searchKeywords.some(keyword => cellStr.includes(keyword))) {
+                                                                            matchCount++;
+                                                                        }
+                                                                    });
+
+                                                                    // Update if this row has more matches
+                                                                    // We use > so in case of tie, we keep the first one (usually top one is summary if few matches)
+                                                                    // But actually, we want the most robust one.
+                                                                    if (matchCount > maxMatches) {
+                                                                        maxMatches = matchCount;
+                                                                        headerRowIndex = i;
+                                                                    }
+                                                                }
+
+                                                                // Re-parse with correct range
+                                                                const jsonData = XLSX.utils.sheet_to_json(firstSheet, {
+                                                                    range: headerRowIndex,
+                                                                    defval: "" // Default value for empty cells
+                                                                });
 
                                                                 if (jsonData.length === 0) {
                                                                     toast.error("No data found in the Excel file");
@@ -188,7 +338,7 @@ export default function MonthlySLAModal({
                                                                             rating: 0,
                                                                             overallPercentage: processResult.overallPercentage,
                                                                             results: processResult.processedData,
-                                                                            score: processResult.overallPercentage ? (processResult.overallPercentage / 100) * 5 : 0
+                                                                            score: processResult.overallPercentage ? (processResult.overallPercentage / 100) * pointsPerMonth : 0
                                                                         }
                                                                     }));
                                                                     toast.success(`✅ ${monthName} processed`);
@@ -221,7 +371,7 @@ export default function MonthlySLAModal({
                                                             ...prev[monthKey] || {},
                                                             method: 'rating',
                                                             rating: rating,
-                                                            score: (rating / 10) * 5
+                                                            score: (rating / 10) * pointsPerMonth
                                                         } as any
                                                     }));
                                                 }}
@@ -246,7 +396,7 @@ export default function MonthlySLAModal({
                                                 <div className="text-sm font-medium">
                                                     Score: {monthData.method === 'file'
                                                         ? (monthData.overallPercentage !== null ? `${monthData.overallPercentage.toFixed(1)}%` : 'N/A')
-                                                        : `${((monthData.rating / 10) * 5).toFixed(1)}/5`
+                                                        : `${((monthData.rating / 10) * pointsPerMonth).toFixed(1)}/${pointsPerMonth.toFixed(1)}`
                                                     }
                                                 </div>
                                                 {monthData.method === 'file' && monthData.results && monthData.results.length > 0 && (
@@ -281,7 +431,7 @@ export default function MonthlySLAModal({
                             <div>
                                 <span className="font-medium">Total Score:</span>
                                 <div className="text-lg font-bold text-blue-600">
-                                    {stats.totalScore.toFixed(1)}/30
+                                    {stats.totalScore.toFixed(1)}/{maxPoints}
                                 </div>
                             </div>
                             <div>

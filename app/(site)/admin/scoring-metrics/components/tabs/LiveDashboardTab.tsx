@@ -9,7 +9,11 @@ import ViewDetailsModal from '../dashboard/ViewDetailsModal';
 
 interface LiveDashboardTabProps {
     // Data
-    liveDashboardData: any[] | undefined;
+    liveDashboardData: any | undefined;
+    efficiencyConfig: any;
+    othersConfig: any;
+    penaltyConfig: any;
+    mysteryConfig: any;
 
     // Filters & Selection
     selectedMetric: string;
@@ -40,6 +44,10 @@ interface LiveDashboardTabProps {
 
 export default function LiveDashboardTab({
     liveDashboardData,
+    efficiencyConfig,
+    othersConfig,
+    penaltyConfig,
+    mysteryConfig,
     selectedMetric,
     setSelectedMetric,
     mdaFilter,
@@ -75,11 +83,17 @@ export default function LiveDashboardTab({
                 handleGenerateDashboardPDF={handleGenerateDashboardPDF}
                 liveDashboardData={liveDashboardData}
                 processDashboardMdaData={processDashboardMdaData}
+                othersConfig={othersConfig}
+                penaltyConfig={penaltyConfig}
             />
 
             {/* Main Dashboard Table */}
             <DashboardTable
-                liveDashboardData={liveDashboardData}
+                liveDashboardData={liveDashboardData?.data}
+                efficiencyConfig={liveDashboardData?.efficiencyConfig || efficiencyConfig}
+                othersConfig={othersConfig}
+                penaltyConfig={penaltyConfig}
+                mysteryConfig={mysteryConfig}
                 processDashboardMdaData={processDashboardMdaData}
                 mdaFilter={mdaFilter}
                 ministryFilter={ministryFilter}
@@ -91,19 +105,21 @@ export default function LiveDashboardTab({
             />
 
             {/* Top 10 and Bottom 10 Tables */}
-            {liveDashboardData !== undefined && (
+            {liveDashboardData?.data !== undefined && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Top10Table
                         processDashboardMdaData={processDashboardMdaData}
                         mdaFilter={mdaFilter}
                         ministryFilter={ministryFilter}
                         selectedMetric={selectedMetric}
+                        dashboardYear={dashboardYear}
                     />
                     <Bottom10Table
                         processDashboardMdaData={processDashboardMdaData}
                         mdaFilter={mdaFilter}
                         ministryFilter={ministryFilter}
                         selectedMetric={selectedMetric}
+                        dashboardYear={dashboardYear}
                     />
                 </div>
             )}

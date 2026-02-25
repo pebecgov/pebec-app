@@ -48,8 +48,8 @@ export default function AdminMeetingCalendarPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [meetingToDelete, setMeetingToDelete] = useState<Id<"calendar_meetings"> | null>(null);
 
-    // Form state
     const [meetingName, setMeetingName] = useState("");
+    const [meetingEndDate, setMeetingEndDate] = useState<Date | null>(null);
     const [startTime, setStartTime] = useState<Date | null>(null);
     const [endTime, setEndTime] = useState<Date | null>(null);
     const [description, setDescription] = useState("");
@@ -96,6 +96,7 @@ export default function AdminMeetingCalendarPage() {
 
         setStartTime(start);
         setEndTime(end);
+        setMeetingEndDate(selectedDate);
         setDescription("");
         setMeetingType("external");
         setInternalParticipants([]);
@@ -120,6 +121,7 @@ export default function AdminMeetingCalendarPage() {
 
         setStartTime(start);
         setEndTime(end);
+        setMeetingEndDate(meeting.endDate ? parseISO(meeting.endDate) : parseISO(meeting.date));
         setDescription(meeting.description || "");
         setMeetingType(meeting.meetingType || "external");
         setInternalParticipants(meeting.internalParticipants || []);
@@ -146,6 +148,7 @@ export default function AdminMeetingCalendarPage() {
         };
 
         const dateStr = format(meetingDate, "yyyy-MM-dd");
+        const endDateStr = meetingEndDate ? format(meetingEndDate, "yyyy-MM-dd") : dateStr;
         const startTimeStr = fmt(startTime);
         const endTimeStr = fmt(endTime);
 
@@ -155,6 +158,7 @@ export default function AdminMeetingCalendarPage() {
                     meetingId: editingMeeting,
                     name: meetingName,
                     date: dateStr,
+                    endDate: endDateStr,
                     startTime: startTimeStr,
                     endTime: endTimeStr,
                     description: description || undefined,
@@ -167,6 +171,7 @@ export default function AdminMeetingCalendarPage() {
                 await createMeeting({
                     name: meetingName,
                     date: dateStr,
+                    endDate: endDateStr,
                     startTime: startTimeStr,
                     endTime: endTimeStr,
                     description: description || undefined,
@@ -269,11 +274,19 @@ export default function AdminMeetingCalendarPage() {
                                             <h3 className="font-semibold text-lg text-gray-800 mb-2">
                                                 {meeting.name}
                                             </h3>
-                                            <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                                                <ClockIcon className="w-4 h-4" />
-                                                <span>
-                                                    {meeting.startTime} - {meeting.endTime}
-                                                </span>
+                                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-1">
+                                                <div className="flex items-center gap-2">
+                                                    <ClockIcon className="w-4 h-4" />
+                                                    <span>
+                                                        {meeting.startTime} - {meeting.endTime}
+                                                    </span>
+                                                </div>
+                                                {meeting.endDate && meeting.endDate !== meeting.date && (
+                                                    <div className="flex items-center gap-2 bg-white/50 px-2 py-0.5 rounded border border-gray-100 font-medium text-xs">
+                                                        <CalendarDaysIcon className="w-3.5 h-3.5 text-green-600" />
+                                                        <span>Ends: {format(parseISO(meeting.endDate), "MMM d, yyyy")}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                             {meeting.description && (
                                                 <p className="text-sm text-gray-600 mt-2">{meeting.description}</p>
@@ -362,16 +375,39 @@ export default function AdminMeetingCalendarPage() {
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Date *
-                            </label>
-                            <DatePicker
-                                selected={meetingDate}
-                                onChange={(date) => setMeetingDate(date || new Date())}
-                                dateFormat="MMMM d, yyyy"
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Start Date *
+                                </label>
+                                <DatePicker
+                                    selected={meetingDate}
+                                    onChange={(date) => {
+                                        setMeetingDate(date || new Date());
+                                        if (meetingEndDate && date && date > meetingEndDate) {
+                                            setMeetingEndDate(date);
+                                        }
+                                    }}
+                                    dateFormat="MMMM d, yyyy"
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    End Date *
+                                </label>
+                                <DatePicker
+                                    selected={meetingEndDate}
+                                    onChange={(date) => setMeetingEndDate(date)}
+                                    selectsEnd
+                                    startDate={meetingDate}
+                                    endDate={meetingEndDate}
+                                    minDate={meetingDate}
+                                    dateFormat="MMMM d, yyyy"
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    placeholderText="Optional end date"
+                                />
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">

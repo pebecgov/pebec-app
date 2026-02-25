@@ -36,11 +36,14 @@ const EventAnalyticsDashboard = () => {
     }]
   };
   return <div className="flex flex-col md:flex-row p-4 gap-4">
-      {}
-      <div className="md:w-1/2 bg-white rounded-lg shadow p-4 overflow-y-auto max-h-[80vh]">
-        <h2 className="text-xl font-semibold mb-4">Upcoming Events</h2>
-        <ul className="space-y-4">
-          {events.map(event => <li key={event._id} className="border-b pb-2">
+    { }
+    <div className="md:w-1/2 bg-white rounded-lg shadow p-4 overflow-y-auto max-h-[80vh]">
+      <h2 className="text-xl font-semibold mb-4">Upcoming Events</h2>
+      <ul className="space-y-4">
+        {sortedEvents
+          .filter((event) => event.eventDate! >= Date.now())
+          .map((event) => (
+            <li key={event._id} className="border-b pb-2">
               <h3 className="text-lg font-medium">{event.title}</h3>
               <div className="flex items-center text-sm text-gray-600 mt-1">
                 <FaCalendarAlt className="mr-2" />
@@ -58,34 +61,35 @@ const EventAnalyticsDashboard = () => {
                 <FaTag className="mr-2" />
                 {event.eventType}
               </div>
-            </li>)}
-        </ul>
-      </div>
+            </li>
+          ))}
+      </ul>
+    </div>
 
-      {}
-      <div className="md:w-1/2 flex flex-col gap-4 w-full">
-        {}
-        <div className="bg-white rounded-lg shadow p-4 w-full">
-          <h2 className="text-xl font-semibold mb-4">Attendees Over Time</h2>
-          <div className="h-64">
-            <Line data={attendeesOverTimeData} options={{
+    { }
+    <div className="md:w-1/2 flex flex-col gap-4 w-full">
+      { }
+      <div className="bg-white rounded-lg shadow p-4 w-full">
+        <h2 className="text-xl font-semibold mb-4">Attendees Over Time</h2>
+        <div className="h-64">
+          <Line data={attendeesOverTimeData} options={{
             responsive: true,
             maintainAspectRatio: false
           }} />
-          </div>
         </div>
+      </div>
 
-        {}
-        <div className="bg-white rounded-lg shadow p-4 w-full">
-          <h2 className="text-xl font-semibold mb-4">Event Type Distribution</h2>
-          <div className="h-64">
-            <Pie data={eventTypeDistributionData} options={{
+      { }
+      <div className="bg-white rounded-lg shadow p-4 w-full">
+        <h2 className="text-xl font-semibold mb-4">Event Type Distribution</h2>
+        <div className="h-64">
+          <Pie data={eventTypeDistributionData} options={{
             responsive: true,
             maintainAspectRatio: false
           }} />
-          </div>
         </div>
       </div>
-    </div>;
+    </div>
+  </div>;
 };
 export default EventAnalyticsDashboard;

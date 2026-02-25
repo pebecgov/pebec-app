@@ -190,6 +190,8 @@ export const calculateAndSaveMDAScore = mutation({
     reportGovernanceResolutionScore: v.number(),
     monthlyReportSubmissionScore: v.number(),
     timelinessInSubmittingScore: v.number(),
+    othersScore: v.optional(v.number()),
+    penaltiesScore: v.optional(v.number()),
     // Performance data
     totalTickets: v.number(),
     resolvedTickets: v.number(),
@@ -225,7 +227,9 @@ export const calculateAndSaveMDAScore = mutation({
       args.transparencyScore +
       args.reportGovernanceResolutionScore +
       args.monthlyReportSubmissionScore +
-      args.timelinessInSubmittingScore;
+      args.timelinessInSubmittingScore +
+      (args.othersScore || 0) +
+      (args.penaltiesScore || 0);
 
     // Use provided maxPossiblePoints or default to 100
     const maxPossiblePoints = args.maxPossiblePoints || 100;
@@ -257,6 +261,8 @@ export const calculateAndSaveMDAScore = mutation({
       reportGovernanceResolutionScore: args.reportGovernanceResolutionScore,
       monthlyReportSubmissionScore: args.monthlyReportSubmissionScore,
       timelinessInSubmittingScore: args.timelinessInSubmittingScore,
+      othersScore: args.othersScore || 0,
+      penaltiesScore: args.penaltiesScore || 0,
       totalScore,
       totalPercentage,
       maxPossiblePoints: maxPossiblePoints,
@@ -478,26 +484,97 @@ export const getRealMonthlyReports = query({
 
     // Filter reports by the selected scoring period BEFORE processing
     let filteredReports = allReports;
-    if (scoringPeriod) {
-      const currentYear = new Date().getFullYear();
+    let monthsToCheck: { month: number; year: number }[] = [];
 
+    // Default current date info
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    if (scoringPeriod) {
       // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
       const yearMatch = scoringPeriod.match(/\d{4}/);
       const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
 
-      let startDate: number, endDate: number;
+      let startDate: number = 0;
+      let endDate: number = 0;
 
-      if (scoringPeriod.includes("1st Half")) {
-        startDate = new Date(targetYear, 0, 1).getTime(); // January 1
-        endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
-      } else if (scoringPeriod.includes("2nd Half")) {
-        startDate = new Date(targetYear, 6, 1).getTime();  // July 1
-        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
-      } else {
-        // Default: From January to current month
-        const currentMonth = new Date().getMonth();
-        startDate = new Date(targetYear, 0, 1).getTime();
-        endDate = new Date(targetYear, currentMonth + 1, 0, 23, 59, 59).getTime();
+      // Check for dynamic efficiency period configuration for 2026+
+      let usedDynamicPeriod = false;
+      if (targetYear >= 2026) {
+        const efficiencyConfig = await ctx.db.query("efficiency_periods")
+          .withIndex("byYear", q => q.eq("year", targetYear))
+          .first();
+
+        if (efficiencyConfig) {
+          const startMonth = getMonthNumber(efficiencyConfig.startMonth);
+          const endMonth = getMonthNumber(efficiencyConfig.endMonth);
+
+          // Start date: 1st day of start month in start year
+          startDate = new Date(efficiencyConfig.startYear, startMonth, 1).getTime();
+
+          // End date: Last day of end month in end year
+          endDate = new Date(efficiencyConfig.endYear, endMonth + 1, 0, 23, 59, 59).getTime();
+
+          // Generate monthsToCheck based on config
+          const monthNames = ["January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"];
+
+          let iterYear = efficiencyConfig.startYear;
+          let iterMonth = startMonth;
+
+          for (let i = 0; i < (efficiencyConfig.totalMonths || 12); i++) {
+            monthsToCheck.push({ month: iterMonth, year: iterYear });
+            iterMonth++;
+            if (iterMonth > 11) {
+              iterMonth = 0;
+              iterYear++;
+            }
+          }
+
+          usedDynamicPeriod = true;
+        }
+      }
+
+      if (!usedDynamicPeriod) {
+        if (scoringPeriod.includes("1st Half")) {
+          startDate = new Date(targetYear, 0, 1).getTime(); // January 1
+          endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
+
+          // January to June of target year
+          monthsToCheck = [
+            { month: 0, year: targetYear }, { month: 1, year: targetYear },
+            { month: 2, year: targetYear }, { month: 3, year: targetYear },
+            { month: 4, year: targetYear }, { month: 5, year: targetYear }
+          ];
+        } else if (scoringPeriod.includes("2nd Half")) {
+          startDate = new Date(targetYear, 6, 1).getTime();  // July 1
+          endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
+
+          // July to December of target year
+          monthsToCheck = [
+            { month: 6, year: targetYear }, { month: 7, year: targetYear },
+            { month: 8, year: targetYear }, { month: 9, year: targetYear },
+            { month: 10, year: targetYear }, { month: 11, year: targetYear }
+          ];
+        } else if (scoringPeriod === String(targetYear)) {
+          // Full Year
+          startDate = new Date(targetYear, 0, 1).getTime();
+          endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
+
+          // All months of target year
+          for (let month = 0; month <= 11; month++) {
+            monthsToCheck.push({ month, year: targetYear });
+          }
+        } else {
+          // Default: From January to current month
+          startDate = new Date(targetYear, 0, 1).getTime();
+          endDate = new Date(targetYear, currentMonth + 1, 0, 23, 59, 59).getTime();
+
+          for (let month = 0; month <= currentMonth; month++) {
+            monthsToCheck.push({ month, year: targetYear });
+          }
+        }
       }
 
       // Filter reports by date range
@@ -509,48 +586,10 @@ export const getRealMonthlyReports = query({
 
     // Group reports by month and year based on scoring period
     const monthlyData = [];
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
-
-    // Extract year from scoring period for monthsToCheck
-    const yearMatch = scoringPeriod?.match(/\d{4}/);
-    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
 
     // Debug: Log the scoring period and filtering results
-    console.log('getRealMonthlyReports - Scoring Period:', scoringPeriod);
-    console.log('getRealMonthlyReports - Target Year:', targetYear);
-    console.log('getRealMonthlyReports - Total reports found:', allReports.length);
-    console.log('getRealMonthlyReports - Filtered reports:', filteredReports.length);
-
-    let monthsToCheck = [];
-
-    if (scoringPeriod?.includes("1st Half")) {
-      // January to June of target year
-      monthsToCheck = [
-        { month: 0, year: targetYear },   // January
-        { month: 1, year: targetYear },   // February
-        { month: 2, year: targetYear },   // March
-        { month: 3, year: targetYear },   // April
-        { month: 4, year: targetYear },   // May
-        { month: 5, year: targetYear }    // June
-      ];
-    } else if (scoringPeriod?.includes("2nd Half")) {
-      // July to December of target year
-      monthsToCheck = [
-        { month: 6, year: targetYear },   // July
-        { month: 7, year: targetYear },   // August
-        { month: 8, year: targetYear },   // September
-        { month: 9, year: targetYear },   // October
-        { month: 10, year: targetYear },  // November
-        { month: 11, year: targetYear }   // December
-      ];
-    } else {
-      // Default: From January to current month (not 7 months)
-      for (let month = 0; month <= currentMonth; month++) {
-        monthsToCheck.push({ month, year: targetYear });
-      }
-    }
+    // console.log('getRealMonthlyReports - Scoring Period:', scoringPeriod);
+    // console.log('getRealMonthlyReports - Filtered reports:', filteredReports.length);
 
     // Track which reports have been assigned to a month by name (to avoid duplicates)
     const reportsAssignedByName = new Set<string>();
@@ -588,9 +627,6 @@ export const getRealMonthlyReports = query({
 
         return matchesByDate;
       });
-
-      // Debug: Log reports found for this month
-      console.log(`Month ${monthName} ${year}: Found ${monthReports.length} reports`);
 
       // Calculate deadline (last Friday of the month)
       const lastDay = new Date(year, month + 1, 0);
@@ -734,6 +770,16 @@ export const getYearlyScoringData = query({
   }
 });
 
+// Helper to convert month name to number (0-11)
+function getMonthNumber(monthName: string): number {
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const index = months.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
+  return index !== -1 ? index : 0; // Default to January if invalid
+}
+
 // Get period-specific ticket data for MDA scoring
 export const getPeriodTicketData = query({
   args: {
@@ -750,23 +796,52 @@ export const getPeriodTicketData = query({
 
     // Calculate date range based on scoring period
     const currentYear = new Date().getFullYear();
-    let startDate: number, endDate: number;
+    let startDate: number = 0;
+    let endDate: number = 0;
 
     // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
     const yearMatch = scoringPeriod.match(/\d{4}/);
     const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
 
-    if (scoringPeriod.includes("1st Half")) {
-      startDate = new Date(targetYear, 0, 1).getTime(); // January 1
-      endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
-    } else if (scoringPeriod.includes("2nd Half")) {
-      startDate = new Date(targetYear, 6, 1).getTime();  // July 1
-      endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
-    } else {
-      // Default - use current month
-      const now = new Date();
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+    // Check for dynamic efficiency period configuration for 2026+
+    let usedDynamicPeriod = false;
+    if (targetYear >= 2026) {
+      const efficiencyConfig = await ctx.db.query("efficiency_periods")
+        .withIndex("byYear", q => q.eq("year", targetYear))
+        .first();
+
+      if (efficiencyConfig) {
+        const startMonth = getMonthNumber(efficiencyConfig.startMonth);
+        const endMonth = getMonthNumber(efficiencyConfig.endMonth);
+
+        // Start date: 1st day of start month in start year
+        startDate = new Date(efficiencyConfig.startYear, startMonth, 1).getTime();
+
+        // End date: Last day of end month in end year
+        // logic: day 0 of next month gives last day of current month
+        endDate = new Date(efficiencyConfig.endYear, endMonth + 1, 0, 23, 59, 59).getTime();
+
+        usedDynamicPeriod = true;
+      }
+    }
+
+    if (!usedDynamicPeriod) {
+      if (scoringPeriod.includes("1st Half")) {
+        startDate = new Date(targetYear, 0, 1).getTime(); // January 1
+        endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
+      } else if (scoringPeriod.includes("2nd Half")) {
+        startDate = new Date(targetYear, 6, 1).getTime();  // July 1
+        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
+      } else if (scoringPeriod === String(targetYear)) {
+        // Full Year
+        startDate = new Date(targetYear, 0, 1).getTime();
+        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
+      } else {
+        // Default - use current month
+        const now = new Date();
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+      }
     }
 
     // Get all tickets for this MDA first
@@ -781,7 +856,7 @@ export const getPeriodTicketData = query({
 
     // Debug logging
     console.log(`MDA: ${mdaName}, Period: ${scoringPeriod}`);
-    console.log(`Target Year: ${targetYear}`);
+    console.log(`Target Year: ${targetYear}, Dynamic: ${usedDynamicPeriod}`);
     console.log(`Date Range: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`);
     console.log(`Total tickets for MDA: ${allTickets.length}`);
     console.log(`Filtered tickets for period: ${filteredTickets.length}`);
@@ -1962,6 +2037,43 @@ export const getAllMdaSavedDataForDashboard = query({
   handler: async (ctx, { year }) => {
     const firstHalfPeriod = `1st Half ${year}`;
     const secondHalfPeriod = `2nd Half ${year}`;
+    const fullYearPeriod = String(year);
+
+    // Fetch dynamic configuration for 2026+
+    const [efficiencyConfig, mysteryQuestions, transparencyItems, innovationStakeholderItems] = await Promise.all([
+      ctx.db.query("efficiency_periods")
+        .withIndex("byYear", q => q.eq("year", year))
+        .filter(q => q.eq(q.field("isActive"), true))
+        .first(),
+      ctx.db.query("mystery_shopping_questions")
+        .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
+        .collect(),
+      ctx.db.query("transparency_items")
+        .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
+        .collect(),
+      ctx.db.query("innovation_stakeholder_items")
+        .withIndex("byYear", q => q.eq("year", year))
+        .filter(q => q.eq(q.field("isActive"), true))
+        .collect()
+    ]);
+
+    // Calculate dynamic totals for "Others" and "Mystery Shopping"
+    const uniqueMysteryQuestions = [...new Map(mysteryQuestions.map(item => [item._id, item])).values()];
+    const uniqueTransparencyItems = [...new Map(transparencyItems.map(item => [item.itemId, item])).values()];
+    // Deduplicate innovation/stakeholder items by itemId
+    const uniqueInnovationStakeholderItems = [...new Map([
+      ...innovationStakeholderItems
+    ].map(item => [item.itemId, item])).values()];
+
+    // Mystery Shopping: User confirmed it should be 20 points max, even if config has more (multiple types)
+    const rawMysterySum = uniqueMysteryQuestions.reduce((sum, q) => sum + (q.weight || 0), 0);
+    const mysteryTotal = rawMysterySum > 0 ? 20 : 20;
+
+    // Others: Transparency (10) + Innovation (5) + Stakeholder (10) = 25
+    const othersTotal = uniqueTransparencyItems.reduce((sum, i) => sum + (i.weight || 0), 0) +
+      uniqueInnovationStakeholderItems.reduce((sum, i) => sum + (i.weight || 0), 0) || 25;
+
+    console.log(`[Dashboard Debug ${year}] Efficiency: ${JSON.stringify(efficiencyConfig)}, Mystery (raw): ${mysteryTotal}, Others (raw): ${othersTotal}`);
 
     // Get all MDAs from database and from scoring history to get complete list
     const allMdas = await ctx.db.query("mdas").collect();
@@ -1969,74 +2081,101 @@ export const getAllMdaSavedDataForDashboard = query({
     const uniqueMdaNamesFromHistory = [...new Set(allScoringHistory.map(s => s.mdaName))];
 
     // Combine and deduplicate
-    const allMdaNames = [...new Set([...allMdas.map(m => m.name), ...uniqueMdaNamesFromHistory])];
+    const allMdaNames = [...new Set([...allMdas.map(m => m.name.trim()), ...uniqueMdaNamesFromHistory.map(n => n.trim())])];
+    const uniqueMdaNames = [...new Set(allMdaNames)];
 
     // Get all saved data for both periods - query separately and combine
-    const [slaFirstHalf, slaSecondHalf] = await Promise.all([
+    const [slaFirstHalf, slaSecondHalf, slaFullYear] = await Promise.all([
       ctx.db.query("mda_sla_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_sla_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_sla_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_sla_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const slaData = [...slaFirstHalf, ...slaSecondHalf];
+    const slaData = [...slaFirstHalf, ...slaSecondHalf, ...slaFullYear];
 
-    const [mysteryFirstHalf, mysterySecondHalf] = await Promise.all([
+    const [mysteryFirstHalf, mysterySecondHalf, mysteryFullYear] = await Promise.all([
       ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const mysteryData = [...mysteryFirstHalf, ...mysterySecondHalf];
+    const mysteryData = [...mysteryFirstHalf, ...mysterySecondHalf, ...mysteryFullYear];
 
-    const [controversialFirstHalf, controversialSecondHalf] = await Promise.all([
+    const [controversialFirstHalf, controversialSecondHalf, controversialFullYear] = await Promise.all([
       ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const controversialData = [...controversialFirstHalf, ...controversialSecondHalf];
+    const controversialData = [...controversialFirstHalf, ...controversialSecondHalf, ...controversialFullYear];
 
-    const [innovationFirstHalf, innovationSecondHalf] = await Promise.all([
+    const [innovationFirstHalf, innovationSecondHalf, innovationFullYear] = await Promise.all([
       ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const innovationData = [...innovationFirstHalf, ...innovationSecondHalf];
+    const innovationData = [...innovationFirstHalf, ...innovationSecondHalf, ...innovationFullYear];
 
-    const [stakeholderFirstHalf, stakeholderSecondHalf] = await Promise.all([
+    const [stakeholderFirstHalf, stakeholderSecondHalf, stakeholderFullYear] = await Promise.all([
       ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const stakeholderData = [...stakeholderFirstHalf, ...stakeholderSecondHalf];
+    const stakeholderData = [...stakeholderFirstHalf, ...stakeholderSecondHalf, ...stakeholderFullYear];
 
-    const [transparencyFirstHalf, transparencySecondHalf] = await Promise.all([
+    const [transparencyFirstHalf, transparencySecondHalf, transparencyFullYear] = await Promise.all([
       ctx.db.query("mda_transparency_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_transparency_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_transparency_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_transparency_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const transparencyData = [...transparencyFirstHalf, ...transparencySecondHalf];
+    const transparencyData = [...transparencyFirstHalf, ...transparencySecondHalf, ...transparencyFullYear];
 
-    const [reportGovResFirstHalf, reportGovResSecondHalf] = await Promise.all([
+    const [reportGovResFirstHalf, reportGovResSecondHalf, reportGovResFullYear] = await Promise.all([
       ctx.db.query("mda_reportgov_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_reportgov_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_reportgov_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_reportgov_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const reportGovResolutionData = [...reportGovResFirstHalf, ...reportGovResSecondHalf];
+    const reportGovResolutionData = [...reportGovResFirstHalf, ...reportGovResSecondHalf, ...reportGovResFullYear];
 
-    const [monthlyReportFirstHalf, monthlyReportSecondHalf] = await Promise.all([
+    const [monthlyReportFirstHalf, monthlyReportSecondHalf, monthlyReportFullYear] = await Promise.all([
       ctx.db.query("mda_monthly_report_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_monthly_report_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_monthly_report_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_monthly_report_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const monthlyReportData = [...monthlyReportFirstHalf, ...monthlyReportSecondHalf];
+    const monthlyReportData = [...monthlyReportFirstHalf, ...monthlyReportSecondHalf, ...monthlyReportFullYear];
 
-    const [timelinessFirstHalf, timelinessSecondHalf] = await Promise.all([
+    const [timelinessFirstHalf, timelinessSecondHalf, timelinessFullYear] = await Promise.all([
       ctx.db.query("mda_timeliness_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_timeliness_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_timeliness_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_timeliness_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const timelinessData = [...timelinessFirstHalf, ...timelinessSecondHalf];
+    const timelinessData = [...timelinessFirstHalf, ...timelinessSecondHalf, ...timelinessFullYear];
 
-    const [toutingRentseekingFirstHalf, toutingRentseekingSecondHalf] = await Promise.all([
+    const [toutingRentseekingFirstHalf, toutingRentseekingSecondHalf, toutingRentseekingFullYear] = await Promise.all([
       ctx.db.query("mda_touting_rentseeking_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_touting_rentseeking_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect()
+      ctx.db.query("mda_touting_rentseeking_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("mda_touting_rentseeking_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
     ]);
-    const toutingRentseekingData = [...toutingRentseekingFirstHalf, ...toutingRentseekingSecondHalf];
+    const toutingRentseekingData = [...toutingRentseekingFirstHalf, ...toutingRentseekingSecondHalf, ...toutingRentseekingFullYear];
+
+    // Dynamic Others Data (2026+)
+    const [othersFirstHalf, othersSecondHalf, othersFullYear] = await Promise.all([
+      ctx.db.query("saved_others_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
+      ctx.db.query("saved_others_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("saved_others_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
+    ]);
+    const othersData = [...othersFirstHalf, ...othersSecondHalf, ...othersFullYear];
+
+    // Dynamic Penalties Data (2026+)
+    const [penaltiesFirstHalf, penaltiesSecondHalf, penaltiesFullYear] = await Promise.all([
+      ctx.db.query("saved_penalties_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
+      ctx.db.query("saved_penalties_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("saved_penalties_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
+    ]);
+    const penaltiesData = [...penaltiesFirstHalf, ...penaltiesSecondHalf, ...penaltiesFullYear];
 
     // Group data by MDA name
     const mdaDataMap: { [key: string]: any } = {};
 
     // Initialize all MDAs
-    allMdaNames.forEach(name => {
+    uniqueMdaNames.forEach(name => {
       mdaDataMap[name] = {
         mdaName: name,
         sla: null,
@@ -2048,7 +2187,9 @@ export const getAllMdaSavedDataForDashboard = query({
         transparency: null,
         reportGovResolution: null,
         monthlyReport: null,
-        timeliness: null
+        timeliness: null,
+        others: null,
+        penalties: null
       };
     });
 
@@ -2059,9 +2200,10 @@ export const getAllMdaSavedDataForDashboard = query({
       slaByMda[data.mdaName].push(data);
     });
 
-    Object.entries(slaByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(slaByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       // Count unique months across both halves
@@ -2080,15 +2222,17 @@ export const getAllMdaSavedDataForDashboard = query({
       const totalMonthsWithData = allMonthKeys.size || dataList.reduce((sum, d) => sum + (d.monthsWithData || 0), 0);
       const sumTotalScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0);
       const maxPossibleRawScore = totalMonthsWithData * 5;
-      const pointsPerMonth = 30 / 12;
+      const slaMaxPoints = efficiencyConfig?.slaPoints ?? 30;
+      const slaTotalMonths = efficiencyConfig?.totalMonths ?? 12;
+      const pointsPerMonth = slaMaxPoints / slaTotalMonths;
       const maxPossibleScoreForMonths = totalMonthsWithData * pointsPerMonth;
       const finalScore = totalMonthsWithData > 0 ? (sumTotalScore / maxPossibleRawScore) * maxPossibleScoreForMonths : 0;
 
       mdaDataMap[mdaName].sla = {
         score: finalScore,
         monthsWithData: totalMonthsWithData,
-        totalMonths: 12,
-        percentage: (finalScore / 30) * 100
+        totalMonths: slaTotalMonths,
+        maxPossibleScore: slaMaxPoints
       };
     });
 
@@ -2099,9 +2243,10 @@ export const getAllMdaSavedDataForDashboard = query({
       mysteryByMda[data.mdaName].push(data);
     });
 
-    Object.entries(mysteryByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(mysteryByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / dataList.length;
@@ -2121,9 +2266,10 @@ export const getAllMdaSavedDataForDashboard = query({
       controversialByMda[data.mdaName].push(data);
     });
 
-    Object.entries(controversialByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(controversialByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2141,9 +2287,10 @@ export const getAllMdaSavedDataForDashboard = query({
       toutingRentseekingByMda[data.mdaName].push(data);
     });
 
-    Object.entries(toutingRentseekingByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(toutingRentseekingByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2161,9 +2308,10 @@ export const getAllMdaSavedDataForDashboard = query({
       innovationByMda[data.mdaName].push(data);
     });
 
-    Object.entries(innovationByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(innovationByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2181,9 +2329,10 @@ export const getAllMdaSavedDataForDashboard = query({
       stakeholderByMda[data.mdaName].push(data);
     });
 
-    Object.entries(stakeholderByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(stakeholderByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2201,7 +2350,8 @@ export const getAllMdaSavedDataForDashboard = query({
       transparencyByMda[data.mdaName].push(data);
     });
 
-    Object.entries(transparencyByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(transparencyByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = {
           mdaName,
@@ -2245,9 +2395,10 @@ export const getAllMdaSavedDataForDashboard = query({
       reportGovResByMda[data.mdaName].push(data);
     });
 
-    Object.entries(reportGovResByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(reportGovResByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       // Sum total tickets and resolved tickets (add both halves)
@@ -2259,17 +2410,27 @@ export const getAllMdaSavedDataForDashboard = query({
       const hasSecond = dataList.length > 1 || (dataList.length === 1 && dataList[0]?.scoringPeriod?.includes("2nd Half"));
       const firstHalf = dataList.find(d => d.scoringPeriod?.includes("1st Half"));
       const secondHalf = dataList.find(d => d.scoringPeriod?.includes("2nd Half"));
+      // Check for full year data (exact match with year string)
+      const fullYear = dataList.find(d => d.scoringPeriod === String(year));
 
-      let avgResponseTime = firstHalf?.averageResponseTime || 0;
-      let avgResolutionTime = firstHalf?.averageResolutionTime || 0;
+      let avgResponseTime = fullYear?.averageResponseTime || firstHalf?.averageResponseTime || 0;
+      let avgResolutionTime = fullYear?.averageResolutionTime || firstHalf?.averageResolutionTime || 0;
 
-      if (firstHalf?.averageResponseTime && secondHalf?.averageResponseTime) {
+      if (fullYear) {
+        // Use full year data directly
+        avgResponseTime = fullYear.averageResponseTime || 0;
+        avgResolutionTime = fullYear.averageResolutionTime || 0;
+      } else if (firstHalf?.averageResponseTime && secondHalf?.averageResponseTime) {
         avgResponseTime = ((firstHalf.averageResponseTime || 0) + (secondHalf.averageResponseTime || 0)) / 2;
       } else if (secondHalf?.averageResponseTime) {
         avgResponseTime = secondHalf.averageResponseTime;
       }
 
-      if (firstHalf?.averageResolutionTime && secondHalf?.averageResolutionTime) {
+      if (fullYear) {
+        // Use full year data directly
+        avgResponseTime = fullYear.averageResponseTime || 0;
+        avgResolutionTime = fullYear.averageResolutionTime || 0;
+      } else if (firstHalf?.averageResolutionTime && secondHalf?.averageResolutionTime) {
         avgResolutionTime = ((firstHalf.averageResolutionTime || 0) + (secondHalf.averageResolutionTime || 0)) / 2;
       } else if (secondHalf?.averageResolutionTime) {
         avgResolutionTime = secondHalf.averageResolutionTime;
@@ -2282,11 +2443,15 @@ export const getAllMdaSavedDataForDashboard = query({
       let avgScore = 0;
       const hasFirstHalfData = firstHalf && firstHalf.score !== undefined && firstHalf.score !== null;
       const hasSecondHalfData = secondHalf && secondHalf.score !== undefined && secondHalf.score !== null;
+      const hasFullYearData = fullYear && fullYear.score !== undefined && fullYear.score !== null;
 
-      // Check if either half is skipped
-      const isSkipped = (firstHalf?.isSkipped || false) || (secondHalf?.isSkipped || false);
+      // Check if either half is skipped, or full year is skipped
+      const isSkipped = (fullYear?.isSkipped || false) || (firstHalf?.isSkipped || false) || (secondHalf?.isSkipped || false);
 
-      if (hasFirstHalfData && hasSecondHalfData) {
+      if (hasFullYearData) {
+        // Use full year score directly (already calculated dynamically in backend/frontend via ScoringTab)
+        avgScore = fullYear.score;
+      } else if (hasFirstHalfData && hasSecondHalfData) {
         // Both halves have data - each half contributes half of its score
         // Example: 1st half = 15, 2nd half = 10 → (15/2) + (10/2) = 7.5 + 5 = 12.5
         avgScore = ((firstHalf.score || 0) + (secondHalf.score || 0)) / 2;
@@ -2323,15 +2488,19 @@ export const getAllMdaSavedDataForDashboard = query({
       monthlyReportByMda[data.mdaName].push(data);
     });
 
-    Object.entries(monthlyReportByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(monthlyReportByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       // If manual mode, count months from manualMonthlyReports
       const hasManual = dataList.some(d => d.useManual);
       let monthsWithData = 0;
       let score = 0;
+
+      const mrMaxPoints = efficiencyConfig?.reportSubmissionPoints ?? 3;
+      const mrTotalMonths = efficiencyConfig?.totalMonths ?? 12;
 
       if (hasManual) {
         // Count unique months from manualMonthlyReports
@@ -2346,20 +2515,18 @@ export const getAllMdaSavedDataForDashboard = query({
           }
         });
         monthsWithData = allMonthKeys.size;
-        const pointsPerMonth = 3 / 12;
+        const pointsPerMonth = mrMaxPoints / mrTotalMonths;
         score = monthsWithData * pointsPerMonth;
       } else {
-        // Use calculated score from data
         score = dataList[0]?.score || 0;
-        // Estimate months from score (score / (3/12))
-        monthsWithData = score > 0 ? Math.round((score / (3 / 12))) : 0;
+        monthsWithData = score > 0 ? Math.round((score / (mrMaxPoints / mrTotalMonths))) : 0;
       }
 
       mdaDataMap[mdaName].monthlyReport = {
         score: score,
         monthsWithData: monthsWithData,
-        totalMonths: 12,
-        maxPossibleScore: 3
+        totalMonths: mrTotalMonths,
+        maxPossibleScore: mrMaxPoints
       };
     });
 
@@ -2370,15 +2537,19 @@ export const getAllMdaSavedDataForDashboard = query({
       timelinessByMda[data.mdaName].push(data);
     });
 
-    Object.entries(timelinessByMda).forEach(([mdaName, dataList]) => {
+    Object.entries(timelinessByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
 
       // If manual mode, count months from manualTimeliness
       const hasManual = dataList.some(d => d.useManual);
       let monthsWithData = 0;
       let score = 0;
+
+      const tMaxPoints = efficiencyConfig?.timelinessPoints ?? 2;
+      const tTotalMonths = efficiencyConfig?.totalMonths ?? 12;
 
       if (hasManual) {
         // Count unique months from manualTimeliness
@@ -2393,56 +2564,151 @@ export const getAllMdaSavedDataForDashboard = query({
           }
         });
         monthsWithData = allMonthKeys.size;
-        const pointsPerMonth = 2 / 12;
+        const pointsPerMonth = tMaxPoints / tTotalMonths;
         score = monthsWithData * pointsPerMonth;
       } else {
-        // Use calculated score from data
         score = dataList[0]?.score || 0;
-        // Estimate months from score (score / (2/12))
-        monthsWithData = score > 0 ? Math.round((score / (2 / 12))) : 0;
+        monthsWithData = score > 0 ? Math.round((score / (tMaxPoints / tTotalMonths))) : 0;
       }
 
       mdaDataMap[mdaName].timeliness = {
         score: score,
         monthsWithData: monthsWithData,
-        totalMonths: 12,
-        maxPossibleScore: 2
+        totalMonths: tTotalMonths,
+        maxPossibleScore: tMaxPoints
+      };
+    });
+
+    // Process Others (Dynamic for 2026+)
+    const othersByMda: { [key: string]: any[] } = {};
+    othersData.forEach(data => {
+      if (!othersByMda[data.mdaName]) othersByMda[data.mdaName] = [];
+      othersByMda[data.mdaName].push(data);
+    });
+
+    Object.entries(othersByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
+      if (!mdaDataMap[mdaName]) {
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+      }
+
+      // For 2026+, we expect one record per year usually, but if multiple (e.g. legacy halves?), average them.
+      // saved_others_data has totalScore.
+      const avgScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / dataList.length;
+
+      mdaDataMap[mdaName].others = {
+        score: avgScore,
+        scores: dataList[0]?.scores || {},
+        values: dataList[0]?.values || {}
+      };
+    });
+
+    // Process Penalties (Dynamic for 2026+)
+    const penaltiesByMda: { [key: string]: any[] } = {};
+    penaltiesData.forEach(data => {
+      if (!penaltiesByMda[data.mdaName]) penaltiesByMda[data.mdaName] = [];
+      penaltiesByMda[data.mdaName].push(data);
+    });
+
+    Object.entries(penaltiesByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = rawMdaName.trim();
+      if (!mdaDataMap[mdaName]) {
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+      }
+
+      // saved_penalties_data has totalPenalty (negative).
+      const avgScore = dataList.reduce((sum, d) => sum + (d.totalPenalty || 0), 0) / dataList.length;
+
+      mdaDataMap[mdaName].penalties = {
+        score: avgScore,
+        values: dataList[0]?.values || {}
       };
     });
 
     // Convert to array and calculate total scores
-    const result = Object.values(mdaDataMap).map((mda: any) => {
+    const allMdasProcessed = Object.values(mdaDataMap).map((mda: any) => {
       const slaScore = mda.sla?.score || 0;
       const mysteryScore = mda.mysteryShopping?.score || 0;
+      // Legacy metrics
       const controversialScore = mda.controversial?.score || 0;
       const toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
       const innovationScore = mda.innovation?.score || 0;
       const stakeholderScore = mda.stakeholder?.score || 0;
       const transparencyScore = mda.transparency?.score || 0;
+
+      // Dynamic metrics (2026+)
+      const othersScore = mda.others?.score || 0;
+      const penaltiesScore = mda.penalties?.score || 0;
+
       const reportGovResScore = mda.reportGovResolution?.score || 0;
       const monthlyReportScore = mda.monthlyReport?.score || 0;
       const timelinessScore = mda.timeliness?.score || 0;
 
-      const totalScore = slaScore + mysteryScore + controversialScore + toutingRentseekingScore + innovationScore + stakeholderScore +
-        transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
+      const totalGrossScore = slaScore + mysteryScore + (year < 2026 ? (innovationScore + stakeholderScore + transparencyScore) : 0) +
+        reportGovResScore + monthlyReportScore + timelinessScore + othersScore;
+
+      const totalScore = totalGrossScore + penaltiesScore + controversialScore + toutingRentseekingScore;
+
       let maxPossiblePoints = 100;
-      if (mda.transparency?.isSkipped) {
-        maxPossiblePoints -= 10;
+      if (year >= 2026 && efficiencyConfig) {
+        // Calculate dynamic total
+        const efficiencyTotal = (efficiencyConfig.slaPoints || 30) +
+          (efficiencyConfig.reportSubmissionPoints || 3) +
+          (efficiencyConfig.reportGovPoints || 15) +
+          (efficiencyConfig.timelinessPoints || 2);
+
+        // Others is fixed at 45 (Mystery 20 + Innovation 5 + Stakeholder 10 + Transparency 10)
+        maxPossiblePoints = efficiencyTotal + mysteryTotal + othersTotal;
+
+        if (mda.transparency?.isSkipped) {
+          // Transparency items sum
+          const transparencyWeight = transparencyItems.reduce((sum, i) => sum + (i.weight || 0), 0) || 10;
+          maxPossiblePoints -= transparencyWeight;
+        }
+        if (mda.reportGovResolution?.isSkipped) {
+          maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 15);
+        }
+      } else {
+        // Legacy 2025 calculation
+        if (mda.transparency?.isSkipped) {
+          maxPossiblePoints -= 10;
+        }
+        if (mda.reportGovResolution?.isSkipped) {
+          maxPossiblePoints -= 15;
+        }
       }
-      if (mda.reportGovResolution?.isSkipped) {
-        maxPossiblePoints -= 15;
-      }
+
       const totalPercentage = maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0;
 
       return {
         ...mda,
+        totalGrossScore,
         totalScore,
         totalPercentage,
-        maxPossiblePoints
+        maxPossiblePoints,
+        // Override nested maxPossibleScores if dynamic config exists
+        sla: mda.sla ? { ...mda.sla, maxPossibleScore: efficiencyConfig?.slaPoints || 30 } : null,
+        monthlyReport: mda.monthlyReport ? {
+          ...mda.monthlyReport,
+          maxPossibleScore: efficiencyConfig?.reportSubmissionPoints || 3,
+          totalMonths: efficiencyConfig?.totalMonths || 12
+        } : null,
+        timeliness: mda.timeliness ? {
+          ...mda.timeliness,
+          maxPossibleScore: efficiencyConfig?.timelinessPoints || 2,
+          totalMonths: efficiencyConfig?.totalMonths || 12
+        } : null,
+        reportGovResolution: mda.reportGovResolution ? {
+          ...mda.reportGovResolution,
+          maxPossibleScore: efficiencyConfig?.reportGovPoints || 15
+        } : null,
       };
     });
 
-    return result;
+    return {
+      data: allMdasProcessed,
+      efficiencyConfig
+    };
   }
 });
 
@@ -2567,6 +2833,7 @@ export const getAllReportGovRankings = query({
     // Get data for both halves of the year
     const firstHalfPeriod = `1st Half ${targetYear}`;
     const secondHalfPeriod = `2nd Half ${targetYear}`;
+    const fullYearPeriod = String(targetYear);
 
     // Query both periods separately and combine
     const firstHalfData = await ctx.db.query("mda_reportgov_data")
@@ -2577,7 +2844,11 @@ export const getAllReportGovRankings = query({
       .withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod))
       .collect();
 
-    const allReportGovData = [...firstHalfData, ...secondHalfData];
+    const fullYearData = await ctx.db.query("mda_reportgov_data")
+      .withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod))
+      .collect();
+
+    const allReportGovData = [...firstHalfData, ...secondHalfData, ...fullYearData];
 
     // Group by MDA name
     const mdaScores: { [key: string]: any[] } = {};
@@ -2595,6 +2866,7 @@ export const getAllReportGovRankings = query({
         // Find first and second half data
         const firstHalf = dataList.find(d => d.scoringPeriod?.includes("1st Half"));
         const secondHalf = dataList.find(d => d.scoringPeriod?.includes("2nd Half"));
+        const fullYear = dataList.find(d => d.scoringPeriod === String(targetYear));
 
         // Sum total tickets and resolved tickets (add both halves)
         const totalTickets = dataList.reduce((sum, d) => sum + (d.totalTickets || 0), 0);
@@ -2607,24 +2879,34 @@ export const getAllReportGovRankings = query({
         let avgResponseTime = firstHalf?.averageResponseTime || 0;
         let avgResolutionTime = firstHalf?.averageResolutionTime || 0;
 
-        if (firstHalf?.averageResponseTime && secondHalf?.averageResponseTime) {
-          avgResponseTime = ((firstHalf.averageResponseTime || 0) + (secondHalf.averageResponseTime || 0)) / 2;
-        } else if (secondHalf?.averageResponseTime) {
-          avgResponseTime = secondHalf.averageResponseTime;
-        }
+        if (fullYear) {
+          avgResponseTime = fullYear.averageResponseTime || 0;
+          avgResolutionTime = fullYear.averageResolutionTime || 0;
+        } else {
+          if (firstHalf?.averageResponseTime && secondHalf?.averageResponseTime) {
+            avgResponseTime = ((firstHalf.averageResponseTime || 0) + (secondHalf.averageResponseTime || 0)) / 2;
+          } else if (secondHalf?.averageResponseTime) {
+            avgResponseTime = secondHalf.averageResponseTime;
+          }
 
-        if (firstHalf?.averageResolutionTime && secondHalf?.averageResolutionTime) {
-          avgResolutionTime = ((firstHalf.averageResolutionTime || 0) + (secondHalf.averageResolutionTime || 0)) / 2;
-        } else if (secondHalf?.averageResolutionTime) {
-          avgResolutionTime = secondHalf.averageResolutionTime;
+          if (firstHalf?.averageResolutionTime && secondHalf?.averageResolutionTime) {
+            avgResolutionTime = ((firstHalf.averageResolutionTime || 0) + (secondHalf.averageResolutionTime || 0)) / 2;
+          } else if (secondHalf?.averageResolutionTime) {
+            avgResolutionTime = secondHalf.averageResolutionTime;
+          }
         }
 
         // Average score (only if both halves have data)
         let avgScore = firstHalf?.score || 0;
-        if (firstHalf?.score && secondHalf?.score) {
+        // Check for full year
+        if (fullYear && fullYear.score !== undefined) {
+          avgScore = fullYear.score;
+        } else if (firstHalf?.score && secondHalf?.score) {
           avgScore = ((firstHalf.score || 0) + (secondHalf.score || 0)) / 2;
         } else if (secondHalf?.score) {
           avgScore = secondHalf.score;
+        } else if (firstHalf?.score) {
+          avgScore = firstHalf.score;
         }
 
         return {
@@ -2884,5 +3166,108 @@ export const getReportGovRankings = query({
 
     // Sort by score descending
     return rankings.sort((a, b) => b.score - a.score);
+  }
+});
+
+// ============================================
+// DYNAMIC SCORING METRICS (2026+)
+// ============================================
+
+// Save Others Data (Innovation, Stakeholder, Transparency, etc.)
+export const saveOthersData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(), // Record<itemId, boolean | number>
+    scores: v.any(), // Record<itemId, number>
+    totalScore: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, values, scores, totalScore }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+
+    const existingData = await ctx.db.query("saved_others_data")
+      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+
+    if (existingData) {
+      await ctx.db.patch(existingData._id, {
+        values,
+        scores,
+        totalScore,
+        updatedAt: Date.now()
+      });
+    } else {
+      await ctx.db.insert("saved_others_data", {
+        mdaName,
+        scoringPeriod,
+        values,
+        scores,
+        totalScore,
+        updatedAt: Date.now()
+      });
+    }
+
+    return { success: true, message: "Others metrics saved successfully" };
+  }
+});
+
+// Get Others Data
+export const getOthersData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    return await ctx.db.query("saved_others_data")
+      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+  }
+});
+
+// Save Penalties Data
+export const savePenaltiesData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(), // Record<penaltyId, boolean>
+    totalPenalty: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, values, totalPenalty }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+
+    const existingData = await ctx.db.query("saved_penalties_data")
+      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+
+    if (existingData) {
+      await ctx.db.patch(existingData._id, {
+        values,
+        totalPenalty,
+        updatedAt: Date.now()
+      });
+    } else {
+      await ctx.db.insert("saved_penalties_data", {
+        mdaName,
+        scoringPeriod,
+        values,
+        totalPenalty,
+        updatedAt: Date.now()
+      });
+    }
+
+    return { success: true, message: "Penalties saved successfully" };
+  }
+});
+
+// Get Penalties Data
+export const getPenaltiesData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    return await ctx.db.query("saved_penalties_data")
+      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
   }
 });

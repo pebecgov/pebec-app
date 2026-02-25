@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import Editor from "@/components/editor/editor";
 import { Spinner } from "@/components/ui/spinner";
 import ImageUploader from "@/components/image-uploader";
+import GalleryImageUploader from "@/components/gallery-image-uploader";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 type Inputs = z.infer<typeof newPostSchema>;
 export default function NewPostForm({
@@ -37,6 +38,7 @@ export default function NewPostForm({
     }]
   };
   const [filePickerIsOpen, setFilePickerIsOpen] = useState(false);
+  const [isSubmittingViaButton, setIsSubmittingViaButton] = useState(false);
   const {
     register,
     setValue,
@@ -56,6 +58,7 @@ export default function NewPostForm({
         content: []
       },
       coverImageId: initialData?.coverImageId || undefined,
+      galleryImages: initialData?.galleryImages || [],
       publishedDate: initialData?.publishedDate ? new Date(initialData.publishedDate).toISOString().split('T')[0] : ""
     }
   });
@@ -88,6 +91,9 @@ export default function NewPostForm({
     }
     if (postQuery.coverImageId) {
       setValue("coverImageId", postQuery.coverImageId as Id<"_storage">);
+    }
+    if (postQuery.galleryImages && postQuery.galleryImages.length > 0) {
+      setValue("galleryImages", postQuery.galleryImages);
     }
     if (postQuery.publishedDate) {
       setValue("publishedDate", new Date(postQuery.publishedDate).toISOString().split('T')[0]);
@@ -127,30 +133,39 @@ export default function NewPostForm({
       return;
     }
     try {
-      let postSlug;
       const publishedDate = data.publishedDate ? new Date(data.publishedDate).getTime() : undefined;
+      const galleryImageIds = data.galleryImages?.map(id => id as Id<"_storage">) || [];
+      
       if (initialData) {
+        // Update existing post
         await updatePost({
           slug: initialData.slug,
           title: data.title,
           excerpt: data.excerpt,
           content: JSON.stringify(contentJson),
           coverImageId: data.coverImageId as Id<"_storage"> | undefined,
+          galleryImages: galleryImageIds.length > 0 ? galleryImageIds : undefined,
           publishedDate: publishedDate
         });
+        toast.success("Post updated!");
+        router.push(`/posts/${initialData.slug}`);
       } else {
-        postSlug = await createPost({
+        // Create new post
+        const postSlug = await createPost({
           ...data,
           coverImageId: data.coverImageId as Id<"_storage"> | undefined,
+          galleryImages: galleryImageIds.length > 0 ? galleryImageIds : undefined,
           content: JSON.stringify(contentJson),
           publishedDate: publishedDate
         });
+        if (!postSlug) throw new Error("Failed to create post");
+        toast.success("Post created!");
+        router.push(`/posts/${postSlug}`);
       }
-      if (!postSlug) throw new Error("Failed to create or update post");
-      router.push(`/posts/${postSlug}`);
-      toast.success(initialData ? "Post updated!" : "Post created!");
-    } catch (error) {
-      toast.error("Failed to create or update post");
+    } catch (error: any) {
+      console.error("Error creating/updating post:", error);
+      const errorMessage = error?.message || "Failed to create or update post";
+      toast.error(errorMessage);
     }
   };
   if (slug && postQuery === undefined) {
@@ -159,25 +174,64 @@ export default function NewPostForm({
         <p>Loading post data...</p>
       </div>;
   }
-  return <form onSubmit={handleSubmit(processForm)}>
+  return <form 
+      onSubmit={(e) => {
+        // Only submit if triggered by the submit button, not keyboard shortcuts
+        if (!isSubmittingViaButton) {
+          e.preventDefault();
+          return;
+        }
+        setIsSubmittingViaButton(false);
+        handleSubmit(processForm)(e);
+      }}
+      onKeyDown={(e) => {
+        // Prevent form submission when using keyboard shortcuts (Ctrl+B, Ctrl+I, etc.)
+        // These shortcuts should only affect the editor, not submit the form
+        if (e.ctrlKey || e.metaKey) {
+          // Allow editor shortcuts to work - don't prevent default
+          // The editor will handle Ctrl+B, Ctrl+I, etc.
+          return;
+        }
+        // Prevent Enter from submitting form unless explicitly on submit button
+        if (e.key === 'Enter' && e.target instanceof HTMLButtonElement && e.target.type === 'submit') {
+          setIsSubmittingViaButton(true);
+          return;
+        }
+        if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+          // Prevent Enter from submitting form when typing in inputs/editor
+          e.preventDefault();
+        }
+      }}
+    >
       <div className="flex flex-col gap-4">
         {}
         <div className="flex justify-between gap-4">
           <div className="w-full">
-            <Input disabled type="text" className="w-full" placeholder="Select a cover image" {...register("coverImageId")} />
+            <Input disabled type="text" className="w-full" placeholder="Select a custom cover image (optional)" {...register("coverImageId")} />
+            <p className="mt-1 px-2 text-xs text-gray-500">
+              Optional: Set a custom cover image. If not set, the first gallery image will be used as the cover.
+            </p>
             {errors.coverImageId?.message && <p className="mt-1 px-2 text-xs text-red-400">
                 {errors.coverImageId.message}
               </p>}
           </div>
           <Dialog open={filePickerIsOpen} onOpenChange={setFilePickerIsOpen}>
             <DialogTrigger asChild>
-              <Button size="sm">Select file</Button>
+              <Button size="sm">Select Cover Image</Button>
             </DialogTrigger>
             <DialogContent>
-              <DialogTitle>Select a Cover Image</DialogTitle>
+              <DialogTitle>Select a Custom Cover Image (Optional)</DialogTitle>
               <ImageUploader setImageId={setCoverImageId} />
             </DialogContent>
           </Dialog>
+        </div>
+
+        {}
+        <div>
+          <GalleryImageUploader
+            imageIds={watch("galleryImages") || []}
+            setImageIds={(ids) => setValue("galleryImages", ids)}
+          />
         </div>
 
         {}
@@ -231,7 +285,12 @@ export default function NewPostForm({
         </div>
 
         <div>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-1/2">
+          <Button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className="w-full sm:w-1/2"
+            onClick={() => setIsSubmittingViaButton(true)}
+          >
             {isSubmitting ? <>
                 <Spinner className="mr-2" />
                 <span>Saving post...</span>

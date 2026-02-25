@@ -11,6 +11,7 @@ interface MysteryShoppingCardProps {
     handleSave: () => void;
     selectedMda: string;
     hasRatings: boolean;
+    maxPoints?: number; // Dynamic max points from config
 }
 
 export default function MysteryShoppingCard({
@@ -21,7 +22,8 @@ export default function MysteryShoppingCard({
     score,
     handleSave,
     selectedMda,
-    hasRatings
+    hasRatings,
+    maxPoints = 20 // Default to 20 for 2025
 }: MysteryShoppingCardProps) {
     return (
         <div className="bg-gray-100/50 p-4 rounded-lg">
@@ -48,7 +50,7 @@ export default function MysteryShoppingCard({
                         📊 Rankings
                     </button>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                        20 Points
+                        {maxPoints} Points
                     </span>
                 </div>
             </div>
@@ -61,8 +63,9 @@ export default function MysteryShoppingCard({
                     Open Mystery Shopping Assessment
                 </button>
 
+
                 <div className="text-center">
-                    Score: {score.toFixed(1)}/20
+                    Score: {score.toFixed(1)}/{maxPoints}
                 </div>
 
                 <button

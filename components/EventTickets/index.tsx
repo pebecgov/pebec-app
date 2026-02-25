@@ -37,7 +37,7 @@ export default function EventTickets() {
         return;
       }
       console.log("✅ Event registration found:", eventRegistration);
-      const qrValue = `https://www.pebec.gov.ng/events/${ticket.event?._id ?? ""}`;
+      const qrValue = `https://www.pebec.gov.ng/check-in/${ticket.ticketNumber}`;
       const qrCodeUrl = await QRCode.toDataURL(qrValue);
       const eventDateRaw = eventRegistration?.event?.eventDate ?? null;
       const timestamp = eventDateRaw && eventDateRaw < 10000000000 ? eventDateRaw * 1000 : eventDateRaw;

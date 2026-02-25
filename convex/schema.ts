@@ -83,6 +83,8 @@ export default defineSchema({
     reportGovernanceResolutionScore: v.number(),
     monthlyReportSubmissionScore: v.number(),
     timelinessInSubmittingScore: v.number(),
+    othersScore: v.optional(v.number()),
+    penaltiesScore: v.optional(v.number()),
     // Total scores
     totalScore: v.number(),
     totalPercentage: v.number(),
@@ -115,6 +117,26 @@ export default defineSchema({
     calculatedBy: v.id("users"),
     calculatedAt: v.number()
   }).index("byPeriod", ["scoringPeriod"]).index("byMdaPeriod", ["mdaName", "scoringPeriod"]),
+
+  // New tables for dynamic scoring (2026+)
+  saved_others_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(), // Record<itemId, boolean | number>
+    scores: v.any(), // Record<itemId, number>
+    totalScore: v.number(),
+    updatedAt: v.number()
+  }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
+    .index("byPeriod", ["scoringPeriod"]),
+
+  saved_penalties_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(), // Record<penaltyId, boolean>
+    totalPenalty: v.number(),
+    updatedAt: v.number()
+  }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
+    .index("byPeriod", ["scoringPeriod"]),
 
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
@@ -185,7 +207,8 @@ export default defineSchema({
     slug: v.string(),
     excerpt: v.string(),
     content: v.string(),
-    coverImageId: v.optional(v.id("_storage")),
+    coverImageId: v.optional(v.id("_storage")), // Main/featured image (for backward compatibility and thumbnail)
+    galleryImages: v.optional(v.array(v.id("_storage"))), // Array of images for carousel
     authorId: v.id("users"),
     likes: v.number(),
     publishedDate: v.optional(v.number()), // Date the article was published/occurred, not when created
@@ -290,6 +313,7 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     eventDate: v.number(),
+    registrationDeadline: v.optional(v.number()), // When registration closes (defaults to event date if not set)
     location: v.string(),
     host: v.string(),
     coverImageId: v.optional(v.id("_storage")),
@@ -304,8 +328,23 @@ export default defineSchema({
     signUpsDisabled: v.optional(v.boolean()),
     isVip: v.optional(v.boolean()),
     isSaberEvent: v.optional(v.boolean()),
-    customUrl: v.optional(v.string())
-  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]),
+    customUrl: v.optional(v.string()),
+    isSpecialEvent: v.optional(v.boolean()), // Flag for special events with advanced forms
+    hideOrganizationDesignation: v.optional(v.boolean()), // When true, registration form does not show org/designation (use form questions instead)
+    requiresEligibilityModal: v.optional(v.boolean()) // When true, show participant info + foreign ownership pop-up before main form (e.g. Foreign Direct Investors Roundtable)
+  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]).index("bySpecialEvent", ["isSpecialEvent"]),
+  // Submissions from the eligibility pop-up (participant info + foreign ownership); status: eligible = can proceed, pending_review = holding message
+  event_eligibility_submissions: defineTable({
+    eventId: v.id("events"),
+    fullName: v.string(),
+    companyName: v.string(),
+    jobTitle: v.optional(v.string()),
+    email: v.string(),
+    phone: v.string(),
+    foreignOwnershipAnswer: v.union(v.literal("yes"), v.literal("no"), v.literal("not_sure")),
+    status: v.union(v.literal("eligible"), v.literal("pending_review")),
+    submittedAt: v.number()
+  }).index("byEvent", ["eventId"]).index("byEventAndEmail", ["eventId", "email"]),
   event_registrations: defineTable({
     eventId: v.id("events"),
     userId: v.optional(v.id("users")),
@@ -315,13 +354,15 @@ export default defineSchema({
     phone: v.optional(v.string()),
     organization: v.optional(v.string()),
     designation: v.optional(v.string()),
-    questionnaireAnswers: v.array(v.string()),
+    questionnaireAnswers: v.array(v.string()), // Legacy format
+    structuredResponses: v.optional(v.any()), // New format: { questionId: { answer: string | string[], questionText: string } }
     registeredAt: v.number(),
     ticketNumber: v.string(),
     qrCode: v.optional(v.string()),
     ticketPdfId: v.optional(v.id("_storage")),
     email: v.optional(v.string()),
-    isVip: v.optional(v.boolean())
+    isVip: v.optional(v.boolean()),
+    checkedInAt: v.optional(v.number()) // Timestamp when attendee was checked in via QR code
   }).index("byEvent", ["eventId"]).index("byUser", ["userId"]).index("byTicketNumber", ["ticketNumber"]),
 
   // Workshop registrations for Strategic Engagement event
@@ -346,7 +387,11 @@ export default defineSchema({
   event_questions: defineTable({
     eventId: v.id("events"),
     questionText: v.string(),
-    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale")),
+    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale"), v.literal("radio"), v.literal("checkbox"), v.literal("textarea")),
+    isRequired: v.optional(v.boolean()),
+    options: v.optional(v.array(v.string())), // For radio and checkbox questions
+    section: v.optional(v.string()), // Section name like "Section 1: General Information"
+    order: v.optional(v.number()), // Order within section
     createdBy: v.id("users"),
     createdAt: v.number()
   }).index("byEvent", ["eventId"]).index("byCreatedBy", ["createdBy"]),
@@ -1023,10 +1068,13 @@ export default defineSchema({
   // Calendar Meetings - Team meetings visible to all staff
   calendar_meetings: defineTable({
     name: v.string(),
-    date: v.string(), // yyyy-MM-dd format
+    date: v.string(), // yyyy-MM-dd format (Start Date)
+    endDate: v.optional(v.string()), // yyyy-MM-dd format
     startTime: v.string(), // HH:mm format
     endTime: v.string(), // HH:mm format
     description: v.optional(v.string()),
+
+
     meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
     internalParticipants: v.optional(v.array(v.object({
       type: v.union(v.literal("staff"), v.literal("workstream")),
@@ -1039,5 +1087,130 @@ export default defineSchema({
     createdByStaffStream: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
-  }).index("byDate", ["date"]).index("byCreatedBy", ["createdBy"])
+  }).index("byDate", ["date"]).index("byCreatedBy", ["createdBy"]),
+
+  // ============================================
+  // BFA SCORING CONFIGURATION TABLES (2026+)
+  // ============================================
+
+  // Year-based scoring configuration
+  scoring_configurations: defineTable({
+    year: v.number(),
+    isActive: v.boolean(),
+    isFullYear: v.boolean(), // false for partial years like 2025
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"]),
+
+  // Efficiency period configuration (flexible month ranges)
+  efficiency_periods: defineTable({
+    year: v.number(),
+    periodName: v.string(),
+    startMonth: v.string(), // "November"
+    startYear: v.number(), // 2025
+    endMonth: v.string(), // "October"
+    endYear: v.number(), // 2026
+    totalMonths: v.number(), // calculated
+    slaPoints: v.number(), // e.g., 30
+    reportSubmissionPoints: v.number(), // e.g., 3
+    reportGovPoints: v.optional(v.number()), // e.g., 15 (Report Governance Resolution)
+    timelinessPoints: v.number(), // e.g., 2
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"]),
+
+
+
+  // Mystery shopping types configuration
+  mystery_shopping_types: defineTable({
+    year: v.number(),
+    typeId: v.string(),
+    typeName: v.string(), // "Physical Visit", "Phone Call", "Online Service"
+    order: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"]),
+
+  // Mystery shopping questions configuration
+  mystery_shopping_questions: defineTable({
+    year: v.number(),
+    typeId: v.string(), // Links to mystery_shopping_types
+    questionId: v.string(),
+    questionText: v.string(),
+    weight: v.number(), // points for this question
+    answerType: v.union(
+      v.literal("yes_no"),
+      v.literal("scale_1_10")
+    ),
+    order: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"])
+    .index("byYearAndType", ["year", "typeId"])
+    .index("byYearTypeAndActive", ["year", "typeId", "isActive"]),
+
+
+  // Transparency items configuration
+  transparency_items: defineTable({
+    year: v.number(),
+    itemId: v.string(),
+    itemName: v.string(),
+    weight: v.number(), // points for this item
+    answerType: v.optional(v.union(
+      v.literal("yes_no"),
+      v.literal("scale_1_10")
+    )),
+    isActive: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"]),
+
+  // Penalty items configuration
+  penalty_items: defineTable({
+    year: v.number(),
+    penaltyId: v.string(),
+    penaltyName: v.string(),
+    penaltyValue: v.number(), // negative points
+    isActive: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"]),
+
+  // Innovation and stakeholder engagement items configuration
+  innovation_stakeholder_items: defineTable({
+    year: v.number(),
+    itemId: v.string(),
+    itemType: v.union(
+      v.literal("innovation"),
+      v.literal("stakeholder")
+    ),
+    itemName: v.string(),
+    weight: v.number(), // points for this item
+    inputType: v.union(
+      v.literal("yes_no"),
+      v.literal("scale_1_10")
+    ),
+    isActive: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndType", ["year", "itemType"])
+    .index("byYearTypeAndActive", ["year", "itemType", "isActive"])
 });

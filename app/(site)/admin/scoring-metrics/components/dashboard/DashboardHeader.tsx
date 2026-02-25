@@ -15,8 +15,10 @@ interface DashboardHeaderProps {
     setDashboardYear: (year: number) => void;
     currentYear: number;
     handleGenerateDashboardPDF: () => void;
-    liveDashboardData: any[] | undefined;
+    liveDashboardData: any | undefined;
     processDashboardMdaData: (filter: 'all' | 'withData', ministryFilter: 'all' | 'ministries-only' | 'without-ministries') => any[];
+    othersConfig: any;
+    penaltyConfig: any;
 }
 
 export default function DashboardHeader({
@@ -31,7 +33,9 @@ export default function DashboardHeader({
     currentYear,
     handleGenerateDashboardPDF,
     liveDashboardData,
-    processDashboardMdaData
+    processDashboardMdaData,
+    othersConfig,
+    penaltyConfig
 }: DashboardHeaderProps) {
     return (
         <div className="bg-white p-6 rounded-lg shadow-md">
@@ -50,10 +54,19 @@ export default function DashboardHeader({
                             <MenuItem value="totalScore">Total Score (All Metrics)</MenuItem>
                             <MenuItem value="mysteryShopping">Mystery Shopping</MenuItem>
                             <MenuItem value="sla">Service Level Agreement</MenuItem>
-                            <MenuItem value="controversial">Controversial</MenuItem>
-                            <MenuItem value="innovation">Innovation</MenuItem>
-                            <MenuItem value="stakeholder">Stakeholder Engagement</MenuItem>
-                            <MenuItem value="transparency">Transparency</MenuItem>
+
+                            {dashboardYear < 2026 ? [
+                                <MenuItem key="controversial" value="controversial">Controversial</MenuItem>,
+                                <MenuItem key="innovation" value="innovation">Innovation</MenuItem>,
+                                <MenuItem key="stakeholder" value="stakeholder">Stakeholder Engagement</MenuItem>,
+                                <MenuItem key="transparency" value="transparency">Transparency</MenuItem>,
+                                <MenuItem key="toutingRentseeking" value="toutingRentseeking">Touting & Rentseeking</MenuItem>
+                            ] : [
+                                <MenuItem key="efficiency" value="efficiency">Efficiency (SLA + Reporting + Timeliness)</MenuItem>,
+                                <MenuItem key="others" value="others">Others (Dynamic)</MenuItem>,
+                                <MenuItem key="penalties" value="penalties">Penalties (Dynamic)</MenuItem>
+                            ]}
+
                             <MenuItem value="reportGovResolution">Report Gov Resolution</MenuItem>
                             <MenuItem value="monthlyReport">Monthly Report Submission</MenuItem>
                             <MenuItem value="timeliness">Timeliness</MenuItem>
@@ -102,7 +115,7 @@ export default function DashboardHeader({
                     </FormControl>
                     <button
                         onClick={handleGenerateDashboardPDF}
-                        disabled={liveDashboardData === undefined || !Array.isArray(liveDashboardData) || liveDashboardData.length === 0}
+                        disabled={!liveDashboardData?.data || !Array.isArray(liveDashboardData.data) || liveDashboardData.data.length === 0}
                         className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap h-10"
                     >
                         📥 Download PDF
