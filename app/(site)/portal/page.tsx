@@ -19,7 +19,7 @@ const TABS = [
   { id: "news", label: "News & Articles", icon: <FaNewspaper className="text-xl" /> },
   { id: "taxcalculator", label: "Tax Calculator", icon: <FaCode className="text-xl" /> },
   { id: "useful-links", label: "Useful Links", icon: <FaCalendarAlt className="text-xl" /> },
-  { id: "business-roadmap", label: "Business Registration Roadmap", icon: <FaMapMarkedAlt className="text-xl" /> },
+  // { id: "business-roadmap", label: "Business Registration Roadmap", icon: <FaMapMarkedAlt className="text-xl" /> },
 ] as const;
 
 export default function Portal() {
@@ -170,7 +170,7 @@ export default function Portal() {
               <UsefulLinks />
             </div>
           )}
-          {activeTab === "business-roadmap" && (
+          {/* {activeTab === "business-roadmap" && (
             <div className="mt-6">
               <div className="flex flex-col gap-6 mb-8">
                 <div className="flex-1">
@@ -319,7 +319,7 @@ export default function Portal() {
                 </div>
               )}
             </div>
-          )}
+          )} */}
         </main>
 
         <aside className="flex w-full flex-col gap-6 md:flex-row xl:sticky xl:top-[80px] xl:w-[350px] xl:flex-col xl:py-20">
