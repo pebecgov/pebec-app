@@ -55,7 +55,7 @@ export default function AdminDashboard() {
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Resolution & Core Metrics</h2>
           </div>
           <div className="space-y-8">
-            <SeventyTwoHourResolutionDashboard />
+            {/* <SeventyTwoHourResolutionDashboard /> */}
             <UsersCard />
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
               <div className="xl:col-span-3">
