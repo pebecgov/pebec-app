@@ -237,7 +237,7 @@ export default function AdminMeetingCalendarPage() {
                                 return (
                                     <div className="flex justify-center mt-1 gap-1">
                                         {hasInternal && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                                        {hasExternal && <div className="w-2 h-2 rounded-full bg-red-500" />}
+                                        {hasExternal && <div className="w-2 h-2 rounded-full bg-green-500" />}
                                         {!hasInternal && !hasExternal && <div className="w-2 h-2 rounded-full bg-green-500" />}
                                     </div>
                                 );
@@ -267,7 +267,7 @@ export default function AdminMeetingCalendarPage() {
                             {meetingsForDay.map((meeting) => (
                                 <div
                                     key={meeting._id}
-                                    className={`border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-gradient-to-r ${meeting.meetingType === "external" ? "from-red-50 border-l-4 border-l-red-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
+                                    className={`border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-gradient-to-r ${meeting.meetingType === "external" ? "from-green-50 border-l-4 border-l-green-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
                                 >
                                     <div className="flex justify-between items-start">
                                         <div className="flex-1">
@@ -315,7 +315,7 @@ export default function AdminMeetingCalendarPage() {
                                                     {meeting.externalParticipants && meeting.externalParticipants.length > 0 && (
                                                         <div className="flex flex-wrap gap-2">
                                                             {meeting.externalParticipants.map((p: string, i: number) => (
-                                                                <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-800 uppercase tracking-tighter">
+                                                                <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800 uppercase tracking-tighter">
                                                                     Ext: {p}
                                                                 </span>
                                                             ))}
