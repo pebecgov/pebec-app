@@ -196,8 +196,8 @@ export const rsvpEvent = mutation({
     phone: v.optional(v.string()),
     organization: v.optional(v.string()),
     designation: v.optional(v.string()),
-    qrCode: v.string(),
-    ticketPdfId: v.id("_storage"),
+    qrCode: v.optional(v.string()),
+    ticketPdfId: v.optional(v.id("_storage")),
     isVip: v.optional(v.boolean())
   },
   handler: async (ctx, {
@@ -238,26 +238,29 @@ export const rsvpEvent = mutation({
       questionnaireAnswers: answers.map(a => a.answer),
       structuredResponses: structuredResponses ?? undefined,
       ticketNumber,
-      qrCode,
-      ticketPdfId,
+      qrCode: qrCode ?? undefined,
+      ticketPdfId: ticketPdfId ?? undefined,
       isVip: isVip ?? false,
       registeredAt: Date.now()
     });
     console.log(`✅ RSVP stored. Registration ID: ${registrationId} — Ticket: ${ticketNumber}`);
-    let userEmail = email ?? "";
-    if (!userEmail && userId) {
-      const user = await ctx.db.get(userId);
-      userEmail = user?.email ?? "";
-    }
-    if (userEmail) {
-      await ctx.scheduler.runAfter(0, api.sendTicketemail.sendTicketEmail, {
-        to: userEmail,
-        eventTitle: event.title,
-        ticketPdfId
-      });
-      console.log("✅ Ticket email scheduled.");
-    } else {
-      console.warn("⚠️ No email found — ticket email skipped.");
+    // Only send ticket email when PDF is provided (legacy one-step flow). For two-step flow, email is sent from updateEventRegistrationPdf.
+    if (ticketPdfId) {
+      let userEmail = email ?? "";
+      if (!userEmail && userId) {
+        const user = await ctx.db.get(userId);
+        userEmail = user?.email ?? "";
+      }
+      if (userEmail) {
+        await ctx.scheduler.runAfter(0, api.sendTicketemail.sendTicketEmail, {
+          to: userEmail,
+          eventTitle: event.title,
+          ticketPdfId
+        });
+        console.log("✅ Ticket email scheduled.");
+      } else {
+        console.warn("⚠️ No email found — ticket email skipped.");
+      }
     }
     const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
     const admins = filterAdminsForNotifications(allAdmins);
@@ -288,6 +291,38 @@ export const rsvpEvent = mutation({
       registrationId,
       ticketNumber
     };
+  }
+});
+
+// Attach PDF and QR to an existing registration (called after client generates PDF using server-issued ticket number). Sends ticket email.
+export const updateEventRegistrationPdf = mutation({
+  args: {
+    registrationId: v.id("event_registrations"),
+    qrCode: v.string(),
+    ticketPdfId: v.id("_storage")
+  },
+  handler: async (ctx, { registrationId, qrCode, ticketPdfId }) => {
+    const registration = await ctx.db.get(registrationId);
+    if (!registration) throw new Error("Registration not found");
+    await ctx.db.patch(registrationId, {
+      qrCode,
+      ticketPdfId
+    });
+    const event = await ctx.db.get(registration.eventId);
+    if (!event) return;
+    let userEmail = registration.email ?? "";
+    if (!userEmail && registration.userId) {
+      const user = await ctx.db.get(registration.userId);
+      userEmail = user?.email ?? "";
+    }
+    if (userEmail) {
+      await ctx.scheduler.runAfter(0, api.sendTicketemail.sendTicketEmail, {
+        to: userEmail,
+        eventTitle: event.title,
+        ticketPdfId
+      });
+    }
+    return { success: true };
   }
 });
 
