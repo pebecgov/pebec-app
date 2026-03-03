@@ -67,6 +67,7 @@ export default function EventPage() {
   } : "skip");
   const coverImageUrl = storageId ? coverImageUrlQuery : "";
   const rsvpEventMutation = useMutation(api.events.rsvpEvent);
+  const updateEventRegistrationPdf = useMutation(api.events.updateEventRegistrationPdf);
   const isPastEvent = event ? new Date(event.eventDate) < new Date() : false;
   // Registration closes at deadline (if set) or at event time
   const isRegistrationClosed = event
@@ -297,16 +298,37 @@ export default function EventPage() {
     setError(null);
     setLoading(true);
     try {
-      console.log("🎟️ Generating Ticket...");
-      const count = registrations?.length ?? 0;
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, "0");
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const year = now.getFullYear();
-      const index = String(count + 1).padStart(3, "0");
-      const ticketNumber = `PEBEC-EV-${day}${month}${year}-${index}`;
-      
-      // QR code encodes check-in URL with ticket number
+      // Build structured responses for special events
+      const structuredResp: Record<string, { answer: string | string[], questionText: string }> = {};
+      if (event.isSpecialEvent && questions) {
+        questions.forEach(q => {
+          const response = structuredResponses[q._id];
+          if (response !== undefined) {
+            structuredResp[q._id] = {
+              answer: response,
+              questionText: q.questionText
+            };
+          }
+        });
+      }
+
+      // Step 1: Create registration on server first (server generates ticket number). No PDF yet.
+      const { registrationId, ticketNumber } = await rsvpEventMutation({
+        eventId: event._id,
+        answers,
+        structuredResponses: event.isSpecialEvent ? structuredResp : undefined,
+        userId: currentUser?._id ?? undefined,
+        email: !currentUser ? email : undefined,
+        firstName: !currentUser ? firstName : undefined,
+        lastName: !currentUser ? lastName : undefined,
+        phone: !currentUser ? phone : undefined,
+        organization: event.hideOrganizationDesignation ? undefined : organization,
+        designation: event.hideOrganizationDesignation ? undefined : designation,
+        isVip
+      });
+      console.log("✅ Registration saved. Ticket:", ticketNumber);
+
+      // Step 2: Generate PDF using server-issued ticket number, upload, attach to registration, then download
       const checkInUrl = `https://www.pebec.gov.ng/check-in/${ticketNumber}`;
       const qrCodeUrl = await QRCode.toDataURL(checkInUrl);
       const ticketOwner = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : `${firstName} ${lastName}`;
@@ -333,14 +355,6 @@ export default function EventPage() {
         setLoading(false);
         return;
       }
-      const pdfUrl = URL.createObjectURL(ticketPdfBlob);
-      const a = document.createElement("a");
-      a.href = pdfUrl;
-      a.download = `Event_Ticket_${ticketNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(pdfUrl), 5000);
       const uploadUrl = await generateUploadUrl();
       const response = await fetch(uploadUrl, {
         method: "POST",
@@ -352,38 +366,27 @@ export default function EventPage() {
       if (!response.ok) {
         throw new Error(`❌ Failed to upload PDF (Status: ${response.status})`);
       }
-      const {
-        storageId
-      } = await response.json();
-      // Build structured responses for special events
-      const structuredResp: Record<string, { answer: string | string[], questionText: string }> = {};
-      if (event.isSpecialEvent && questions) {
-        questions.forEach(q => {
-          const response = structuredResponses[q._id];
-          if (response !== undefined) {
-            structuredResp[q._id] = {
-              answer: response,
-              questionText: q.questionText
-            };
-          }
+      const { storageId } = await response.json();
+      try {
+        await updateEventRegistrationPdf({
+          registrationId,
+          qrCode: qrCodeUrl,
+          ticketPdfId: storageId as Id<"_storage">
         });
+      } catch (attachErr) {
+        console.warn("Could not attach PDF to registration (ticket is saved):", attachErr);
+        // Registration and ticket number already exist; still let user download the PDF
       }
 
-      await rsvpEventMutation({
-        eventId: event._id,
-        answers,
-        structuredResponses: event.isSpecialEvent ? structuredResp : undefined,
-        userId: currentUser?._id ?? undefined,
-        email: !currentUser ? email : undefined,
-        firstName: !currentUser ? firstName : undefined,
-        lastName: !currentUser ? lastName : undefined,
-        phone: !currentUser ? phone : undefined,
-        organization: event.hideOrganizationDesignation ? undefined : organization,
-        designation: event.hideOrganizationDesignation ? undefined : designation,
-        qrCode: qrCodeUrl,
-        ticketPdfId: storageId as Id<"_storage">,
-        isVip
-      });
+      // Step 3: Only now offer the PDF download — data is already in Convex
+      const pdfUrl = URL.createObjectURL(ticketPdfBlob);
+      const a = document.createElement("a");
+      a.href = pdfUrl;
+      a.download = `Event_Ticket_${ticketNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 5000);
       console.log("✅ RSVP Successful!");
       setTimeout(() => {
         setLoading(false);
