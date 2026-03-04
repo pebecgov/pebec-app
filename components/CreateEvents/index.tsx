@@ -127,7 +127,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
       customUrl: customUrl.trim() || undefined,
       isSpecialEvent: isSpecialEvent || undefined,
       hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined,
-      requiresEligibilityModal: requiresEligibilityModal || undefined
+      requiresEligibilityModal
     };
 
     const run = async () => {
@@ -138,7 +138,7 @@ export default function CreateEventPage({ eventId }: { eventId?: Id<"events"> })
           isSaberEvent: event?.isSaberEvent,
           isSpecialEvent: isSpecialEvent || undefined,
           hideOrganizationDesignation: isSpecialEvent ? hideOrganizationDesignation : undefined,
-          requiresEligibilityModal: requiresEligibilityModal || undefined
+          requiresEligibilityModal
         });
         const newQuestions = questions.filter(q => !q._id);
         await Promise.all(newQuestions.map((question, index) => createEventQuestionMutation({
