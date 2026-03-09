@@ -29,7 +29,8 @@ export const createMediaPost = mutation({
     pictureIds: v.array(v.id("_storage")),
     videoUrls: v.optional(v.array(v.string())),
     categoryId: v.id("mediaCategories"),
-    eventDate: v.optional(v.number()) // Optional in schema for backward compatibility, but required in UI
+    eventDate: v.optional(v.number()), // Optional in schema for backward compatibility, but required in UI
+    isSaber: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("media", {
@@ -79,6 +80,25 @@ export const getAllMedia = query({
     }));
   }
 });
+export const getSaberMedia = query({
+  args: {},
+  handler: async ctx => {
+    const media = await ctx.db.query("media").collect();
+    const saberMedia = media.filter(item => item.isSaber === true);
+    const sortedMedia = saberMedia.sort((a, b) => {
+      const dateA = a.eventDate ?? a.createdAt;
+      const dateB = b.eventDate ?? b.createdAt;
+      return dateB - dateA;
+    });
+    return Promise.all(sortedMedia.map(async item => {
+      const coverImageUrl = item.pictureIds?.[0] ? await ctx.storage.getUrl(item.pictureIds[0]) : null;
+      return {
+        ...item,
+        coverImageUrl
+      };
+    }));
+  }
+});
 export const getMediaById = query({
   args: {
     mediaId: v.id("media")
@@ -115,6 +135,17 @@ export const getMediaWithUrls = query({
         pictureUrls: pictureUrls.filter(Boolean)
       };
     }));
+  }
+});
+export const updateMediaSaberStatus = mutation({
+  args: {
+    mediaId: v.id("media"),
+    isSaber: v.boolean()
+  },
+  handler: async (ctx, { mediaId, isSaber }) => {
+    await ctx.db.patch(mediaId, {
+      isSaber
+    });
   }
 });
 export const deleteMediaPost = mutation({

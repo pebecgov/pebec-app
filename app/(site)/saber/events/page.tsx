@@ -13,6 +13,7 @@ import Link from "next/link";
 
 export default function SaberEventsPage() {
   const saberEvents = useQuery(api.events.getSaberEvents) || [];
+  const saberGallery = useQuery(api.media.getSaberMedia) || [];
 
   const upcomingEvents = saberEvents.filter(event => new Date(event.eventDate) > new Date());
   const pastEvents = saberEvents.filter(event => new Date(event.eventDate) <= new Date());
@@ -190,8 +191,55 @@ export default function SaberEventsPage() {
             </section>
           )}
 
+          {/* SABER Gallery */}
+          {saberGallery.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-sky-800">Gallery</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Explore SABER-tagged gallery items from activities, workshops, and events.
+                  </p>
+                </div>
+                <Link href="/media">
+                  <Button variant="outline">View Full Gallery</Button>
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {saberGallery.map((item) => (
+                  <Card key={item._id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                    <div className="relative h-52 w-full">
+                      <Image
+                        src={item.coverImageUrl || "/images/media_cover.png"}
+                        alt={item.title}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">SABER</Badge>
+                        <span className="text-xs text-gray-500">
+                          {format(new Date(item.eventDate || item.createdAt), "PPP")}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
+                      <p className="text-sm text-gray-600 line-clamp-3 mb-4">{item.description}</p>
+                      <Link href={`/media/${item._id}`}>
+                        <Button variant="outline" className="w-full">
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          View Gallery Item
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* No Events */}
-          {saberEvents.length === 0 && (
+          {saberEvents.length === 0 && saberGallery.length === 0 && (
             <Card className="text-center py-12">
               <CardContent>
                 <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />

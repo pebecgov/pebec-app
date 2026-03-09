@@ -16,6 +16,7 @@ export default function MediaDashboardPage() {
   const allMedia = useQuery(api.media.getAllMedia) || [];
   const categories = useQuery(api.media.getCategories) || [];
   const deleteMedia = useMutation(api.media.deleteMediaPost);
+  const updateMediaSaberStatus = useMutation(api.media.updateMediaSaberStatus);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -73,6 +74,7 @@ export default function MediaDashboardPage() {
             <tr>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Title</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Category</th>
+              <th className="px-6 py-3 text-left font-semibold text-gray-600">SABER</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Event Date</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Created</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Actions</th>
@@ -84,6 +86,19 @@ export default function MediaDashboardPage() {
             return <tr key={item._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-gray-900">{item.title}</td>
                   <td className="px-6 py-4">{category?.name || "-"}</td>
+                  <td className="px-6 py-4">
+                    <button
+                      type="button"
+                      onClick={() => updateMediaSaberStatus({ mediaId: item._id as Id<"media">, isSaber: !item.isSaber })}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                        item.isSaber
+                          ? "bg-sky-100 text-sky-800"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {item.isSaber ? "SABER" : "Not tagged"}
+                    </button>
+                  </td>
                   <td className="px-6 py-4">{item.eventDate ? format(item.eventDate, "PP") : "-"}</td>
                   <td className="px-6 py-4">{format(item.createdAt, "PPpp")}</td>
                   <td className="px-6 py-4">

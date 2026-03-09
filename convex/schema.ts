@@ -778,6 +778,7 @@ export default defineSchema({
     videoUrls: v.optional(v.array(v.string())),
     categoryId: v.id("mediaCategories"),
     eventDate: v.optional(v.number()),
+    isSaber: v.optional(v.boolean()),
     createdAt: v.number()
   }),
   mediaCategories: defineTable({
