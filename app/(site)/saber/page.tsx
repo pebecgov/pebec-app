@@ -82,7 +82,7 @@ export default function SaberUserPage() {
           <strong>SABER</strong> (State Action on Business Enabling Reforms) is a
           $750 million performance-based initiative implemented from 2023 to
           2025. It’s jointly coordinated by the Nigerian Federal Ministry of
-          Finance, World Bank, PEBEC, and NGF Secretariat.
+          Finance, DMO, PEBEC, and NGF Secretariat, it is supported by the World Bank.
         </p>
         <p>
           The program incentivizes Nigerian states to deliver critical reforms
