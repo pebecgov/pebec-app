@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { PostMediaModal } from "@/components/MediaPageComp/PostMediaModal";
+import { EditMediaModal } from "@/components/MediaPageComp/EditMediaModal";
 import { CreateCategoryModal } from "@/components/MediaPageComp/CreateCateogoryModel";
 import { Id } from "@/convex/_generated/dataModel";
 export default function MediaDashboardPage() {
@@ -20,7 +21,9 @@ export default function MediaDashboardPage() {
   const [showPostModal, setShowPostModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedId, setSelectedId] = useState<Id<"media"> | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<(typeof allMedia)[number] | null>(null);
   const [titleFilter, setTitleFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -106,6 +109,16 @@ export default function MediaDashboardPage() {
                       <Button size="sm" variant="outline" onClick={() => router.push(`/media/${item._id}`)}>
                         View
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedMedia(item);
+                          setShowEditModal(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
                       <Button size="sm" variant="destructive" onClick={() => {
                     setSelectedId(item._id as Id<"media">);
                     setShowDeleteConfirm(true);
@@ -150,6 +163,14 @@ export default function MediaDashboardPage() {
 
       {}
       <PostMediaModal open={showPostModal} onClose={() => setShowPostModal(false)} />
+      <EditMediaModal
+        open={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedMedia(null);
+        }}
+        mediaItem={selectedMedia}
+      />
       <CreateCategoryModal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} />
     </div>;
 }

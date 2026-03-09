@@ -148,6 +148,27 @@ export const updateMediaSaberStatus = mutation({
     });
   }
 });
+export const updateMediaPost = mutation({
+  args: {
+    mediaId: v.id("media"),
+    title: v.string(),
+    description: v.string(),
+    categoryId: v.id("mediaCategories"),
+    eventDate: v.optional(v.number()),
+    videoUrls: v.optional(v.array(v.string())),
+    isSaber: v.optional(v.boolean())
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.mediaId, {
+      title: args.title,
+      description: args.description,
+      categoryId: args.categoryId,
+      eventDate: args.eventDate,
+      videoUrls: args.videoUrls,
+      isSaber: args.isSaber
+    });
+  }
+});
 export const deleteMediaPost = mutation({
   args: {
     mediaId: v.id("media")
