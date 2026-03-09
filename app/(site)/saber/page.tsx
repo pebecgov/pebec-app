@@ -90,12 +90,7 @@ export default function SaberUserPage() {
           disbursements if they first satisfy the <strong>BERAP</strong>{" "}
           (Business-Enabling Reform Action Plan) eligibility requirements.
         </p>
-        <ul className="list-disc pl-5 mt-2 space-y-1">
-          <li>gierty registration</li>
-          <li>Promote private investment and PPPs</li>
-          <li>Streamline tax and regulatory procedures</li>
-          <li>Support transparency through budget and financial disclosures</li>
-        </ul>
+  
         <p>
           States are independently assessed by a third-party IVA. Funding is
           released only when DLI milestones are met and eligibility criteria
