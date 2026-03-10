@@ -88,10 +88,51 @@ export default function SaberUserPage() {
           The program incentivizes Nigerian states to deliver critical reforms
           that make doing business easier. States can only access DLI
           disbursements if they first satisfy the <strong>BERAP</strong>{" "}
-          (Business-Enabling Reform Action Plan) eligibility requirements.
+          (Business-Enabling Reform Action Plan) eligibility requirements{" "}
+          <b>and</b> the additional requirements set out below.
         </p>
-  
-        <p>
+
+        <div className="space-y-4 mt-6">
+          <p className="font-semibold text-gray-900">
+            Accountability of business enabling reforms
+          </p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>
+              Annual State Business-Enabling Reforms Action Plan for 2026,
+              prepared with, and including records of, private sector
+              participation, approved by the State Executive and published
+              online by <strong>31 December 2025</strong>;
+            </li>
+            <li>
+              2024 State Business-Enabling Reforms Action Plan Progress report
+              submitted to the State Executive Council and published online by{" "}
+              <strong>31 July 2025</strong>;
+            </li>
+          </ul>
+
+          <p className="font-semibold text-gray-900 mt-6">
+            Selected criteria from the States Fiscal Transparency, Sustainability (SFTAS)
+          </p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>
+              Annual FY25 state budget, prepared under national Chart of
+              Accounts, approved by the State Assembly and published online by{" "}
+              <strong>31 January 2025</strong>;
+            </li>
+            <li>
+              Annual FY24 audited financial statement, prepared in accordance
+              with IPSAS, submitted to the State Assembly and published by{" "}
+              <strong>31 July 2025</strong>;
+            </li>
+            <li>
+              Annual State Debt Sustainability Analysis and Debt Management
+              Strategy Report (SDSA-DMSR) published online by{" "}
+              <strong>31 December 2024</strong>.
+            </li>
+          </ul>
+        </div>
+
+        <p className="mt-6">
           States are independently assessed by a third-party IVA. Funding is
           released only when DLI milestones are met and eligibility criteria
           confirmed.
