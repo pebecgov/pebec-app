@@ -201,6 +201,8 @@ export default function StaffMeetingCalendarPage() {
         }
     };
 
+    const showTimePickers = !meetingEndDate || isSameDay(meetingDate, meetingEndDate);
+
     return (
         <div className="max-w-7xl mx-auto px-4 py-6">
             <div className="flex items-center gap-3 mb-6">
@@ -405,20 +407,22 @@ export default function StaffMeetingCalendarPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Start Time *
-                                </label>
-                                <TimePicker value={startTime} onChange={setStartTime} placeholder="Start time" />
+                        {showTimePickers && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Start Time *
+                                    </label>
+                                    <TimePicker value={startTime} onChange={setStartTime} placeholder="Start time" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        End Time *
+                                    </label>
+                                    <TimePicker value={endTime} onChange={setEndTime} placeholder="End time" />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    End Time *
-                                </label>
-                                <TimePicker value={endTime} onChange={setEndTime} placeholder="End time" />
-                            </div>
-                        </div>
+                        )}
 
 
                         <div>
