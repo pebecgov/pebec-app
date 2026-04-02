@@ -19,6 +19,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import classNames from "classnames";
 import { formatRole } from "@/lib/formatters";
 import Loader from "@/components/Loader";
+import SubmittedReportsMdaMatrixDialog from "@/components/Admin/SubmittedReportsMdaMatrixDialog";
 
 export default function SubmittedReportsPage() {
   const {
@@ -43,6 +44,7 @@ export default function SubmittedReportsPage() {
   const [mdaSearchQuery, setMdaSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showMdaMatrixDialog, setShowMdaMatrixDialog] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const allUsers = useQuery(api.users.getAllUsers) ?? [];
@@ -263,6 +265,15 @@ export default function SubmittedReportsPage() {
       }} className="text-gray-800 hover:underline">
     Clear Date Filter
   </Button>
+
+  <Button
+    variant="outline"
+    onClick={() => setShowMdaMatrixDialog(true)}
+    className="bg-green-600 border-green-600 text-white hover:bg-green-700 hover:border-green-700"
+    title="MDA submission status matrix by month"
+  >
+    MDA Matrix
+  </Button>
     </div>
 
 
@@ -370,5 +381,11 @@ export default function SubmittedReportsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SubmittedReportsMdaMatrixDialog
+        open={showMdaMatrixDialog}
+        onOpenChange={setShowMdaMatrixDialog}
+        submittedReports={submittedReports}
+      />
     </div>;
 }
