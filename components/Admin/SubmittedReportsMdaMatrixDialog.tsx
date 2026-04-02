@@ -59,6 +59,34 @@ function splitMdaNameParts(value: string): { abbr?: string; name?: string } {
   return { name: cleaned };
 }
 
+/** Full `name` values from `mdasList` excluded from the matrix (UI table + PDF). */
+const MATRIX_EXCLUDED_MDA_NAMES = new Set(
+  [
+    "Federal Ministry of Aviation and Aerospace Development",
+    "Federal Ministry of Environment",
+    "Federal Ministry of Finance",
+    "Ministry of Foreign Affairs",
+    "Federal Ministry of Information and National Orientation",
+    "Federal Ministry of Justice",
+    "Federal Ministry of Power",
+    "Federal Ministry of Transportation",
+    "Federal Ministry of Works",
+    "Joint Tax Board",
+    "Ministry of Budget and Economic Planning",
+    "Nigeria Gas Company",
+    "Nigeria Police Force",
+    "Office of the Head of Service of the Federation",
+    "Secretary to the Government of the Federation",
+  ].map(normalizeKey)
+);
+
+function isMatrixExcludedReportMda(mdaName: string): boolean {
+  const parts = splitMdaNameParts(mdaName);
+  if (parts.name && MATRIX_EXCLUDED_MDA_NAMES.has(normalizeKey(parts.name))) return true;
+  if (MATRIX_EXCLUDED_MDA_NAMES.has(normalizeKey(mdaName))) return true;
+  return false;
+}
+
 function monthValueToParts(monthValue: string): { year: number; monthIndex: number } | null {
   // monthValue: "YYYY-MM"
   const match = monthValue.match(/^(\d{4})-(\d{2})$/);
@@ -172,11 +200,13 @@ export default function SubmittedReportsMdaMatrixDialog({ open, onOpenChange, su
         (submittedReports ?? [])
           .map((r) => r.mdaName)
           .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+          .filter((v) => !isMatrixExcludedReportMda(v))
       )
     ).sort((a, b) => a.localeCompare(b));
 
     // Prefer showing MDAs in the same display format used by submitted reports: "ABBR - Full Name"
     const listMdaNames = mdasList
+      .filter((m) => !MATRIX_EXCLUDED_MDA_NAMES.has(normalizeKey(m.name)))
       .map((m) => {
         const name = (m?.name ?? "").trim();
         const abbr = (m?.abbreviation ?? "").trim();
@@ -210,6 +240,8 @@ export default function SubmittedReportsMdaMatrixDialog({ open, onOpenChange, su
 
     for (const report of parsedReports) {
       if (!report.mdaName || report.submittedAt == null) continue;
+      if (isMatrixExcludedReportMda(String(report.mdaName))) continue;
+
       const submittedAt = new Date(report.submittedAt);
 
       const year = submittedAt.getFullYear();
