@@ -27,8 +27,8 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
   const announcements = useQuery(api.holidayAnnouncements.getAnnouncementsByType, { type });
   const currentUser = useQuery(api.users.current);
   const { toast } = useToast();
-  const endAnnouncement = useMutation(api.holidayAnnouncements.endAnnouncement);
   const updateAnnouncement = useMutation(api.holidayAnnouncements.updateAnnouncement);
+  const deleteAnnouncement = useMutation(api.holidayAnnouncements.deleteAnnouncement);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
@@ -72,12 +72,15 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
     }
   };
 
-  const handleEnd = async (id: any) => {
+  const handleDelete = async (id: any) => {
+    const confirmed = window.confirm("Are you sure you want to delete this absence notice?");
+    if (!confirmed) return;
+
     try {
-      await endAnnouncement({ announcementId: id });
-      toast({ title: "Success", description: "Absence notice ended" });
+      await deleteAnnouncement({ announcementId: id });
+      toast({ title: "Success", description: "Absence notice deleted" });
     } catch (error) {
-      toast({ title: "Error", description: "Failed to end notice", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to delete notice", variant: "destructive" });
     }
   };
 
@@ -296,7 +299,7 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
                         </DialogContent>
                       </Dialog>
 
-                      <Button variant="ghost" size="icon" onClick={() => handleEnd(announcement._id)} className="text-red-500 hover:text-red-700">
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(announcement._id)} className="text-red-500 hover:text-red-700">
                         <TrashIcon className="w-4 h-4" />
                       </Button>
                     </div>

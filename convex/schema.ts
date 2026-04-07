@@ -692,6 +692,24 @@ export default defineSchema({
   }).index("by_user", ["userId"])
     .index("by_active", ["isActive"])
     .index("by_date_range", ["startDate", "endDate"]),
+  holidayAnnouncementLogs: defineTable({
+    announcementId: v.id("holidayAnnouncements"),
+    userId: v.id("users"),
+    userName: v.string(),
+    reason: v.union(v.literal("sick"), v.literal("official_assignment"), v.literal("leave")),
+    startDate: v.string(),
+    endDate: v.string(),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+    description: v.optional(v.string()),
+    action: v.union(v.literal("created"), v.literal("updated"), v.literal("ended"), v.literal("deleted")),
+    performedBy: v.id("users"),
+    performedByName: v.string(),
+    performedByRole: v.optional(v.string()),
+    createdAt: v.number()
+  }).index("by_createdAt", ["createdAt"])
+    .index("by_user", ["userId"])
+    .index("by_action", ["action"]),
 
   projects: defineTable({
     name: v.string(),
