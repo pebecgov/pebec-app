@@ -5,6 +5,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useParams } from "next/navigation";
 import { Id } from "@/convex/_generated/dataModel";
 import Image from "next/image";
@@ -13,6 +14,7 @@ import { jsPDF } from "jspdf";
 import Ticket from "@/components/Ticket";
 import html2canvas from "html2canvas";
 import ReactDOMServer from "react-dom/server";
+import { ParticipantInfoModal } from "@/components/ParticipantInfoModal";
 
 export default function EventPage() {
   const { slug } = useParams();
@@ -22,6 +24,7 @@ export default function EventPage() {
     questionId: Id<"event_questions">;
     answer: string;
   }[]>([]);
+  const [structuredResponses, setStructuredResponses] = useState<Record<string, string | string[]>>({});
   const [showMobileTicket, setShowMobileTicket] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +56,8 @@ export default function EventPage() {
   const currentUser = useQuery(api.users.getCurrentUsers) || null;
   const [vipCodeError, setVipCodeError] = useState<string | null>(null);
   const [vipCodeValid, setVipCodeValid] = useState(false);
+  const [eligibilityModalOpen, setEligibilityModalOpen] = useState(false);
+  const [eligibilityPassed, setEligibilityPassed] = useState(false);
   const userEmail = (currentUser as any)?.email ?? "";
   const userPhone = (currentUser as any)?.phoneNumber ?? "";
   const convex = useConvex();
@@ -62,7 +67,14 @@ export default function EventPage() {
   } : "skip");
   const coverImageUrl = storageId ? coverImageUrlQuery : "";
   const rsvpEventMutation = useMutation(api.events.rsvpEvent);
+  const updateEventRegistrationPdf = useMutation(api.events.updateEventRegistrationPdf);
   const isPastEvent = event ? new Date(event.eventDate) < new Date() : false;
+  // Registration closes at deadline (if set) or at event time
+  const isRegistrationClosed = event
+    ? event.registrationDeadline != null
+      ? Date.now() > event.registrationDeadline
+      : isPastEvent
+    : false;
   const [ticketsLeft, setTicketsLeft] = useState<{
     vip: number | null;
     general: number | null;
@@ -97,7 +109,28 @@ export default function EventPage() {
   useEffect(() => {
     setIsClient(true);
   }, []);
-  
+
+  // Prefill and skip eligibility gate when arriving from list page after passing modal
+  useEffect(() => {
+    if (!event || !isClient) return;
+    try {
+      const raw = typeof window !== "undefined" ? window.sessionStorage.getItem("eventEligibilityPrefill") : null;
+      if (!raw) return;
+      const data = JSON.parse(raw) as { eventId: string; firstName: string; lastName: string; organization: string; designation: string; email: string; phone: string };
+      if (data.eventId !== event._id) return;
+      setFirstName(data.firstName ?? "");
+      setLastName(data.lastName ?? "");
+      setOrganization(data.organization ?? "");
+      setDesignation(data.designation ?? "");
+      setEmail(data.email ?? "");
+      setPhone(data.phone ?? "");
+      setEligibilityPassed(true);
+      window.sessionStorage.removeItem("eventEligibilityPrefill");
+    } catch {
+      // ignore
+    }
+  }, [event?._id, isClient]);
+
   if (!isClient) {
     return <p className="text-center text-gray-500">Loading...</p>;
   }
@@ -210,12 +243,26 @@ export default function EventPage() {
       console.error("🚨 Event not found or questions still loading");
       return;
     }
-    const allAnswered = questions.every(q => answers.some(a => a.questionId === q._id && a.answer.trim() !== ""));
+    // Validate required fields for special events
+    let allAnswered = true;
+    if (event.isSpecialEvent) {
+      allAnswered = questions.every(q => {
+        if (!q.isRequired) return true;
+        if (q.questionType === "checkbox") {
+          const response = structuredResponses[q._id] as string[] | undefined;
+          return response && response.length > 0;
+        }
+        const answer = structuredResponses[q._id] as string | undefined;
+        return answer && answer.toString().trim() !== "";
+      });
+    } else {
+      allAnswered = questions.every(q => answers.some(a => a.questionId === q._id && a.answer.trim() !== ""));
+    }
     if (!currentUser && (!email.trim() || !firstName.trim() || !lastName.trim() || !phone.trim())) {
       setError("❌ Please enter your full name, email, and phone number.");
       return;
     }
-    if (!organization.trim() || !designation.trim()) {
+    if (!event.hideOrganizationDesignation && (!organization.trim() || !designation.trim())) {
       setError("❌ Please enter your organization and designation.");
       return;
     }
@@ -251,21 +298,39 @@ export default function EventPage() {
     setError(null);
     setLoading(true);
     try {
-      console.log("🎟️ Generating Ticket...");
-      const count = registrations?.length ?? 0;
-      const now = new Date();
-      const day = String(now.getDate()).padStart(2, "0");
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const year = now.getFullYear();
-      const index = String(count + 1).padStart(3, "0");
-      const ticketNumber = `PEBEC-EV-${day}${month}${year}-${index}`;
-      
-      // Use custom URL if available, otherwise use event ID
-      const eventUrl = event.customUrl 
-        ? `https://www.pebec.gov.ng/events/${event.customUrl}`
-        : `https://www.pebec.gov.ng/events/${event._id}`;
-      
-      const qrCodeUrl = await QRCode.toDataURL(eventUrl);
+      // Build structured responses for special events
+      const structuredResp: Record<string, { answer: string | string[], questionText: string }> = {};
+      if (event.isSpecialEvent && questions) {
+        questions.forEach(q => {
+          const response = structuredResponses[q._id];
+          if (response !== undefined) {
+            structuredResp[q._id] = {
+              answer: response,
+              questionText: q.questionText
+            };
+          }
+        });
+      }
+
+      // Step 1: Create registration on server first (server generates ticket number). No PDF yet.
+      const { registrationId, ticketNumber } = await rsvpEventMutation({
+        eventId: event._id,
+        answers,
+        structuredResponses: event.isSpecialEvent ? structuredResp : undefined,
+        userId: currentUser?._id ?? undefined,
+        email: !currentUser ? email : undefined,
+        firstName: !currentUser ? firstName : undefined,
+        lastName: !currentUser ? lastName : undefined,
+        phone: !currentUser ? phone : undefined,
+        organization: event.hideOrganizationDesignation ? undefined : organization,
+        designation: event.hideOrganizationDesignation ? undefined : designation,
+        isVip
+      });
+      console.log("✅ Registration saved. Ticket:", ticketNumber);
+
+      // Step 2: Generate PDF using server-issued ticket number, upload, attach to registration, then download
+      const checkInUrl = `https://www.pebec.gov.ng/check-in/${ticketNumber}`;
+      const qrCodeUrl = await QRCode.toDataURL(checkInUrl);
       const ticketOwner = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : `${firstName} ${lastName}`;
       const userAnswers = answers.map(a => ({
         questionText: questions.find(q => q._id === a.questionId)?.questionText || "Unknown Question",
@@ -290,14 +355,6 @@ export default function EventPage() {
         setLoading(false);
         return;
       }
-      const pdfUrl = URL.createObjectURL(ticketPdfBlob);
-      const a = document.createElement("a");
-      a.href = pdfUrl;
-      a.download = `Event_Ticket_${ticketNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(pdfUrl), 5000);
       const uploadUrl = await generateUploadUrl();
       const response = await fetch(uploadUrl, {
         method: "POST",
@@ -309,23 +366,27 @@ export default function EventPage() {
       if (!response.ok) {
         throw new Error(`❌ Failed to upload PDF (Status: ${response.status})`);
       }
-      const {
-        storageId
-      } = await response.json();
-      await rsvpEventMutation({
-        eventId: event._id,
-        answers,
-        userId: currentUser?._id ?? undefined,
-        email: !currentUser ? email : undefined,
-        firstName: !currentUser ? firstName : undefined,
-        lastName: !currentUser ? lastName : undefined,
-        phone: !currentUser ? phone : undefined,
-        organization: organization,
-        designation: designation,
-        qrCode: qrCodeUrl,
-        ticketPdfId: storageId as Id<"_storage">,
-        isVip
-      });
+      const { storageId } = await response.json();
+      try {
+        await updateEventRegistrationPdf({
+          registrationId,
+          qrCode: qrCodeUrl,
+          ticketPdfId: storageId as Id<"_storage">
+        });
+      } catch (attachErr) {
+        console.warn("Could not attach PDF to registration (ticket is saved):", attachErr);
+        // Registration and ticket number already exist; still let user download the PDF
+      }
+
+      // Step 3: Only now offer the PDF download — data is already in Convex
+      const pdfUrl = URL.createObjectURL(ticketPdfBlob);
+      const a = document.createElement("a");
+      a.href = pdfUrl;
+      a.download = `Event_Ticket_${ticketNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 5000);
       console.log("✅ RSVP Successful!");
       setTimeout(() => {
         setLoading(false);
@@ -342,16 +403,69 @@ export default function EventPage() {
   };
   
   const handleChange = (questionId: Id<"event_questions">, value: string) => {
+    // Legacy support for non-special events
+    if (!event?.isSpecialEvent) {
+      setAnswers(prevAnswers => {
+        const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
+        if (existingAnswer) {
+          existingAnswer.answer = value;
+          return [...prevAnswers];
+        }
+        return [...prevAnswers, {
+          questionId,
+          answer: value
+        }];
+      });
+    } else {
+      // Special event: use structured responses
+      setStructuredResponses(prev => ({
+        ...prev,
+        [questionId]: value
+      }));
+      // Also update legacy format for compatibility
+      setAnswers(prevAnswers => {
+        const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
+        if (existingAnswer) {
+          existingAnswer.answer = value;
+          return [...prevAnswers];
+        }
+        return [...prevAnswers, {
+          questionId,
+          answer: value
+        }];
+      });
+    }
+  };
+
+  const handleCheckboxChange = (questionId: Id<"event_questions">, option: string, checked: boolean, optionList?: string[]) => {
+    setStructuredResponses(prev => {
+      const current = (prev[questionId] as string[]) || [];
+      if (checked) {
+        return { ...prev, [questionId]: [...current, option] };
+      }
+      // When unchecking "Other", also remove the custom text value (any value not in the option list)
+      if (option === "Other" && optionList?.length) {
+        const cleaned = current.filter(v => v !== "Other" && optionList.includes(v));
+        return { ...prev, [questionId]: cleaned };
+      }
+      return { ...prev, [questionId]: current.filter(o => o !== option) };
+    });
     setAnswers(prevAnswers => {
       const existingAnswer = prevAnswers.find(answer => answer.questionId === questionId);
+      const currentValue = existingAnswer?.answer ? existingAnswer.answer.split(", ") : [];
+      let newValue: string[];
+      if (checked) {
+        newValue = [...currentValue, option];
+      } else if (option === "Other" && optionList?.length) {
+        newValue = currentValue.filter(v => v !== "Other" && optionList.includes(v));
+      } else {
+        newValue = currentValue.filter(o => o !== option);
+      }
       if (existingAnswer) {
-        existingAnswer.answer = value;
+        existingAnswer.answer = newValue.join(", ");
         return [...prevAnswers];
       }
-      return [...prevAnswers, {
-        questionId,
-        answer: value
-      }];
+      return [...prevAnswers, { questionId, answer: newValue.join(", ") }];
     });
   };
   
@@ -394,8 +508,11 @@ export default function EventPage() {
     }
   };
   
-  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || !organization.trim() || !designation.trim() || questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim()) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
-  
+  const requireOrgDesignation = event && !event.hideOrganizationDesignation;
+  const isFormIncomplete = Boolean(!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || (requireOrgDesignation && (!organization.trim() || !designation.trim())) || (event?.isSpecialEvent && questions?.some(q => q.isRequired && !structuredResponses[q._id])) || (!event?.isSpecialEvent && questions?.some(q => !answers.find(a => a.questionId === q._id)?.answer.trim())) || ((event?.eventType === "vip" || (event?.eventType === "vip_and_general" && isVip)) && event?.vipAccessCode && vipCode.trim() !== event.vipAccessCode.trim()));
+  const requiresEligibilityModal = Boolean(event?.requiresEligibilityModal);
+  const showEligibilityGate = requiresEligibilityModal && !eligibilityPassed;
+
   return <div className="relative mx-auto w-full bg-white pt-12 mt-30 px-10 md:px-30 lg:px-30 md:mb-20  ">
       <div className="flex flex-col md:flex-row gap-8">
 
@@ -404,9 +521,40 @@ export default function EventPage() {
   {event?.signUpsDisabled ? <div className="bg-red-100 border border-red-300 text-red-700 p-6 rounded-lg shadow-sm">
       <h2 className="text-xl font-semibold mb-2">⚠️ Sign-Ups Disabled</h2>
       <p>You cannot sign up for this event anymore.</p>
-    </div> : <>
-     
-
+    </div> : showEligibilityGate ? (
+      <>
+        <h1 className="text-2xl font-medium text-green-700 sm:text-3xl">
+          Sign Up for this Event
+          <span className="mt-2 block h-1 w-10 bg-green-600"></span>
+        </h1>
+        <p className="mt-2 text-gray-600 text-sm">Click Register to provide your details and complete the registration form.</p>
+        <Button
+          type="button"
+          onClick={() => setEligibilityModalOpen(true)}
+          disabled={isRegistrationClosed}
+          className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white"
+        >
+          {isRegistrationClosed ? "Registration Closed" : "Register"}
+        </Button>
+        {event && (
+          <ParticipantInfoModal
+            open={eligibilityModalOpen}
+            onOpenChange={setEligibilityModalOpen}
+            eventId={event._id}
+            onEligible={(prefill) => {
+              setFirstName(prefill.firstName);
+              setLastName(prefill.lastName);
+              setOrganization(prefill.organization);
+              setDesignation(prefill.designation);
+              setEmail(prefill.email);
+              setPhone(prefill.phone);
+              setEligibilityPassed(true);
+            }}
+            onPendingReview={() => {}}
+          />
+        )}
+      </>
+    ) : <>
       <h1 className="text-2xl font-medium text-green-700 sm:text-3xl">
         Sign Up for this Event
         <span className="mt-2 block h-1 w-10 bg-green-600"></span>
@@ -463,26 +611,181 @@ export default function EventPage() {
           <label className="text-xs font-semibold text-gray-500">Phone Number</label>
           <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" required />
         </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500">Organization *</label>
-          <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Company/Institution" required />
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-500">Designation *</label>
-          <input type="text" value={designation} onChange={e => setDesignation(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Your position/role" required />
-        </div>
+        {!event?.hideOrganizationDesignation && (
+          <>
+            <div>
+              <label className="text-xs font-semibold text-gray-500">Organization *</label>
+              <input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Company/Institution" required />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500">Designation *</label>
+              <input type="text" value={designation} onChange={e => setDesignation(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" placeholder="Your position/role" required />
+            </div>
+          </>
+        )}
         <div>
           <label className="text-xs font-semibold text-gray-500">Email Address</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" required />
         </div>
 
-        {questions?.map(question => <div key={question._id}>
-            <label className="text-xs font-semibold text-gray-500">{question.questionText}</label>
-            <input type={question.questionType} onChange={e => handleChange(question._id as Id<"event_questions">, e.target.value)} className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" />
-          </div>)}
+        {event?.isSpecialEvent && questions ? (
+          // Special event: Group by section and render with decimal numbering (Section 1, 1.1, 1.2, Section 2, 2.1, ...)
+          (() => {
+            const sections = questions.reduce((acc, q) => {
+              const section = q.section || "General";
+              if (!acc[section]) acc[section] = [];
+              acc[section].push(q);
+              return acc;
+            }, {} as Record<string, typeof questions>);
+            
+            // Sort questions within each section by order
+            Object.keys(sections).forEach(section => {
+              sections[section].sort((a, b) => (a.order || 0) - (b.order || 0));
+            });
+            // Section order: by minimum question order in each section
+            const sectionNames = Object.keys(sections).sort(
+              (a, b) => Math.min(...sections[a].map(q => q.order ?? 0)) - Math.min(...sections[b].map(q => q.order ?? 0))
+            );
 
-        <Button type="submit" disabled={loading || isPastEvent || isFormIncomplete} className={`w-full text-white ${isPastEvent || isFormIncomplete ? "bg-gray-400 cursor-not-allowed" : loading ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
-          {isPastEvent ? "Event Closed" : loading ? "Generating Ticket..." : "Sign Up & Get Ticket"}
+            return sectionNames.map((sectionName, sectionIndex) => {
+              const sectionNumber = sectionIndex + 1;
+              const sectionQuestions = sections[sectionName];
+              return (
+              <div key={sectionName} className="space-y-4 border-t pt-4 mt-4">
+                <h3 className="text-lg font-semibold text-gray-800">{sectionName}</h3>
+                {sectionQuestions.map((question, questionIndex) => {
+                  const questionNumber = questionIndex + 1;
+                  const questionId = question._id as Id<"event_questions">;
+                  const currentValue = structuredResponses[questionId];
+                  
+                  return (
+                    <div key={question._id} className="space-y-2">
+                      <label className="text-xs font-semibold text-gray-500">
+                        {sectionNumber}.{questionNumber} {question.questionText}
+                        {question.isRequired && <span className="text-red-600 ml-1">*</span>}
+                      </label>
+                      
+                      {question.questionType === "textarea" ? (
+                        <textarea
+                          value={(currentValue as string) || ""}
+                          onChange={e => handleChange(questionId, e.target.value)}
+                          className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500 min-h-[100px]"
+                          required={question.isRequired}
+                        />
+                      ) : question.questionType === "radio" && question.options ? (
+                        <div className="space-y-2">
+                          {question.options.map((option, idx) => (
+                            <label key={idx} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`question-${questionId}`}
+                                value={option}
+                                checked={currentValue === option}
+                                onChange={e => handleChange(questionId, e.target.value)}
+                                className="w-4 h-4 text-green-600"
+                                required={question.isRequired}
+                              />
+                              <span className="text-sm">{option}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : question.questionType === "checkbox" && question.options ? (
+                        <div className="space-y-2">
+                          {question.options.map((option, idx) => {
+                            const checked = Array.isArray(currentValue) && currentValue.includes(option);
+                            return (
+                              <label key={idx} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={e => handleCheckboxChange(questionId, option, e.target.checked, question.options ?? undefined)}
+                                  className="w-4 h-4 text-green-600"
+                                />
+                                <span className="text-sm">{option}</span>
+                              </label>
+                            );
+                          })}
+                          {question.options.includes("Other") && (
+                            <>
+                              {Array.isArray(currentValue) && currentValue.includes("Other") && (
+                                <div className="mt-2 ml-6">
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">Please specify:</label>
+                                  <Input
+                                    type="text"
+                                    placeholder="Enter your answer"
+                                    value={(() => {
+                                      const arr = currentValue as string[];
+                                      return arr.find(v => v !== "Other" && !question.options?.includes(v)) ?? "";
+                                    })()}
+                                    onChange={e => {
+                                      const otherValue = e.target.value;
+                                      const withoutOtherAndCustom = (currentValue as string[]).filter(v => v !== "Other" && question.options?.includes(v));
+                                      if (otherValue.trim()) {
+                                        handleCheckboxChange(questionId, "Other", true);
+                                        setStructuredResponses(prev => ({
+                                          ...prev,
+                                          [questionId]: [...withoutOtherAndCustom, "Other", otherValue]
+                                        }));
+                                      } else {
+                                        handleCheckboxChange(questionId, "Other", false, question.options);
+                                      }
+                                    }}
+                                    className="w-full"
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ) : question.questionType === "scale" ? (
+                        <div className="flex items-center gap-4">
+                          {[1, 2, 3, 4, 5].map(num => (
+                            <label key={num} className="flex flex-col items-center gap-1 cursor-pointer">
+                              <span className="text-xs">{num}</span>
+                              <input
+                                type="radio"
+                                name={`question-${questionId}`}
+                                value={num.toString()}
+                                checked={currentValue === num.toString()}
+                                onChange={e => handleChange(questionId, e.target.value)}
+                                className="w-4 h-4 text-green-600"
+                                required={question.isRequired}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <input
+                          type={question.questionType === "number" ? "number" : question.questionType === "email" ? "email" : "text"}
+                          value={(currentValue as string) || ""}
+                          onChange={e => handleChange(questionId, e.target.value)}
+                          className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500"
+                          required={question.isRequired}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              );
+            });
+          })()
+        ) : (
+          // Legacy event: Simple questions
+          questions?.map(question => (
+            <div key={question._id}>
+              <label className="text-xs font-semibold text-gray-500">{question.questionText}</label>
+              <input 
+                type={question.questionType === "number" ? "number" : question.questionType === "email" ? "email" : "text"} 
+                onChange={e => handleChange(question._id as Id<"event_questions">, e.target.value)} 
+                className="mt-1 block w-full rounded border-gray-300 bg-gray-50 py-3 px-4 text-sm shadow-sm focus:ring-2 focus:ring-green-500" 
+              />
+            </div>
+          ))
+        )}
+
+        <Button type="submit" disabled={loading || isRegistrationClosed || isFormIncomplete} className={`w-full text-white ${isRegistrationClosed || isFormIncomplete ? "bg-gray-400 cursor-not-allowed" : loading ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
+          {isRegistrationClosed ? (event?.registrationDeadline != null ? "Registration Closed" : "Event Closed") : loading ? "Generating Ticket..." : "Sign Up & Get Ticket"}
         </Button>
       </form>
     </>}
@@ -506,14 +809,14 @@ export default function EventPage() {
       <ul className="space-y-2 text-sm">
         <li className="flex items-center gap-2">
           <span className="text-blue-300">📅</span>
-          <span className="font-medium">Date:</span>
+          <span className="font-medium">Event Date:</span>
           <span>
             {event?.eventDate ? new Date(event.eventDate).toLocaleDateString() : "TBD"}
           </span>
         </li>
         <li className="flex items-center gap-2">
           <span className="text-yellow-300">⏰</span>
-          <span className="font-medium">Time:</span>
+          <span className="font-medium">Event Time:</span>
           <span>
             {event?.eventDate ? new Date(event.eventDate).toLocaleTimeString([], {
                     hour: "2-digit",
@@ -521,6 +824,16 @@ export default function EventPage() {
                   }) : "TBD"}
           </span>
         </li>
+        {event?.registrationDeadline != null && (
+          <li className="flex items-center gap-2">
+            <span className="text-amber-300">📋</span>
+            <span className="font-medium">Registration closes:</span>
+            <span>
+              {new Date(event.registrationDeadline).toLocaleDateString()} at{" "}
+              {new Date(event.registrationDeadline).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </li>
+        )}
         <li className="flex items-center gap-2">
           <span className="text-purple-300">👤</span>
           <span className="font-medium">Host:</span>

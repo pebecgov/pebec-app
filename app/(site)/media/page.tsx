@@ -69,9 +69,16 @@ export default function MediaPage() {
 
             <div className="p-4 flex flex-col justify-between h-[200px]">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {item.title}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {item.title}
+                  </h2>
+                  {item.isSaber && (
+                    <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+                      SABER
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500">
                   {item.eventDate ? format(item.eventDate, "PPP") : format(item.createdAt, "PPP")}
                 </p>

@@ -14,6 +14,7 @@ export const createEvent = mutation({
     title: v.string(),
     description: v.string(),
     eventDate: v.number(),
+    registrationDeadline: v.optional(v.number()),
     location: v.string(),
     host: v.string(),
     coverImageId: v.optional(v.id("_storage")),
@@ -23,7 +24,10 @@ export const createEvent = mutation({
     vipTicketLimit: v.optional(v.number()),
     generalTicketLimit: v.optional(v.number()),
     isSaberEvent: v.optional(v.boolean()),
-    customUrl: v.optional(v.string())
+    customUrl: v.optional(v.string()),
+    isSpecialEvent: v.optional(v.boolean()),
+    hideOrganizationDesignation: v.optional(v.boolean()),
+    requiresEligibilityModal: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
@@ -48,6 +52,7 @@ export const createEvent = mutation({
       title: args.title,
       description: args.description,
       eventDate: args.eventDate,
+      registrationDeadline: args.registrationDeadline,
       location: args.location,
       host: args.host,
       coverImageId: args.coverImageId,
@@ -60,7 +65,10 @@ export const createEvent = mutation({
       vipTicketLimit: args.vipTicketLimit,
       generalTicketLimit: args.generalTicketLimit,
       isSaberEvent: args.isSaberEvent || false,
-      customUrl: args.customUrl
+      customUrl: args.customUrl,
+      isSpecialEvent: args.isSpecialEvent || false,
+      hideOrganizationDesignation: args.hideOrganizationDesignation || false,
+      requiresEligibilityModal: args.requiresEligibilityModal ?? false
     });
     return event;
   }
@@ -111,12 +119,20 @@ export const createEventQuestion = mutation({
   args: {
     eventId: v.id("events"),
     questionText: v.string(),
-    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale"))
+    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale"), v.literal("radio"), v.literal("checkbox"), v.literal("textarea")),
+    isRequired: v.optional(v.boolean()),
+    options: v.optional(v.array(v.string())),
+    section: v.optional(v.string()),
+    order: v.optional(v.number())
   },
   handler: async (ctx, {
     eventId,
     questionText,
-    questionType
+    questionType,
+    isRequired,
+    options,
+    section,
+    order
   }) => {
     const user = await getCurrentUserOrThrow(ctx);
     const createdAt = Date.now();
@@ -124,12 +140,36 @@ export const createEventQuestion = mutation({
       eventId,
       questionText,
       questionType,
+      isRequired: isRequired ?? false,
+      options: options ?? undefined,
+      section: section ?? undefined,
+      order: order ?? undefined,
       createdBy: user._id,
       createdAt
     });
     return question;
   }
 });
+
+export const updateEventQuestion = mutation({
+  args: {
+    questionId: v.id("event_questions"),
+    section: v.optional(v.string()),
+    order: v.optional(v.number()),
+    isRequired: v.optional(v.boolean())
+  },
+  handler: async (ctx, { questionId, section, order, isRequired }) => {
+    await getCurrentUserOrThrow(ctx);
+    const question = await ctx.db.get(questionId);
+    if (!question) throw new Error("Question not found");
+    const patch: { section?: string; order?: number; isRequired?: boolean } = {};
+    if (section !== undefined) patch.section = section || undefined;
+    if (order !== undefined) patch.order = order;
+    if (isRequired !== undefined) patch.isRequired = isRequired;
+    await ctx.db.patch(questionId, patch);
+  }
+});
+
 export const getEventQuestions = query({
   args: {
     eventId: v.id("events")
@@ -148,20 +188,22 @@ export const rsvpEvent = mutation({
       questionId: v.id("event_questions"),
       answer: v.string()
     })),
+    structuredResponses: v.optional(v.any()), // For special events: { questionId: { answer: string | string[], questionText: string } }
     userId: v.optional(v.id("users")),
     email: v.optional(v.string()),
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
     phone: v.optional(v.string()),
-    organization: v.string(),
-    designation: v.string(),
-    qrCode: v.string(),
-    ticketPdfId: v.id("_storage"),
+    organization: v.optional(v.string()),
+    designation: v.optional(v.string()),
+    qrCode: v.optional(v.string()),
+    ticketPdfId: v.optional(v.id("_storage")),
     isVip: v.optional(v.boolean())
   },
   handler: async (ctx, {
     eventId,
     answers,
+    structuredResponses,
     userId,
     email,
     qrCode,
@@ -191,30 +233,34 @@ export const rsvpEvent = mutation({
       firstName: firstName ?? undefined,
       lastName: lastName ?? undefined,
       phone: phone ?? undefined,
-      organization: organization,
-      designation: designation,
+      organization: organization ?? undefined,
+      designation: designation ?? undefined,
       questionnaireAnswers: answers.map(a => a.answer),
+      structuredResponses: structuredResponses ?? undefined,
       ticketNumber,
-      qrCode,
-      ticketPdfId,
+      qrCode: qrCode ?? undefined,
+      ticketPdfId: ticketPdfId ?? undefined,
       isVip: isVip ?? false,
       registeredAt: Date.now()
     });
     console.log(`✅ RSVP stored. Registration ID: ${registrationId} — Ticket: ${ticketNumber}`);
-    let userEmail = email ?? "";
-    if (!userEmail && userId) {
-      const user = await ctx.db.get(userId);
-      userEmail = user?.email ?? "";
-    }
-    if (userEmail) {
-      await ctx.scheduler.runAfter(0, api.sendTicketemail.sendTicketEmail, {
-        to: userEmail,
-        eventTitle: event.title,
-        ticketPdfId
-      });
-      console.log("✅ Ticket email scheduled.");
-    } else {
-      console.warn("⚠️ No email found — ticket email skipped.");
+    // Only send ticket email when PDF is provided (legacy one-step flow). For two-step flow, email is sent from updateEventRegistrationPdf.
+    if (ticketPdfId) {
+      let userEmail = email ?? "";
+      if (!userEmail && userId) {
+        const user = await ctx.db.get(userId);
+        userEmail = user?.email ?? "";
+      }
+      if (userEmail) {
+        await ctx.scheduler.runAfter(0, api.sendTicketemail.sendTicketEmail, {
+          to: userEmail,
+          eventTitle: event.title,
+          ticketPdfId
+        });
+        console.log("✅ Ticket email scheduled.");
+      } else {
+        console.warn("⚠️ No email found — ticket email skipped.");
+      }
     }
     const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
     const admins = filterAdminsForNotifications(allAdmins);
@@ -247,6 +293,69 @@ export const rsvpEvent = mutation({
     };
   }
 });
+
+// Attach PDF and QR to an existing registration (called after client generates PDF using server-issued ticket number). Sends ticket email.
+export const updateEventRegistrationPdf = mutation({
+  args: {
+    registrationId: v.id("event_registrations"),
+    qrCode: v.string(),
+    ticketPdfId: v.id("_storage")
+  },
+  handler: async (ctx, { registrationId, qrCode, ticketPdfId }) => {
+    const registration = await ctx.db.get(registrationId);
+    if (!registration) throw new Error("Registration not found");
+    await ctx.db.patch(registrationId, {
+      qrCode,
+      ticketPdfId
+    });
+    const event = await ctx.db.get(registration.eventId);
+    if (!event) return;
+    let userEmail = registration.email ?? "";
+    if (!userEmail && registration.userId) {
+      const user = await ctx.db.get(registration.userId);
+      userEmail = user?.email ?? "";
+    }
+    if (userEmail) {
+      await ctx.scheduler.runAfter(0, api.sendTicketemail.sendTicketEmail, {
+        to: userEmail,
+        eventTitle: event.title,
+        ticketPdfId
+      });
+    }
+    return { success: true };
+  }
+});
+
+// Submit eligibility pop-up (participant info + foreign ownership) for events with requiresEligibilityModal
+export const submitEligibilityForm = mutation({
+  args: {
+    eventId: v.id("events"),
+    fullName: v.string(),
+    companyName: v.string(),
+    jobTitle: v.optional(v.string()),
+    email: v.string(),
+    phone: v.string(),
+    foreignOwnershipAnswer: v.union(v.literal("yes"), v.literal("no"), v.literal("not_sure"))
+  },
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId);
+    if (!event) throw new Error("Event not found");
+    const status = args.foreignOwnershipAnswer === "yes" ? "eligible" : "pending_review";
+    await ctx.db.insert("event_eligibility_submissions", {
+      eventId: args.eventId,
+      fullName: args.fullName.trim(),
+      companyName: args.companyName.trim(),
+      jobTitle: args.jobTitle?.trim() || undefined,
+      email: args.email.trim().toLowerCase(),
+      phone: args.phone.trim(),
+      foreignOwnershipAnswer: args.foreignOwnershipAnswer,
+      status,
+      submittedAt: Date.now()
+    });
+    return { success: true, status };
+  }
+});
+
 export const getUserTickets = query({
   args: {
     clerkUserId: v.string()
@@ -457,6 +566,38 @@ export const getEventRegistration = query({
     };
   }
 });
+
+export const checkInAttendee = mutation({
+  args: {
+    ticketNumber: v.string()
+  },
+  handler: async (ctx, { ticketNumber }) => {
+    const registration = await ctx.db.query("event_registrations").withIndex("byTicketNumber", q => q.eq("ticketNumber", ticketNumber)).first();
+    if (!registration) {
+      throw new Error("Ticket not found");
+    }
+    if (registration.checkedInAt) {
+      throw new Error("Already checked in");
+    }
+    // Check if event date has passed - allow check-in only on or after event date
+    const event = await ctx.db.get(registration.eventId);
+    if (!event) {
+      throw new Error("Event not found");
+    }
+    const eventDate = new Date(event.eventDate);
+    const now = new Date();
+    // Compare dates (ignore time) - allow check-in on event day or after
+    const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (today < eventDay) {
+      throw new Error(`Check-in is only available on or after the event date: ${eventDay.toLocaleDateString()}`);
+    }
+    await ctx.db.patch(registration._id, {
+      checkedInAt: Date.now()
+    });
+    return { success: true, checkedInAt: Date.now() };
+  }
+});
 export const getEventResponses = query({
   args: {},
   handler: async ctx => {
@@ -619,6 +760,7 @@ export const editEvent = mutation({
     title: v.string(),
     description: v.string(),
     eventDate: v.number(),
+    registrationDeadline: v.optional(v.number()),
     location: v.string(),
     host: v.string(),
     coverImageId: v.optional(v.id("_storage")),
@@ -626,24 +768,51 @@ export const editEvent = mutation({
     vipAccessCode: v.optional(v.string()),
     ticketLimit: v.optional(v.number()),
     vipTicketLimit: v.optional(v.number()),
-    generalTicketLimit: v.optional(v.number())
+    generalTicketLimit: v.optional(v.number()),
+    customUrl: v.optional(v.string()),
+    isSaberEvent: v.optional(v.boolean()),
+    isSpecialEvent: v.optional(v.boolean()),
+    hideOrganizationDesignation: v.optional(v.boolean()),
+    requiresEligibilityModal: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const {
       eventId,
+      customUrl,
+      hideOrganizationDesignation,
+      requiresEligibilityModal,
       ...updateData
     } = args;
     const event = await ctx.db.get(eventId);
     if (!event) throw new Error("Event not found");
+    // Validate custom URL uniqueness when provided (exclude current event)
+    if (customUrl !== undefined) {
+      const urlSafePattern = /^[a-zA-Z0-9-_]+$/;
+      if (customUrl && !urlSafePattern.test(customUrl)) {
+        throw new Error("Custom URL can only contain letters, numbers, hyphens, and underscores");
+      }
+      if (customUrl) {
+        const existing = await ctx.db.query("events").withIndex("byCustomUrl", q => q.eq("customUrl", customUrl)).first();
+        if (existing && existing._id !== eventId) {
+          throw new Error("Custom URL is already taken. Please choose a different one.");
+        }
+      }
+    }
     const changes: string[] = [];
     if (event.title !== updateData.title) changes.push(`Title: "${event.title}" → "${updateData.title}"`);
     if (event.description !== updateData.description) changes.push(`Description was updated`);
-    if (event.eventDate !== updateData.eventDate) changes.push(`Date: ${new Date(event.eventDate).toLocaleString()} → ${new Date(updateData.eventDate).toLocaleString()}`);
+    if (event.eventDate !== updateData.eventDate) changes.push(`Event date: ${new Date(event.eventDate).toLocaleString()} → ${new Date(updateData.eventDate).toLocaleString()}`);
+    if (event.registrationDeadline !== updateData.registrationDeadline) changes.push(`Registration deadline was updated`);
     if (event.location !== updateData.location) changes.push(`Location: "${event.location}" → "${updateData.location}"`);
     if (event.host !== updateData.host) changes.push(`Host: "${event.host}" → "${updateData.host}"`);
     if (event.eventType !== updateData.eventType) changes.push(`Type: "${event.eventType}" → "${updateData.eventType}"`);
     await ctx.db.patch(eventId, {
       ...updateData,
+      ...(customUrl !== undefined && { customUrl: customUrl || undefined }),
+      ...(args.isSaberEvent !== undefined && { isSaberEvent: args.isSaberEvent }),
+      ...(args.isSpecialEvent !== undefined && { isSpecialEvent: args.isSpecialEvent }),
+      ...(hideOrganizationDesignation !== undefined && { hideOrganizationDesignation }),
+      ...(requiresEligibilityModal !== undefined && { requiresEligibilityModal }),
       updatedAt: Date.now()
     });
     const registrations = await ctx.db.query("event_registrations").withIndex("byEvent", q => q.eq("eventId", eventId)).collect();
@@ -664,6 +833,51 @@ export const editEvent = mutation({
     }
   }
 });
+// Get special event registrations with structured responses
+export const getSpecialEventResponses = query({
+  args: {
+    eventId: v.id("events")
+  },
+  handler: async (ctx, { eventId }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin") {
+      throw new Error("Only admins can view event responses");
+    }
+    
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found");
+    
+    const registrations = await ctx.db.query("event_registrations")
+      .withIndex("byEvent", q => q.eq("eventId", eventId))
+      .collect();
+    
+    const questions = await ctx.db.query("event_questions")
+      .withIndex("byEvent", q => q.eq("eventId", eventId))
+      .collect();
+    
+    // Sort questions by section and order
+    const sortedQuestions = questions.sort((a, b) => {
+      if (a.section !== b.section) {
+        return (a.section || "").localeCompare(b.section || "");
+      }
+      return (a.order || 0) - (b.order || 0);
+    });
+    
+    const registrationsWithUrls = await Promise.all(
+      registrations.map(async (reg) => ({
+        ...reg,
+        ticketPdfUrl: reg.ticketPdfId ? await ctx.storage.getUrl(reg.ticketPdfId) : null
+      }))
+    );
+
+    return {
+      event,
+      questions: sortedQuestions,
+      registrations: registrationsWithUrls
+    };
+  }
+});
+
 export const deleteEvent = mutation({
   args: {
     eventId: v.id("events")

@@ -138,6 +138,15 @@ export default defineSchema({
   }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
     .index("byPeriod", ["scoringPeriod"]),
 
+  // Per-MDA metric exclusions by year (supports partial exclusions, e.g. Efficiency only).
+  mda_metric_exclusions: defineTable({
+    year: v.number(),
+    mdaName: v.string(),
+    excludedMetrics: v.array(v.string()),
+    updatedAt: v.number(),
+    updatedBy: v.id("users")
+  }).index("byYear", ["year"]).index("byYearMda", ["year", "mdaName"]),
+
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
     mdaId: v.id("mdas"),
@@ -313,6 +322,7 @@ export default defineSchema({
     title: v.string(),
     description: v.string(),
     eventDate: v.number(),
+    registrationDeadline: v.optional(v.number()), // When registration closes (defaults to event date if not set)
     location: v.string(),
     host: v.string(),
     coverImageId: v.optional(v.id("_storage")),
@@ -327,8 +337,23 @@ export default defineSchema({
     signUpsDisabled: v.optional(v.boolean()),
     isVip: v.optional(v.boolean()),
     isSaberEvent: v.optional(v.boolean()),
-    customUrl: v.optional(v.string())
-  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]),
+    customUrl: v.optional(v.string()),
+    isSpecialEvent: v.optional(v.boolean()), // Flag for special events with advanced forms
+    hideOrganizationDesignation: v.optional(v.boolean()), // When true, registration form does not show org/designation (use form questions instead)
+    requiresEligibilityModal: v.optional(v.boolean()) // When true, show participant info + foreign ownership pop-up before main form (e.g. Foreign Direct Investors Roundtable)
+  }).index("byCreatedBy", ["createdBy"]).index("bySaberEvent", ["isSaberEvent"]).index("byCustomUrl", ["customUrl"]).index("bySpecialEvent", ["isSpecialEvent"]),
+  // Submissions from the eligibility pop-up (participant info + foreign ownership); status: eligible = can proceed, pending_review = holding message
+  event_eligibility_submissions: defineTable({
+    eventId: v.id("events"),
+    fullName: v.string(),
+    companyName: v.string(),
+    jobTitle: v.optional(v.string()),
+    email: v.string(),
+    phone: v.string(),
+    foreignOwnershipAnswer: v.union(v.literal("yes"), v.literal("no"), v.literal("not_sure")),
+    status: v.union(v.literal("eligible"), v.literal("pending_review")),
+    submittedAt: v.number()
+  }).index("byEvent", ["eventId"]).index("byEventAndEmail", ["eventId", "email"]),
   event_registrations: defineTable({
     eventId: v.id("events"),
     userId: v.optional(v.id("users")),
@@ -338,13 +363,15 @@ export default defineSchema({
     phone: v.optional(v.string()),
     organization: v.optional(v.string()),
     designation: v.optional(v.string()),
-    questionnaireAnswers: v.array(v.string()),
+    questionnaireAnswers: v.array(v.string()), // Legacy format
+    structuredResponses: v.optional(v.any()), // New format: { questionId: { answer: string | string[], questionText: string } }
     registeredAt: v.number(),
     ticketNumber: v.string(),
     qrCode: v.optional(v.string()),
     ticketPdfId: v.optional(v.id("_storage")),
     email: v.optional(v.string()),
-    isVip: v.optional(v.boolean())
+    isVip: v.optional(v.boolean()),
+    checkedInAt: v.optional(v.number()) // Timestamp when attendee was checked in via QR code
   }).index("byEvent", ["eventId"]).index("byUser", ["userId"]).index("byTicketNumber", ["ticketNumber"]),
 
   // Workshop registrations for Strategic Engagement event
@@ -369,7 +396,11 @@ export default defineSchema({
   event_questions: defineTable({
     eventId: v.id("events"),
     questionText: v.string(),
-    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale")),
+    questionType: v.union(v.literal("text"), v.literal("number"), v.literal("email"), v.literal("scale"), v.literal("radio"), v.literal("checkbox"), v.literal("textarea")),
+    isRequired: v.optional(v.boolean()),
+    options: v.optional(v.array(v.string())), // For radio and checkbox questions
+    section: v.optional(v.string()), // Section name like "Section 1: General Information"
+    order: v.optional(v.number()), // Order within section
     createdBy: v.id("users"),
     createdAt: v.number()
   }).index("byEvent", ["eventId"]).index("byCreatedBy", ["createdBy"]),
@@ -756,6 +787,7 @@ export default defineSchema({
     videoUrls: v.optional(v.array(v.string())),
     categoryId: v.id("mediaCategories"),
     eventDate: v.optional(v.number()),
+    isSaber: v.optional(v.boolean()),
     createdAt: v.number()
   }),
   mediaCategories: defineTable({
@@ -1046,10 +1078,13 @@ export default defineSchema({
   // Calendar Meetings - Team meetings visible to all staff
   calendar_meetings: defineTable({
     name: v.string(),
-    date: v.string(), // yyyy-MM-dd format
+    date: v.string(), // yyyy-MM-dd format (Start Date)
+    endDate: v.optional(v.string()), // yyyy-MM-dd format
     startTime: v.string(), // HH:mm format
     endTime: v.string(), // HH:mm format
     description: v.optional(v.string()),
+
+
     meetingType: v.optional(v.union(v.literal("internal"), v.literal("external"))),
     internalParticipants: v.optional(v.array(v.object({
       type: v.union(v.literal("staff"), v.literal("workstream")),

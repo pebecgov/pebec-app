@@ -153,6 +153,15 @@ export default function ScoringTab({
         api.scoring_config.getPenaltyItems,
         useDynamicConfig ? { year: scoringYear } : "skip"
     );
+    const mdaMetricExclusions = useQuery(
+        api.scoring_config.getMdaMetricExclusions,
+        selectedMda ? { year: scoringYear, mdaName: selectedMda } : "skip"
+    );
+
+    const excludedMetricSet = new Set<string>(mdaMetricExclusions?.excludedMetrics || []);
+    const isMetricExcluded = (metricKey: string) => excludedMetricSet.has(metricKey);
+    const isOthersItemExcluded = (itemId: string) =>
+        excludedMetricSet.has("others") || excludedMetricSet.has(`others:${itemId}`);
 
     // Calculate Report Gov Points
     const reportGovPoints = useDynamicConfig
@@ -615,11 +624,11 @@ export default function ScoringTab({
 
     const calculateFinalScores = () => {
         // Core metrics (Common)
-        const sla = calculateMonthlySlaScore().totalScore;
-        const mystery = calculateMysteryScore(mysteryType, mysteryRatings);
-        const reportGov = skipReportGov ? 0 : reportgovRate;
-        const monthlyReport = calculateMonthlyReportStats().score;
-        const timeliness = calculateTimelinessStats().score;
+        const sla = isMetricExcluded("sla") ? 0 : calculateMonthlySlaScore().totalScore;
+        const mystery = isMetricExcluded("mystery") ? 0 : calculateMysteryScore(mysteryType, mysteryRatings);
+        const reportGov = isMetricExcluded("reportGov") || skipReportGov ? 0 : reportgovRate;
+        const monthlyReport = isMetricExcluded("reportSubmission") ? 0 : calculateMonthlyReportStats().score;
+        const timeliness = isMetricExcluded("timeliness") ? 0 : calculateTimelinessStats().score;
 
         let controversial = 0;
         let touting = 0;
@@ -629,13 +638,15 @@ export default function ScoringTab({
         let othersScore = 0;
         let penaltyScore = 0;
 
-        let currentMaxPoints = 100;
+        // Keep max points aligned with dashboard model.
+        let currentMaxPoints = useDynamicConfig ? 100 : 80;
 
         if (useDynamicConfig) {
             // 2026+ Dynamic
             // Others
-            if (othersConfig) {
+            if (!isMetricExcluded("others") && othersConfig) {
                 othersConfig.forEach((item: any) => {
+                    if (isOthersItemExcluded(item.itemId)) return;
                     const value = othersValues[item.itemId];
                     if (item.answerType === 'yes_no') {
                         if (value) othersScore += item.weight;
@@ -647,7 +658,7 @@ export default function ScoringTab({
             }
 
             // Penalties ( Deductions )
-            if (penaltyConfig) {
+            if (!isMetricExcluded("penalties") && penaltyConfig) {
                 penaltyConfig.forEach((item: any) => {
                     if (penaltyValues[item.penaltyId]) {
                         // Assuming penaltyValue is positive in DB (e.g. 5), so we subtract it
@@ -657,7 +668,24 @@ export default function ScoringTab({
             }
 
             // Adjust max points if skipped
-            if (skipReportGov) currentMaxPoints -= reportGovPoints;
+            if (skipReportGov || isMetricExcluded("reportGov")) currentMaxPoints -= reportGovPoints;
+            if (isMetricExcluded("sla")) currentMaxPoints -= (efficiencyConfig?.slaPoints ?? 30);
+            if (isMetricExcluded("reportSubmission")) currentMaxPoints -= (efficiencyConfig?.reportSubmissionPoints ?? 3);
+            if (isMetricExcluded("timeliness")) currentMaxPoints -= (efficiencyConfig?.timelinessPoints ?? 2);
+            if (isMetricExcluded("mystery")) currentMaxPoints -= 20;
+            if (isMetricExcluded("others")) {
+                const othersConfiguredTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0);
+                currentMaxPoints -= othersConfiguredTotal || 25;
+            } else if (othersConfig) {
+                const excludedOthersWeight = othersConfig.reduce((sum: number, item: any) => {
+                    if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
+                    return sum;
+                }, 0);
+                currentMaxPoints -= excludedOthersWeight;
+            }
+            if (isMetricExcluded("penalties")) {
+                // Penalties are deductions; excluded means no deduction logic, max points unchanged.
+            }
             // Transparency is now in Others, so skipping logic depends on if "Transparency" item exists and is skippable?
             // For now, let's assume valid max points is 100 unless specific items are skipped.
             // But skipTransparency state variable is still there.
@@ -667,14 +695,19 @@ export default function ScoringTab({
 
         } else {
             // 2025 Static
-            controversial = isControversial ? -5 : 0;
-            touting = isTouting ? -5 : 0;
-            innovation = isInnovation ? 5 : 0;
-            stakeholder = stakeholderRate;
-            transparency = skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0);
+            controversial = isMetricExcluded("controversial") ? 0 : (isControversial ? -5 : 0);
+            touting = isMetricExcluded("toutingRentseeking") ? 0 : (isTouting ? -5 : 0);
+            innovation = isMetricExcluded("innovation") ? 0 : (isInnovation ? 5 : 0);
+            stakeholder = isMetricExcluded("stakeholder") ? 0 : stakeholderRate;
+            transparency = (isMetricExcluded("transparency") || skipTransparency) ? 0 : (transparencyItems.serviceLevelPublishing ? 5 : 0);
 
-            if (skipReportGov) currentMaxPoints -= reportGovPoints;
-            if (skipTransparency) currentMaxPoints -= 10;
+            if (skipReportGov || isMetricExcluded("reportGov")) currentMaxPoints -= reportGovPoints;
+            if (skipTransparency || isMetricExcluded("transparency")) currentMaxPoints -= 5;
+            if (isMetricExcluded("mystery")) currentMaxPoints -= 20;
+            if (isMetricExcluded("sla")) currentMaxPoints -= 30;
+            if (isMetricExcluded("reportSubmission")) currentMaxPoints -= 3;
+            if (isMetricExcluded("timeliness")) currentMaxPoints -= 2;
+            if (isMetricExcluded("innovation")) currentMaxPoints -= 5;
         }
 
         // Total

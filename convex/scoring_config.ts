@@ -2,6 +2,23 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 
+function normalizeMdaKey(name: string) {
+    return String(name || "")
+        .toLowerCase()
+        .replace(/[–—]/g, "-")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function splitMdaNameForMatch(name: string) {
+    const normalized = normalizeMdaKey(name);
+    const parts = normalized.split(" - ").map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+        return { abbr: parts[0], fullName: parts.slice(1).join(" - ") };
+    }
+    return { fullName: normalized };
+}
+
 // ============================================
 // YEAR CONFIGURATION
 // ============================================
@@ -398,6 +415,90 @@ export const saveInnovationStakeholderItems = mutation({
 });
 
 // ============================================
+// MDA METRIC EXCLUSIONS
+// ============================================
+
+export const getMdaMetricExclusions = query({
+    args: {
+        year: v.number(),
+        mdaName: v.string()
+    },
+    handler: async (ctx, { year, mdaName }) => {
+        const all = await ctx.db.query("mda_metric_exclusions")
+            .withIndex("byYear", q => q.eq("year", year))
+            .collect();
+        const target = normalizeMdaKey(mdaName);
+        const targetParts = splitMdaNameForMatch(mdaName);
+
+        return all.find((entry) => {
+            const current = normalizeMdaKey(entry.mdaName);
+            const currentParts = splitMdaNameForMatch(entry.mdaName);
+            return current === target ||
+                currentParts.fullName === target ||
+                currentParts.abbr === target ||
+                (targetParts.fullName && current === targetParts.fullName) ||
+                (targetParts.abbr && current === targetParts.abbr);
+        }) || null;
+    }
+});
+
+export const getYearMetricExclusions = query({
+    args: {
+        year: v.number()
+    },
+    handler: async (ctx, { year }) => {
+        return await ctx.db.query("mda_metric_exclusions")
+            .withIndex("byYear", q => q.eq("year", year))
+            .collect();
+    }
+});
+
+export const saveMdaMetricExclusions = mutation({
+    args: {
+        year: v.number(),
+        mdaName: v.string(),
+        excludedMetrics: v.array(v.string())
+    },
+    handler: async (ctx, { year, mdaName, excludedMetrics }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        const now = Date.now();
+        const uniqueExcluded = Array.from(new Set(excludedMetrics.map(m => m.trim()).filter(Boolean)));
+        const all = await ctx.db.query("mda_metric_exclusions")
+            .withIndex("byYear", q => q.eq("year", year))
+            .collect();
+        const target = normalizeMdaKey(mdaName);
+        const targetParts = splitMdaNameForMatch(mdaName);
+        const existing = all.find((entry) => {
+            const current = normalizeMdaKey(entry.mdaName);
+            const currentParts = splitMdaNameForMatch(entry.mdaName);
+            return current === target ||
+                currentParts.fullName === target ||
+                currentParts.abbr === target ||
+                (targetParts.fullName && current === targetParts.fullName) ||
+                (targetParts.abbr && current === targetParts.abbr);
+        });
+
+        if (existing) {
+            await ctx.db.patch(existing._id, {
+                excludedMetrics: uniqueExcluded,
+                updatedAt: now,
+                updatedBy: user._id
+            });
+        } else {
+            await ctx.db.insert("mda_metric_exclusions", {
+                year,
+                mdaName,
+                excludedMetrics: uniqueExcluded,
+                updatedAt: now,
+                updatedBy: user._id
+            });
+        }
+
+        return { success: true };
+    }
+});
+
+// ============================================
 // GET ALL CONFIGURATIONS FOR A YEAR
 // ============================================
 
@@ -411,7 +512,8 @@ export const getAllConfigurationsForYear = query({
             transparencyItems,
             penaltyItems,
             innovationItems,
-            stakeholderItems
+            stakeholderItems,
+            metricExclusions
         ] = await Promise.all([
             ctx.db.query("scoring_configurations")
                 .withIndex("byYear", q => q.eq("year", year))
@@ -457,6 +559,9 @@ export const getAllConfigurationsForYear = query({
                 .withIndex("byYearTypeAndActive", q =>
                     q.eq("year", year).eq("itemType", "stakeholder").eq("isActive", true)
                 )
+                .collect(),
+            ctx.db.query("mda_metric_exclusions")
+                .withIndex("byYear", q => q.eq("year", year))
                 .collect()
         ]);
 
@@ -467,7 +572,8 @@ export const getAllConfigurationsForYear = query({
             othersItems: transparencyItems.sort((a, b) => a.order - b.order),
             penaltyItems: penaltyItems.sort((a, b) => a.order - b.order),
             innovationItems: innovationItems.sort((a, b) => a.order - b.order),
-            stakeholderItems: stakeholderItems.sort((a, b) => a.order - b.order)
+            stakeholderItems: stakeholderItems.sort((a, b) => a.order - b.order),
+            metricExclusions
         };
     }
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
@@ -8,10 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
+import { mdasList } from "@/components/mdaList";
 
 interface ConfigurationTabProps {
     currentYear: number;
@@ -21,6 +23,12 @@ interface ConfigurationTabProps {
 const MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
+];
+
+const METRIC_OPTIONS = [
+    { key: "efficiencyBundle", label: "Efficiency Bundle (SLA + Report Submission + Timeliness)" },
+    { key: "reportGov", label: "Report Governance" },
+    { key: "mystery", label: "Mystery Shopping" },
 ];
 
 export default function ConfigurationTab({ currentYear, onYearChange }: ConfigurationTabProps) {
@@ -77,11 +85,12 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
             {/* Configuration Tabs - Only show for 2026+ */}
             {selectedYear >= 2026 && (
                 <Tabs defaultValue="efficiency" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="efficiency">Efficiency</TabsTrigger>
                         <TabsTrigger value="mystery">Mystery Shopping</TabsTrigger>
                         <TabsTrigger value="penalties">Penalties</TabsTrigger>
                         <TabsTrigger value="others">Others</TabsTrigger>
+                        <TabsTrigger value="exclusions">Exclude MDA</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="efficiency">
@@ -108,9 +117,212 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
                             othersItems={configurations?.othersItems || []}
                         />
                     </TabsContent>
+
+                    <TabsContent value="exclusions">
+                        <MetricExclusionConfiguration
+                            year={selectedYear}
+                            allExclusions={configurations?.metricExclusions || []}
+                            othersItems={configurations?.othersItems || []}
+                        />
+                    </TabsContent>
                 </Tabs>
             )}
         </div>
+    );
+}
+
+function MetricExclusionConfiguration({ year, allExclusions, othersItems }: any) {
+    const [selectedMdas, setSelectedMdas] = useState<string[]>([]);
+    const [selectedMetricToggles, setSelectedMetricToggles] = useState<string[]>([]);
+    const [mdaSearch, setMdaSearch] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
+    const saveMdaMetricExclusions = useMutation(api.scoring_config.saveMdaMetricExclusions);
+
+    const mdaOptions = mdasList
+        .map((mda) => `${mda.abbreviation} - ${mda.name}`)
+        .sort((a, b) => a.localeCompare(b));
+
+    const filteredMdaOptions = mdaOptions.filter((mda) =>
+        mda.toLowerCase().includes(mdaSearch.toLowerCase())
+    );
+    const allOthersItems = (othersItems || []) as Array<{ itemId: string; itemName: string; weight?: number }>;
+
+    const toggleMetric = (metricKey: string) => {
+        setSelectedMetricToggles((prev) => {
+            if (prev.includes(metricKey)) return prev.filter((m) => m !== metricKey);
+            return [...prev, metricKey];
+        });
+    };
+
+    const toggleMda = (mdaName: string) => {
+        setSelectedMdas((prev) => {
+            if (prev.includes(mdaName)) return prev.filter((m) => m !== mdaName);
+            return [...prev, mdaName];
+        });
+    };
+
+    const getExpandedMetrics = () => {
+        const expanded = new Set<string>();
+        selectedMetricToggles.forEach((key) => {
+            if (key === "efficiencyBundle") {
+                expanded.add("sla");
+                expanded.add("reportSubmission");
+                expanded.add("timeliness");
+            } else {
+                expanded.add(key);
+            }
+        });
+        return Array.from(expanded);
+    };
+
+    const handleSave = async () => {
+        if (selectedMdas.length === 0) {
+            toast.error("Select at least one MDA.");
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const expandedMetrics = getExpandedMetrics();
+            await Promise.all(
+                selectedMdas.map((mdaName) =>
+                    saveMdaMetricExclusions({
+                        year,
+                        mdaName,
+                        excludedMetrics: expandedMetrics
+                    })
+                )
+            );
+            toast.success(`Metric exclusions saved for ${selectedMdas.length} MDA(s).`);
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to save MDA metric exclusions.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Exclude MDA from Metrics</CardTitle>
+                <CardDescription>
+                    Select multiple MDAs and apply the same exclusions in bulk.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label>Select MDA(s)</Label>
+                    <Input
+                        placeholder="Search MDA..."
+                        value={mdaSearch}
+                        onChange={(e) => setMdaSearch(e.target.value)}
+                    />
+                    <div className="border rounded-md max-h-56 overflow-auto p-2 space-y-2">
+                        {filteredMdaOptions.map((mda) => {
+                            const checked = selectedMdas.includes(mda);
+                            return (
+                                <div
+                                    key={mda}
+                                    onClick={() => toggleMda(mda)}
+                                    className={`w-full flex items-center justify-between rounded border px-3 py-2 text-left transition-colors ${checked
+                                            ? "bg-green-50 border-green-500"
+                                            : "bg-white border-gray-200 hover:bg-gray-50"
+                                        }`}
+                                >
+                                    <span className="text-sm">{mda}</span>
+                                    <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={() => toggleMda(mda)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`${checked ? "border-green-600 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : "border-gray-400"} focus-visible:ring-0 focus-visible:ring-offset-0`}
+                                    />
+                                </div>
+                            );
+                        })}
+                        {filteredMdaOptions.length === 0 && (
+                            <p className="text-sm text-gray-500 p-2">No MDA found.</p>
+                        )}
+                    </div>
+                    <p className="text-xs text-gray-500">{selectedMdas.length} selected</p>
+                </div>
+
+                <div className="space-y-3">
+                    <Label>Metrics to Exclude</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {METRIC_OPTIONS.map((metric) => {
+                            const checked = selectedMetricToggles.includes(metric.key);
+                            return (
+                                <div
+                                    key={metric.key}
+                                    onClick={() => toggleMetric(metric.key)}
+                                    className={`w-full flex items-center justify-between rounded-md border p-3 text-left transition-colors ${checked
+                                            ? "bg-green-50 border-green-500"
+                                            : "bg-white border-gray-200 hover:bg-gray-50"
+                                        }`}
+                                    aria-disabled={selectedMdas.length === 0}
+                                >
+                                    <span className="text-sm">{metric.label}</span>
+                                    <Switch
+                                        checked={checked}
+                                        onCheckedChange={() => toggleMetric(metric.key)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        disabled={selectedMdas.length === 0}
+                                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-300 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    <Label>Others Metrics (Independent)</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {(allOthersItems || []).map((item) => {
+                            const key = `others:${item.itemId}`;
+                            const checked = selectedMetricToggles.includes(key);
+                            return (
+                                <div
+                                    key={key}
+                                    onClick={() => toggleMetric(key)}
+                                    className={`w-full flex items-center justify-between rounded-md border p-3 text-left transition-colors ${checked
+                                            ? "bg-green-50 border-green-500"
+                                            : "bg-white border-gray-200 hover:bg-gray-50"
+                                        }`}
+                                    aria-disabled={selectedMdas.length === 0}
+                                >
+                                    <span className="text-sm">{item.itemName}</span>
+                                    <Switch
+                                        checked={checked}
+                                        onCheckedChange={() => toggleMetric(key)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        disabled={selectedMdas.length === 0}
+                                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-300 border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                    />
+                                </div>
+                            );
+                        })}
+                        {(allOthersItems || []).length === 0 && (
+                            <p className="text-sm text-gray-500">No Others metrics configured yet.</p>
+                        )}
+                    </div>
+                </div>
+
+                <Button onClick={handleSave} className="w-full" disabled={isSaving || selectedMdas.length === 0}>
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Exclusions
+                        </>
+                    )}
+                </Button>
+            </CardContent>
+        </Card>
     );
 }
 

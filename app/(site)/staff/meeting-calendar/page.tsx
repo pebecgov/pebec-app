@@ -48,8 +48,8 @@ export default function StaffMeetingCalendarPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [meetingToDelete, setMeetingToDelete] = useState<Id<"calendar_meetings"> | null>(null);
 
-    // Form state
     const [meetingName, setMeetingName] = useState("");
+    const [meetingEndDate, setMeetingEndDate] = useState<Date | null>(null);
     const [startTime, setStartTime] = useState<Date | null>(null);
     const [endTime, setEndTime] = useState<Date | null>(null);
     const [description, setDescription] = useState("");
@@ -96,6 +96,7 @@ export default function StaffMeetingCalendarPage() {
 
         setStartTime(start);
         setEndTime(end);
+        setMeetingEndDate(selectedDate);
         setDescription("");
         setMeetingType("external");
         setInternalParticipants([]);
@@ -120,6 +121,7 @@ export default function StaffMeetingCalendarPage() {
 
         setStartTime(start);
         setEndTime(end);
+        setMeetingEndDate(meeting.endDate ? parseISO(meeting.endDate) : parseISO(meeting.date));
         setDescription(meeting.description || "");
         setMeetingType(meeting.meetingType || "external");
         setInternalParticipants(meeting.internalParticipants || []);
@@ -146,6 +148,7 @@ export default function StaffMeetingCalendarPage() {
         };
 
         const dateStr = format(meetingDate, "yyyy-MM-dd");
+        const endDateStr = meetingEndDate ? format(meetingEndDate, "yyyy-MM-dd") : dateStr;
         const startTimeStr = fmt(startTime);
         const endTimeStr = fmt(endTime);
 
@@ -155,6 +158,7 @@ export default function StaffMeetingCalendarPage() {
                     meetingId: editingMeeting,
                     name: meetingName,
                     date: dateStr,
+                    endDate: endDateStr,
                     startTime: startTimeStr,
                     endTime: endTimeStr,
                     description: description || undefined,
@@ -167,6 +171,7 @@ export default function StaffMeetingCalendarPage() {
                 await createMeeting({
                     name: meetingName,
                     date: dateStr,
+                    endDate: endDateStr,
                     startTime: startTimeStr,
                     endTime: endTimeStr,
                     description: description || undefined,
@@ -195,6 +200,8 @@ export default function StaffMeetingCalendarPage() {
             toast.error(error.message || "Failed to delete meeting");
         }
     };
+
+    const showTimePickers = !meetingEndDate || isSameDay(meetingDate, meetingEndDate);
 
     return (
         <div className="max-w-7xl mx-auto px-4 py-6">
@@ -226,7 +233,7 @@ export default function StaffMeetingCalendarPage() {
                                 return (
                                     <div className="flex justify-center mt-1 gap-1">
                                         {hasInternal && <div className="w-2 h-2 rounded-full bg-blue-500" />}
-                                        {hasExternal && <div className="w-2 h-2 rounded-full bg-red-500" />}
+                                        {hasExternal && <div className="w-2 h-2 rounded-full bg-green-500" />}
                                         {!hasInternal && !hasExternal && <div className="w-2 h-2 rounded-full bg-green-500" />}
                                     </div>
                                 );
@@ -256,18 +263,26 @@ export default function StaffMeetingCalendarPage() {
                             {meetingsForDay.map((meeting) => (
                                 <div
                                     key={meeting._id}
-                                    className={`border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-gradient-to-r ${meeting.meetingType === "external" ? "from-red-50 border-l-4 border-l-red-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
+                                    className={`border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-gradient-to-r ${meeting.meetingType === "external" ? "from-green-50 border-l-4 border-l-green-500" : "from-blue-50 border-l-4 border-l-blue-500"} to-white`}
                                 >
                                     <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                             <h3 className="font-semibold text-lg text-gray-800 mb-2">
                                                 {meeting.name}
                                             </h3>
-                                            <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                                                <ClockIcon className="w-4 h-4" />
-                                                <span>
-                                                    {meeting.startTime} - {meeting.endTime}
-                                                </span>
+                                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-1">
+                                                <div className="flex items-center gap-2">
+                                                    <ClockIcon className="w-4 h-4" />
+                                                    <span>
+                                                        {meeting.startTime} - {meeting.endTime}
+                                                    </span>
+                                                </div>
+                                                {meeting.endDate && meeting.endDate !== meeting.date && (
+                                                    <div className="flex items-center gap-2 bg-white/50 px-2 py-0.5 rounded border border-gray-100 font-medium text-xs">
+                                                        <CalendarDaysIcon className="w-3.5 h-3.5 text-green-600" />
+                                                        <span>Ends: {format(parseISO(meeting.endDate), "MMM d, yyyy")}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                             {meeting.description && (
                                                 <p className="text-sm text-gray-600 mt-2">{meeting.description}</p>
@@ -296,7 +311,7 @@ export default function StaffMeetingCalendarPage() {
                                                     {meeting.externalParticipants && meeting.externalParticipants.length > 0 && (
                                                         <div className="flex flex-wrap gap-2">
                                                             {meeting.externalParticipants.map((p: string, i: number) => (
-                                                                <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-800 uppercase tracking-tighter">
+                                                                <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-800 uppercase tracking-tighter">
                                                                     Ext: {p}
                                                                 </span>
                                                             ))}
@@ -357,32 +372,57 @@ export default function StaffMeetingCalendarPage() {
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Date *
-                            </label>
-                            <DatePicker
-                                selected={meetingDate}
-                                onChange={(date) => setMeetingDate(date || new Date())}
-                                dateFormat="MMMM d, yyyy"
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            />
-                        </div>
-
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Start Time *
+                                    Start Date *
                                 </label>
-                                <TimePicker value={startTime} onChange={setStartTime} placeholder="Start time" />
+                                <DatePicker
+                                    selected={meetingDate}
+                                    onChange={(date) => {
+                                        setMeetingDate(date || new Date());
+                                        if (meetingEndDate && date && date > meetingEndDate) {
+                                            setMeetingEndDate(date);
+                                        }
+                                    }}
+                                    dateFormat="MMMM d, yyyy"
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    End Time *
+                                    End Date *
                                 </label>
-                                <TimePicker value={endTime} onChange={setEndTime} placeholder="End time" />
+                                <DatePicker
+                                    selected={meetingEndDate}
+                                    onChange={(date) => setMeetingEndDate(date)}
+                                    selectsEnd
+                                    startDate={meetingDate}
+                                    endDate={meetingEndDate}
+                                    minDate={meetingDate}
+                                    dateFormat="MMMM d, yyyy"
+                                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    placeholderText="Optional end date"
+                                />
                             </div>
                         </div>
+
+                        {showTimePickers && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Start Time *
+                                    </label>
+                                    <TimePicker value={startTime} onChange={setStartTime} placeholder="Start time" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        End Time *
+                                    </label>
+                                    <TimePicker value={endTime} onChange={setEndTime} placeholder="End time" />
+                                </div>
+                            </div>
+                        )}
 
 
                         <div>

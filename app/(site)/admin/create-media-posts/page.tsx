@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { PostMediaModal } from "@/components/MediaPageComp/PostMediaModal";
+import { EditMediaModal } from "@/components/MediaPageComp/EditMediaModal";
 import { CreateCategoryModal } from "@/components/MediaPageComp/CreateCateogoryModel";
 import { Id } from "@/convex/_generated/dataModel";
 export default function MediaDashboardPage() {
@@ -16,10 +17,13 @@ export default function MediaDashboardPage() {
   const allMedia = useQuery(api.media.getAllMedia) || [];
   const categories = useQuery(api.media.getCategories) || [];
   const deleteMedia = useMutation(api.media.deleteMediaPost);
+  const updateMediaSaberStatus = useMutation(api.media.updateMediaSaberStatus);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedId, setSelectedId] = useState<Id<"media"> | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<(typeof allMedia)[number] | null>(null);
   const [titleFilter, setTitleFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -73,6 +77,7 @@ export default function MediaDashboardPage() {
             <tr>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Title</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Category</th>
+              <th className="px-6 py-3 text-left font-semibold text-gray-600">SABER</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Event Date</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Created</th>
               <th className="px-6 py-3 text-left font-semibold text-gray-600">Actions</th>
@@ -84,12 +89,35 @@ export default function MediaDashboardPage() {
             return <tr key={item._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-gray-900">{item.title}</td>
                   <td className="px-6 py-4">{category?.name || "-"}</td>
+                  <td className="px-6 py-4">
+                    <button
+                      type="button"
+                      onClick={() => updateMediaSaberStatus({ mediaId: item._id as Id<"media">, isSaber: !item.isSaber })}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                        item.isSaber
+                          ? "bg-sky-100 text-sky-800"
+                          : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {item.isSaber ? "SABER" : "Not tagged"}
+                    </button>
+                  </td>
                   <td className="px-6 py-4">{item.eventDate ? format(item.eventDate, "PP") : "-"}</td>
                   <td className="px-6 py-4">{format(item.createdAt, "PPpp")}</td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => router.push(`/media/${item._id}`)}>
                         View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedMedia(item);
+                          setShowEditModal(true);
+                        }}
+                      >
+                        Edit
                       </Button>
                       <Button size="sm" variant="destructive" onClick={() => {
                     setSelectedId(item._id as Id<"media">);
@@ -135,6 +163,14 @@ export default function MediaDashboardPage() {
 
       {}
       <PostMediaModal open={showPostModal} onClose={() => setShowPostModal(false)} />
+      <EditMediaModal
+        open={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedMedia(null);
+        }}
+        mediaItem={selectedMedia}
+      />
       <CreateCategoryModal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} />
     </div>;
 }

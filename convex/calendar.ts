@@ -8,6 +8,7 @@ export const createCalendarMeeting = mutation({
     args: {
         name: v.string(),
         date: v.string(), // yyyy-MM-dd
+        endDate: v.optional(v.string()), // yyyy-MM-dd
         startTime: v.string(), // HH:mm
         endTime: v.string(), // HH:mm
         description: v.optional(v.string()),
@@ -43,6 +44,7 @@ export const createCalendarMeeting = mutation({
         const meetingId = await ctx.db.insert("calendar_meetings", {
             name: args.name,
             date: args.date,
+            endDate: args.endDate || args.date, // Default to same day if not provided
             startTime: args.startTime,
             endTime: args.endTime,
             description: args.description,
@@ -65,6 +67,7 @@ export const updateCalendarMeeting = mutation({
         meetingId: v.id("calendar_meetings"),
         name: v.string(),
         date: v.string(),
+        endDate: v.optional(v.string()),
         startTime: v.string(),
         endTime: v.string(),
         description: v.optional(v.string()),
@@ -108,6 +111,7 @@ export const updateCalendarMeeting = mutation({
         await ctx.db.patch(args.meetingId, {
             name: args.name,
             date: args.date,
+            endDate: args.endDate || args.date,
             startTime: args.startTime,
             endTime: args.endTime,
             description: args.description,
@@ -161,13 +165,15 @@ export const getCalendarMeetings = query({
         if (!identity) return [];
 
         if (args.date) {
-            // Get meetings for a specific date
-            const meetings = await ctx.db
-                .query("calendar_meetings")
-                .withIndex("byDate", (q) => q.eq("date", args.date as string))
-                .collect();
+            // Get meetings for a specific date (including those spanning multiple days)
+            const meetings = await ctx.db.query("calendar_meetings").collect();
+            const filteredMeetings = meetings.filter(m => {
+                const startDate = m.date;
+                const endDate = m.endDate || m.date;
+                return args.date! >= startDate && args.date! <= endDate;
+            });
 
-            return meetings.sort((a, b) => a.startTime.localeCompare(b.startTime));
+            return filteredMeetings.sort((a, b) => a.startTime.localeCompare(b.startTime));
         }
 
         // Get all meetings
@@ -260,15 +266,20 @@ export const getUpcomingMeetings = query({
 
         const allMeetings = await ctx.db.query("calendar_meetings").collect();
 
-        // Filter for meetings of the week
+        // Filter for meetings of the week (considering multi-day events)
         const weeklyMeetings = allMeetings.filter((meeting) => {
-            return meeting.date >= startDateStr && meeting.date <= endDateStr;
+            const startDate = meeting.date;
+            const endDate = meeting.endDate || meeting.date;
+            return endDate >= startDateStr && startDate <= endDateStr;
         });
 
-        // Filter for upcoming meetings (today or future, and if today, not yet ended)
+        // Filter for upcoming meetings (today or future, considering multi-day events)
         const upcomingMeetings = weeklyMeetings.filter((meeting) => {
-            if (meeting.date > today) return true;
-            if (meeting.date === today && meeting.endTime > currentTime) return true;
+            const startDate = meeting.date;
+            const endDate = meeting.endDate || meeting.date;
+
+            if (endDate > today) return true;
+            if (endDate === today && meeting.endTime > currentTime) return true;
             return false;
         });
 

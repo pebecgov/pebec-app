@@ -38,6 +38,7 @@ export default function NewPostForm({
     }]
   };
   const [filePickerIsOpen, setFilePickerIsOpen] = useState(false);
+  const [isSubmittingViaButton, setIsSubmittingViaButton] = useState(false);
   const {
     register,
     setValue,
@@ -173,7 +174,35 @@ export default function NewPostForm({
         <p>Loading post data...</p>
       </div>;
   }
-  return <form onSubmit={handleSubmit(processForm)}>
+  return <form 
+      onSubmit={(e) => {
+        // Only submit if triggered by the submit button, not keyboard shortcuts
+        if (!isSubmittingViaButton) {
+          e.preventDefault();
+          return;
+        }
+        setIsSubmittingViaButton(false);
+        handleSubmit(processForm)(e);
+      }}
+      onKeyDown={(e) => {
+        // Prevent form submission when using keyboard shortcuts (Ctrl+B, Ctrl+I, etc.)
+        // These shortcuts should only affect the editor, not submit the form
+        if (e.ctrlKey || e.metaKey) {
+          // Allow editor shortcuts to work - don't prevent default
+          // The editor will handle Ctrl+B, Ctrl+I, etc.
+          return;
+        }
+        // Prevent Enter from submitting form unless explicitly on submit button
+        if (e.key === 'Enter' && e.target instanceof HTMLButtonElement && e.target.type === 'submit') {
+          setIsSubmittingViaButton(true);
+          return;
+        }
+        if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
+          // Prevent Enter from submitting form when typing in inputs/editor
+          e.preventDefault();
+        }
+      }}
+    >
       <div className="flex flex-col gap-4">
         {}
         <div className="flex justify-between gap-4">
@@ -256,7 +285,12 @@ export default function NewPostForm({
         </div>
 
         <div>
-          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-1/2">
+          <Button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className="w-full sm:w-1/2"
+            onClick={() => setIsSubmittingViaButton(true)}
+          >
             {isSubmitting ? <>
                 <Spinner className="mr-2" />
                 <span>Saving post...</span>

@@ -23,6 +23,7 @@ export function PostMediaModal({
   const [desc, setDesc] = useState("");
   const [categoryId, setCategoryId] = useState<Id<"mediaCategories"> | "">("");
   const [eventDate, setEventDate] = useState("");
+  const [isSaber, setIsSaber] = useState(false);
   const [videoLinks, setVideoLinks] = useState<string[]>([""]);
   const [pictures, setPictures] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -35,6 +36,7 @@ export function PostMediaModal({
     setDesc("");
     setCategoryId("");
     setEventDate("");
+    setIsSaber(false);
     setPictures([]);
     setPreviewUrls([]);
     setVideoLinks([""]);
@@ -86,6 +88,7 @@ export function PostMediaModal({
         description: desc,
         categoryId: categoryId as Id<"mediaCategories">,
         eventDate: new Date(eventDate).getTime(), // Required field - date the event occurred
+        isSaber,
         pictureIds: uploadedIds,
         videoUrls: videoLinks.filter(Boolean)
       });
@@ -93,6 +96,7 @@ export function PostMediaModal({
       setTitle("");
       setDesc("");
       setEventDate("");
+      setIsSaber(false);
       setPictures([]);
       setPreviewUrls([]);
       setVideoLinks([""]);
@@ -141,6 +145,15 @@ export function PostMediaModal({
           required
         />
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={isSaber}
+            onChange={e => setIsSaber(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Mark this gallery item as SABER-related
+        </label>
          
 
         <input type="file" multiple accept="image/*" onChange={handleImageSelect} />

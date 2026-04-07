@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BulkPdfDownloader } from '@/components/Admin/BulkPdfDownloader';
 
 interface DashboardHeaderProps {
@@ -38,85 +38,97 @@ export default function DashboardHeader({
     penaltyConfig
 }: DashboardHeaderProps) {
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="bg-white p-5 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
             <div className="mb-4">
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">Live Scoring Dashboard</h2>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-1">Dashboard Controls</h2>
+                <p className="text-xs sm:text-sm text-gray-600 mb-4">Filter and compare scoring performance by metric, organization type, and year.</p>
                 <div className="flex flex-wrap items-center gap-3">
-                    <FormControl sx={{ minWidth: 200, flexShrink: 0 }} variant="outlined" size="small">
-                        <InputLabel id="metric-label">Select Metric</InputLabel>
-                        <Select
-                            labelId="metric-label"
-                            id="metric-select"
-                            value={selectedMetric}
-                            onChange={(e) => setSelectedMetric(e.target.value)}
-                            label="Select Metric"
-                        >
-                            <MenuItem value="totalScore">Total Score (All Metrics)</MenuItem>
-                            <MenuItem value="mysteryShopping">Mystery Shopping</MenuItem>
-                            <MenuItem value="sla">Service Level Agreement</MenuItem>
+                    <div className="w-[240px]">
+                        <p className="text-xs text-gray-500 mb-1">Select Metric</p>
+                        <Select value={selectedMetric} onValueChange={setSelectedMetric}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select metric" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="totalScore">Total Score (All Metrics)</SelectItem>
+                                <SelectItem value="mysteryShopping">Mystery Shopping</SelectItem>
+                                {dashboardYear < 2026 && (
+                                    <SelectItem value="sla">Service Level Agreement</SelectItem>
+                                )}
 
-                            {dashboardYear < 2026 ? [
-                                <MenuItem key="controversial" value="controversial">Controversial</MenuItem>,
-                                <MenuItem key="innovation" value="innovation">Innovation</MenuItem>,
-                                <MenuItem key="stakeholder" value="stakeholder">Stakeholder Engagement</MenuItem>,
-                                <MenuItem key="transparency" value="transparency">Transparency</MenuItem>,
-                                <MenuItem key="toutingRentseeking" value="toutingRentseeking">Touting & Rentseeking</MenuItem>
-                            ] : [
-                                <MenuItem key="efficiency" value="efficiency">Efficiency (SLA + Reporting + Timeliness)</MenuItem>,
-                                <MenuItem key="others" value="others">Others (Dynamic)</MenuItem>,
-                                <MenuItem key="penalties" value="penalties">Penalties (Dynamic)</MenuItem>
-                            ]}
+                                {dashboardYear < 2026 ? [
+                                    <SelectItem key="controversial" value="controversial">Controversial</SelectItem>,
+                                    <SelectItem key="innovation" value="innovation">Innovation</SelectItem>,
+                                    <SelectItem key="stakeholder" value="stakeholder">Stakeholder Engagement</SelectItem>,
+                                    <SelectItem key="transparency" value="transparency">Transparency</SelectItem>,
+                                    <SelectItem key="toutingRentseeking" value="toutingRentseeking">Touting & Rentseeking</SelectItem>
+                                ] : [
+                                    <SelectItem key="efficiency" value="efficiency">Efficiency (SLA + Reporting + Timeliness)</SelectItem>,
+                                    ...(Array.isArray(othersConfig)
+                                        ? othersConfig.map((item: any) => (
+                                            <SelectItem key={`others:${item.itemId}`} value={`others:${item.itemId}`}>
+                                                {item.itemName}
+                                            </SelectItem>
+                                        ))
+                                        : []),
+                                    <SelectItem key="penalties" value="penalties">Penalties (Dynamic)</SelectItem>
+                                ]}
 
-                            <MenuItem value="reportGovResolution">Report Gov Resolution</MenuItem>
-                            <MenuItem value="monthlyReport">Monthly Report Submission</MenuItem>
-                            <MenuItem value="timeliness">Timeliness</MenuItem>
+                                <SelectItem value="reportGovResolution">Report Gov Resolution</SelectItem>
+                                {dashboardYear < 2026 && (
+                                    <>
+                                        <SelectItem value="monthlyReport">Monthly Report Submission</SelectItem>
+                                        <SelectItem value="timeliness">Timeliness</SelectItem>
+                                    </>
+                                )}
+                            </SelectContent>
                         </Select>
-                    </FormControl>
-                    <FormControl sx={{ minWidth: 160, flexShrink: 0 }} variant="outlined" size="small">
-                        <InputLabel id="filter-label">Filter MDAs</InputLabel>
-                        <Select
-                            labelId="filter-label"
-                            id="filter-select"
-                            value={mdaFilter}
-                            onChange={(e) => setMdaFilter(e.target.value as 'all' | 'withData')}
-                            label="Filter MDAs"
-                        >
-                            <MenuItem value="all">All MDAs</MenuItem>
-                            <MenuItem value="withData">MDAs with Data</MenuItem>
+                    </div>
+
+                    <div className="w-[180px]">
+                        <p className="text-xs text-gray-500 mb-1">Filter MDAs</p>
+                        <Select value={mdaFilter} onValueChange={(value) => setMdaFilter(value as 'all' | 'withData')}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Filter MDAs" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All MDAs</SelectItem>
+                                <SelectItem value="withData">MDAs with Data</SelectItem>
+                            </SelectContent>
                         </Select>
-                    </FormControl>
-                    <FormControl sx={{ minWidth: 180, flexShrink: 0 }} variant="outlined" size="small">
-                        <InputLabel id="ministry-filter-label">Ministry Filter</InputLabel>
-                        <Select
-                            labelId="ministry-filter-label"
-                            id="ministry-filter-select"
-                            value={ministryFilter}
-                            onChange={(e) => setMinistryFilter(e.target.value as 'all' | 'ministries-only' | 'without-ministries')}
-                            label="Ministry Filter"
-                        >
-                            <MenuItem value="all">All Organizations</MenuItem>
-                            <MenuItem value="ministries-only">Ministries Only</MenuItem>
-                            <MenuItem value="without-ministries">Exclude Ministries</MenuItem>
+                    </div>
+
+                    <div className="w-[200px]">
+                        <p className="text-xs text-gray-500 mb-1">Ministry Filter</p>
+                        <Select value={ministryFilter} onValueChange={(value) => setMinistryFilter(value as 'all' | 'ministries-only' | 'without-ministries')}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Ministry Filter" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Organizations</SelectItem>
+                                <SelectItem value="ministries-only">Ministries Only</SelectItem>
+                                <SelectItem value="without-ministries">Exclude Ministries</SelectItem>
+                            </SelectContent>
                         </Select>
-                    </FormControl>
-                    <FormControl sx={{ minWidth: 120, flexShrink: 0 }} variant="outlined" size="small">
-                        <InputLabel id="year-label">Year</InputLabel>
-                        <Select
-                            labelId="year-label"
-                            id="year-select"
-                            value={dashboardYear}
-                            onChange={(e) => setDashboardYear(Number(e.target.value))}
-                            label="Year"
-                        >
-                            {[currentYear - 1, currentYear, currentYear + 1].map(year => (
-                                <MenuItem key={year} value={year}>{year}</MenuItem>
-                            ))}
+                    </div>
+
+                    <div className="w-[120px]">
+                        <p className="text-xs text-gray-500 mb-1">Year</p>
+                        <Select value={String(dashboardYear)} onValueChange={(value) => setDashboardYear(Number(value))}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Year" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {[currentYear - 1, currentYear, currentYear + 1].map(year => (
+                                    <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                                ))}
+                            </SelectContent>
                         </Select>
-                    </FormControl>
+                    </div>
                     <button
                         onClick={handleGenerateDashboardPDF}
                         disabled={!liveDashboardData?.data || !Array.isArray(liveDashboardData.data) || liveDashboardData.data.length === 0}
-                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap h-10"
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap h-10"
                     >
                         📥 Download PDF
                     </button>
@@ -126,13 +138,7 @@ export default function DashboardHeader({
                     />
                 </div>
             </div>
-            <p className="text-sm text-gray-600">
-                View {mdaFilter === 'all' ? 'all' : 'MDAs with data'} {
-                    ministryFilter === 'ministries-only' ? 'ministries' :
-                        ministryFilter === 'without-ministries' ? 'non-ministry organizations' :
-                            'organizations'
-                } with their saved metric scores. Data is averaged across both halves (1st Half & 2nd Half) for the selected year.
-            </p>
+         
         </div>
     );
 }
