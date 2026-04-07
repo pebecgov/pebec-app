@@ -54,6 +54,7 @@ export default function ScoringMetricsPage() {
 
   // View Details Modal state
   const [viewDetailsMda, setViewDetailsMda] = useState<string | null>(null);
+  const [viewDetailsRow, setViewDetailsRow] = useState<any>(null);
   const [viewDetailsData, setViewDetailsData] = useState<any>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
@@ -106,6 +107,7 @@ export default function ScoringMetricsPage() {
       }
     } else {
       setViewDetailsData(null);
+      setViewDetailsRow(null);
       setIsLoadingDetails(false);
     }
   }, [detailedScoringData, viewDetailsMda]);
@@ -179,6 +181,57 @@ export default function ScoringMetricsPage() {
 
   // Helper function to process and filter MDA data for dashboard
   const processDashboardMdaData = (filter: 'all' | 'withData' = 'all', ministryFilterType: 'all' | 'ministries-only' | 'without-ministries' = 'all') => {
+    const normalizeMdaKey = (name: string) =>
+      String(name || "")
+        .toLowerCase()
+        .replace(/[–—]/g, "-")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const splitMdaNameForMatch = (name: string) => {
+      const normalized = normalizeMdaKey(name);
+      const parts = normalized.split(" - ").map((p) => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        return { abbr: parts[0], fullName: parts.slice(1).join(" - ") };
+      }
+      return { fullName: normalized };
+    };
+
+    const yearExclusionLookup = (() => {
+      const map = new Map<string, Set<string>>();
+      const rows = (allConfigs?.metricExclusions || []) as Array<{ mdaName: string; excludedMetrics: string[] }>;
+      rows.forEach((row) => {
+        const set = new Set(row.excludedMetrics || []);
+        const normalized = normalizeMdaKey(row.mdaName);
+        const parts = splitMdaNameForMatch(row.mdaName);
+        map.set(normalized, set);
+        if (parts.fullName) map.set(parts.fullName, set);
+        if (parts.abbr) map.set(parts.abbr, set);
+      });
+      return map;
+    })();
+
+    const getExcludedMetricsForMda = (mdaName: string): string[] => {
+      const normalized = normalizeMdaKey(mdaName);
+      const parts = splitMdaNameForMatch(mdaName);
+      const set =
+        yearExclusionLookup.get(normalized) ||
+        (parts.fullName ? yearExclusionLookup.get(parts.fullName) : undefined) ||
+        (parts.abbr ? yearExclusionLookup.get(parts.abbr) : undefined);
+      return Array.from(set || []);
+    };
+
+    const baseMaxPoints = (() => {
+      if (dashboardYear < 2026) return 80;
+      const efficiencyTotal = (efficiencyConfig?.slaPoints || 30) +
+        (efficiencyConfig?.reportSubmissionPoints || 3) +
+        (efficiencyConfig?.reportGovPoints || 15) +
+        (efficiencyConfig?.timelinessPoints || 2);
+      const mysteryTotal = 20;
+      const othersTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
+      return efficiencyTotal + mysteryTotal + othersTotal;
+    })();
+
     // Initialize all MDAs from mdasList with null data
     const allMdasMap = new Map<string, any>();
     mdasList.forEach(mda => {
@@ -197,7 +250,9 @@ export default function ScoringMetricsPage() {
         others: null,
         penalties: null,
         totalScore: 0,
-        totalPercentage: 0
+        totalPercentage: 0,
+        maxPossiblePoints: baseMaxPoints,
+        excludedMetrics: getExcludedMetricsForMda(mda.name)
       });
     });
 
@@ -234,7 +289,13 @@ export default function ScoringMetricsPage() {
             totalGrossScore: mda.totalGrossScore != null ? mda.totalGrossScore : existing.totalGrossScore,
             totalScore: mda.totalScore != null ? mda.totalScore : existing.totalScore,
             totalPercentage: mda.totalPercentage != null ? mda.totalPercentage : existing.totalPercentage,
-            maxPossiblePoints: mda.maxPossiblePoints != null ? mda.maxPossiblePoints : existing.maxPossiblePoints
+            maxPossiblePoints: mda.maxPossiblePoints != null ? mda.maxPossiblePoints : existing.maxPossiblePoints,
+            excludedMetrics: (() => {
+              // Prefer local year exclusion config as source of truth.
+              const local = getExcludedMetricsForMda(matchingMdaName);
+              if (local.length > 0) return local;
+              return Array.isArray(mda.excludedMetrics) ? mda.excludedMetrics : (existing.excludedMetrics || []);
+            })()
           };
 
           allMdasMap.set(matchingMdaName, merged);
@@ -244,8 +305,12 @@ export default function ScoringMetricsPage() {
 
     // Convert to array and calculate total scores
     let allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
+      const excludedMetricSet = new Set<string>(mda.excludedMetrics || []);
+      const isExcluded = (metricKey: string) => excludedMetricSet.has(metricKey);
+      const isOthersItemExcluded = (itemId: string) =>
+        excludedMetricSet.has("others") || excludedMetricSet.has(`others:${itemId}`);
       // Recalculate SLA score based on 10 months instead of 12
-      let slaScore = mda.sla?.score || 0;
+      let slaScore = isExcluded("sla") ? 0 : (mda.sla?.score || 0);
       if (mda.sla && mda.sla.monthsWithData) {
         // Recalculate: if backend calculated based on 12 months, we need to adjust to 10 months
         // Backend: score = (monthsWithData * (30/12)) * percentage = monthsWithData * 2.5 * percentage
@@ -267,7 +332,7 @@ export default function ScoringMetricsPage() {
       }
 
       // Recalculate Monthly Report score based on 10 months instead of 12
-      let monthlyReportScore = mda.monthlyReport?.score || 0;
+      let monthlyReportScore = isExcluded("reportSubmission") ? 0 : (mda.monthlyReport?.score || 0);
       if (mda.monthlyReport && mda.monthlyReport.monthsWithData) {
         const pointsPerMonth10 = 3 / 10; // 0.3 points per month
         const pointsPerMonth12 = 3 / 12; // 0.25 points per month (backend calculation)
@@ -275,19 +340,26 @@ export default function ScoringMetricsPage() {
       }
 
       // Recalculate Timeliness score based on 10 months instead of 12
-      let timelinessScore = mda.timeliness?.score || 0;
+      let timelinessScore = isExcluded("timeliness") ? 0 : (mda.timeliness?.score || 0);
       if (mda.timeliness && mda.timeliness.monthsWithData) {
         const pointsPerMonth10 = 2 / 10; // 0.2 points per month
         const pointsPerMonth12 = 2 / 12; // 0.167 points per month (backend calculation)
         timelinessScore = mda.timeliness.score * (pointsPerMonth10 / pointsPerMonth12);
       }
 
-      const mysteryScore = mda.mysteryShopping?.score || 0;
-      const innovationScore = mda.innovation?.score || 0;
-      const stakeholderScore = mda.stakeholder?.score || 0;
-      const transparencyScore = mda.transparency?.score || 0;
-      const reportGovResScore = mda.reportGovResolution?.score || 0;
-      const othersScore = mda.others?.score || 0;
+      const mysteryScore = isExcluded("mystery") ? 0 : (mda.mysteryShopping?.score || 0);
+      const innovationScore = isExcluded("innovation") ? 0 : (mda.innovation?.score || 0);
+      const stakeholderScore = isExcluded("stakeholder") ? 0 : (mda.stakeholder?.score || 0);
+      const transparencyScore = isExcluded("transparency") ? 0 : (mda.transparency?.score || 0);
+      const reportGovResScore = isExcluded("reportGov") ? 0 : (mda.reportGovResolution?.score || 0);
+      let othersScore = isExcluded("others") ? 0 : (mda.others?.score || 0);
+      if (!isExcluded("others") && othersConfig && mda.others?.scores) {
+        const excludedOthersScore = (othersConfig || []).reduce((sum: number, item: any) => {
+          if (!isOthersItemExcluded(item.itemId)) return sum;
+          return sum + (mda.others?.scores?.[item.itemId] || 0);
+        }, 0);
+        othersScore = Math.max(0, othersScore - excludedOthersScore);
+      }
 
       // Calculate base total score (all metrics except controversial and touting & rentseeking/penalties)
       let baseTotalScore = 0;
@@ -302,7 +374,7 @@ export default function ScoringMetricsPage() {
       // Controversial: Handle both old and new data formats
       // OLD FORMAT: isControversial=false â†’ score=5, isControversial=true â†’ score=0
       // NEW FORMAT: isControversial=false â†’ score=0, isControversial=true â†’ score=-5
-      let controversialScore = mda.controversial?.score || 0;
+      let controversialScore = isExcluded("controversial") ? 0 : (mda.controversial?.score || 0);
 
       // Detect old format: if score is positive (5) or zero with isControversial flag
       if (mda.controversial) {
@@ -321,7 +393,7 @@ export default function ScoringMetricsPage() {
       }
 
       // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
-      let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
+      let toutingRentseekingScore = isExcluded("toutingRentseeking") ? 0 : (mda.toutingRentseeking?.score || 0);
 
       // Calculate penalties
       let penaltyValue = 0;
@@ -331,7 +403,7 @@ export default function ScoringMetricsPage() {
         penaltyValue = controversialPenalty + toutingRentseekingPenalty;
       } else {
         // penalties.score is already negative or raw points to subtract
-        penaltyValue = Math.abs(mda.penalties?.score || 0);
+        penaltyValue = isExcluded("penalties") ? 0 : Math.abs(mda.penalties?.score || 0);
       }
 
       const totalScore = baseTotalScore - penaltyValue;
@@ -340,18 +412,29 @@ export default function ScoringMetricsPage() {
       const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
       const isTransparencySkipped = mda.transparency?.isSkipped || false;
 
-      // Use backend maxPossiblePoints if available (Single Source of Truth)
-      // or fallback to efficiency config calculation if needed (though backend should handle it)
-      let maxPossiblePoints = mda.maxPossiblePoints || 100;
-
-      // Only specific subtractions if backend didn't handle them (backend typically handles skipped items too)
-      // But we can trust backend's 'maxPossiblePoints' which already subtracts skipped items weights.
-
-      // Legacy fallback for < 2026 if backend didn't provide it
-      if (dashboardYear < 2026 && !mda.maxPossiblePoints) {
-        if (isTransparencySkipped) maxPossiblePoints -= 5;
-        if (isReportGovSkipped) maxPossiblePoints -= 15;
+      // Recompute max points from active yearly metric totals and per-MDA exclusions.
+      // This guarantees denominator reflects exclusions even for empty/no-data rows.
+      let maxPossiblePoints = baseMaxPoints;
+      if (isTransparencySkipped) maxPossiblePoints -= 5;
+      if (isReportGovSkipped) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
+      if (isExcluded("sla")) maxPossiblePoints -= 30;
+      if (isExcluded("mystery")) maxPossiblePoints -= 20;
+      if (isExcluded("innovation")) maxPossiblePoints -= 5;
+      if (isExcluded("transparency")) maxPossiblePoints -= 5;
+      if (isExcluded("reportGov")) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
+      if (isExcluded("reportSubmission")) maxPossiblePoints -= (dashboardYear < 2026 ? 3 : (efficiencyConfig?.reportSubmissionPoints || 3));
+      if (isExcluded("timeliness")) maxPossiblePoints -= (dashboardYear < 2026 ? 2 : (efficiencyConfig?.timelinessPoints || 2));
+      if (dashboardYear >= 2026 && isExcluded("others")) {
+        const othersTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
+        maxPossiblePoints -= othersTotal;
+      } else if (dashboardYear >= 2026 && othersConfig) {
+        const excludedOthersWeight = (othersConfig || []).reduce((sum: number, item: any) => {
+          if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
+          return sum;
+        }, 0);
+        maxPossiblePoints -= excludedOthersWeight;
       }
+      maxPossiblePoints = Math.max(0, maxPossiblePoints);
 
       const totalPercentage = maxPossiblePoints > 0
         ? (totalScore / maxPossiblePoints) * 100
@@ -648,6 +731,8 @@ export default function ScoringMetricsPage() {
             currentYear={currentYear}
             viewDetailsMda={viewDetailsMda}
             setViewDetailsMda={setViewDetailsMda}
+            viewDetailsRow={viewDetailsRow}
+            setViewDetailsRow={setViewDetailsRow}
             viewDetailsData={viewDetailsData}
             setViewDetailsData={setViewDetailsData}
             isLoadingDetails={isLoadingDetails}
