@@ -12,6 +12,9 @@ interface Top10TableProps {
 
 // Helper function to get metric label
 function getMetricLabel(selectedMetric: string): string {
+    if (selectedMetric.startsWith("others:")) {
+        return "Others Item";
+    }
     const labels: Record<string, string> = {
         mysteryShopping: 'Mystery Shopping',
         sla: 'Service Level Agreement',
@@ -44,6 +47,14 @@ function getMetricValue(mda: any, metric: string): number {
     if (metric === 'monthlyReport') return mda.monthlyReport?.score || 0;
     if (metric === 'timeliness') return mda.timeliness?.score || 0;
     if (metric === 'others') return mda.others?.score || 0;
+    if (metric.startsWith('others:')) {
+        const itemId = metric.replace('others:', '');
+        const excluded = mda?.excludedMetrics;
+        if (Array.isArray(excluded) && (excluded.includes("others") || excluded.includes(`others:${itemId}`))) {
+            return 0;
+        }
+        return mda.others?.scores?.[itemId] || 0;
+    }
     if (metric === 'penalties') return mda.penalties?.score || 0;
     return 0;
 }
@@ -82,9 +93,29 @@ export default function Top10Table({
     dashboardYear
 }: Top10TableProps) {
     const allMdasArray = processDashboardMdaData(mdaFilter, ministryFilter);
+    const metricScopedData = selectedMetric === "totalScore"
+        ? allMdasArray
+        : allMdasArray.filter((mda: any) => {
+            const excluded = mda?.excludedMetrics;
+            if (!Array.isArray(excluded)) return true;
+            if (selectedMetric === "efficiency") {
+                return !(excluded.includes("sla") && excluded.includes("reportSubmission") && excluded.includes("timeliness"));
+            }
+            if (selectedMetric === "mysteryShopping") return !excluded.includes("mystery");
+            if (selectedMetric === "sla") return !excluded.includes("sla");
+            if (selectedMetric === "reportGovResolution") return !excluded.includes("reportGov");
+            if (selectedMetric === "monthlyReport") return !excluded.includes("reportSubmission");
+            if (selectedMetric === "timeliness") return !excluded.includes("timeliness");
+            if (selectedMetric.startsWith("others:")) {
+                const itemId = selectedMetric.replace("others:", "");
+                return !(excluded.includes("others") || excluded.includes(`others:${itemId}`));
+            }
+            if (selectedMetric === "others") return !excluded.includes("others");
+            return !excluded.includes(selectedMetric);
+        });
 
     // Sort by selected metric
-    const sortedData = [...allMdasArray].sort((a: any, b: any) => {
+    const sortedData = [...metricScopedData].sort((a: any, b: any) => {
         const aValue = getMetricValue(a, selectedMetric);
         const bValue = getMetricValue(b, selectedMetric);
         return bValue - aValue;
@@ -93,8 +124,8 @@ export default function Top10Table({
     const top10 = sortedData.slice(0, 10);
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">🏆 Top 10</h3>
+        <div className="bg-white p-5 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 text-center">🏆 Top 10</h3>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-green-50">

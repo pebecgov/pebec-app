@@ -29,6 +29,8 @@ interface LiveDashboardTabProps {
     // Modal state
     viewDetailsMda: string | null;
     setViewDetailsMda: (mda: string | null) => void;
+    viewDetailsRow: any | null;
+    setViewDetailsRow: (row: any | null) => void;
     viewDetailsData: any | null;
     setViewDetailsData: (data: any | null) => void;
     isLoadingDetails: boolean;
@@ -59,6 +61,8 @@ export default function LiveDashboardTab({
     currentYear,
     viewDetailsMda,
     setViewDetailsMda,
+    viewDetailsRow,
+    setViewDetailsRow,
     viewDetailsData,
     setViewDetailsData,
     isLoadingDetails,
@@ -67,46 +71,55 @@ export default function LiveDashboardTab({
     handleGenerateDashboardPDF,
     convex
 }: LiveDashboardTabProps) {
+    const hasData = liveDashboardData?.data !== undefined;
+
     return (
         <div className="w-full space-y-6">
-            {/* Dashboard Header with Filters and Controls */}
-            <DashboardHeader
-                selectedMetric={selectedMetric}
-                setSelectedMetric={setSelectedMetric}
-                mdaFilter={mdaFilter}
-                setMdaFilter={setMdaFilter}
-                ministryFilter={ministryFilter}
-                setMinistryFilter={setMinistryFilter}
-                dashboardYear={dashboardYear}
-                setDashboardYear={setDashboardYear}
-                currentYear={currentYear}
-                handleGenerateDashboardPDF={handleGenerateDashboardPDF}
-                liveDashboardData={liveDashboardData}
-                processDashboardMdaData={processDashboardMdaData}
-                othersConfig={othersConfig}
-                penaltyConfig={penaltyConfig}
-            />
 
-            {/* Main Dashboard Table */}
-            <DashboardTable
-                liveDashboardData={liveDashboardData?.data}
-                efficiencyConfig={liveDashboardData?.efficiencyConfig || efficiencyConfig}
-                othersConfig={othersConfig}
-                penaltyConfig={penaltyConfig}
-                mysteryConfig={mysteryConfig}
-                processDashboardMdaData={processDashboardMdaData}
-                mdaFilter={mdaFilter}
-                ministryFilter={ministryFilter}
-                selectedMetric={selectedMetric}
-                setViewDetailsMda={setViewDetailsMda}
-                setIsLoadingDetails={setIsLoadingDetails}
-                dashboardYear={dashboardYear}
-                convex={convex}
-            />
+            <section className="space-y-4">
+                <DashboardHeader
+                    selectedMetric={selectedMetric}
+                    setSelectedMetric={setSelectedMetric}
+                    mdaFilter={mdaFilter}
+                    setMdaFilter={setMdaFilter}
+                    ministryFilter={ministryFilter}
+                    setMinistryFilter={setMinistryFilter}
+                    dashboardYear={dashboardYear}
+                    setDashboardYear={setDashboardYear}
+                    currentYear={currentYear}
+                    handleGenerateDashboardPDF={handleGenerateDashboardPDF}
+                    liveDashboardData={liveDashboardData}
+                    processDashboardMdaData={processDashboardMdaData}
+                    othersConfig={othersConfig}
+                    penaltyConfig={penaltyConfig}
+                />
+
+                <DashboardTable
+                    liveDashboardData={liveDashboardData?.data}
+                    efficiencyConfig={liveDashboardData?.efficiencyConfig || efficiencyConfig}
+                    othersConfig={othersConfig}
+                    penaltyConfig={penaltyConfig}
+                    mysteryConfig={mysteryConfig}
+                    processDashboardMdaData={processDashboardMdaData}
+                    mdaFilter={mdaFilter}
+                    ministryFilter={ministryFilter}
+                    selectedMetric={selectedMetric}
+                    setViewDetailsMda={setViewDetailsMda}
+                    setViewDetailsRow={setViewDetailsRow}
+                    setIsLoadingDetails={setIsLoadingDetails}
+                    dashboardYear={dashboardYear}
+                    convex={convex}
+                />
+            </section>
 
             {/* Top 10 and Bottom 10 Tables */}
-            {liveDashboardData?.data !== undefined && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {hasData && (
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">Leaderboard Snapshot</h3>
+                        <span className="text-xs sm:text-sm text-gray-500">Top and bottom performers for current filters</span>
+                    </div>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <Top10Table
                         processDashboardMdaData={processDashboardMdaData}
                         mdaFilter={mdaFilter}
@@ -121,13 +134,16 @@ export default function LiveDashboardTab({
                         selectedMetric={selectedMetric}
                         dashboardYear={dashboardYear}
                     />
-                </div>
+                    </div>
+                </section>
             )}
 
             {/* View Details Modal */}
             <ViewDetailsModal
                 viewDetailsMda={viewDetailsMda}
                 setViewDetailsMda={setViewDetailsMda}
+                viewDetailsRow={viewDetailsRow}
+                setViewDetailsRow={setViewDetailsRow}
                 viewDetailsData={viewDetailsData}
                 setViewDetailsData={setViewDetailsData}
                 isLoadingDetails={isLoadingDetails}

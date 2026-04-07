@@ -138,6 +138,15 @@ export default defineSchema({
   }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
     .index("byPeriod", ["scoringPeriod"]),
 
+  // Per-MDA metric exclusions by year (supports partial exclusions, e.g. Efficiency only).
+  mda_metric_exclusions: defineTable({
+    year: v.number(),
+    mdaName: v.string(),
+    excludedMetrics: v.array(v.string()),
+    updatedAt: v.number(),
+    updatedBy: v.id("users")
+  }).index("byYear", ["year"]).index("byYearMda", ["year", "mdaName"]),
+
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
     mdaId: v.id("mdas"),

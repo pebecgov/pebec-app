@@ -64,7 +64,7 @@ export default function Sidebar({
     icon: <ExclamationTriangleIcon className="w-5 h-5" />,
     path: "/admin/tickets"
   }, {
-    name: "Scoring Metrics",
+    name: "BFA Scoring",
     icon: <ChartBarIcon className="w-5 h-5" />,
     path: "/admin/scoring-metrics"
   }, {
