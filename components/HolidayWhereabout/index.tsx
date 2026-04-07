@@ -5,9 +5,10 @@
 import React, { useState } from "react";
 import HolidayWhereaboutForm from "./HolidayWhereaboutForm";
 import HolidayAnnouncementsDisplay from "./HolidayAnnouncementsDisplay";
+import HolidayActivityLog from "./HolidayActivityLog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusIcon, EyeIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, EyeIcon, ClockIcon } from "@heroicons/react/24/outline";
 
 export default function HolidayWhereabout() {
   const [activeTab, setActiveTab] = useState("announcements");
@@ -41,9 +42,13 @@ export default function HolidayWhereabout() {
           <TabsContent value="view" className="mt-6">
             <Tabs defaultValue="active" className="w-full">
               <div className="flex justify-center mb-6">
-                <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsList className="grid w-full max-w-2xl grid-cols-3">
                   <TabsTrigger value="active">Active & Upcoming</TabsTrigger>
                   <TabsTrigger value="past">Past History</TabsTrigger>
+                  <TabsTrigger value="activity-log" className="flex items-center gap-2">
+                    <ClockIcon className="w-4 h-4" />
+                    Activity Log
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -53,6 +58,10 @@ export default function HolidayWhereabout() {
 
               <TabsContent value="past">
                 <HolidayAnnouncementsDisplay type="past" />
+              </TabsContent>
+
+              <TabsContent value="activity-log">
+                <HolidayActivityLog />
               </TabsContent>
             </Tabs>
           </TabsContent>
