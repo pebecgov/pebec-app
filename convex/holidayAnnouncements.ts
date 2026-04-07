@@ -3,6 +3,42 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+const logAnnouncementActivity = async (
+  ctx: any,
+  {
+    announcementId,
+    announcement,
+    action,
+    performedBy,
+    performedByName,
+    performedByRole,
+  }: {
+    announcementId: any;
+    announcement: any;
+    action: "created" | "updated" | "ended" | "deleted";
+    performedBy: any;
+    performedByName: string;
+    performedByRole?: string;
+  }
+) => {
+  await ctx.db.insert("holidayAnnouncementLogs", {
+    announcementId,
+    userId: announcement.userId,
+    userName: announcement.userName,
+    reason: announcement.reason,
+    startDate: announcement.startDate,
+    endDate: announcement.endDate,
+    startTime: announcement.startTime,
+    endTime: announcement.endTime,
+    description: announcement.description,
+    action,
+    performedBy,
+    performedByName,
+    performedByRole,
+    createdAt: Date.now(),
+  });
+};
+
 // Create a new holiday announcement
 export const createAnnouncement = mutation({
   args: {
@@ -69,6 +105,24 @@ export const createAnnouncement = mutation({
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+    });
+
+    await logAnnouncementActivity(ctx, {
+      announcementId,
+      announcement: {
+        userId: user._id,
+        userName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email,
+        reason: args.reason,
+        startDate: args.startDate,
+        endDate: args.endDate,
+        startTime: args.startTime,
+        endTime: args.endTime,
+        description: args.description,
+      },
+      action: "created",
+      performedBy: user._id,
+      performedByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email,
+      performedByRole: user.role,
     });
 
     return announcementId;
@@ -147,6 +201,15 @@ export const endAnnouncement = mutation({
     await ctx.db.patch(args.announcementId, {
       isActive: false,
       updatedAt: Date.now(),
+    });
+
+    await logAnnouncementActivity(ctx, {
+      announcementId: args.announcementId,
+      announcement,
+      action: "ended",
+      performedBy: user._id,
+      performedByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email,
+      performedByRole: user.role,
     });
 
     return args.announcementId;
@@ -236,6 +299,20 @@ export const updateAnnouncement = mutation({
 
     await ctx.db.patch(args.announcementId, updateData);
 
+    const nextAnnouncement = {
+      ...announcement,
+      ...updateData,
+    };
+
+    await logAnnouncementActivity(ctx, {
+      announcementId: args.announcementId,
+      announcement: nextAnnouncement,
+      action: "updated",
+      performedBy: user._id,
+      performedByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email,
+      performedByRole: user.role,
+    });
+
     return args.announcementId;
   },
 });
@@ -269,9 +346,62 @@ export const deleteAnnouncement = mutation({
       throw new Error("You can only delete your own announcements");
     }
 
+    await logAnnouncementActivity(ctx, {
+      announcementId: args.announcementId,
+      announcement,
+      action: "deleted",
+      performedBy: user._id,
+      performedByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email,
+      performedByRole: user.role,
+    });
+
     await ctx.db.delete(args.announcementId);
 
     return args.announcementId;
+  },
+});
+
+export const getActivityLogs = query({
+  args: {
+    reason: v.optional(v.union(v.literal("sick"), v.literal("official_assignment"), v.literal("leave"))),
+    action: v.optional(v.union(v.literal("created"), v.literal("updated"), v.literal("ended"), v.literal("deleted"))),
+    startDateFrom: v.optional(v.string()),
+    startDateTo: v.optional(v.string()),
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const currentUser = await ctx.db
+      .query("users")
+      .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", identity.subject))
+      .first();
+
+    if (!currentUser) {
+      throw new Error("User not found");
+    }
+
+    const logs = await ctx.db
+      .query("holidayAnnouncementLogs")
+      .withIndex("by_createdAt")
+      .collect();
+
+    const isAdmin = currentUser.role === "admin";
+
+    return logs
+      .filter((log) => {
+        if (!isAdmin && log.userId !== currentUser._id) return false;
+        if (isAdmin && args.userId && log.userId !== args.userId) return false;
+        if (args.reason && log.reason !== args.reason) return false;
+        if (args.action && log.action !== args.action) return false;
+        if (args.startDateFrom && log.startDate < args.startDateFrom) return false;
+        if (args.startDateTo && log.startDate > args.startDateTo) return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 // Get announcements filtered by type (active/upcoming vs past)
