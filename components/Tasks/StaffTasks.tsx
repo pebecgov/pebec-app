@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function StaffTasks() {
@@ -27,11 +27,28 @@ export default function StaffTasks() {
   const [completionNotes, setCompletionNotes] = useState("");
 
   const myTasks = useQuery(api.tasks.getMyTasks);
+  const currentUser = useQuery(api.users.getCurrentUsers);
+  const myReceptionDocuments = useQuery(
+    api.tasks.listMyReceptionDocuments,
+    currentUser === undefined
+      ? "skip"
+      : currentUser?.role === "staff" && currentUser?.staffStream === "receptionist"
+        ? {}
+        : "skip"
+  );
   const updateTaskStatus = useMutation(api.tasks.updateTaskStatus);
   const requestTaskCompletion = useMutation(api.tasks.requestTaskCompletion);
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
   const saveUploadedFile = useMutation(api.tickets.saveUploadedFile);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
+  const generateReceptionUploadUrl = useMutation(api.tasks.generateReceptionUploadUrl);
+  const submitReceptionDocument = useMutation(api.tasks.submitReceptionDocument);
+
+  const isReceptionist = currentUser?.role === "staff" && currentUser?.staffStream === "receptionist";
+
+  const [receptionFile, setReceptionFile] = useState<File | null>(null);
+  const [receptionNote, setReceptionNote] = useState("");
+  const [receptionUploading, setReceptionUploading] = useState(false);
 
 
   const handleQuickStatusUpdate = async (taskId: Id<"tasks">, newStatus: "to_do" | "in_progress" | "done") => {
@@ -90,6 +107,37 @@ export default function StaffTasks() {
       toast.error("Failed to upload document");
     } finally {
       setUploadingDocument(false);
+    }
+  };
+
+  const handleReceptionSubmit = async () => {
+    if (!receptionFile) {
+      toast.error("Please choose a file to upload");
+      return;
+    }
+    try {
+      setReceptionUploading(true);
+      const uploadUrl = await generateReceptionUploadUrl();
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": receptionFile.type },
+        body: receptionFile
+      });
+      if (!response.ok) throw new Error("Upload failed");
+      const { storageId } = await response.json();
+      await submitReceptionDocument({
+        storageId,
+        fileName: receptionFile.name,
+        note: receptionNote.trim() || undefined
+      });
+      toast.success("Document sent to admin successfully.");
+      setReceptionFile(null);
+      setReceptionNote("");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to upload document");
+    } finally {
+      setReceptionUploading(false);
     }
   };
 
@@ -187,9 +235,15 @@ export default function StaffTasks() {
       {/* Tasks List with Tabs */}
       <div className="space-y-4">
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className={`grid w-full ${isReceptionist ? "max-w-2xl grid-cols-3" : "max-w-md grid-cols-2"}`}>
             <TabsTrigger value="active">Active Tasks</TabsTrigger>
             <TabsTrigger value="past">Past Tasks</TabsTrigger>
+            {isReceptionist && (
+              <TabsTrigger value="reception" className="gap-1">
+                <Send className="w-3.5 h-3.5" />
+                Upload File to DG
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="active" className="mt-6">
@@ -243,14 +297,42 @@ export default function StaffTasks() {
                         </div>
                       </div>
 
+                      {task.assignmentDocumentId && task.assignmentDocumentName && (
+                        <div className="mt-3 mb-3 p-3 bg-teal-50 border border-teal-200 rounded-md">
+                          <p className="text-sm font-medium text-teal-900 mb-2">Reference document (with this task):</p>
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-teal-600" />
+                            <span className="text-sm text-teal-800 flex-1">{task.assignmentDocumentName}</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                try {
+                                  const url = await getCompletionDocumentUrl({
+                                    storageId: task.assignmentDocumentId!,
+                                    taskId: task._id
+                                  });
+                                  if (url) window.open(url, "_blank");
+                                  else toast.error("Could not retrieve document");
+                                } catch (error: any) {
+                                  toast.error(error.message || "Failed to open document");
+                                }
+                              }}
+                              className="text-teal-700 hover:text-teal-800"
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
                       {task.taskDetails && (
                         <div className="mt-3 p-3 bg-blue-50 rounded-md mb-3">
                           <p className="text-sm font-medium text-blue-900 mb-1">Your Updates:</p>
                           <p className="text-sm text-blue-800">{task.taskDetails}</p>
                         </div>
                       )}
-
-
 
                       {task.completionNotes && (
                         <div className="mt-3 p-3 bg-green-50 rounded-md mb-3">
@@ -415,6 +497,36 @@ export default function StaffTasks() {
                         )}
                       </div>
 
+                      {task.assignmentDocumentId && task.assignmentDocumentName && (
+                        <div className="mt-3 mb-3 p-3 bg-teal-50 border border-teal-200 rounded-md">
+                          <p className="text-sm font-medium text-teal-900 mb-2">Reference document (with this task):</p>
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-teal-600" />
+                            <span className="text-sm text-teal-800 flex-1">{task.assignmentDocumentName}</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                try {
+                                  const url = await getCompletionDocumentUrl({
+                                    storageId: task.assignmentDocumentId!,
+                                    taskId: task._id
+                                  });
+                                  if (url) window.open(url, "_blank");
+                                  else toast.error("Could not retrieve document");
+                                } catch (error: any) {
+                                  toast.error(error.message || "Failed to open document");
+                                }
+                              }}
+                              className="text-teal-700 hover:text-teal-800"
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
                       {task.taskDetails && (
                         <div className="mt-3 p-3 bg-blue-50 rounded-md mb-3">
                           <p className="text-sm font-medium text-blue-900 mb-1">Your Updates:</p>
@@ -487,6 +599,88 @@ export default function StaffTasks() {
               </div>
             )}
           </TabsContent>
+
+          {isReceptionist && (
+            <TabsContent value="reception" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Send className="w-5 h-5 text-teal-600" />
+                    Upload documents
+                  </CardTitle>
+                  <CardDescription>
+                    Upload files for the Director General to review.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Note (optional)</label>
+                    <Textarea
+                      value={receptionNote}
+                      onChange={(e) => setReceptionNote(e.target.value)}
+                      placeholder="Brief context..."
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">File</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*,.doc,.docx"
+                        className="hidden"
+                        id="reception-file"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          setReceptionFile(f ?? null);
+                        }}
+                      />
+                      <label htmlFor="reception-file" className="cursor-pointer flex flex-col items-center gap-2 text-sm text-gray-600">
+                        <Upload className="w-8 h-8 text-gray-400" />
+                        <span>{receptionFile ? receptionFile.name : "Click to choose a file"}</span>
+                      </label>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleReceptionSubmit}
+                    disabled={receptionUploading || !receptionFile}
+                    className="bg-teal-600 hover:bg-teal-700"
+                  >
+                    {receptionUploading ? "Uploading…" : "Upload"}
+                  </Button>
+
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Your recent uploads</h3>
+                    {!myReceptionDocuments ? (
+                      <p className="text-sm text-gray-500">Loading…</p>
+                    ) : myReceptionDocuments.length === 0 ? (
+                      <p className="text-sm text-gray-500">No uploads yet.</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {myReceptionDocuments.map((doc) => (
+                          <li
+                            key={doc._id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm"
+                          >
+                            <span className="font-medium text-gray-800 truncate max-w-[200px]">{doc.fileName}</span>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={doc.status === "pending" ? "secondary" : "outline"}>
+                                {doc.status === "pending" ? "Awaiting admin" : "Linked to task"}
+                              </Badge>
+                              <span className="text-gray-500 text-xs">
+                                {format(new Date(doc.createdAt), "PPp")}
+                              </span>
+                            </div>
+                            {doc.note && <p className="w-full text-xs text-gray-600 mt-1">{doc.note}</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
