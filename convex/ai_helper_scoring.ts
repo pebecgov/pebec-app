@@ -66,35 +66,101 @@ function performFallbackHeaderMatching(headers: string[]) {
 }
 
 // Helper to format date value to DD/MM/YYYY
+const MONTH_NAME_TO_INDEX: Record<string, number> = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11,
+};
+
+function isValidDateParts(year: number, monthIndex: number, day: number): boolean {
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || !Number.isFinite(day)) return false;
+  if (year < 1900 || year > 2100) return false;
+  if (monthIndex < 0 || monthIndex > 11) return false;
+  if (day < 1 || day > 31) return false;
+  const date = new Date(year, monthIndex, day);
+  return date.getFullYear() === year && date.getMonth() === monthIndex && date.getDate() === day;
+}
+
+function parseSmartDate(input: any): Date | null {
+  if (input === null || input === undefined) return null;
+
+  // Excel serial number
+  if (typeof input === "number" && Number.isFinite(input)) {
+    if (input <= 0) return null;
+    const excelEpochDiff = 25569;
+    const msPerDay = 86400 * 1000;
+    const date = new Date((input - excelEpochDiff) * msPerDay);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  if (input instanceof Date) {
+    return isNaN(input.getTime()) ? null : input;
+  }
+
+  const raw = String(input).trim();
+  if (!raw) return null;
+
+  // Normalize e.g. "1st December, 2025" -> "1 December 2025"
+  const normalized = raw
+    .replace(/(\d+)(st|nd|rd|th)/gi, "$1")
+    .replace(/[,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // 1) dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy (or mm/dd/yyyy fallback)
+  const numeric = normalized.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (numeric) {
+    let a = Number(numeric[1]);
+    let b = Number(numeric[2]);
+    let y = Number(numeric[3]);
+    if (y < 100) y += 2000;
+
+    // Prefer day-first; if impossible, fallback to month-first.
+    if (isValidDateParts(y, b - 1, a)) return new Date(y, b - 1, a);
+    if (isValidDateParts(y, a - 1, b)) return new Date(y, a - 1, b);
+  }
+
+  // 2) "18 Dec 2025" / "Dec 18 2025"
+  const tokens = normalized.toLowerCase().split(" ");
+  if (tokens.length >= 3) {
+    const t0 = tokens[0];
+    const t1 = tokens[1];
+    const t2 = tokens[2];
+    const m0 = MONTH_NAME_TO_INDEX[t0];
+    const m1 = MONTH_NAME_TO_INDEX[t1];
+
+    if (m1 !== undefined) {
+      const day = Number(t0);
+      const year = Number(t2);
+      if (isValidDateParts(year, m1, day)) return new Date(year, m1, day);
+    }
+    if (m0 !== undefined) {
+      const day = Number(t1);
+      const year = Number(t2);
+      if (isValidDateParts(year, m0, day)) return new Date(year, m0, day);
+    }
+  }
+
+  // 3) Last fallback: native parser
+  const fallback = new Date(normalized);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
 function formatDateValue(value: any): string | null {
   if (!value) return null;
 
   try {
-    let date: Date;
-
-    if (typeof value === 'number') {
-      const excelEpochDiff = 25569;
-      const msPerDay = 86400 * 1000;
-      date = new Date((value - excelEpochDiff) * msPerDay);
-    } else if (typeof value === 'string') {
-      // If it looks like DD/MM/YYYY, return as is
-      if (value.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-        return value;
-      }
-      // Try parsing DD/MM/YYYY
-      if (value.includes('/') && value.split('/').length === 3) {
-        const [day, month, year] = value.split('/').map(Number);
-        date = new Date(year, month - 1, day);
-      } else {
-        date = new Date(value);
-      }
-    } else if (value instanceof Date) {
-      date = value;
-    } else {
-      return String(value);
-    }
-
-    if (isNaN(date.getTime())) return String(value);
+    const date = parseSmartDate(value);
+    if (!date) return String(value);
 
     // Format as DD/MM/YYYY
     const day = String(date.getDate()).padStart(2, '0');
@@ -114,28 +180,8 @@ function calculateWorkingDays(startDate: any, endDate: any): number | null {
   }
 
   try {
-    // Helper to parse date
-    const parseDate = (input: any): Date | null => {
-      if (typeof input === 'number') {
-        // Excel serial date (days since Dec 30, 1899)
-        const excelEpochDiff = 25569;
-        const msPerDay = 86400 * 1000;
-        return new Date((input - excelEpochDiff) * msPerDay);
-      } else if (typeof input === 'string') {
-        // Check if it's DD/MM/YYYY format
-        if (input.includes('/') && input.split('/').length === 3) {
-          const [day, month, year] = input.split('/').map(Number);
-          return new Date(year, month - 1, day);
-        } else {
-          // Try parsing as ISO date or other formats
-          return new Date(input);
-        }
-      }
-      return null;
-    };
-
-    const start = parseDate(startDate);
-    const end = parseDate(endDate);
+    const start = parseSmartDate(startDate);
+    const end = parseSmartDate(endDate);
 
     if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
       return null;
