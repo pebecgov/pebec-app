@@ -652,27 +652,54 @@ export const getRealMonthlyReports = query({
     // Track which reports have been assigned to a month by name (to avoid duplicates)
     const reportsAssignedByName = new Set<string>();
 
+    const monthNamesLong = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+    const monthNamesShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+    const extractReportTargetMonthYear = (report: any): { month: number; year: number } | null => {
+      const reportName = String(report?.reportName || "");
+      const fileName = String(report?.fileName || "");
+      const combined = `${reportName} ${fileName}`.toLowerCase();
+
+      let detectedMonth = -1;
+      for (let i = 0; i < 12; i++) {
+        if (combined.includes(monthNamesLong[i]) || combined.includes(monthNamesShort[i])) {
+          detectedMonth = i;
+          break;
+        }
+      }
+      if (detectedMonth < 0) return null;
+
+      // Prefer explicit 4-digit year from report/file names when present.
+      const explicitYearMatch = combined.match(/\b(20\d{2})\b/);
+      if (explicitYearMatch) {
+        return { month: detectedMonth, year: Number(explicitYearMatch[1]) };
+      }
+
+      // If year is not in the name, infer reporting year from submission date.
+      // Example: submitted Jan 2026 with "December" => Dec 2025.
+      const submittedAt = new Date(report.submittedAt || 0);
+      const submittedYear = submittedAt.getFullYear();
+      const submittedMonth = submittedAt.getMonth();
+      const inferredYear = detectedMonth > submittedMonth ? submittedYear - 1 : submittedYear;
+      return { month: detectedMonth, year: inferredYear };
+    };
+
     // Process each month in the scoring period
     for (const { month, year } of monthsToCheck) {
       const checkDate = new Date(year, month, 1);
       const monthName = checkDate.toLocaleString('default', { month: 'long' });
-      const monthNameShort = checkDate.toLocaleString('default', { month: 'short' });
-
-      // Helper function to check if report name contains month name
-      const reportNameContainsMonth = (reportName: string | undefined): boolean => {
-        if (!reportName) return false;
-        const nameLower = reportName.toLowerCase();
-        return nameLower.includes(monthName.toLowerCase()) ||
-          nameLower.includes(monthNameShort.toLowerCase());
-      };
 
       // Find reports for this month/year - prioritize name matching over date
       const monthReports = filteredReports.filter(report => {
         const reportId = report._id;
         const reportDate = new Date(report.submittedAt);
 
-        // First check by report name (higher priority) - if report name contains this month
-        const matchesByName = reportNameContainsMonth(report.reportName);
+        // First check by report/file month-year interpretation.
+        const parsedTarget = extractReportTargetMonthYear(report);
+        const matchesByName =
+          parsedTarget !== null &&
+          parsedTarget.month === month &&
+          parsedTarget.year === year;
         if (matchesByName && !reportsAssignedByName.has(reportId)) {
           reportsAssignedByName.add(reportId);
           return true;

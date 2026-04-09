@@ -8,7 +8,27 @@ import { ResultTableProps } from '../../utils/types';
 export const ResultTable: React.FC<ResultTableProps> = ({ results, overallPercentage }) => {
     if (!results || results.length === 0) return null;
 
-    const allKeys = Object.keys(results[0]);
+    const isMeaningfulValue = (value: unknown): boolean => {
+        if (value === null || value === undefined) return false;
+        const text = String(value).trim().toLowerCase();
+        if (!text) return false;
+        if (["n/a", "na", "nil", "invalid dates", "null", "undefined"].includes(text)) return false;
+        return true;
+    };
+
+    // Remove spacer/noise rows that produce top "Invalid Dates" clutter.
+    const cleanedResults = results.filter((row) => {
+        const customer = row["CUSTOMER NAME"] ?? row["CUSTOMERS NAME"];
+        const service = row["SERVICE PROVIDED"];
+        const submitted = row["DATE OF SUBMISSION"];
+        const completed = row["DATE OF COMPLETION"];
+        const sn = row["SN"] ?? row["S/N"];
+        return [customer, service, submitted, completed, sn].some(isMeaningfulValue);
+    });
+
+    if (cleanedResults.length === 0) return null;
+
+    const allKeys = Object.keys(cleanedResults[0]);
     const ignoredKeys = ['__EMPTY']; // Add more if needed
 
     // Define preferred order
@@ -50,7 +70,7 @@ export const ResultTable: React.FC<ResultTableProps> = ({ results, overallPercen
         });
 
     // Sort the rows by SN or S/N
-    const sortedResults = [...results].sort((a, b) => {
+    const sortedResults = [...cleanedResults].sort((a, b) => {
         const snA = a['SN'] || a['S/N'];
         const snB = b['SN'] || b['S/N'];
 
