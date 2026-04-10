@@ -615,6 +615,88 @@ export const listMyReceptionDocuments = query({
     }
 });
 
+export const listAttachmentHistory = query({
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        if (!isAuthorizedTaskAdmin(user)) {
+            return [];
+        }
+
+        const [receptionDocs, tasks] = await Promise.all([
+            ctx.db.query("reception_admin_documents").order("desc").collect(),
+            ctx.db.query("tasks").order("desc").collect()
+        ]);
+
+        const receptionHistory = await Promise.all(
+            receptionDocs.map(async (doc) => {
+                const uploader = await ctx.db.get(doc.uploadedBy);
+                const linkedTask = doc.linkedTaskId ? await ctx.db.get(doc.linkedTaskId) : null;
+                return {
+                    itemId: `reception-${doc._id}`,
+                    source: "reception" as const,
+                    fileName: doc.fileName,
+                    createdAt: doc.createdAt,
+                    status: doc.status,
+                    uploaderName: uploader
+                        ? `${uploader.firstName || ""} ${uploader.lastName || ""}`.trim() || uploader.email || "Unknown"
+                        : "Unknown",
+                    note: doc.note,
+                    receptionDocumentId: doc._id,
+                    linkedTaskId: doc.linkedTaskId,
+                    linkedTaskTitle: linkedTask?.title
+                };
+            })
+        );
+
+        const taskAttachmentHistory = tasks.flatMap((task) => {
+            const items: Array<{
+                itemId: string;
+                source: "assignment" | "completion";
+                fileName: string;
+                createdAt: number;
+                status: "linked";
+                uploaderName: string;
+                note?: string;
+                taskId: Id<"tasks">;
+                taskTitle: string;
+                storageId: Id<"_storage">;
+            }> = [];
+
+            if (task.assignmentDocumentId && task.assignmentDocumentName) {
+                items.push({
+                    itemId: `assignment-${task._id}`,
+                    source: "assignment",
+                    fileName: task.assignmentDocumentName,
+                    createdAt: task.createdAt,
+                    status: "linked",
+                    uploaderName: task.createdByName || "Admin",
+                    taskId: task._id,
+                    taskTitle: task.title,
+                    storageId: task.assignmentDocumentId
+                });
+            }
+
+            if (task.completionDocumentId && task.completionDocumentName) {
+                items.push({
+                    itemId: `completion-${task._id}`,
+                    source: "completion",
+                    fileName: task.completionDocumentName,
+                    createdAt: task.completionRequestedAt || task.updatedAt || task.createdAt,
+                    status: "linked",
+                    uploaderName: task.assignedToName || "Staff",
+                    taskId: task._id,
+                    taskTitle: task.title,
+                    storageId: task.completionDocumentId
+                });
+            }
+
+            return items;
+        });
+
+        return [...receptionHistory, ...taskAttachmentHistory].sort((a, b) => b.createdAt - a.createdAt);
+    }
+});
+
 export const getReceptionDocumentUrl = mutation({
     args: {
         receptionDocumentId: v.id("reception_admin_documents")

@@ -12,9 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 
 export default function AdminTasks() {
@@ -46,6 +49,10 @@ export default function AdminTasks() {
   const pendingRequestsQuery = useQuery(api.tasks.getPendingCompletionRequests);
   const pendingReceptionDocuments = useQuery(
     api.tasks.listPendingReceptionDocuments,
+    isAuthorizedAdmin ? {} : "skip"
+  );
+  const attachmentHistory = useQuery(
+    api.tasks.listAttachmentHistory,
     isAuthorizedAdmin ? {} : "skip"
   );
   // Only show pending requests if user is authorized admin
@@ -242,6 +249,13 @@ export default function AdminTasks() {
     done: allTasks?.filter(t => t.status === "done") || []
   };
 
+  const handleAssignTaskWithReceptionDoc = (doc: { _id: Id<"reception_admin_documents">; fileName: string }) => {
+    setLocalAssignmentFile(null);
+    setReceptionInboxIdForTask(doc._id);
+    setPrefilledReceptionFileName(doc.fileName);
+    setIsCreateDialogOpen(true);
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -293,85 +307,29 @@ export default function AdminTasks() {
         </Card>
       </div>
 
-      {/* Reception document inbox — only designated admin */}
-      {isAuthorizedAdmin && pendingReceptionDocuments && pendingReceptionDocuments.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Inbox className="w-5 h-5 text-teal-600" />
-            <h2 className="text-xl font-semibold">Reception document inbox</h2>
-            <Badge className="bg-teal-100 text-teal-800">{pendingReceptionDocuments.length}</Badge>
-          </div>
-          <div className="space-y-3">
-            {pendingReceptionDocuments.map((doc) => (
-              <Card key={doc._id} className="border-teal-200 bg-teal-50/40">
-                <CardHeader className="pb-2">
-                  <div className="flex flex-wrap justify-between gap-2 items-start">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-teal-700" />
-                        {doc.fileName}
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        From {doc.uploaderName} · {format(new Date(doc.createdAt), "PPp")}
-                      </CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          try {
-                            const url = await getReceptionDocumentUrl({ receptionDocumentId: doc._id });
-                            if (url) window.open(url, "_blank");
-                            else toast.error("Could not open document");
-                          } catch (e: any) {
-                            toast.error(e.message || "Failed to open document");
-                          }
-                        }}
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={() => {
-                          setLocalAssignmentFile(null);
-                          setReceptionInboxIdForTask(doc._id);
-                          setPrefilledReceptionFileName(doc.fileName);
-                          setIsCreateDialogOpen(true);
-                        }}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Assign task with this document
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                {doc.note && (
-                  <CardContent className="pt-0">
-                    <p className="text-sm text-gray-700">
-                      <span className="font-medium">Note:</span> {doc.note}
-                    </p>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      <Tabs defaultValue="tasks" className="w-full">
+        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-lg grid-cols-2" : "max-w-xs grid-cols-1"}`}>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          {isAuthorizedAdmin && (
+            <TabsTrigger value="reception" className="gap-1">
+              <Inbox className="w-3.5 h-3.5" />
+              Reception Inbox
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-      {/* Pending Completion Requests - Only visible to authorized admin */}
-      {isAuthorizedAdmin && pendingRequests && pendingRequests.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Hourglass className="w-5 h-5 text-yellow-600" />
-            <h2 className="text-xl font-semibold">Pending Completion Requests</h2>
-            <Badge className="bg-yellow-100 text-yellow-800">{pendingRequests.length}</Badge>
-          </div>
-          <div className="space-y-3">
-            {pendingRequests.map((task) => (
-              <Card key={task._id} className="border-yellow-200 bg-yellow-50/50">
+        <TabsContent value="tasks" className="mt-6 space-y-6">
+          {/* Pending Completion Requests - Only visible to authorized admin */}
+          {isAuthorizedAdmin && pendingRequests && pendingRequests.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Hourglass className="w-5 h-5 text-yellow-600" />
+                <h2 className="text-xl font-semibold">Pending Completion Requests</h2>
+                <Badge className="bg-yellow-100 text-yellow-800">{pendingRequests.length}</Badge>
+              </div>
+              <div className="space-y-3">
+                {pendingRequests.map((task) => (
+                  <Card key={task._id} className="border-yellow-200 bg-yellow-50/50">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -481,26 +439,26 @@ export default function AdminTasks() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </div>
-      )}
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* Tasks List */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">All Tasks</h2>
-        {!allTasks ? (
-          <div className="text-center py-8 text-gray-500">Loading tasks...</div>
-        ) : allTasks.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-gray-500">
-              No tasks yet. Create your first task to get started.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {allTasks.map((task) => (
-              <Card key={task._id} className="hover:shadow-md transition-shadow">
+          {/* Tasks List */}
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">All Tasks</h2>
+            {!allTasks ? (
+              <div className="text-center py-8 text-gray-500">Loading tasks...</div>
+            ) : allTasks.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-gray-500">
+                  No tasks yet. Create your first task to get started.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {allTasks.map((task) => (
+                  <Card key={task._id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -632,10 +590,187 @@ export default function AdminTasks() {
                   <TaskUpdates taskId={task._id} />
                 </CardContent>
               </Card>
-            ))}
+                ))}
+              </div>
+            )}
           </div>
+        </TabsContent>
+
+        {isAuthorizedAdmin && (
+          <TabsContent value="reception" className="mt-6">
+            <div className="space-y-6">
+              <Card className="border-teal-200">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Inbox className="w-5 h-5 text-teal-600" />
+                    <CardTitle>Reception document inbox</CardTitle>
+                    <Badge className="bg-teal-100 text-teal-800">
+                      {pendingReceptionDocuments?.length || 0}
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    Documents submitted by receptionist staff waiting to be linked to a task.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!pendingReceptionDocuments ? (
+                    <div className="text-sm text-gray-500 py-4">Loading inbox...</div>
+                  ) : pendingReceptionDocuments.length === 0 ? (
+                    <div className="text-sm text-gray-500 py-4">No pending reception documents.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>File Name</TableHead>
+                          <TableHead>Uploaded By</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Note</TableHead>
+                          <TableHead className="w-[80px] text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingReceptionDocuments.map((doc) => (
+                          <TableRow key={doc._id}>
+                            <TableCell className="font-medium">{doc.fileName}</TableCell>
+                            <TableCell>{doc.uploaderName}</TableCell>
+                            <TableCell>{format(new Date(doc.createdAt), "PPp")}</TableCell>
+                            <TableCell className="max-w-[320px]">
+                              <span className="block truncate" title={doc.note || ""}>
+                                {doc.note || "-"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" aria-label="Open actions">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={async () => {
+                                      try {
+                                        const url = await getReceptionDocumentUrl({ receptionDocumentId: doc._id });
+                                        if (url) window.open(url, "_blank");
+                                        else toast.error("Could not open document");
+                                      } catch (e: any) {
+                                        toast.error(e.message || "Failed to open document");
+                                      }
+                                    }}
+                                  >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Download
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleAssignTaskWithReceptionDoc(doc)}>
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Assign task with this document
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Attachment History</CardTitle>
+                  <CardDescription>All attached files across reception inbox, task assignment, and task completion.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!attachmentHistory ? (
+                    <div className="text-sm text-gray-500 py-4">Loading history...</div>
+                  ) : attachmentHistory.length === 0 ? (
+                    <div className="text-sm text-gray-500 py-4">No attachment history yet.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>File</TableHead>
+                          <TableHead>Source</TableHead>
+                          <TableHead>By</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-[80px] text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {attachmentHistory.map((item) => (
+                          <TableRow key={item.itemId}>
+                            <TableCell className="font-medium">
+                              <div className="flex flex-col">
+                                <span>{item.fileName}</span>
+                                {item.taskTitle && (
+                                  <span className="text-xs text-gray-500">Task: {item.taskTitle}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="capitalize">{item.source}</TableCell>
+                            <TableCell>{item.uploaderName}</TableCell>
+                            <TableCell>{format(new Date(item.createdAt), "PPp")}</TableCell>
+                            <TableCell>
+                              <Badge variant={item.status === "pending" ? "secondary" : "outline"}>
+                                {item.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" aria-label="Open actions">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={async () => {
+                                      try {
+                                        if (item.source === "reception") {
+                                          const url = await getReceptionDocumentUrl({ receptionDocumentId: item.receptionDocumentId });
+                                          if (url) window.open(url, "_blank");
+                                          else toast.error("Could not open document");
+                                          return;
+                                        }
+                                        const url = await getCompletionDocumentUrl({
+                                          storageId: item.storageId,
+                                          taskId: item.taskId
+                                        });
+                                        if (url) window.open(url, "_blank");
+                                        else toast.error("Could not open document");
+                                      } catch (e: any) {
+                                        toast.error(e.message || "Failed to open document");
+                                      }
+                                    }}
+                                  >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Download
+                                  </DropdownMenuItem>
+                                  {item.source === "reception" && item.status === "pending" && (
+                                    <DropdownMenuItem onClick={() => handleAssignTaskWithReceptionDoc({
+                                      _id: item.receptionDocumentId,
+                                      fileName: item.fileName
+                                    })}>
+                                      <Plus className="w-4 h-4 mr-2" />
+                                      Assign task with this document
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         )}
-      </div>
+      </Tabs>
 
       {/* Create Task Dialog */}
       <Dialog
