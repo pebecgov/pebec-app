@@ -5,6 +5,13 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
 import { getCurrentUserOrThrow, getCurrentUser } from "./users";
+import { Id } from "./_generated/dataModel";
+
+const AUTHORIZED_TASK_ADMIN_EMAIL = "mickaelking2002@gmail.com";
+
+function isAuthorizedTaskAdmin(user: { email?: string; role?: string } | null): boolean {
+    return !!user && user.email === AUTHORIZED_TASK_ADMIN_EMAIL && user.role === "admin";
+}
 
 export const getTasksByStatus = query({
     args: {
@@ -100,7 +107,10 @@ export const createTask = mutation({
         assignedStream: v.optional(v.string()),
         assignedTo: v.optional(v.id("users")),
         assignedToName: v.optional(v.string()),
-        dueDate: v.optional(v.number())
+        dueDate: v.optional(v.number()),
+        receptionInboxId: v.optional(v.id("reception_admin_documents")),
+        assignmentDocumentId: v.optional(v.id("_storage")),
+        assignmentDocumentName: v.optional(v.string())
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUserOrThrow(ctx);
@@ -108,6 +118,27 @@ export const createTask = mutation({
         // Only admins can create tasks
         if (user.role !== "admin") {
             throw new Error("Only admins can create tasks");
+        }
+
+        let assignmentDocumentId: Id<"_storage"> | undefined;
+        let assignmentDocumentName: string | undefined;
+        let sourceReceptionDocumentId: Id<"reception_admin_documents"> | undefined;
+
+        if (args.receptionInboxId) {
+            if (!isAuthorizedTaskAdmin(user)) {
+                throw new Error("Only the designated admin can assign tasks from the reception inbox");
+            }
+            const inbox = await ctx.db.get(args.receptionInboxId);
+            if (!inbox || inbox.status !== "pending") {
+                throw new Error("Reception document not found or already assigned");
+            }
+            assignmentDocumentId = inbox.storageId;
+            assignmentDocumentName = inbox.fileName;
+            sourceReceptionDocumentId = inbox._id;
+        } else if (args.assignmentDocumentId && args.assignmentDocumentName) {
+            // Direct upload from any admin (via generateTaskAssignmentUploadUrl)
+            assignmentDocumentId = args.assignmentDocumentId;
+            assignmentDocumentName = args.assignmentDocumentName;
         }
 
         let assignedRole = "staff";
@@ -132,12 +163,22 @@ export const createTask = mutation({
             assignedRole: assignedRole,
             progress: 0,
             comments: 0,
-            attachments: 0,
+            attachments: assignmentDocumentId ? 1 : 0,
             dueDate: args.dueDate ?? undefined,
             createdBy: user._id,
             createdByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Admin",
+            assignmentDocumentId,
+            assignmentDocumentName,
+            sourceReceptionDocumentId,
             createdAt: Date.now()
         });
+
+        if (args.receptionInboxId && sourceReceptionDocumentId) {
+            await ctx.db.patch(args.receptionInboxId, {
+                status: "linked",
+                linkedTaskId: taskId
+            });
+        }
 
         // Create notifications and send emails
         if (args.assignedTo) {
@@ -257,7 +298,7 @@ export const requestTaskCompletion = mutation({
         }
 
         // Send email to admin for new requests or resubmissions
-        const adminEmail = "mickaelking2002@gmail.com";
+        const adminEmail = AUTHORIZED_TASK_ADMIN_EMAIL;
         const adminMessage = task.completionRequestStatus === "rejected"
             ? `Task resubmitted: "${task.title}" - Awaiting your approval`
             : `Task completion request: "${task.title}" - Awaiting your approval`;
@@ -363,8 +404,7 @@ export const confirmTaskCompletion = mutation({
         }
 
         // Only the specific admin can confirm task completion
-        const adminEmail = "mickaelking2002@gmail.com";
-        if (user.email !== adminEmail || user.role !== "admin") {
+        if (!isAuthorizedTaskAdmin(user)) {
             throw new Error("Only the designated admin can confirm task completion");
         }
 
@@ -436,11 +476,10 @@ export const confirmTaskCompletion = mutation({
 export const getPendingCompletionRequests = query({
     handler: async (ctx) => {
         const user = await getCurrentUser(ctx);
-        const adminEmail = "mickaelking2002@gmail.com";
 
         // Only the specific admin can view pending requests
         // Return empty array for unauthorized users instead of throwing error
-        if (!user || user.email !== adminEmail || user.role !== "admin") {
+        if (!isAuthorizedTaskAdmin(user)) {
             return [];
         }
 
@@ -452,7 +491,7 @@ export const getPendingCompletionRequests = query({
     }
 });
 
-// Get storage URL for completion document
+// Get storage URL for completion / assignment document on a task
 export const getCompletionDocumentUrl = mutation({
     args: {
         storageId: v.id("_storage"),
@@ -462,27 +501,133 @@ export const getCompletionDocumentUrl = mutation({
         const user = await getCurrentUser(ctx);
         if (!user) throw new Error("Unauthorized");
 
-        const adminEmail = "mickaelking2002@gmail.com";
-        const isAdmin = user.email === adminEmail && user.role === "admin";
-
-        if (isAdmin) {
-            return await ctx.storage.getUrl(storageId);
-        }
-
-        // If not admin, check if user is assigned to the task
+        // Task-scoped access: any admin or assigned staff when storageId matches the task record
         if (taskId) {
             const task = await ctx.db.get(taskId);
             if (task) {
-                const isAssignedUser = task.assignedTo === user._id;
-                const isStreamMember = !!task.assignedStream && !!user.staffStream && task.assignedStream === user.staffStream;
-
-                if (isAssignedUser || isStreamMember) {
-                    return await ctx.storage.getUrl(storageId);
+                const matchesCompletion = task.completionDocumentId === storageId;
+                const matchesAssignment = task.assignmentDocumentId === storageId;
+                if (matchesCompletion || matchesAssignment) {
+                    if (user.role === "admin") {
+                        return await ctx.storage.getUrl(storageId);
+                    }
+                    const isAssignedUser = task.assignedTo === user._id;
+                    const isStreamMember =
+                        !!task.assignedStream && !!user.staffStream && task.assignedStream === user.staffStream;
+                    if (isAssignedUser || isStreamMember) {
+                        return await ctx.storage.getUrl(storageId);
+                    }
                 }
             }
         }
 
+        if (isAuthorizedTaskAdmin(user)) {
+            return await ctx.storage.getUrl(storageId);
+        }
+
         throw new Error("You do not have permission to view this document");
+    }
+});
+
+/** Convex upload URL for optional assignment attachment (any admin). */
+export const generateTaskAssignmentUploadUrl = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "admin") {
+            throw new Error("Only admins can upload task assignment documents");
+        }
+        return await ctx.storage.generateUploadUrl();
+    }
+});
+
+export const generateReceptionUploadUrl = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "staff" || user.staffStream !== "receptionist") {
+            throw new Error("Only receptionist staff can upload documents here");
+        }
+        return await ctx.storage.generateUploadUrl();
+    }
+});
+
+export const submitReceptionDocument = mutation({
+    args: {
+        storageId: v.id("_storage"),
+        fileName: v.string(),
+        note: v.optional(v.string())
+    },
+    handler: async (ctx, { storageId, fileName, note }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "staff" || user.staffStream !== "receptionist") {
+            throw new Error("Only receptionist staff can submit documents");
+        }
+        return await ctx.db.insert("reception_admin_documents", {
+            storageId,
+            fileName,
+            uploadedBy: user._id,
+            note: note?.trim() || undefined,
+            status: "pending",
+            createdAt: Date.now()
+        });
+    }
+});
+
+export const listPendingReceptionDocuments = query({
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        if (!isAuthorizedTaskAdmin(user)) {
+            return [];
+        }
+        const rows = await ctx.db
+            .query("reception_admin_documents")
+            .withIndex("byStatus", q => q.eq("status", "pending"))
+            .order("desc")
+            .collect();
+        const withUploader = await Promise.all(
+            rows.map(async (row) => {
+                const uploader = await ctx.db.get(row.uploadedBy);
+                const uploaderName = uploader
+                    ? `${uploader.firstName || ""} ${uploader.lastName || ""}`.trim() || uploader.email || "Unknown"
+                    : "Unknown";
+                return {
+                    ...row,
+                    uploaderName
+                };
+            })
+        );
+        return withUploader;
+    }
+});
+
+export const listMyReceptionDocuments = query({
+    handler: async (ctx) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "staff" || user.staffStream !== "receptionist") {
+            return [];
+        }
+        return await ctx.db
+            .query("reception_admin_documents")
+            .withIndex("byUploadedBy", q => q.eq("uploadedBy", user._id))
+            .order("desc")
+            .collect();
+    }
+});
+
+export const getReceptionDocumentUrl = mutation({
+    args: {
+        receptionDocumentId: v.id("reception_admin_documents")
+    },
+    handler: async (ctx, { receptionDocumentId }) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) throw new Error("Unauthorized");
+        if (!isAuthorizedTaskAdmin(user)) {
+            throw new Error("Only the designated admin can open reception inbox documents");
+        }
+        const row = await ctx.db.get(receptionDocumentId);
+        if (!row) throw new Error("Document not found");
+        return await ctx.storage.getUrl(row.storageId);
     }
 });
 

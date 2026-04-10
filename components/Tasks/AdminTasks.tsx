@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import { Id, Id as StorageId } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 
 export default function AdminTasks() {
@@ -25,6 +25,10 @@ export default function AdminTasks() {
   const [selectedStream, setSelectedStream] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<Id<"users"> | null>(null);
   const [dueDate, setDueDate] = useState("");
+  const [receptionInboxIdForTask, setReceptionInboxIdForTask] = useState<Id<"reception_admin_documents"> | null>(null);
+  const [prefilledReceptionFileName, setPrefilledReceptionFileName] = useState<string | null>(null);
+  const [localAssignmentFile, setLocalAssignmentFile] = useState<File | null>(null);
+  const [assignmentUploading, setAssignmentUploading] = useState(false);
 
   const allTasks = useQuery(api.tasks.getAllTasks);
   const staffUsers = useQuery(api.tasks.getUsersByRole, { role: "staff" });
@@ -34,10 +38,16 @@ export default function AdminTasks() {
   const deleteTask = useMutation(api.tasks.deleteTask);
   const confirmTaskCompletion = useMutation(api.tasks.confirmTaskCompletion);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
+  const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
+  const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
 
   // Only the specific admin can view pending requests
   const isAuthorizedAdmin = currentUser?.email === "mickaelking2002@gmail.com";
   const pendingRequestsQuery = useQuery(api.tasks.getPendingCompletionRequests);
+  const pendingReceptionDocuments = useQuery(
+    api.tasks.listPendingReceptionDocuments,
+    isAuthorizedAdmin ? {} : "skip"
+  );
   // Only show pending requests if user is authorized admin
   const pendingRequests = isAuthorizedAdmin ? pendingRequestsQuery : undefined;
 
@@ -86,16 +96,52 @@ export default function AdminTasks() {
       }
     }
 
+    const dueMs = dueDate ? new Date(dueDate).getTime() : undefined;
+
     try {
-      await createTask({
-        customTaskId: customTaskId.trim() || undefined,
-        title: title.trim(),
-        description: description.trim() || undefined,
-        assignedStream: selectedStream || undefined,
-        assignedTo: selectedStaffId || undefined,
-        assignedToName: assignedToName,
-        dueDate: dueDate ? new Date(dueDate).getTime() : undefined
-      });
+      if (receptionInboxIdForTask) {
+        await createTask({
+          customTaskId: customTaskId.trim() || undefined,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          assignedStream: selectedStream || undefined,
+          assignedTo: selectedStaffId || undefined,
+          assignedToName: assignedToName,
+          dueDate: dueMs,
+          receptionInboxId: receptionInboxIdForTask
+        });
+      } else if (localAssignmentFile) {
+        setAssignmentUploading(true);
+        const uploadUrl = await generateTaskAssignmentUploadUrl();
+        const response = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": localAssignmentFile.type || "application/octet-stream" },
+          body: localAssignmentFile
+        });
+        if (!response.ok) throw new Error("File upload failed");
+        const { storageId } = await response.json();
+        await createTask({
+          customTaskId: customTaskId.trim() || undefined,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          assignedStream: selectedStream || undefined,
+          assignedTo: selectedStaffId || undefined,
+          assignedToName: assignedToName,
+          dueDate: dueMs,
+          assignmentDocumentId: storageId as StorageId<"_storage">,
+          assignmentDocumentName: localAssignmentFile.name
+        });
+      } else {
+        await createTask({
+          customTaskId: customTaskId.trim() || undefined,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          assignedStream: selectedStream || undefined,
+          assignedTo: selectedStaffId || undefined,
+          assignedToName: assignedToName,
+          dueDate: dueMs
+        });
+      }
 
       toast.success("Task assigned successfully!");
       setIsCreateDialogOpen(false);
@@ -105,9 +151,14 @@ export default function AdminTasks() {
       setSelectedStream(null);
       setSelectedStaffId(null);
       setDueDate("");
+      setReceptionInboxIdForTask(null);
+      setPrefilledReceptionFileName(null);
+      setLocalAssignmentFile(null);
     } catch (error) {
       console.error("Error creating task:", error);
       toast.error("Failed to create task. Please try again.");
+    } finally {
+      setAssignmentUploading(false);
     }
   };
 
@@ -241,6 +292,74 @@ export default function AdminTasks() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reception document inbox — only designated admin */}
+      {isAuthorizedAdmin && pendingReceptionDocuments && pendingReceptionDocuments.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Inbox className="w-5 h-5 text-teal-600" />
+            <h2 className="text-xl font-semibold">Reception document inbox</h2>
+            <Badge className="bg-teal-100 text-teal-800">{pendingReceptionDocuments.length}</Badge>
+          </div>
+          <div className="space-y-3">
+            {pendingReceptionDocuments.map((doc) => (
+              <Card key={doc._id} className="border-teal-200 bg-teal-50/40">
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap justify-between gap-2 items-start">
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-teal-700" />
+                        {doc.fileName}
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        From {doc.uploaderName} · {format(new Date(doc.createdAt), "PPp")}
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            const url = await getReceptionDocumentUrl({ receptionDocumentId: doc._id });
+                            if (url) window.open(url, "_blank");
+                            else toast.error("Could not open document");
+                          } catch (e: any) {
+                            toast.error(e.message || "Failed to open document");
+                          }
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        Download
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => {
+                          setLocalAssignmentFile(null);
+                          setReceptionInboxIdForTask(doc._id);
+                          setPrefilledReceptionFileName(doc.fileName);
+                          setIsCreateDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Assign task with this document
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                {doc.note && (
+                  <CardContent className="pt-0">
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium">Note:</span> {doc.note}
+                    </p>
+                  </CardContent>
+                )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pending Completion Requests - Only visible to authorized admin */}
       {isAuthorizedAdmin && pendingRequests && pendingRequests.length > 0 && (
@@ -419,6 +538,35 @@ export default function AdminTasks() {
                   {task.description && (
                     <p className="text-sm text-gray-600 mb-3">{task.description}</p>
                   )}
+                  {task.assignmentDocumentId && task.assignmentDocumentName && (
+                    <div className="mt-3 mb-3 p-3 bg-teal-50 border border-teal-200 rounded-md">
+                      <p className="text-sm font-medium text-teal-900 mb-2">Reference document (assigned with task):</p>
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-teal-600" />
+                        <span className="text-sm text-teal-800 flex-1">{task.assignmentDocumentName}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            try {
+                              const url = await getCompletionDocumentUrl({
+                                storageId: task.assignmentDocumentId!,
+                                taskId: task._id
+                              });
+                              if (url) window.open(url, "_blank");
+                              else toast.error("Could not retrieve document");
+                            } catch (error: any) {
+                              toast.error(error.message || "Failed to open document");
+                            }
+                          }}
+                          className="text-teal-700 hover:text-teal-800"
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                     {task.dueDate && (
                       <div className="flex items-center gap-1">
@@ -490,12 +638,95 @@ export default function AdminTasks() {
       </div>
 
       {/* Create Task Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) {
+            setReceptionInboxIdForTask(null);
+            setPrefilledReceptionFileName(null);
+            setLocalAssignmentFile(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Assign New Task</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {prefilledReceptionFileName && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 text-teal-900">
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <span className="font-medium">Attached:</span> {prefilledReceptionFileName}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-teal-800"
+                  onClick={() => {
+                    setReceptionInboxIdForTask(null);
+                    setPrefilledReceptionFileName(null);
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
+
+            {!prefilledReceptionFileName && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Attachment (optional)
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Upload a file to include with this assignment. Staff can download it from their task.
+                </p>
+                {localAssignmentFile ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2 text-gray-800 truncate">
+                      <FileText className="w-4 h-4 shrink-0 text-gray-600" />
+                      {localAssignmentFile.name}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setLocalAssignmentFile(null)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      type="file"
+                      id="admin-task-attachment"
+                      className="hidden"
+                      accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setLocalAssignmentFile(file);
+                        if (file) {
+                          setReceptionInboxIdForTask(null);
+                          setPrefilledReceptionFileName(null);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                    <label
+                      htmlFor="admin-task-attachment"
+                      className="cursor-pointer flex flex-col items-center gap-2 text-sm text-gray-600"
+                    >
+                      <Upload className="w-8 h-8 text-gray-400" />
+                      <span>Click to choose a file</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols gap-4">
               {/* <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -600,8 +831,12 @@ export default function AdminTasks() {
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateTask} className="bg-green-600 hover:bg-green-700">
-              Assign Task
+            <Button
+              onClick={handleCreateTask}
+              disabled={assignmentUploading}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {assignmentUploading ? "Uploading…" : "Assign Task"}
             </Button>
           </DialogFooter>
         </DialogContent>
