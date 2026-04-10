@@ -13,6 +13,14 @@ function isAuthorizedTaskAdmin(user: { email?: string; role?: string } | null): 
     return !!user && user.email === AUTHORIZED_TASK_ADMIN_EMAIL && user.role === "admin";
 }
 
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
 export const getTasksByStatus = query({
     args: {
         status: v.union(v.literal("to_do"), v.literal("in_progress"), v.literal("done"), v.literal("assigned"))
@@ -129,8 +137,13 @@ export const createTask = mutation({
                 throw new Error("Only the designated admin can assign tasks from the reception inbox");
             }
             const inbox = await ctx.db.get(args.receptionInboxId);
-            if (!inbox || inbox.status !== "pending") {
-                throw new Error("Reception document not found or already assigned");
+            if (
+                !inbox ||
+                inbox.status === "stashed" ||
+                inbox.status === "linked" ||
+                (inbox.status !== "pending" && inbox.status !== "acknowledged")
+            ) {
+                throw new Error("Reception document not found or cannot be assigned");
             }
             assignmentDocumentId = inbox.storageId;
             assignmentDocumentName = inbox.fileName;
@@ -563,7 +576,7 @@ export const submitReceptionDocument = mutation({
         if (user.role !== "staff" || user.staffStream !== "receptionist") {
             throw new Error("Only receptionist staff can submit documents");
         }
-        return await ctx.db.insert("reception_admin_documents", {
+        const docId = await ctx.db.insert("reception_admin_documents", {
             storageId,
             fileName,
             uploadedBy: user._id,
@@ -571,33 +584,147 @@ export const submitReceptionDocument = mutation({
             status: "pending",
             createdAt: Date.now()
         });
+
+        const uploaderName =
+            `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Reception";
+        const safeFile = escapeHtml(fileName);
+        const safeUploader = escapeHtml(uploaderName);
+        const safeNote = note?.trim() ? escapeHtml(note.trim()) : "";
+        const adminMessage = `New scanned letter uploaded: "${fileName}" (from ${uploaderName})`;
+
+        const taskAdmin = await ctx.db
+            .query("users")
+            .withIndex("byEmail", q => q.eq("email", AUTHORIZED_TASK_ADMIN_EMAIL))
+            .filter(q => q.eq(q.field("role"), "admin"))
+            .first();
+
+        if (taskAdmin) {
+            await ctx.db.insert("notifications", {
+                userId: taskAdmin._id,
+                message: adminMessage,
+                isRead: false,
+                createdAt: Date.now(),
+                type: "reception_scanned_letter",
+                actionUrl: "/admin/tasks?tab=reception"
+            });
+        }
+
+        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+            to: AUTHORIZED_TASK_ADMIN_EMAIL,
+            subject: `New scanned letter: ${fileName}`,
+            html: `
+                <div style="font-family: sans-serif; padding: 20px;">
+                    <h2 style="color: #0d9488;">New scanned letter</h2>
+                    <p>Hello,</p>
+                    <p><strong>${safeUploader}</strong> (Admin/Operations) uploaded a scanned letter for the inbox.</p>
+                    <p><strong>File:</strong> ${safeFile}</p>
+                    ${safeNote ? `<p><strong>Note:</strong> ${safeNote}</p>` : ""}
+                    <p style="margin-top: 20px;">Open the admin portal to review it under <strong>Receive Scanned Letters</strong>.</p>
+                    <div style="margin-top: 20px;">
+                        <a href="https://www.pebec.gov.ng/admin/tasks?tab=reception" style="background-color: #0d9488; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View inbox</a>
+                    </div>
+                </div>
+            `
+        });
+
+        return docId;
     }
 });
 
-export const listPendingReceptionDocuments = query({
+export const listReceptionInboxDocuments = query({
     handler: async (ctx) => {
         const user = await getCurrentUser(ctx);
         if (!isAuthorizedTaskAdmin(user)) {
             return [];
         }
-        const rows = await ctx.db
-            .query("reception_admin_documents")
-            .withIndex("byStatus", q => q.eq("status", "pending"))
-            .order("desc")
-            .collect();
-        const withUploader = await Promise.all(
+        const rows = await ctx.db.query("reception_admin_documents").order("desc").collect();
+        return await Promise.all(
             rows.map(async (row) => {
                 const uploader = await ctx.db.get(row.uploadedBy);
                 const uploaderName = uploader
                     ? `${uploader.firstName || ""} ${uploader.lastName || ""}`.trim() || uploader.email || "Unknown"
                     : "Unknown";
+                const linkedTask = row.linkedTaskId ? await ctx.db.get(row.linkedTaskId) : null;
                 return {
                     ...row,
-                    uploaderName
+                    uploaderName,
+                    linkedTaskAssignedToName: linkedTask?.assignedToName,
+                    linkedTaskAssignedStream: linkedTask?.assignedStream
                 };
             })
         );
-        return withUploader;
+    }
+});
+
+export const acknowledgeReceptionDocument = mutation({
+    args: {
+        receptionDocumentId: v.id("reception_admin_documents")
+    },
+    handler: async (ctx, { receptionDocumentId }) => {
+        const user = await getCurrentUser(ctx);
+        if (!isAuthorizedTaskAdmin(user)) {
+            throw new Error("Only the designated admin can acknowledge reception documents");
+        }
+        const doc = await ctx.db.get(receptionDocumentId);
+        if (!doc) throw new Error("Document not found");
+        if (doc.status === "stashed") {
+            throw new Error("Stashed documents cannot be acknowledged");
+        }
+        if (doc.status === "linked") {
+            throw new Error("Linked documents cannot be acknowledged");
+        }
+        if (doc.status === "acknowledged") return;
+        await ctx.db.patch(receptionDocumentId, {
+            status: "acknowledged"
+        });
+    }
+});
+
+export const stashReceptionDocument = mutation({
+    args: {
+        receptionDocumentId: v.id("reception_admin_documents")
+    },
+    handler: async (ctx, { receptionDocumentId }) => {
+        const user = await getCurrentUser(ctx);
+        if (!isAuthorizedTaskAdmin(user)) {
+            throw new Error("Only the designated admin can stash reception documents");
+        }
+        const doc = await ctx.db.get(receptionDocumentId);
+        if (!doc) throw new Error("Document not found");
+        if (doc.status === "linked") {
+            throw new Error("Cannot stash a document that is already assigned to a task");
+        }
+        if (doc.status === "stashed") return;
+        if (doc.storageId) {
+            await ctx.storage.delete(doc.storageId);
+        }
+        await ctx.db.patch(receptionDocumentId, {
+            status: "stashed",
+            storageId: undefined
+        });
+    }
+});
+
+export const markReceptionDocumentViewed = mutation({
+    args: {
+        receptionDocumentId: v.id("reception_admin_documents")
+    },
+    handler: async (ctx, { receptionDocumentId }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (!isAuthorizedTaskAdmin(user)) {
+            throw new Error("Only the designated admin can mark reception documents as viewed");
+        }
+        const doc = await ctx.db.get(receptionDocumentId);
+        if (!doc) throw new Error("Document not found");
+        if (!doc.storageId) return;
+        if (doc.viewedBy) return;
+        const viewerName =
+            `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Admin";
+        await ctx.db.patch(receptionDocumentId, {
+            viewedBy: user._id,
+            viewedByName: viewerName,
+            viewedAt: Date.now()
+        });
     }
 });
 
@@ -615,88 +742,6 @@ export const listMyReceptionDocuments = query({
     }
 });
 
-export const listAttachmentHistory = query({
-    handler: async (ctx) => {
-        const user = await getCurrentUser(ctx);
-        if (!isAuthorizedTaskAdmin(user)) {
-            return [];
-        }
-
-        const [receptionDocs, tasks] = await Promise.all([
-            ctx.db.query("reception_admin_documents").order("desc").collect(),
-            ctx.db.query("tasks").order("desc").collect()
-        ]);
-
-        const receptionHistory = await Promise.all(
-            receptionDocs.map(async (doc) => {
-                const uploader = await ctx.db.get(doc.uploadedBy);
-                const linkedTask = doc.linkedTaskId ? await ctx.db.get(doc.linkedTaskId) : null;
-                return {
-                    itemId: `reception-${doc._id}`,
-                    source: "reception" as const,
-                    fileName: doc.fileName,
-                    createdAt: doc.createdAt,
-                    status: doc.status,
-                    uploaderName: uploader
-                        ? `${uploader.firstName || ""} ${uploader.lastName || ""}`.trim() || uploader.email || "Unknown"
-                        : "Unknown",
-                    note: doc.note,
-                    receptionDocumentId: doc._id,
-                    linkedTaskId: doc.linkedTaskId,
-                    linkedTaskTitle: linkedTask?.title
-                };
-            })
-        );
-
-        const taskAttachmentHistory = tasks.flatMap((task) => {
-            const items: Array<{
-                itemId: string;
-                source: "assignment" | "completion";
-                fileName: string;
-                createdAt: number;
-                status: "linked";
-                uploaderName: string;
-                note?: string;
-                taskId: Id<"tasks">;
-                taskTitle: string;
-                storageId: Id<"_storage">;
-            }> = [];
-
-            if (task.assignmentDocumentId && task.assignmentDocumentName) {
-                items.push({
-                    itemId: `assignment-${task._id}`,
-                    source: "assignment",
-                    fileName: task.assignmentDocumentName,
-                    createdAt: task.createdAt,
-                    status: "linked",
-                    uploaderName: task.createdByName || "Admin",
-                    taskId: task._id,
-                    taskTitle: task.title,
-                    storageId: task.assignmentDocumentId
-                });
-            }
-
-            if (task.completionDocumentId && task.completionDocumentName) {
-                items.push({
-                    itemId: `completion-${task._id}`,
-                    source: "completion",
-                    fileName: task.completionDocumentName,
-                    createdAt: task.completionRequestedAt || task.updatedAt || task.createdAt,
-                    status: "linked",
-                    uploaderName: task.assignedToName || "Staff",
-                    taskId: task._id,
-                    taskTitle: task.title,
-                    storageId: task.completionDocumentId
-                });
-            }
-
-            return items;
-        });
-
-        return [...receptionHistory, ...taskAttachmentHistory].sort((a, b) => b.createdAt - a.createdAt);
-    }
-});
-
 export const getReceptionDocumentUrl = mutation({
     args: {
         receptionDocumentId: v.id("reception_admin_documents")
@@ -704,12 +749,22 @@ export const getReceptionDocumentUrl = mutation({
     handler: async (ctx, { receptionDocumentId }) => {
         const user = await getCurrentUser(ctx);
         if (!user) throw new Error("Unauthorized");
-        if (!isAuthorizedTaskAdmin(user)) {
-            throw new Error("Only the designated admin can open reception inbox documents");
-        }
         const row = await ctx.db.get(receptionDocumentId);
         if (!row) throw new Error("Document not found");
-        return await ctx.storage.getUrl(row.storageId);
+        if (!row.storageId) {
+            throw new Error("File is no longer available");
+        }
+        if (isAuthorizedTaskAdmin(user)) {
+            return await ctx.storage.getUrl(row.storageId);
+        }
+        const isOwnUpload =
+            user.role === "staff" &&
+            user.staffStream === "receptionist" &&
+            row.uploadedBy === user._id;
+        if (isOwnUpload) {
+            return await ctx.storage.getUrl(row.storageId);
+        }
+        throw new Error("You do not have permission to open this document");
     }
 });
 

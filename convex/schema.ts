@@ -521,12 +521,20 @@ export default defineSchema({
     updatedAt: v.optional(v.number())
   }).index("byStatus", ["status"]).index("byAssignedTo", ["assignedTo"]).index("byCreatedBy", ["createdBy"]).index("byAssignedStream", ["assignedStream"]).index("byCompletionRequestStatus", ["completionRequestStatus"]),
   reception_admin_documents: defineTable({
-    storageId: v.id("_storage"),
+    storageId: v.optional(v.id("_storage")),
     fileName: v.string(),
     uploadedBy: v.id("users"),
     note: v.optional(v.string()),
-    status: v.union(v.literal("pending"), v.literal("linked")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("acknowledged"),
+      v.literal("linked"),
+      v.literal("stashed")
+    ),
     linkedTaskId: v.optional(v.id("tasks")),
+    viewedBy: v.optional(v.id("users")),
+    viewedByName: v.optional(v.string()),
+    viewedAt: v.optional(v.number()),
     createdAt: v.number()
   }).index("byStatus", ["status"]).index("byUploadedBy", ["uploadedBy"]),
   reforms: defineTable({
