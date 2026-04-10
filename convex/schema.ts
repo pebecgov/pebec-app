@@ -513,9 +513,22 @@ export default defineSchema({
     completionApprovedBy: v.optional(v.id("users")), // Admin who approved/rejected
     completionApprovedAt: v.optional(v.number()), // When completion was approved/rejected
     completionAdminComment: v.optional(v.string()), // Admin's comment when approving/rejecting
+    // Document attached by admin when assigning (e.g. from reception inbox)
+    assignmentDocumentId: v.optional(v.id("_storage")),
+    assignmentDocumentName: v.optional(v.string()),
+    sourceReceptionDocumentId: v.optional(v.id("reception_admin_documents")),
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
   }).index("byStatus", ["status"]).index("byAssignedTo", ["assignedTo"]).index("byCreatedBy", ["createdBy"]).index("byAssignedStream", ["assignedStream"]).index("byCompletionRequestStatus", ["completionRequestStatus"]),
+  reception_admin_documents: defineTable({
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    uploadedBy: v.id("users"),
+    note: v.optional(v.string()),
+    status: v.union(v.literal("pending"), v.literal("linked")),
+    linkedTaskId: v.optional(v.id("tasks")),
+    createdAt: v.number()
+  }).index("byStatus", ["status"]).index("byUploadedBy", ["uploadedBy"]),
   reforms: defineTable({
     title: v.string(),
     description: v.string(),
