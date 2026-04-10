@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function StaffTasks() {
   const [selectedTask, setSelectedTask] = useState<Id<"tasks"> | null>(null);
@@ -43,6 +44,7 @@ export default function StaffTasks() {
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
   const generateReceptionUploadUrl = useMutation(api.tasks.generateReceptionUploadUrl);
   const submitReceptionDocument = useMutation(api.tasks.submitReceptionDocument);
+  const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
 
   const isReceptionist = currentUser?.role === "staff" && currentUser?.staffStream === "receptionist";
 
@@ -138,6 +140,31 @@ export default function StaffTasks() {
       toast.error(error.message || "Failed to upload document");
     } finally {
       setReceptionUploading(false);
+    }
+  };
+
+  const staffReceptionStatusUi = (status: "pending" | "acknowledged" | "linked" | "stashed") => {
+    switch (status) {
+      case "pending":
+        return { label: "Awaiting Acknowledgment", className: "bg-orange-100 text-orange-800" };
+      case "acknowledged":
+        return { label: "Acknowledged", className: "bg-purple-100 text-purple-800" };
+      case "linked":
+        return { label: "Linked to task", className: "bg-blue-100 text-blue-800" };
+      case "stashed":
+        return { label: "Stashed", className: "bg-gray-200 text-gray-700" };
+      default:
+        return { label: status, className: "bg-gray-100 text-gray-600" };
+    }
+  };
+
+  const handleViewMyReceptionDocument = async (receptionDocumentId: Id<"reception_admin_documents">) => {
+    try {
+      const url = await getReceptionDocumentUrl({ receptionDocumentId });
+      if (url) window.open(url, "_blank");
+      else toast.error("Could not open document");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to open document");
     }
   };
 
@@ -241,7 +268,7 @@ export default function StaffTasks() {
             {isReceptionist && (
               <TabsTrigger value="reception" className="gap-1">
                 <Send className="w-3.5 h-3.5" />
-                Upload File to DG
+                Upload Scanned Letters
               </TabsTrigger>
             )}
           </TabsList>
@@ -608,9 +635,9 @@ export default function StaffTasks() {
                     <Send className="w-5 h-5 text-teal-600" />
                     Upload documents
                   </CardTitle>
-                  <CardDescription>
+                  {/* <CardDescription>
                     Upload files for the Director General to review.
-                  </CardDescription>
+                  </CardDescription> */}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
@@ -650,31 +677,64 @@ export default function StaffTasks() {
                   </Button>
 
                   <div className="border-t pt-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Your recent uploads</h3>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Your scanned letters</h3>
                     {!myReceptionDocuments ? (
                       <p className="text-sm text-gray-500">Loading…</p>
                     ) : myReceptionDocuments.length === 0 ? (
                       <p className="text-sm text-gray-500">No uploads yet.</p>
                     ) : (
-                      <ul className="space-y-2">
-                        {myReceptionDocuments.map((doc) => (
-                          <li
-                            key={doc._id}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm"
-                          >
-                            <span className="font-medium text-gray-800 truncate max-w-[200px]">{doc.fileName}</span>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={doc.status === "pending" ? "secondary" : "outline"}>
-                                {doc.status === "pending" ? "Awaiting admin" : "Linked to task"}
-                              </Badge>
-                              <span className="text-gray-500 text-xs">
-                                {format(new Date(doc.createdAt), "PPp")}
-                              </span>
-                            </div>
-                            {doc.note && <p className="w-full text-xs text-gray-600 mt-1">{doc.note}</p>}
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="overflow-x-auto rounded-md border border-gray-200">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-gray-50 hover:bg-gray-50">
+                              <TableHead className="font-medium">Letter name</TableHead>
+                              <TableHead className="font-medium">Date sent</TableHead>
+                              <TableHead className="font-medium">Status</TableHead>
+                              <TableHead className="font-medium w-[100px]">View</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {myReceptionDocuments.map((doc) => {
+                              const statusUi = staffReceptionStatusUi(doc.status);
+                              const canView = !!doc.storageId && doc.status !== "stashed";
+                              return (
+                                <TableRow key={doc._id}>
+                                  <TableCell className="font-medium max-w-[240px]">
+                                    <span className="block truncate" title={doc.fileName}>
+                                      {doc.fileName}
+                                    </span>
+                                    {doc.note ? (
+                                      <span className="block text-xs text-gray-500 font-normal truncate mt-0.5" title={doc.note}>
+                                        {doc.note}
+                                      </span>
+                                    ) : null}
+                                  </TableCell>
+                                  <TableCell className="text-gray-700 whitespace-nowrap">
+                                    {format(new Date(doc.createdAt), "PPP")}
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className={`inline-flex capitalize px-2 py-1 rounded text-xs font-medium ${statusUi.className}`}>
+                                      {statusUi.label}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={!canView}
+                                      onClick={() => handleViewMyReceptionDocument(doc._id)}
+                                    >
+                                      <Eye className="w-4 h-4 mr-1" />
+                                      View
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     )}
                   </div>
                 </CardContent>

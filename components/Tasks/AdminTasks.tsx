@@ -1,7 +1,8 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Id as StorageId } from "@/convex/_generated/dataModel";
@@ -12,9 +13,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, Archive } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 
 export default function AdminTasks() {
@@ -29,6 +33,9 @@ export default function AdminTasks() {
   const [prefilledReceptionFileName, setPrefilledReceptionFileName] = useState<string | null>(null);
   const [localAssignmentFile, setLocalAssignmentFile] = useState<File | null>(null);
   const [assignmentUploading, setAssignmentUploading] = useState(false);
+  const [viewedPopupReceptionId, setViewedPopupReceptionId] = useState<Id<"reception_admin_documents"> | null>(null);
+  const searchParams = useSearchParams();
+  const [tasksMainTab, setTasksMainTab] = useState<"tasks" | "reception">("tasks");
 
   const allTasks = useQuery(api.tasks.getAllTasks);
   const staffUsers = useQuery(api.tasks.getUsersByRole, { role: "staff" });
@@ -39,13 +46,16 @@ export default function AdminTasks() {
   const confirmTaskCompletion = useMutation(api.tasks.confirmTaskCompletion);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
   const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
+  const acknowledgeReceptionDocument = useMutation(api.tasks.acknowledgeReceptionDocument);
+  const stashReceptionDocument = useMutation(api.tasks.stashReceptionDocument);
+  const markReceptionDocumentViewed = useMutation(api.tasks.markReceptionDocumentViewed);
   const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
 
   // Only the specific admin can view pending requests
   const isAuthorizedAdmin = currentUser?.email === "mickaelking2002@gmail.com";
   const pendingRequestsQuery = useQuery(api.tasks.getPendingCompletionRequests);
-  const pendingReceptionDocuments = useQuery(
-    api.tasks.listPendingReceptionDocuments,
+  const receptionInboxDocuments = useQuery(
+    api.tasks.listReceptionInboxDocuments,
     isAuthorizedAdmin ? {} : "skip"
   );
   // Only show pending requests if user is authorized admin
@@ -242,8 +252,90 @@ export default function AdminTasks() {
     done: allTasks?.filter(t => t.status === "done") || []
   };
 
+  const handleAssignTaskWithReceptionDoc = (doc: {
+    _id: Id<"reception_admin_documents">;
+    fileName: string;
+    status: "pending" | "acknowledged" | "linked" | "stashed";
+  }) => {
+    if (doc.status !== "pending" && doc.status !== "acknowledged") {
+      toast.error("This document cannot be assigned to a task");
+      return;
+    }
+    setLocalAssignmentFile(null);
+    setReceptionInboxIdForTask(doc._id);
+    setPrefilledReceptionFileName(doc.fileName);
+    setIsCreateDialogOpen(true);
+  };
+
+  const receptionStatusUi = (status: "pending" | "acknowledged" | "linked" | "stashed") => {
+    switch (status) {
+      case "pending":
+        return { label: "Awaiting Action", className: "bg-orange-100 text-orange-700" };
+      case "acknowledged":
+        return { label: "Acknowledged", className: "bg-purple-100 text-purple-700" };
+      case "linked":
+        return { label: "Assigned", className: "bg-blue-100 text-blue-700" };
+      case "stashed":
+        return { label: "Stashed", className: "bg-gray-200 text-gray-700" };
+      default:
+        return { label: status, className: "bg-gray-100 text-gray-600" };
+    }
+  };
+
+  const receptionAssignedLabel = (doc: {
+    status: string;
+    linkedTaskAssignedToName?: string;
+    linkedTaskAssignedStream?: string;
+  }) => {
+    if (doc.status !== "linked") return "Not assigned";
+    if (doc.linkedTaskAssignedToName) return doc.linkedTaskAssignedToName;
+    if (doc.linkedTaskAssignedStream) {
+      return `All ${formatWorkstream(doc.linkedTaskAssignedStream)} staff`;
+    }
+    return "Assigned";
+  };
+
+  const handleViewReceptionFile = async (receptionDocumentId: Id<"reception_admin_documents">) => {
+    try {
+      await markReceptionDocumentViewed({ receptionDocumentId });
+      const url = await getReceptionDocumentUrl({ receptionDocumentId });
+      if (url) window.open(url, "_blank");
+      else toast.error("Could not open document");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to open document");
+    }
+  };
+
+  const RECEPTION_PAGE_SIZE = 20;
+  const [receptionPage, setReceptionPage] = useState(0);
+  const receptionTotal = receptionInboxDocuments?.length ?? 0;
+  const receptionTotalPages = Math.max(1, Math.ceil(receptionTotal / RECEPTION_PAGE_SIZE));
+  const receptionPageSafe = Math.min(receptionPage, receptionTotalPages - 1);
+  const paginatedReceptionDocuments = useMemo(() => {
+    if (!receptionInboxDocuments) return [];
+    const start = receptionPageSafe * RECEPTION_PAGE_SIZE;
+    return receptionInboxDocuments.slice(start, start + RECEPTION_PAGE_SIZE);
+  }, [receptionInboxDocuments, receptionPageSafe]);
+
+  useEffect(() => {
+    if (receptionInboxDocuments === undefined) return;
+    if (receptionPage > receptionTotalPages - 1) {
+      setReceptionPage(Math.max(0, receptionTotalPages - 1));
+    }
+  }, [receptionInboxDocuments, receptionPage, receptionTotalPages]);
+
+  useEffect(() => {
+    if (!isAuthorizedAdmin) {
+      setTasksMainTab("tasks");
+      return;
+    }
+    if (searchParams.get("tab") === "reception") {
+      setTasksMainTab("reception");
+    }
+  }, [isAuthorizedAdmin, searchParams]);
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 min-w-0 w-full max-w-full">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
@@ -293,85 +385,29 @@ export default function AdminTasks() {
         </Card>
       </div>
 
-      {/* Reception document inbox — only designated admin */}
-      {isAuthorizedAdmin && pendingReceptionDocuments && pendingReceptionDocuments.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Inbox className="w-5 h-5 text-teal-600" />
-            <h2 className="text-xl font-semibold">Reception document inbox</h2>
-            <Badge className="bg-teal-100 text-teal-800">{pendingReceptionDocuments.length}</Badge>
-          </div>
-          <div className="space-y-3">
-            {pendingReceptionDocuments.map((doc) => (
-              <Card key={doc._id} className="border-teal-200 bg-teal-50/40">
-                <CardHeader className="pb-2">
-                  <div className="flex flex-wrap justify-between gap-2 items-start">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-teal-700" />
-                        {doc.fileName}
-                      </CardTitle>
-                      <CardDescription className="mt-1">
-                        From {doc.uploaderName} · {format(new Date(doc.createdAt), "PPp")}
-                      </CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          try {
-                            const url = await getReceptionDocumentUrl({ receptionDocumentId: doc._id });
-                            if (url) window.open(url, "_blank");
-                            else toast.error("Could not open document");
-                          } catch (e: any) {
-                            toast.error(e.message || "Failed to open document");
-                          }
-                        }}
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        Download
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700"
-                        onClick={() => {
-                          setLocalAssignmentFile(null);
-                          setReceptionInboxIdForTask(doc._id);
-                          setPrefilledReceptionFileName(doc.fileName);
-                          setIsCreateDialogOpen(true);
-                        }}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Assign task with this document
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                {doc.note && (
-                  <CardContent className="pt-0">
-                    <p className="text-sm text-gray-700">
-                      <span className="font-medium">Note:</span> {doc.note}
-                    </p>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      <Tabs value={tasksMainTab} onValueChange={(v) => setTasksMainTab(v as "tasks" | "reception")} className="w-full min-w-0 max-w-full">
+        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-lg grid-cols-2" : "max-w-xs grid-cols-1"}`}>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          {isAuthorizedAdmin && (
+            <TabsTrigger value="reception" className="gap-1">
+              <Inbox className="w-3.5 h-3.5" />
+              Recieve Scanned Letters
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-      {/* Pending Completion Requests - Only visible to authorized admin */}
-      {isAuthorizedAdmin && pendingRequests && pendingRequests.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Hourglass className="w-5 h-5 text-yellow-600" />
-            <h2 className="text-xl font-semibold">Pending Completion Requests</h2>
-            <Badge className="bg-yellow-100 text-yellow-800">{pendingRequests.length}</Badge>
-          </div>
-          <div className="space-y-3">
-            {pendingRequests.map((task) => (
-              <Card key={task._id} className="border-yellow-200 bg-yellow-50/50">
+        <TabsContent value="tasks" className="mt-6 space-y-6">
+          {/* Pending Completion Requests - Only visible to authorized admin */}
+          {isAuthorizedAdmin && pendingRequests && pendingRequests.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Hourglass className="w-5 h-5 text-yellow-600" />
+                <h2 className="text-xl font-semibold">Pending Completion Requests</h2>
+                <Badge className="bg-yellow-100 text-yellow-800">{pendingRequests.length}</Badge>
+              </div>
+              <div className="space-y-3">
+                {pendingRequests.map((task) => (
+                  <Card key={task._id} className="border-yellow-200 bg-yellow-50/50">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -481,26 +517,26 @@ export default function AdminTasks() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </div>
-      )}
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* Tasks List */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">All Tasks</h2>
-        {!allTasks ? (
-          <div className="text-center py-8 text-gray-500">Loading tasks...</div>
-        ) : allTasks.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-gray-500">
-              No tasks yet. Create your first task to get started.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {allTasks.map((task) => (
-              <Card key={task._id} className="hover:shadow-md transition-shadow">
+          {/* Tasks List */}
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">All Tasks</h2>
+            {!allTasks ? (
+              <div className="text-center py-8 text-gray-500">Loading tasks...</div>
+            ) : allTasks.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-gray-500">
+                  No tasks yet. Create your first task to get started.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {allTasks.map((task) => (
+                  <Card key={task._id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -632,10 +668,246 @@ export default function AdminTasks() {
                   <TaskUpdates taskId={task._id} />
                 </CardContent>
               </Card>
-            ))}
+                ))}
+              </div>
+            )}
           </div>
+        </TabsContent>
+
+        {isAuthorizedAdmin && (
+          <TabsContent value="reception" className="mt-6">
+            <Card className="border-teal-200">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Inbox className="w-5 h-5 text-teal-600" />
+                  <CardTitle>Scanned Letters inbox</CardTitle>
+                  <Badge className="bg-teal-100 text-teal-800">
+                    {receptionInboxDocuments?.length || 0}
+                  </Badge>
+                </div>
+                {/* <CardDescription>
+                  Reception uploads and their status. View files to record first view; assign tasks or acknowledge as needed.
+                </CardDescription> */}
+              </CardHeader>
+              <CardContent className="min-w-0">
+                {!receptionInboxDocuments ? (
+                  <div className="text-sm text-gray-500 py-4">Loading inbox...</div>
+                ) : receptionInboxDocuments.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-4">No documents yet.</div>
+                ) : (
+                  <div className="space-y-3 w-full min-w-0">
+                  <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-md border border-gray-200 [-webkit-overflow-scrolling:touch]">
+                    <table className="min-w-[1100px] w-max max-w-none text-sm whitespace-nowrap text-left">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="p-3 font-medium">File Name</th>
+                          <th className="p-3 font-medium">Uploaded By</th>
+                          <th className="p-3 font-medium">Date</th>
+                          <th className="p-3 font-medium">Note</th>
+                          <th className="p-3 font-medium">Files</th>
+                          <th className="p-3 font-medium">Assigned To</th>
+                          <th className="p-3 font-medium">Status</th>
+                          <th className="p-3 font-medium">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedReceptionDocuments.map((doc) => {
+                          const statusUi = receptionStatusUi(doc.status);
+                          return (
+                            <tr key={doc._id} className="border-t border-gray-200">
+                              <td className="p-3 font-medium max-w-[200px] truncate" title={doc.fileName}>
+                                {doc.fileName}
+                              </td>
+                              <td className="p-3">{doc.uploaderName}</td>
+                              <td className="p-3">{format(new Date(doc.createdAt), "PPP")}</td>
+                              <td className="p-3 max-w-[220px]">
+                                <span className="block truncate" title={doc.note || ""}>
+                                  {doc.note || "—"}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!doc.storageId || doc.status === "stashed"}
+                                    onClick={() => handleViewReceptionFile(doc._id)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    View
+                                  </Button>
+                                  {doc.viewedBy && doc.viewedByName && doc.viewedAt && (
+                                    <div className="relative">
+                                      <span
+                                        className="text-xs text-green-600 flex items-center gap-1 cursor-pointer hover:text-green-700"
+                                        title={`First viewed by ${doc.viewedByName} on ${format(new Date(doc.viewedAt), "PPP 'at' p")}`}
+                                        onClick={() =>
+                                          setViewedPopupReceptionId(
+                                            viewedPopupReceptionId === doc._id ? null : doc._id
+                                          )
+                                        }
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        Viewed
+                                      </span>
+                                      {viewedPopupReceptionId === doc._id && (
+                                        <div className="absolute left-0 bottom-full mb-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[250px]">
+                                          <div className="flex justify-between items-start mb-2">
+                                            <h4 className="font-semibold text-sm text-gray-700">First viewed by</h4>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setViewedPopupReceptionId(null);
+                                              }}
+                                              className="text-gray-400 hover:text-gray-600"
+                                            >
+                                              <X className="w-4 h-4" />
+                                            </button>
+                                          </div>
+                                          <p className="text-sm text-gray-800 font-medium">{doc.viewedByName}</p>
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            {format(new Date(doc.viewedAt), "PPP 'at' p")}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                {doc.status === "linked" ? (
+                                  <span>{receptionAssignedLabel(doc)}</span>
+                                ) : (
+                                  <span className="italic text-gray-400">Not assigned</span>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                <span className={`capitalize px-2 py-1 rounded text-xs font-medium ${statusUi.className}`}>
+                                  {statusUi.label}
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700"
+                                    disabled={doc.status !== "pending" && doc.status !== "acknowledged"}
+                                    onClick={() => handleAssignTaskWithReceptionDoc(doc)}
+                                  >
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Assign
+                                  </Button>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="outline" size="icon" aria-label="More actions">
+                                        <MoreVertical className="w-4 h-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {doc.status === "pending" && (
+                                        <DropdownMenuItem
+                                          onClick={async () => {
+                                            try {
+                                              await acknowledgeReceptionDocument({ receptionDocumentId: doc._id });
+                                              toast.success("Document acknowledged");
+                                            } catch (e: any) {
+                                              toast.error(e.message || "Failed to acknowledge document");
+                                            }
+                                          }}
+                                        >
+                                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                                          Acknowledge
+                                        </DropdownMenuItem>
+                                      )}
+                                      {(doc.status === "pending" || doc.status === "acknowledged") && (
+                                        <DropdownMenuItem
+                                          className="text-red-600 focus:text-red-600"
+                                          onClick={async () => {
+                                            if (
+                                              !confirm(
+                                                "Stash this document? The file will be removed from storage and the row marked as stashed."
+                                              )
+                                            ) {
+                                              return;
+                                            }
+                                            try {
+                                              await stashReceptionDocument({ receptionDocumentId: doc._id });
+                                              toast.success("Document stashed");
+                                            } catch (e: any) {
+                                              toast.error(e.message || "Failed to stash document");
+                                            }
+                                          }}
+                                        >
+                                          <Archive className="w-4 h-4 mr-2" />
+                                          Stash
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {receptionTotalPages > 1 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+                      <span>
+                        Showing{" "}
+                        <span className="font-medium text-gray-900">
+                          {receptionTotal === 0 ? 0 : receptionPageSafe * RECEPTION_PAGE_SIZE + 1}
+                          –
+                          {Math.min(receptionPageSafe * RECEPTION_PAGE_SIZE + RECEPTION_PAGE_SIZE, receptionTotal)}
+                        </span>{" "}
+                        of <span className="font-medium text-gray-900">{receptionTotal}</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={receptionPageSafe <= 0}
+                          onClick={() => {
+                            const maxP = Math.max(0, receptionTotalPages - 1);
+                            setReceptionPage((p) => {
+                              const cur = Math.min(p, maxP);
+                              return Math.max(0, cur - 1);
+                            });
+                          }}
+                        >
+                          Previous
+                        </Button>
+                        <span className="tabular-nums px-1">
+                          Page {receptionPageSafe + 1} of {receptionTotalPages}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={receptionPageSafe >= receptionTotalPages - 1}
+                          onClick={() => {
+                            const maxP = Math.max(0, receptionTotalPages - 1);
+                            setReceptionPage((p) => {
+                              const cur = Math.min(p, maxP);
+                              return Math.min(maxP, cur + 1);
+                            });
+                          }}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         )}
-      </div>
+      </Tabs>
 
       {/* Create Task Dialog */}
       <Dialog
