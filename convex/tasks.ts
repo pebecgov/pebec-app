@@ -7,10 +7,19 @@ import { api } from "./_generated/api";
 import { getCurrentUserOrThrow, getCurrentUser } from "./users";
 import { Id } from "./_generated/dataModel";
 
-const AUTHORIZED_TASK_ADMIN_EMAIL = "mickaelking2002@gmail.com";
+/** Task inbox / reception — keep in sync with `AUTHORIZED_TASK_ADMIN_EMAILS` in `AdminTasks.tsx`. */
+const AUTHORIZED_TASK_ADMIN_EMAILS: readonly string[] = [
+    "mickaelking2002@gmail.com",
+    "zahrah.mustaphaaudu@pebec.gov.ng"
+];
 
 function isAuthorizedTaskAdmin(user: { email?: string; role?: string } | null): boolean {
-    return !!user && user.email === AUTHORIZED_TASK_ADMIN_EMAIL && user.role === "admin";
+    return (
+        !!user &&
+        user.role === "admin" &&
+        !!user.email &&
+        AUTHORIZED_TASK_ADMIN_EMAILS.includes(user.email)
+    );
 }
 
 function escapeHtml(text: string): string {
@@ -310,35 +319,33 @@ export const requestTaskCompletion = mutation({
             updateData.completionDocumentName = completionDocumentName;
         }
 
-        // Send email to admin for new requests or resubmissions
-        const adminEmail = AUTHORIZED_TASK_ADMIN_EMAIL;
+        // Send email to admins for new requests or resubmissions
         const adminMessage = task.completionRequestStatus === "rejected"
             ? `Task resubmitted: "${task.title}" - Awaiting your approval`
             : `Task completion request: "${task.title}" - Awaiting your approval`;
 
-        // Create notification for the admin
-        const admin = await ctx.db
-            .query("users")
-            .withIndex("byEmail", q => q.eq("email", adminEmail))
-            .filter(q => q.eq(q.field("role"), "admin"))
-            .first();
+        for (const adminEmail of AUTHORIZED_TASK_ADMIN_EMAILS) {
+            const admin = await ctx.db
+                .query("users")
+                .withIndex("byEmail", q => q.eq("email", adminEmail))
+                .filter(q => q.eq(q.field("role"), "admin"))
+                .first();
 
-        if (admin) {
-            await ctx.db.insert("notifications", {
-                userId: admin._id,
-                taskId,
-                message: adminMessage,
-                isRead: false,
-                createdAt: Date.now(),
-                type: "task_completion_request"
-            });
-        }
+            if (admin) {
+                await ctx.db.insert("notifications", {
+                    userId: admin._id,
+                    taskId,
+                    message: adminMessage,
+                    isRead: false,
+                    createdAt: Date.now(),
+                    type: "task_completion_request"
+                });
+            }
 
-        // Send email to admin
-        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-            to: adminEmail,
-            subject: task.completionRequestStatus === "rejected" ? `Task Resubmitted: ${task.title}` : `Task Completion Request: ${task.title}`,
-            html: `
+            await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+                to: adminEmail,
+                subject: task.completionRequestStatus === "rejected" ? `Task Resubmitted: ${task.title}` : `Task Completion Request: ${task.title}`,
+                html: `
                 <div style="font-family: sans-serif; padding: 20px;">
                     <h2 style="color: #2563eb;">${task.completionRequestStatus === "rejected" ? "Task Resubmitted" : "Completion Request"}</h2>
                     <p>Hello Admin,</p>
@@ -350,7 +357,8 @@ export const requestTaskCompletion = mutation({
                     </div>
                 </div>
             `
-        });
+            });
+        }
 
         return await ctx.db.patch(taskId, updateData);
     }
@@ -592,27 +600,28 @@ export const submitReceptionDocument = mutation({
         const safeNote = note?.trim() ? escapeHtml(note.trim()) : "";
         const adminMessage = `New scanned letter uploaded: "${fileName}" (from ${uploaderName})`;
 
-        const taskAdmin = await ctx.db
-            .query("users")
-            .withIndex("byEmail", q => q.eq("email", AUTHORIZED_TASK_ADMIN_EMAIL))
-            .filter(q => q.eq(q.field("role"), "admin"))
-            .first();
+        for (const adminEmail of AUTHORIZED_TASK_ADMIN_EMAILS) {
+            const taskAdmin = await ctx.db
+                .query("users")
+                .withIndex("byEmail", q => q.eq("email", adminEmail))
+                .filter(q => q.eq(q.field("role"), "admin"))
+                .first();
 
-        if (taskAdmin) {
-            await ctx.db.insert("notifications", {
-                userId: taskAdmin._id,
-                message: adminMessage,
-                isRead: false,
-                createdAt: Date.now(),
-                type: "reception_scanned_letter",
-                actionUrl: "/admin/tasks?tab=reception"
-            });
-        }
+            if (taskAdmin) {
+                await ctx.db.insert("notifications", {
+                    userId: taskAdmin._id,
+                    message: adminMessage,
+                    isRead: false,
+                    createdAt: Date.now(),
+                    type: "reception_scanned_letter",
+                    actionUrl: "/admin/tasks?tab=reception"
+                });
+            }
 
-        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-            to: AUTHORIZED_TASK_ADMIN_EMAIL,
-            subject: `New scanned letter: ${fileName}`,
-            html: `
+            await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+                to: adminEmail,
+                subject: `New scanned letter: ${fileName}`,
+                html: `
                 <div style="font-family: sans-serif; padding: 20px;">
                     <h2 style="color: #0d9488;">New scanned letter</h2>
                     <p>Hello,</p>
@@ -625,7 +634,8 @@ export const submitReceptionDocument = mutation({
                     </div>
                 </div>
             `
-        });
+            });
+        }
 
         return docId;
     }
