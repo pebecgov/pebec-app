@@ -52,7 +52,7 @@ export default function AdminTasks() {
   const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
 
   // Only the specific admin can view pending requests
-  const isAuthorizedAdmin = currentUser?.email === "mickaelking2002@gmail.com" || "zahrah.mustaphaaudu@pebec.gov.ng;
+  const isAuthorizedAdmin = currentUser?.email === "mickaelking2002@gmail.com" || "zahrah.mustaphaaudu@pebec.gov.ng";
   const pendingRequestsQuery = useQuery(api.tasks.getPendingCompletionRequests);
   const receptionInboxDocuments = useQuery(
     api.tasks.listReceptionInboxDocuments,
