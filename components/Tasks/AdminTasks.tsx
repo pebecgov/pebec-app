@@ -51,6 +51,7 @@ export default function AdminTasks() {
   const markReceptionDocumentViewed = useMutation(api.tasks.markReceptionDocumentViewed);
   const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
 
+<<<<<<< HEAD
   /** Keep in sync with `AUTHORIZED_TASK_ADMIN_EMAILS` in `convex/tasks.ts`. */
   const AUTHORIZED_TASK_ADMIN_EMAILS = [
     "mickaelking2002@gmail.com",
@@ -59,6 +60,10 @@ export default function AdminTasks() {
   const isAuthorizedAdmin =
     !!currentUser?.email &&
     (AUTHORIZED_TASK_ADMIN_EMAILS as readonly string[]).includes(currentUser.email);
+=======
+  // Only the specific admin can view pending requests
+  const isAuthorizedAdmin = currentUser?.email === "mickaelking2002@gmail.com" || "zahrah.mustaphaaudu@pebec.gov.ng";
+>>>>>>> adf3da75f3746fdafa9087ebb0ddf23c39fd65be
   const pendingRequestsQuery = useQuery(api.tasks.getPendingCompletionRequests);
   const receptionInboxDocuments = useQuery(
     api.tasks.listReceptionInboxDocuments,
