@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -24,10 +25,9 @@ import { formatWorkstream } from "@/lib/formatters";
 export default function AdminTasks() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [customTaskId, setCustomTaskId] = useState("");
-  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedStream, setSelectedStream] = useState<string | null>(null);
-  const [selectedStaffId, setSelectedStaffId] = useState<Id<"users"> | null>(null);
+  type TaskParticipant = { type: "workstream" | "staff"; id: string; name: string };
+  const [taskParticipants, setTaskParticipants] = useState<TaskParticipant[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [receptionInboxIdForTask, setReceptionInboxIdForTask] = useState<Id<"reception_admin_documents"> | null>(null);
   const [prefilledReceptionFileName, setPrefilledReceptionFileName] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export default function AdminTasks() {
   const staffUsers = useQuery(api.tasks.getUsersByRole, { role: "staff" });
   const adminUsers = useQuery(api.tasks.getUsersByRole, { role: "admin" });
   const currentUser = useQuery(api.users.getCurrentUsers);
-  const createTask = useMutation(api.tasks.createTask);
+  const createTasks = useMutation(api.tasks.createTasks);
   const deleteTask = useMutation(api.tasks.deleteTask);
   const confirmTaskCompletion = useMutation(api.tasks.confirmTaskCompletion);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
@@ -83,17 +83,43 @@ export default function AdminTasks() {
     { value: "admin", label: "Admin" }
   ];
 
-  const filteredStaff = selectedStream === "admin"
-    ? adminUsers || []
-    : selectedStream
-      ? staffUsers?.filter(u => u.staffStream === selectedStream) || []
-      : [];
+  const WORKSTREAM_IDS = workstreams.map((w) => w.value);
 
-  const allRelevantUsers = [...(staffUsers || []), ...(adminUsers || [])];
+  const staffMembers = useMemo(() => {
+    const list = [...(staffUsers ?? []), ...(adminUsers ?? [])];
+    return list.sort((a, b) => {
+      const nameA = `${a.firstName ?? ""} ${a.lastName ?? ""}`.toLowerCase();
+      const nameB = `${b.firstName ?? ""} ${b.lastName ?? ""}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [staffUsers, adminUsers]);
+
+  /** Convex requires `title`; derive it from description and/or attachment name. */
+  const buildTaskTitle = (
+    desc: string,
+    attachmentName: string | null | undefined
+  ): string => {
+    const t = desc.trim();
+    if (t) {
+      const firstLine = t.split(/\r?\n/).find((line) => line.trim())?.trim() ?? t;
+      return firstLine.length > 120 ? `${firstLine.slice(0, 117)}...` : firstLine;
+    }
+    const name = attachmentName?.trim();
+    if (name) return name.length > 120 ? `${name.slice(0, 117)}...` : name;
+    return "Task assignment";
+  };
 
   const handleCreateTask = async () => {
-    if (!title.trim() || !selectedStream) {
-      toast.error("Please fill in task title and select a workstream");
+    const descTrim = description.trim();
+    const attachmentLabel =
+      prefilledReceptionFileName ?? localAssignmentFile?.name ?? null;
+    if (!descTrim && !attachmentLabel) {
+      toast.error("Add a description or attach a document");
+      return;
+    }
+
+    if (taskParticipants.length === 0) {
+      toast.error("Add at least one workstream or staff member");
       return;
     }
 
@@ -107,26 +133,28 @@ export default function AdminTasks() {
       }
     }
 
-    let assignedToName: string | undefined = undefined;
-    if (selectedStaffId) {
-      const selectedStaff = allRelevantUsers.find(u => u._id === selectedStaffId);
-      if (selectedStaff) {
-        assignedToName = `${selectedStaff.firstName || ""} ${selectedStaff.lastName || ""}`.trim() || selectedStaff.email;
-      }
-    }
-
     const dueMs = dueDate ? new Date(dueDate).getTime() : undefined;
+
+    const resolvedTitle = buildTaskTitle(description, attachmentLabel);
+
+    const participants = taskParticipants.map((p) =>
+      p.type === "workstream"
+        ? { type: "workstream" as const, id: p.id }
+        : { type: "staff" as const, userId: p.id as Id<"users"> }
+    );
+
+    const basePayload = {
+      customTaskId: customTaskId.trim() || undefined,
+      title: resolvedTitle,
+      description: descTrim || undefined,
+      dueDate: dueMs,
+      participants
+    };
 
     try {
       if (receptionInboxIdForTask) {
-        await createTask({
-          customTaskId: customTaskId.trim() || undefined,
-          title: title.trim(),
-          description: description.trim() || undefined,
-          assignedStream: selectedStream || undefined,
-          assignedTo: selectedStaffId || undefined,
-          assignedToName: assignedToName,
-          dueDate: dueMs,
+        await createTasks({
+          ...basePayload,
           receptionInboxId: receptionInboxIdForTask
         });
       } else if (localAssignmentFile) {
@@ -139,36 +167,20 @@ export default function AdminTasks() {
         });
         if (!response.ok) throw new Error("File upload failed");
         const { storageId } = await response.json();
-        await createTask({
-          customTaskId: customTaskId.trim() || undefined,
-          title: title.trim(),
-          description: description.trim() || undefined,
-          assignedStream: selectedStream || undefined,
-          assignedTo: selectedStaffId || undefined,
-          assignedToName: assignedToName,
-          dueDate: dueMs,
+        await createTasks({
+          ...basePayload,
           assignmentDocumentId: storageId as StorageId<"_storage">,
           assignmentDocumentName: localAssignmentFile.name
         });
       } else {
-        await createTask({
-          customTaskId: customTaskId.trim() || undefined,
-          title: title.trim(),
-          description: description.trim() || undefined,
-          assignedStream: selectedStream || undefined,
-          assignedTo: selectedStaffId || undefined,
-          assignedToName: assignedToName,
-          dueDate: dueMs
-        });
+        await createTasks(basePayload);
       }
 
       toast.success("Task assigned successfully!");
       setIsCreateDialogOpen(false);
       setCustomTaskId("");
-      setTitle("");
       setDescription("");
-      setSelectedStream(null);
-      setSelectedStaffId(null);
+      setTaskParticipants([]);
       setDueDate("");
       setReceptionInboxIdForTask(null);
       setPrefilledReceptionFileName(null);
@@ -927,6 +939,7 @@ export default function AdminTasks() {
             setReceptionInboxIdForTask(null);
             setPrefilledReceptionFileName(null);
             setLocalAssignmentFile(null);
+            setTaskParticipants([]);
           }
         }}
       >
@@ -1008,90 +1021,124 @@ export default function AdminTasks() {
               </div>
             )}
 
-            <div className="grid grid-cols gap-4">
-              {/* <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Task ID (Optional)
-                </label>
-                <Input
-                  value={customTaskId}
-                  onChange={(e) => setCustomTaskId(e.target.value)}
-                  placeholder="e.g. TASK-001"
-                />
-              </div> */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Task Title *
-                </label>
-                <Input
-                  className="border border-gray-300 rounded-md px-3 py-2 "
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter task title"
-                />
-              </div>
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
+                Description {!(prefilledReceptionFileName || localAssignmentFile) ? "*" : ""}
               </label>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter task description (optional)"
+                placeholder={
+                  prefilledReceptionFileName || localAssignmentFile
+                    ? "Optional details (title is taken from the attachment if left blank)"
+                    : "Describe the task — this is shown as the task name in lists"
+                }
                 rows={3}
               />
+              <p className="text-xs text-gray-500 mt-1">
+                {prefilledReceptionFileName || localAssignmentFile
+                  ? "If empty, the attachment file name is used as the task name."
+                  : "Required when no attachment is included."}
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Assign To Workstream *
-                </label>
-                <Select
-                  value={selectedStream || ""}
-                  onValueChange={(value) => {
-                    setSelectedStream(value);
-                    setSelectedStaffId(null);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select workstream" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {workstreams.map((stream) => (
-                      <SelectItem key={stream.value} value={stream.value}>
-                        {formatWorkstream(stream.value)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedStream && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assign to (workstreams &amp; staff) *
+              </label>
+              <div className="space-y-3 border border-gray-200 rounded-md p-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Staff (Optional)
-                  </label>
-                  <Select
-                    value={selectedStaffId || "all"}
-                    onValueChange={(value) => setSelectedStaffId(value === "all" ? null : value as Id<"users">)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={`All ${formatWorkstream(selectedStream)} Staff`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Staff</SelectItem>
-                      {filteredStaff.map((staff) => (
-                        <SelectItem key={staff._id} value={staff._id}>
-                          {`${staff.firstName || ""} ${staff.lastName || ""}`.trim() || staff.email}
-                        </SelectItem>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                    Workstreams &amp; staff
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3">
+                    {WORKSTREAM_IDS.map((ws) => (
+                      <label
+                        key={ws}
+                        className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-blue-600 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={taskParticipants.some((p) => p.type === "workstream" && p.id === ws)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setTaskParticipants([
+                                ...taskParticipants,
+                                { type: "workstream", id: ws, name: ws }
+                              ]);
+                            } else {
+                              setTaskParticipants(
+                                taskParticipants.filter((p) => !(p.type === "workstream" && p.id === ws))
+                              );
+                            }
+                          }}
+                          className="h-3 w-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        />
+                        <span className="truncate">{formatWorkstream(ws)}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <select
+                      className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none"
+                      onChange={(e) => {
+                        const staffId = e.target.value as Id<"users">;
+                        if (!staffId) return;
+                        const staff = staffMembers.find((s) => s._id === staffId);
+                        if (
+                          staff &&
+                          !taskParticipants.some((p) => p.type === "staff" && p.id === staffId)
+                        ) {
+                          setTaskParticipants([
+                            ...taskParticipants,
+                            {
+                              type: "staff",
+                              id: staffId,
+                              name: `${staff.firstName ?? ""} ${staff.lastName ?? ""}`.trim() || staff.email || ""
+                            }
+                          ]);
+                        }
+                        e.target.value = "";
+                      }}
+                    >
+                      <option value="">Select individual staff…</option>
+                      {staffMembers
+                        .filter((s) => !taskParticipants.some((p) => p.type === "staff" && p.id === s._id))
+                        .map((s) => (
+                          <option key={s._id} value={s._id}>
+                            {s.firstName} {s.lastName}
+                          </option>
+                        ))}
+                    </select>
+
+                    <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
+                      {taskParticipants.map((p, i) => (
+                        <span
+                          key={`${p.type}-${p.id}-${i}`}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-tighter"
+                        >
+                          {p.type === "workstream" ? ` ${formatWorkstream(p.name)}` : p.name}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTaskParticipants(taskParticipants.filter((_, idx) => idx !== i))
+                            }
+                            className="hover:text-red-500"
+                            aria-label="Remove"
+                          >
+                            <XMarkIcon className="w-3 h-3" />
+                          </button>
+                        </span>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Everyone selected shares one task. Whole workstreams include all staff in that stream; add
+                individuals by name as needed.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4">

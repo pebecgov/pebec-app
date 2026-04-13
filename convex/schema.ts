@@ -520,6 +520,13 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.optional(v.number())
   }).index("byStatus", ["status"]).index("byAssignedTo", ["assignedTo"]).index("byCreatedBy", ["createdBy"]).index("byAssignedStream", ["assignedStream"]).index("byCompletionRequestStatus", ["completionRequestStatus"]),
+  /** Shared task: which users are jointly assigned (same task row). */
+  task_assignments: defineTable({
+    taskId: v.id("tasks"),
+    userId: v.id("users")
+  })
+    .index("byUserId", ["userId"])
+    .index("byTaskId", ["taskId"]),
   reception_admin_documents: defineTable({
     storageId: v.optional(v.id("_storage")),
     fileName: v.string(),
