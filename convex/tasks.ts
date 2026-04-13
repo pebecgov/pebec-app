@@ -30,6 +30,49 @@ function escapeHtml(text: string): string {
         .replace(/"/g, "&quot;");
 }
 
+async function userHasJointAssignment(
+    ctx: any,
+    taskId: Id<"tasks">,
+    userId: Id<"users">
+): Promise<boolean> {
+    const row = await ctx.db
+        .query("task_assignments")
+        .withIndex("byTaskId", (q: any) => q.eq("taskId", taskId))
+        .filter((q: any) => q.eq(q.field("userId"), userId))
+        .first();
+    return !!row;
+}
+
+/** Staff access: direct assignee, whole-stream task, or joint assignment row. */
+async function isUserTaskParticipant(
+    ctx: any,
+    task: { _id: Id<"tasks">; assignedTo?: Id<"users">; assignedStream?: string },
+    user: { _id: Id<"users">; staffStream?: string }
+): Promise<boolean> {
+    if (task.assignedTo === user._id) return true;
+    if (task.assignedStream && user.staffStream && task.assignedStream === user.staffStream) {
+        return true;
+    }
+    return userHasJointAssignment(ctx, task._id, user._id);
+}
+
+async function expandWorkstreamToUserIds(ctx: any, stream: string): Promise<Id<"users">[]> {
+    const s = stream.trim();
+    if (!s) return [];
+    if (s === "admin") {
+        return (await ctx.db.query("users").withIndex("byRole", (q: any) => q.eq("role", "admin")).collect()).map(
+            (u: { _id: Id<"users"> }) => u._id
+        );
+    }
+    return (
+        await ctx.db
+            .query("users")
+            .withIndex("byRole", (q: any) => q.eq("role", "staff"))
+            .filter((q: any) => q.eq(q.field("staffStream"), s))
+            .collect()
+    ).map((u: { _id: Id<"users"> }) => u._id);
+}
+
 export const getTasksByStatus = query({
     args: {
         status: v.union(v.literal("to_do"), v.literal("in_progress"), v.literal("done"), v.literal("assigned"))
@@ -65,8 +108,19 @@ export const getMyTasks = query({
                 .collect();
         }
 
+        // Joint assignments (same task shared by multiple users)
+        const jointLinks = await ctx.db
+            .query("task_assignments")
+            .withIndex("byUserId", (q) => q.eq("userId", user._id))
+            .collect();
+        const jointTasks: any[] = [];
+        for (const link of jointLinks) {
+            const t = await ctx.db.get(link.taskId);
+            if (t) jointTasks.push(t);
+        }
+
         // Combine and sort by creation time descending
-        const allMyTasks = [...individualTasks, ...streamTasks];
+        const allMyTasks = [...individualTasks, ...streamTasks, ...jointTasks];
 
         // Remove duplicates if any (a task shouldn't be assigned both ways normally, but safety first)
         const uniqueTasks = Array.from(new Map(allMyTasks.map(t => [t._id, t])).values());
@@ -115,6 +169,189 @@ export const getUsersByRole = query({
     }
 });
 
+type TaskAssignmentSlot = {
+    assignedStream?: string;
+    assignedTo?: Id<"users">;
+    assignedToName?: string;
+};
+
+async function resolveAssignmentDocuments(
+    ctx: any,
+    user: { role?: string; email?: string; firstName?: string; lastName?: string; _id: Id<"users"> },
+    args: {
+        receptionInboxId?: Id<"reception_admin_documents">;
+        assignmentDocumentId?: Id<"_storage">;
+        assignmentDocumentName?: string;
+    }
+): Promise<{
+    assignmentDocumentId?: Id<"_storage">;
+    assignmentDocumentName?: string;
+    sourceReceptionDocumentId?: Id<"reception_admin_documents">;
+    receptionInboxId?: Id<"reception_admin_documents">;
+}> {
+    let assignmentDocumentId: Id<"_storage"> | undefined;
+    let assignmentDocumentName: string | undefined;
+    let sourceReceptionDocumentId: Id<"reception_admin_documents"> | undefined;
+
+    if (args.receptionInboxId) {
+        if (!isAuthorizedTaskAdmin(user)) {
+            throw new Error("Only the designated admin can assign tasks from the reception inbox");
+        }
+        const inbox = await ctx.db.get(args.receptionInboxId);
+        if (
+            !inbox ||
+            inbox.status === "stashed" ||
+            inbox.status === "linked" ||
+            (inbox.status !== "pending" && inbox.status !== "acknowledged")
+        ) {
+            throw new Error("Reception document not found or cannot be assigned");
+        }
+        assignmentDocumentId = inbox.storageId;
+        assignmentDocumentName = inbox.fileName;
+        sourceReceptionDocumentId = inbox._id;
+    } else if (args.assignmentDocumentId && args.assignmentDocumentName) {
+        assignmentDocumentId = args.assignmentDocumentId;
+        assignmentDocumentName = args.assignmentDocumentName;
+    }
+
+    return {
+        assignmentDocumentId,
+        assignmentDocumentName,
+        sourceReceptionDocumentId,
+        receptionInboxId: args.receptionInboxId
+    };
+}
+
+function dedupeAssignmentSlots(slots: TaskAssignmentSlot[]): TaskAssignmentSlot[] {
+    const seen = new Set<string>();
+    const out: TaskAssignmentSlot[] = [];
+    for (const s of slots) {
+        const stream = (s.assignedStream ?? "").trim();
+        const uid = s.assignedTo ? String(s.assignedTo) : "";
+        const key = `${stream}\0${uid}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(s);
+    }
+    return out;
+}
+
+/** Inserts one task row and sends notifications for that assignment target. Does not patch reception inbox. */
+async function insertTaskForAssignment(
+    ctx: any,
+    user: { role?: string; email?: string; firstName?: string; lastName?: string; _id: Id<"users"> },
+    common: {
+        customTaskId?: string;
+        title: string;
+        description?: string;
+        dueDate?: number;
+        assignmentDocumentId?: Id<"_storage">;
+        assignmentDocumentName?: string;
+        sourceReceptionDocumentId?: Id<"reception_admin_documents">;
+    },
+    slot: TaskAssignmentSlot
+): Promise<Id<"tasks">> {
+    let assignedRole = "staff";
+    if (slot.assignedTo) {
+        const assignedUser = await ctx.db.get(slot.assignedTo);
+        if (!assignedUser) {
+            throw new Error("Assigned user not found");
+        }
+        assignedRole = assignedUser.role || "staff";
+    }
+
+    const taskId = await ctx.db.insert("tasks", {
+        customTaskId: common.customTaskId,
+        title: common.title,
+        description: common.description,
+        status: "assigned",
+        assignedTo: slot.assignedTo,
+        assignedToName: slot.assignedToName,
+        assignedStream: slot.assignedStream,
+        assignedRole,
+        progress: 0,
+        comments: 0,
+        attachments: common.assignmentDocumentId ? 1 : 0,
+        dueDate: common.dueDate ?? undefined,
+        createdBy: user._id,
+        createdByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Admin",
+        assignmentDocumentId: common.assignmentDocumentId,
+        assignmentDocumentName: common.assignmentDocumentName,
+        sourceReceptionDocumentId: common.sourceReceptionDocumentId,
+        createdAt: Date.now()
+    });
+
+    if (slot.assignedTo) {
+        await ctx.db.insert("notifications", {
+            userId: slot.assignedTo,
+            taskId,
+            message: `You have been assigned a new task: "${common.title}"`,
+            isRead: false,
+            createdAt: Date.now(),
+            type: "task_assignment"
+        });
+
+        const assignedUser = await ctx.db.get(slot.assignedTo);
+        if (assignedUser?.email) {
+            await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+                to: assignedUser.email,
+                subject: `New Task Assigned: ${common.title}`,
+                html: `
+                        <div style="font-family: sans-serif; padding: 20px;">
+                            <h2 style="color: #059669;">New Task Assigned</h2>
+                            <p>Hello ${assignedUser.firstName || "Staff"},</p>
+                            <p>You have been assigned a new task: <strong>"${common.title}"</strong></p>
+                            ${common.dueDate ? `<p><strong>Due Date:</strong> ${new Date(common.dueDate).toLocaleDateString()}</p>` : ""}
+                            ${common.description ? `<p><strong>Description:</strong> ${common.description}</p>` : ""}
+                            <p style="margin-top: 20px;">Please log in to the portal to view the details and start working on it.</p>
+                            <div style="margin-top: 20px;">
+                                <a href="https://www.pebec.gov.ng/staff/tasks" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task</a>
+                            </div>
+                        </div>
+                    `
+            });
+        }
+    } else if (slot.assignedStream) {
+        const streamUsers = await ctx.db
+            .query("users")
+            .withIndex("byRole", q => q.eq("role", "staff"))
+            .filter(q => q.eq(q.field("staffStream"), slot.assignedStream))
+            .collect();
+
+        for (const streamUser of streamUsers) {
+            await ctx.db.insert("notifications", {
+                userId: streamUser._id,
+                taskId,
+                message: `New task for your workstream (${slot.assignedStream}): "${common.title}"`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: "task_assignment"
+            });
+
+            if (streamUser.email) {
+                await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+                    to: streamUser.email,
+                    subject: `New Task for ${slot.assignedStream} Stream: ${common.title}`,
+                    html: `
+                            <div style="font-family: sans-serif; padding: 20px;">
+                                <h2 style="color: #059669;">New Workstream Task</h2>
+                                <p>Hello ${streamUser.firstName || "Staff"},</p>
+                                <p>A new task has been assigned to your workstream (<strong>${slot.assignedStream}</strong>): <strong>"${common.title}"</strong></p>
+                                ${common.dueDate ? `<p><strong>Due Date:</strong> ${new Date(common.dueDate).toLocaleDateString()}</p>` : ""}
+                                <p style="margin-top: 20px;">Please log in to the portal to view the details.</p>
+                                <div style="margin-top: 20px;">
+                                    <a href="https://www.pebec.gov.ng/staff/tasks" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task</a>
+                                </div>
+                            </div>
+                        `
+                });
+            }
+        }
+    }
+
+    return taskId;
+}
+
 // Create a new task (admin only)
 export const createTask = mutation({
     args: {
@@ -132,99 +369,163 @@ export const createTask = mutation({
     handler: async (ctx, args) => {
         const user = await getCurrentUserOrThrow(ctx);
 
-        // Only admins can create tasks
         if (user.role !== "admin") {
             throw new Error("Only admins can create tasks");
         }
 
-        let assignmentDocumentId: Id<"_storage"> | undefined;
-        let assignmentDocumentName: string | undefined;
-        let sourceReceptionDocumentId: Id<"reception_admin_documents"> | undefined;
+        const docs = await resolveAssignmentDocuments(ctx, user, {
+            receptionInboxId: args.receptionInboxId,
+            assignmentDocumentId: args.assignmentDocumentId,
+            assignmentDocumentName: args.assignmentDocumentName
+        });
 
-        if (args.receptionInboxId) {
-            if (!isAuthorizedTaskAdmin(user)) {
-                throw new Error("Only the designated admin can assign tasks from the reception inbox");
-            }
-            const inbox = await ctx.db.get(args.receptionInboxId);
-            if (
-                !inbox ||
-                inbox.status === "stashed" ||
-                inbox.status === "linked" ||
-                (inbox.status !== "pending" && inbox.status !== "acknowledged")
-            ) {
-                throw new Error("Reception document not found or cannot be assigned");
-            }
-            assignmentDocumentId = inbox.storageId;
-            assignmentDocumentName = inbox.fileName;
-            sourceReceptionDocumentId = inbox._id;
-        } else if (args.assignmentDocumentId && args.assignmentDocumentName) {
-            // Direct upload from any admin (via generateTaskAssignmentUploadUrl)
-            assignmentDocumentId = args.assignmentDocumentId;
-            assignmentDocumentName = args.assignmentDocumentName;
-        }
+        const slot: TaskAssignmentSlot = {
+            assignedStream: args.assignedStream,
+            assignedTo: args.assignedTo,
+            assignedToName: args.assignedToName
+        };
 
-        let assignedRole = "staff";
-
-        // Verify assigned user if provided
-        if (args.assignedTo) {
-            const assignedUser = await ctx.db.get(args.assignedTo);
-            if (!assignedUser) {
-                throw new Error("Assigned user not found");
-            }
-            assignedRole = assignedUser.role || "staff";
-        }
-
-        const taskId = await ctx.db.insert("tasks", {
+        const taskId = await insertTaskForAssignment(ctx, user, {
             customTaskId: args.customTaskId,
             title: args.title,
             description: args.description,
-            status: "assigned",
-            assignedTo: args.assignedTo,
-            assignedToName: args.assignedToName,
-            assignedStream: args.assignedStream,
-            assignedRole: assignedRole,
-            progress: 0,
-            comments: 0,
-            attachments: assignmentDocumentId ? 1 : 0,
-            dueDate: args.dueDate ?? undefined,
-            createdBy: user._id,
-            createdByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Admin",
-            assignmentDocumentId,
-            assignmentDocumentName,
-            sourceReceptionDocumentId,
-            createdAt: Date.now()
-        });
+            dueDate: args.dueDate,
+            assignmentDocumentId: docs.assignmentDocumentId,
+            assignmentDocumentName: docs.assignmentDocumentName,
+            sourceReceptionDocumentId: docs.sourceReceptionDocumentId
+        }, slot);
 
-        if (args.receptionInboxId && sourceReceptionDocumentId) {
+        if (args.receptionInboxId && docs.sourceReceptionDocumentId) {
             await ctx.db.patch(args.receptionInboxId, {
                 status: "linked",
                 linkedTaskId: taskId
             });
         }
 
-        // Create notifications and send emails
-        if (args.assignedTo) {
-            // Notify specific staff member
-            await ctx.db.insert("notifications", {
-                userId: args.assignedTo,
+        return taskId;
+    }
+});
+
+/** Create one shared task for all selected workstreams (expanded to staff) and/or individual staff (admin only). */
+export const createTasks = mutation({
+    args: {
+        customTaskId: v.optional(v.string()),
+        title: v.string(),
+        description: v.optional(v.string()),
+        dueDate: v.optional(v.number()),
+        receptionInboxId: v.optional(v.id("reception_admin_documents")),
+        assignmentDocumentId: v.optional(v.id("_storage")),
+        assignmentDocumentName: v.optional(v.string()),
+        participants: v.array(
+            v.union(
+                v.object({ type: v.literal("workstream"), id: v.string() }),
+                v.object({ type: v.literal("staff"), userId: v.id("users") })
+            )
+        )
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUserOrThrow(ctx);
+
+        if (user.role !== "admin") {
+            throw new Error("Only admins can create tasks");
+        }
+
+        if (args.participants.length === 0) {
+            throw new Error("Add at least one participant");
+        }
+        if (args.participants.length > 60) {
+            throw new Error("Too many participant entries in one request");
+        }
+
+        const docs = await resolveAssignmentDocuments(ctx, user, {
+            receptionInboxId: args.receptionInboxId,
+            assignmentDocumentId: args.assignmentDocumentId,
+            assignmentDocumentName: args.assignmentDocumentName
+        });
+
+        const userIdSet = new Set<Id<"users">>();
+        for (const p of args.participants) {
+            if (p.type === "staff") {
+                const u = await ctx.db.get(p.userId);
+                if (!u) throw new Error("Selected staff user not found");
+                userIdSet.add(p.userId);
+            } else {
+                const ids = await expandWorkstreamToUserIds(ctx, p.id);
+                for (const id of ids) userIdSet.add(id);
+            }
+        }
+
+        const userIds = [...userIdSet];
+        if (userIds.length === 0) {
+            throw new Error("No staff matched your selection (check workstreams or add individuals)");
+        }
+        if (userIds.length > 250) {
+            throw new Error("Too many assignees in one task");
+        }
+
+        const nameParts: string[] = [];
+        for (const uid of userIds) {
+            const u = await ctx.db.get(uid);
+            if (u) {
+                nameParts.push(`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || String(uid));
+            }
+        }
+        nameParts.sort((a, b) => a.localeCompare(b));
+        let assignedToName = nameParts.join(", ");
+        if (assignedToName.length > 500) {
+            assignedToName = `${assignedToName.slice(0, 497)}...`;
+        }
+
+        const assignedTo: Id<"users"> | undefined = userIds.length === 1 ? userIds[0] : undefined;
+
+        const taskId = await ctx.db.insert("tasks", {
+            customTaskId: args.customTaskId,
+            title: args.title,
+            description: args.description,
+            status: "assigned",
+            assignedTo,
+            assignedToName,
+            assignedStream: undefined,
+            assignedRole: "staff",
+            progress: 0,
+            comments: 0,
+            attachments: docs.assignmentDocumentId ? 1 : 0,
+            dueDate: args.dueDate ?? undefined,
+            createdBy: user._id,
+            createdByName: `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Admin",
+            assignmentDocumentId: docs.assignmentDocumentId,
+            assignmentDocumentName: docs.assignmentDocumentName,
+            sourceReceptionDocumentId: docs.sourceReceptionDocumentId,
+            createdAt: Date.now()
+        });
+
+        for (const uid of userIds) {
+            await ctx.db.insert("task_assignments", {
                 taskId,
-                message: `You have been assigned a new task: "${args.title}"`,
+                userId: uid
+            });
+        }
+
+        for (const uid of userIds) {
+            await ctx.db.insert("notifications", {
+                userId: uid,
+                taskId,
+                message: `You have been assigned a shared task: "${args.title}"`,
                 isRead: false,
                 createdAt: Date.now(),
                 type: "task_assignment"
             });
 
-            // Send email to staff member
-            const assignedUser = await ctx.db.get(args.assignedTo);
-            if (assignedUser?.email) {
+            const assignee = await ctx.db.get(uid);
+            if (assignee?.email) {
                 await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-                    to: assignedUser.email,
+                    to: assignee.email,
                     subject: `New Task Assigned: ${args.title}`,
                     html: `
                         <div style="font-family: sans-serif; padding: 20px;">
                             <h2 style="color: #059669;">New Task Assigned</h2>
-                            <p>Hello ${assignedUser.firstName || "Staff"},</p>
-                            <p>You have been assigned a new task: <strong>"${args.title}"</strong></p>
+                            <p>Hello ${assignee.firstName || "Staff"},</p>
+                            <p>You have been assigned a shared task with ${userIds.length} participant(s): <strong>"${args.title}"</strong></p>
                             ${args.dueDate ? `<p><strong>Due Date:</strong> ${new Date(args.dueDate).toLocaleDateString()}</p>` : ""}
                             ${args.description ? `<p><strong>Description:</strong> ${args.description}</p>` : ""}
                             <p style="margin-top: 20px;">Please log in to the portal to view the details and start working on it.</p>
@@ -235,47 +536,16 @@ export const createTask = mutation({
                     `
                 });
             }
-        } else if (args.assignedStream) {
-            // Notify all staff in the workstream
-            const streamUsers = await ctx.db
-                .query("users")
-                .withIndex("byRole", q => q.eq("role", "staff"))
-                .filter(q => q.eq(q.field("staffStream"), args.assignedStream))
-                .collect();
-
-            for (const streamUser of streamUsers) {
-                await ctx.db.insert("notifications", {
-                    userId: streamUser._id,
-                    taskId,
-                    message: `New task for your workstream (${args.assignedStream}): "${args.title}"`,
-                    isRead: false,
-                    createdAt: Date.now(),
-                    type: "task_assignment"
-                });
-
-                // Send email to stream member
-                if (streamUser.email) {
-                    await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-                        to: streamUser.email,
-                        subject: `New Task for ${args.assignedStream} Stream: ${args.title}`,
-                        html: `
-                            <div style="font-family: sans-serif; padding: 20px;">
-                                <h2 style="color: #059669;">New Workstream Task</h2>
-                                <p>Hello ${streamUser.firstName || "Staff"},</p>
-                                <p>A new task has been assigned to your workstream (<strong>${args.assignedStream}</strong>): <strong>"${args.title}"</strong></p>
-                                ${args.dueDate ? `<p><strong>Due Date:</strong> ${new Date(args.dueDate).toLocaleDateString()}</p>` : ""}
-                                <p style="margin-top: 20px;">Please log in to the portal to view the details.</p>
-                                <div style="margin-top: 20px;">
-                                    <a href="https://www.pebec.gov.ng/staff/tasks" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task</a>
-                                </div>
-                            </div>
-                        `
-                    });
-                }
-            }
         }
 
-        return taskId;
+        if (args.receptionInboxId && docs.sourceReceptionDocumentId) {
+            await ctx.db.patch(args.receptionInboxId, {
+                status: "linked",
+                linkedTaskId: taskId
+            });
+        }
+
+        return [taskId];
     }
 });
 
@@ -295,12 +565,8 @@ export const requestTaskCompletion = mutation({
             throw new Error("Task not found");
         }
 
-        // Only assigned staff or staff in the assigned workstream can request completion
-        const isAssignedUser = task.assignedTo === user._id;
-        const isStreamMember =
-            !!task.assignedStream && !!user.staffStream && task.assignedStream === user.staffStream;
-
-        if (!isAssignedUser && !isStreamMember) {
+        const canComplete = await isUserTaskParticipant(ctx, task, user);
+        if (!canComplete) {
             throw new Error("You can only request completion for tasks assigned to you or your workstream");
         }
 
@@ -378,13 +644,10 @@ export const updateTaskStatus = mutation({
             throw new Error("Task not found");
         }
 
-        // Only assigned staff, staff in the assigned workstream, or admin can update status
-        const isAssignedUser = task.assignedTo === user._id;
-        const isStreamMember =
-            !!task.assignedStream && !!user.staffStream && task.assignedStream === user.staffStream;
+        const isParticipant = await isUserTaskParticipant(ctx, task, user);
         const isAdmin = user.role === "admin";
 
-        if (!isAssignedUser && !isStreamMember && !isAdmin) {
+        if (!isParticipant && !isAdmin) {
             throw new Error("You can only update tasks assigned to you or your workstream");
         }
 
@@ -532,10 +795,8 @@ export const getCompletionDocumentUrl = mutation({
                     if (user.role === "admin") {
                         return await ctx.storage.getUrl(storageId);
                     }
-                    const isAssignedUser = task.assignedTo === user._id;
-                    const isStreamMember =
-                        !!task.assignedStream && !!user.staffStream && task.assignedStream === user.staffStream;
-                    if (isAssignedUser || isStreamMember) {
+                    const canView = await isUserTaskParticipant(ctx, task, user);
+                    if (canView) {
                         return await ctx.storage.getUrl(storageId);
                     }
                 }
@@ -791,6 +1052,14 @@ export const deleteTask = mutation({
             throw new Error("Only admins can delete tasks");
         }
 
+        const joint = await ctx.db
+            .query("task_assignments")
+            .withIndex("byTaskId", (q) => q.eq("taskId", taskId))
+            .collect();
+        for (const row of joint) {
+            await ctx.db.delete(row._id);
+        }
+
         return await ctx.db.delete(taskId);
     }
 });
@@ -840,7 +1109,22 @@ export const addTaskUpdate = mutation({
                 type: "task_update"
             });
         } else if (user.role === "admin") {
-            if (task.assignedTo) {
+            const joint = await ctx.db
+                .query("task_assignments")
+                .withIndex("byTaskId", (q) => q.eq("taskId", taskId))
+                .collect();
+            if (joint.length > 0) {
+                for (const row of joint) {
+                    await ctx.db.insert("notifications", {
+                        userId: row.userId,
+                        taskId,
+                        message: `Admin ${authorName} replied to your task: "${task.title}"`,
+                        isRead: false,
+                        createdAt: Date.now(),
+                        type: "task_update"
+                    });
+                }
+            } else if (task.assignedTo) {
                 await ctx.db.insert("notifications", {
                     userId: task.assignedTo,
                     taskId,
