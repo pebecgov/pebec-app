@@ -39,6 +39,7 @@ export default function StaffTasks() {
   );
   const updateTaskStatus = useMutation(api.tasks.updateTaskStatus);
   const requestTaskCompletion = useMutation(api.tasks.requestTaskCompletion);
+  const rejectTaskCompletionConsensus = useMutation(api.tasks.rejectTaskCompletionConsensus);
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
   const saveUploadedFile = useMutation(api.tickets.saveUploadedFile);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
@@ -51,6 +52,7 @@ export default function StaffTasks() {
   const [receptionFile, setReceptionFile] = useState<File | null>(null);
   const [receptionNote, setReceptionNote] = useState("");
   const [receptionUploading, setReceptionUploading] = useState(false);
+  const staffTasks = (myTasks ?? []) as any[];
 
 
   const handleQuickStatusUpdate = async (taskId: Id<"tasks">, newStatus: "to_do" | "in_progress" | "done") => {
@@ -58,7 +60,7 @@ export default function StaffTasks() {
       await updateTaskStatus({ taskId, status: newStatus });
       if (newStatus === "done") {
         // Open completion request dialog instead
-        const task = myTasks?.find(t => t._id === taskId);
+        const task = staffTasks.find((t: any) => t._id === taskId);
         if (task) {
           setSelectedTask(taskId);
           setIsCompletionDialogOpen(true);
@@ -75,6 +77,9 @@ export default function StaffTasks() {
   const handleOpenCompletionDialog = (task: any) => {
     setSelectedTask(task._id);
     setCompletionNotes(task.completionNotes || "");
+    setCompletionDocumentId(task.completionDocumentId || null);
+    setCompletionDocumentName(task.completionDocumentName || "");
+    setCompletionDocumentFile(null);
     setIsCompletionDialogOpen(true);
   };
 
@@ -171,18 +176,22 @@ export default function StaffTasks() {
   const handleRequestCompletion = async () => {
     if (!selectedTask) return;
 
-    const task = myTasks?.find(t => t._id === selectedTask);
+    const task = staffTasks.find((t: any) => t._id === selectedTask);
     if (!task) return;
 
     try {
-      await requestTaskCompletion({
+      const result = await requestTaskCompletion({
         taskId: selectedTask,
         completionNotes: completionNotes.trim() || undefined,
         completionDocumentId: completionDocumentId || undefined,
         completionDocumentName: completionDocumentName || undefined
       });
 
-      toast.success("Completion request submitted! Awaiting admin approval.");
+      if (result?.stage === "awaiting_consensus") {
+        toast.success(`Consensus updated (${result.approvedCount}/${result.totalParticipants}). Waiting for teammates.`);
+      } else {
+        toast.success("Completion request submitted! Awaiting admin approval.");
+      }
       setIsCompletionDialogOpen(false);
       setSelectedTask(null);
       setCompletionDocumentFile(null);
@@ -191,6 +200,16 @@ export default function StaffTasks() {
     } catch (error: any) {
       console.error("Error requesting completion:", error);
       toast.error(error.message || "Failed to submit completion request");
+    }
+  };
+
+  const handleRejectConsensus = async (taskId: Id<"tasks">) => {
+    try {
+      await rejectTaskCompletionConsensus({ taskId });
+      toast.success("Consensus rejected. Submission has been reset for resubmission.");
+    } catch (error: any) {
+      console.error("Error rejecting consensus:", error);
+      toast.error(error.message || "Failed to reject consensus");
     }
   };
 
@@ -213,16 +232,24 @@ export default function StaffTasks() {
   };
 
   const tasksByStatus = {
-    assigned: myTasks?.filter(t => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress") || [],
-    in_progress: myTasks?.filter(t => t.status === "in_progress") || [],
-    done: myTasks?.filter(t => t.status === "done") || []
+    assigned: staffTasks.filter((t: any) => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress"),
+    in_progress: staffTasks.filter((t: any) => t.status === "in_progress"),
+    done: staffTasks.filter((t: any) => t.status === "done")
   };
 
   // Separate active tasks from past tasks
-  const activeTasks = myTasks?.filter(t => t.status !== "done") || [];
-  const pastTasks = myTasks?.filter(t => t.status === "done") || [];
+  const activeTasks = staffTasks.filter((t: any) => t.status !== "done");
+  const pastTasks = staffTasks.filter((t: any) => t.status === "done");
 
-  const currentTask = myTasks?.find(t => t._id === selectedTask);
+  const currentTask = staffTasks.find((t: any) => t._id === selectedTask);
+  const isCompletionDocumentLocked =
+    !!currentTask?.completionDocumentId &&
+    (currentTask?.completionRequestStatus === "awaiting_consensus" ||
+      currentTask?.completionRequestStatus === "pending");
+  const isCompletionNotesLocked =
+    !!currentTask?.completionNotes &&
+    (currentTask?.completionRequestStatus === "awaiting_consensus" ||
+      currentTask?.completionRequestStatus === "pending");
 
   return (
     <div className="p-6 space-y-6">
@@ -290,9 +317,6 @@ export default function StaffTasks() {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <CardTitle className="text-lg">{task.title}</CardTitle>
-                          <CardDescription className="mt-1">
-                            Assigned by: {task.createdByName || "Admin"}
-                          </CardDescription>
                         </div>
                         <div className="flex gap-2 items-center">
                           <Badge className={getStatusColor(task.status)}>
@@ -305,8 +329,26 @@ export default function StaffTasks() {
                       </div>
                     </CardHeader>
                     <CardContent>
+                      <p className="text-sm text-gray-500 mb-3">
+                        Created: {format(new Date(task.createdAt), "PPP 'at' p")}
+                      </p>
+                      <div className="border-y border-gray-200 py-4 mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Assigned By</p>
+                          <p className="text-base font-medium text-gray-900 mt-1">{task.createdByName || "Admin"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Assigned To</p>
+                          <p className="text-base font-medium text-gray-900 mt-1 break-words">
+                            {task.assignedToName || (task.assignedStream ? `All ${task.assignedStream} Staff` : "Unassigned")}
+                          </p>
+                        </div>
+                      </div>
                       {task.description && (
-                        <p className="text-sm text-gray-600 mb-3">{task.description}</p>
+                        <div className="mb-3">
+                          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase mb-1">Description</p>
+                          <p className="text-sm text-gray-700">{task.description}</p>
+                        </div>
                       )}
                       <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-3">
                         {task.dueDate && (
@@ -318,10 +360,6 @@ export default function StaffTasks() {
                             )}
                           </div>
                         )}
-                        <div className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          Created: {format(new Date(task.createdAt), "PPP 'at' p")}
-                        </div>
                       </div>
 
                       {task.assignmentDocumentId && task.assignmentDocumentName && (
@@ -401,6 +439,17 @@ export default function StaffTasks() {
                         </div>
                       )}
 
+                      {task.consensusTotalParticipants > 1 && task.completionRequestStatus === "awaiting_consensus" && (
+                        <div className="mt-3 p-3 rounded-md mb-3 bg-amber-50 border border-amber-200">
+                          <p className="text-sm font-medium text-amber-900">
+                            {(task.completionRequestedByName || "A teammate")} wants to request completion, do you approve?
+                          </p>
+                          <p className="text-xs text-amber-800 mt-1">
+                            Submission Voting: {task.consensusApprovedCount || 0}/{task.consensusTotalParticipants} assignees approved
+                          </p>
+                        </div>
+                      )}
+
                       <div className="flex gap-2 mt-4">
                         {task.status !== "to_do" && task.status !== "in_progress" && (
                           <Button
@@ -412,7 +461,10 @@ export default function StaffTasks() {
                             Mark In Progress
                           </Button>
                         )}
-                        {task.status !== "done" && task.completionRequestStatus !== "pending" && task.completionRequestStatus !== "rejected" && (
+                        {task.status !== "done" &&
+                          task.completionRequestStatus !== "pending" &&
+                          task.completionRequestStatus !== "rejected" &&
+                          !(task.completionRequestStatus === "awaiting_consensus" && task.consensusHasCurrentUserApproved) && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -420,9 +472,37 @@ export default function StaffTasks() {
                             className="text-green-600 hover:text-green-700"
                           >
                             <CheckCircle2 className="w-4 h-4 mr-1" />
-                            Request Completion
+                            {task.consensusTotalParticipants > 1
+                              ? task.consensusHasCurrentUserApproved
+                                ? "Update Completion Request"
+                                : "Approve submission"
+                              : "Request Completion"}
                           </Button>
                         )}
+                        {task.completionRequestStatus === "awaiting_consensus" && task.consensusHasCurrentUserApproved && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled
+                            className="text-amber-700"
+                          >
+                            <Hourglass className="w-4 h-4 mr-1" />
+                            Waiting for Other Assignees
+                          </Button>
+                        )}
+                        {task.completionRequestStatus === "awaiting_consensus" &&
+                          !task.consensusHasCurrentUserApproved &&
+                          task.completionRequestedBy !== currentUser?._id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRejectConsensus(task._id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <X className="w-4 h-4 mr-1" />
+                              Reject Submission
+                            </Button>
+                          )}
                         {task.completionRequestStatus === "pending" && (
                           <Button
                             size="sm"
@@ -490,9 +570,6 @@ export default function StaffTasks() {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <CardTitle className="text-lg">{task.title}</CardTitle>
-                          <CardDescription className="mt-1">
-                            Assigned by: {task.createdByName || "Admin"}
-                          </CardDescription>
                         </div>
                         <div className="flex gap-2 items-center">
                           <Badge className="bg-green-100 text-green-800">
@@ -502,8 +579,26 @@ export default function StaffTasks() {
                       </div>
                     </CardHeader>
                     <CardContent>
+                      <p className="text-sm text-gray-500 mb-3">
+                        Created: {format(new Date(task.createdAt), "PPP 'at' p")}
+                      </p>
+                      <div className="border-y border-gray-200 py-4 mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Assigned By</p>
+                          <p className="text-base font-medium text-gray-900 mt-1">{task.createdByName || "Admin"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">Assigned To</p>
+                          <p className="text-base font-medium text-gray-900 mt-1 break-words">
+                            {task.assignedToName || (task.assignedStream ? `All ${task.assignedStream} Staff` : "Unassigned")}
+                          </p>
+                        </div>
+                      </div>
                       {task.description && (
-                        <p className="text-sm text-gray-600 mb-3">{task.description}</p>
+                        <div className="mb-3">
+                          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase mb-1">Description</p>
+                          <p className="text-sm text-gray-700">{task.description}</p>
+                        </div>
                       )}
                       <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-3">
                         {task.dueDate && (
@@ -512,10 +607,6 @@ export default function StaffTasks() {
                             Due: {format(new Date(task.dueDate), "PPP")}
                           </div>
                         )}
-                        <div className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          Created: {format(new Date(task.createdAt), "PPP")}
-                        </div>
                         {task.completedAt && (
                           <div className="flex items-center gap-1 text-green-600">
                             <CheckCircle2 className="w-4 h-4" />
@@ -756,11 +847,17 @@ export default function StaffTasks() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Completion Notes (Optional)
               </label>
+              {isCompletionNotesLocked && (
+                <p className="text-xs text-amber-700 mb-2">
+                  {/* Completion notes are locked while consensusis in progress. They can only be changed after rejection. */}
+                </p>
+              )}
               <Textarea
                 value={completionNotes}
                 onChange={(e) => setCompletionNotes(e.target.value)}
                 placeholder="Add any final notes or details about the task completion..."
                 rows={3}
+                disabled={isCompletionNotesLocked}
               />
             </div>
 
@@ -772,12 +869,18 @@ export default function StaffTasks() {
               <p className="text-xs text-gray-500 mb-2">
                 Upload any supporting documents related to task completion
               </p>
+              {isCompletionDocumentLocked && (
+                <p className="text-xs text-amber-700 mb-2">
+                  Supporting document is locked while voting is in progress. It can only be changed after rejection.
+                </p>
+              )}
               {!completionDocumentId ? (
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
                   <input
                     type="file"
                     id="completion-document"
                     className="hidden"
+                    disabled={isCompletionDocumentLocked}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) {
@@ -788,7 +891,7 @@ export default function StaffTasks() {
                   />
                   <label
                     htmlFor="completion-document"
-                    className="flex flex-col items-center justify-center cursor-pointer"
+                    className={`flex flex-col items-center justify-center ${isCompletionDocumentLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
                   >
                     <FileText className="w-8 h-8 text-gray-400 mb-2" />
                     <span className="text-sm text-gray-600">
@@ -805,7 +908,7 @@ export default function StaffTasks() {
                         <Button
                           size="sm"
                           onClick={handleDocumentUpload}
-                          disabled={uploadingDocument}
+                          disabled={uploadingDocument || isCompletionDocumentLocked}
                           className="bg-green-600 hover:bg-green-700"
                         >
                           {uploadingDocument ? "Uploading..." : "Upload"}
@@ -813,6 +916,7 @@ export default function StaffTasks() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          disabled={isCompletionDocumentLocked}
                           onClick={() => {
                             setCompletionDocumentFile(null);
                             setCompletionDocumentId(null);
@@ -834,6 +938,7 @@ export default function StaffTasks() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    disabled={isCompletionDocumentLocked}
                     onClick={() => {
                       setCompletionDocumentFile(null);
                       setCompletionDocumentId(null);

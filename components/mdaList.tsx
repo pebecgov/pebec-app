@@ -195,6 +195,9 @@ export const mdasList = [{
   name: "Patent and Design Registry",
   abbreviation: "PDR"
 }, {
+  name: "Port Health (Quarantine) Services",
+  abbreviation: "PHS"
+}, {
   name: "Secretary to the Government of the Federation",
   abbreviation: "OSGF"
 }, {

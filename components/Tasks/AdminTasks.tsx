@@ -94,6 +94,13 @@ export default function AdminTasks() {
     });
   }, [staffUsers, adminUsers]);
 
+  const getCompletionRequesterName = (task: any) => {
+    if (!task.completionRequestedBy) return null;
+    const requester = staffMembers.find((member) => member._id === task.completionRequestedBy);
+    if (!requester) return "Staff member";
+    return `${requester.firstName ?? ""} ${requester.lastName ?? ""}`.trim() || requester.email || "Staff member";
+  };
+
   /** Convex requires `title`; derive it from description and/or attachment name. */
   const buildTaskTitle = (
     desc: string,
@@ -468,6 +475,11 @@ export default function AdminTasks() {
                   {task.completionNotes && (
                     <div className="mt-3 p-3 bg-green-50 rounded-md mb-3">
                       <p className="text-sm font-medium text-green-900 mb-1">Completion Notes:</p>
+                      {getCompletionRequesterName(task) && (
+                        <p className="text-xs text-green-700 mb-1">
+                          Submitted by: {getCompletionRequesterName(task)}
+                        </p>
+                      )}
                       <p className="text-sm text-green-800">{task.completionNotes}</p>
                     </div>
                   )}
@@ -633,7 +645,7 @@ export default function AdminTasks() {
                     )}
                     <div className="flex items-center gap-1">
                       <User className="w-4 h-4" />
-                      Created by: {task.createdByName || "Admin"}
+                      Created by: {task.createdByName || "Admin"} • {format(new Date(task.createdAt), "PPP 'at' p")}
                     </div>
                     {task.completedAt && (
                       <div className="flex items-center gap-1 text-green-600">
@@ -650,6 +662,11 @@ export default function AdminTasks() {
                   {task.completionNotes && (
                     <div className="mt-3 p-3 bg-green-50 rounded-md">
                       <p className="text-sm font-medium text-green-900 mb-1">Completion Notes:</p>
+                      {getCompletionRequesterName(task) && (
+                        <p className="text-xs text-green-700 mb-1">
+                          Submitted by: {getCompletionRequesterName(task)}
+                        </p>
+                      )}
                       <p className="text-sm text-green-800">{task.completionNotes}</p>
                     </div>
                   )}
