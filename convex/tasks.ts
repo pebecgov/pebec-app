@@ -56,6 +56,68 @@ async function isUserTaskParticipant(
     return userHasJointAssignment(ctx, task._id, user._id);
 }
 
+async function getTaskConsensusParticipantIds(
+    ctx: any,
+    task: { _id: Id<"tasks">; assignedTo?: Id<"users"> }
+): Promise<Id<"users">[]> {
+    const links = await ctx.db
+        .query("task_assignments")
+        .withIndex("byTaskId", (q: any) => q.eq("taskId", task._id))
+        .collect();
+
+    const ids = new Set<Id<"users">>();
+    for (const link of links) {
+        ids.add(link.userId);
+    }
+
+    if (ids.size === 0 && task.assignedTo) {
+        ids.add(task.assignedTo);
+    }
+
+    return [...ids];
+}
+
+async function upsertCompletionVote(
+    ctx: any,
+    taskId: Id<"tasks">,
+    userId: Id<"users">,
+    vote: "approved" | "rejected",
+    comment?: string
+) {
+    const existing = await ctx.db
+        .query("task_completion_votes")
+        .withIndex("byTaskAndUser", (q: any) => q.eq("taskId", taskId).eq("userId", userId))
+        .first();
+
+    if (existing) {
+        await ctx.db.patch(existing._id, {
+            vote,
+            comment: comment?.trim() || undefined,
+            actedAt: Date.now()
+        });
+        return;
+    }
+
+    await ctx.db.insert("task_completion_votes", {
+        taskId,
+        userId,
+        vote,
+        comment: comment?.trim() || undefined,
+        actedAt: Date.now()
+    });
+}
+
+async function clearTaskCompletionVotes(ctx: any, taskId: Id<"tasks">) {
+    const votes = await ctx.db
+        .query("task_completion_votes")
+        .withIndex("byTaskId", (q: any) => q.eq("taskId", taskId))
+        .collect();
+
+    for (const vote of votes) {
+        await ctx.db.delete(vote._id);
+    }
+}
+
 async function expandWorkstreamToUserIds(ctx: any, stream: string): Promise<Id<"users">[]> {
     const s = stream.trim();
     if (!s) return [];
@@ -125,7 +187,32 @@ export const getMyTasks = query({
         // Remove duplicates if any (a task shouldn't be assigned both ways normally, but safety first)
         const uniqueTasks = Array.from(new Map(allMyTasks.map(t => [t._id, t])).values());
 
-        return uniqueTasks.sort((a, b) => b.createdAt - a.createdAt);
+        const sortedTasks = uniqueTasks.sort((a, b) => b.createdAt - a.createdAt);
+        const enriched = [];
+
+        for (const task of sortedTasks) {
+            const participantIds = await getTaskConsensusParticipantIds(ctx, task);
+            const votes = await ctx.db
+                .query("task_completion_votes")
+                .withIndex("byTaskId", (q: any) => q.eq("taskId", task._id))
+                .collect();
+            const approvedVotes = votes.filter((v: any) => v.vote === "approved");
+            const hasCurrentUserApproved = approvedVotes.some((v: any) => v.userId === user._id);
+            const requester = task.completionRequestedBy ? await ctx.db.get(task.completionRequestedBy) : null;
+            const completionRequestedByName =
+                requester
+                    ? `${requester.firstName || ""} ${requester.lastName || ""}`.trim() || requester.email || "Staff"
+                    : undefined;
+            enriched.push({
+                ...task,
+                consensusTotalParticipants: participantIds.length,
+                consensusApprovedCount: approvedVotes.length,
+                consensusHasCurrentUserApproved: hasCurrentUserApproved,
+                completionRequestedByName
+            });
+        }
+
+        return enriched;
     }
 });
 
@@ -295,7 +382,7 @@ async function insertTaskForAssignment(
         if (assignedUser?.email) {
             await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
                 to: assignedUser.email,
-                subject: `New Task Assigned: ${common.title}`,
+                subject: `The DG Has Assigned You a Task: ${common.title}`,
                 html: `
                         <div style="font-family: sans-serif; padding: 20px;">
                             <h2 style="color: #059669;">New Task Assigned</h2>
@@ -520,7 +607,7 @@ export const createTasks = mutation({
             if (assignee?.email) {
                 await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
                     to: assignee.email,
-                    subject: `New Task Assigned: ${args.title}`,
+                    subject: `The DG Has Assigned You a Shared Task: ${args.title}`,
                     html: `
                         <div style="font-family: sans-serif; padding: 20px;">
                             <h2 style="color: #059669;">New Task Assigned</h2>
@@ -570,13 +657,43 @@ export const requestTaskCompletion = mutation({
             throw new Error("You can only request completion for tasks assigned to you or your workstream");
         }
 
+        if (task.completionRequestStatus === "pending") {
+            throw new Error("This task is already awaiting admin approval");
+        }
+
+        // Lock the original supporting document while consensus/admin review is ongoing.
+        if (
+            task.completionDocumentId &&
+            (task.completionRequestStatus === "awaiting_consensus" || task.completionRequestStatus === "pending") &&
+            completionDocumentId &&
+            String(task.completionDocumentId) !== String(completionDocumentId)
+        ) {
+            throw new Error("Supporting document is locked until this request is rejected");
+        }
+        if (
+            task.completionNotes &&
+            (task.completionRequestStatus === "awaiting_consensus" || task.completionRequestStatus === "pending") &&
+            typeof completionNotes === "string" &&
+            completionNotes.trim() !== task.completionNotes.trim()
+        ) {
+            throw new Error("Completion notes are locked until this request is rejected");
+        }
+
+        // Admin rejection starts a new consensus round.
+        if (task.completionRequestStatus === "rejected") {
+            await clearTaskCompletionVotes(ctx, taskId);
+        }
+
+        const participantIds = await getTaskConsensusParticipantIds(ctx, task);
+        const consensusRequired = participantIds.length > 1;
+
+        const now = Date.now();
         const updateData: any = {
-            status: "in_progress", // Keep status as in_progress until approved
-            completionRequestStatus: "pending",
-            completionRequestedAt: Date.now(),
+            status: "in_progress",
+            completionRequestedAt: now,
             completionRequestedBy: user._id,
             completionNotes: completionNotes,
-            updatedAt: Date.now()
+            updatedAt: now
         };
 
         // Add document if provided
@@ -585,7 +702,51 @@ export const requestTaskCompletion = mutation({
             updateData.completionDocumentName = completionDocumentName;
         }
 
-        // Send email to admins for new requests or resubmissions
+        if (!consensusRequired) {
+            updateData.completionRequestStatus = "pending";
+            await ctx.db.patch(taskId, updateData);
+        } else {
+            await upsertCompletionVote(ctx, taskId, user._id, "approved");
+
+            const votes = await ctx.db
+                .query("task_completion_votes")
+                .withIndex("byTaskId", (q: any) => q.eq("taskId", taskId))
+                .collect();
+            const approvedVoterIds = new Set(
+                votes.filter((v: any) => v.vote === "approved").map((v: any) => String(v.userId))
+            );
+
+            const allApproved = participantIds.every(pid => approvedVoterIds.has(String(pid)));
+
+            if (!allApproved) {
+                updateData.completionRequestStatus = "awaiting_consensus";
+                await ctx.db.patch(taskId, updateData);
+
+                for (const participantId of participantIds) {
+                    if (String(participantId) === String(user._id)) continue;
+                    if (approvedVoterIds.has(String(participantId))) continue;
+                    await ctx.db.insert("notifications", {
+                        userId: participantId,
+                        taskId,
+                        message: `A teammate requested completion consensus for "${task.title}". Please review and approve.`,
+                        isRead: false,
+                        createdAt: now,
+                        type: "task_completion_request"
+                    });
+                }
+
+                return {
+                    stage: "awaiting_consensus",
+                    approvedCount: approvedVoterIds.size,
+                    totalParticipants: participantIds.length
+                };
+            }
+
+            updateData.completionRequestStatus = "pending";
+            await ctx.db.patch(taskId, updateData);
+        }
+
+        // Send email to admins after consensus is complete (or for single-assignee tasks)
         const adminMessage = task.completionRequestStatus === "rejected"
             ? `Task resubmitted: "${task.title}" - Awaiting your approval`
             : `Task completion request: "${task.title}" - Awaiting your approval`;
@@ -626,7 +787,64 @@ export const requestTaskCompletion = mutation({
             });
         }
 
-        return await ctx.db.patch(taskId, updateData);
+        return {
+            stage: "pending_admin",
+            approvedCount: participantIds.length > 1 ? participantIds.length : 1,
+            totalParticipants: participantIds.length > 0 ? participantIds.length : 1
+        };
+    }
+});
+
+// Reject a consensus request before it reaches admin review (staff participant only)
+export const rejectTaskCompletionConsensus = mutation({
+    args: {
+        taskId: v.id("tasks"),
+        reason: v.optional(v.string())
+    },
+    handler: async (ctx, { taskId, reason }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        const task = await ctx.db.get(taskId);
+
+        if (!task) {
+            throw new Error("Task not found");
+        }
+
+        const canReview = await isUserTaskParticipant(ctx, task, user);
+        if (!canReview) {
+            throw new Error("You can only review tasks assigned to you or your workstream");
+        }
+
+        if (task.completionRequestStatus !== "awaiting_consensus") {
+            throw new Error("This task is not awaiting assignee consensus");
+        }
+
+        if (task.completionRequestedBy && String(task.completionRequestedBy) === String(user._id)) {
+            throw new Error("You cannot reject your own completion submission");
+        }
+
+        const reasonText = reason?.trim();
+        await clearTaskCompletionVotes(ctx, taskId);
+
+        await ctx.db.patch(taskId, {
+            completionRequestStatus: "rejected",
+            completionAdminComment: reasonText
+                ? `Rejected by an assignee during consensus: ${reasonText}`
+                : "Rejected by an assignee during consensus. Please revise and resubmit.",
+            updatedAt: Date.now()
+        });
+
+        if (task.completionRequestedBy) {
+            await ctx.db.insert("notifications", {
+                userId: task.completionRequestedBy,
+                taskId,
+                message: `Your completion request for "${task.title}" was rejected by a teammate during consensus.`,
+                isRead: false,
+                createdAt: Date.now(),
+                type: "task_completion_rejected"
+            });
+        }
+
+        return { ok: true };
     }
 });
 
@@ -713,6 +931,9 @@ export const confirmTaskCompletion = mutation({
             updateData.status = "done";
             updateData.completedAt = Date.now();
         }
+
+        // Close consensus round once admin takes action.
+        await clearTaskCompletionVotes(ctx, taskId);
 
         // Notify and email the staff member
         if (task.completionRequestedBy) {

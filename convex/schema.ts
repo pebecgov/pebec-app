@@ -505,7 +505,7 @@ export default defineSchema({
     taskDetails: v.optional(v.string()), // Additional details/updates from staff
     completedAt: v.optional(v.number()), // When the task was marked as done
     // Completion request fields
-    completionRequestStatus: v.optional(v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"))),
+    completionRequestStatus: v.optional(v.union(v.literal("awaiting_consensus"), v.literal("pending"), v.literal("approved"), v.literal("rejected"))),
     completionRequestedAt: v.optional(v.number()), // When completion was requested
     completionRequestedBy: v.optional(v.id("users")), // Staff member who requested completion
     completionDocumentId: v.optional(v.id("_storage")), // Document uploaded with completion request
@@ -527,6 +527,16 @@ export default defineSchema({
   })
     .index("byUserId", ["userId"])
     .index("byTaskId", ["taskId"]),
+  task_completion_votes: defineTable({
+    taskId: v.id("tasks"),
+    userId: v.id("users"),
+    vote: v.union(v.literal("approved"), v.literal("rejected")),
+    comment: v.optional(v.string()),
+    actedAt: v.number()
+  })
+    .index("byTaskId", ["taskId"])
+    .index("byUserId", ["userId"])
+    .index("byTaskAndUser", ["taskId", "userId"]),
   reception_admin_documents: defineTable({
     storageId: v.optional(v.id("_storage")),
     fileName: v.string(),
