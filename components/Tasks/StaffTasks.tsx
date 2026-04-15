@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets } from "lucide-react";
-import { getFuelDriverKeyForUser, fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
+import { fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -47,10 +47,13 @@ export default function StaffTasks() {
   const generateReceptionUploadUrl = useMutation(api.tasks.generateReceptionUploadUrl);
   const submitReceptionDocument = useMutation(api.tasks.submitReceptionDocument);
   const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
-  const myFuelDriverKey = currentUser ? getFuelDriverKeyForUser(currentUser) : null;
-  const myFuelRequests = useQuery(
-    api.fuel_requests.listMyFuelRequestsAsDriver,
-    currentUser === undefined ? "skip" : {}
+  const receptionFuelRequests = useQuery(
+    api.fuel_requests.listFuelRequestsForReception,
+    currentUser === undefined
+      ? "skip"
+      : currentUser?.role === "staff" && currentUser?.staffStream === "receptionist"
+        ? {}
+        : "skip"
   );
   const submitFuelPrice = useMutation(api.fuel_requests.submitFuelPrice);
   const createFuelRequest = useMutation(api.fuel_requests.createFuelRequest);
@@ -276,10 +279,10 @@ export default function StaffTasks() {
               <CardTitle>Request fuel for a driver</CardTitle>
             </div>
             <CardDescription>
-              Trip date is set to today automatically. Designated admins approve the request; the driver enters the purchase price when they return.
+              Trip date is set to today automatically. After a designated admin approves the trip, enter the purchase amount (NGN) here when the driver returns.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-8">
             <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-2 min-w-[200px]">
                 <span className="text-sm font-medium text-gray-700 block">Driver</span>
@@ -317,108 +320,97 @@ export default function StaffTasks() {
                 Request fuel
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {myFuelDriverKey && (
-        <Card className="border-amber-200">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Droplets className="w-5 h-5 text-amber-600" />
-              <CardTitle>Your fuel trips</CardTitle>
-            </div>
-            <CardDescription>
-              When a trip is approved, enter the amount paid for fuel (NGN). Your profile name must match{" "}
-              <span className="font-medium">{fuelDriverLabel(myFuelDriverKey)}</span>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!myFuelRequests ? (
-              <p className="text-sm text-gray-500">Loading…</p>
-            ) : myFuelRequests.length === 0 ? (
-              <p className="text-sm text-gray-500">No fuel requests for you yet.</p>
-            ) : (
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Trip date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Amount paid (NGN)</TableHead>
-                      <TableHead className="w-[220px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {myFuelRequests.map((row) => (
-                      <TableRow key={row._id}>
-                        <TableCell className="whitespace-nowrap">{row.requestDate}</TableCell>
-                        <TableCell>
-                          {row.status === "pending_approval" && (
-                            <Badge className="bg-yellow-100 text-yellow-800">Pending approval</Badge>
-                          )}
-                          {row.status === "approved" && (
-                            <Badge className="bg-blue-100 text-blue-800">Enter price</Badge>
-                          )}
-                          {row.status === "completed" && (
-                            <Badge className="bg-green-100 text-green-800">Recorded</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.priceAmount != null ? row.priceAmount.toLocaleString() : "—"}
-                        </TableCell>
-                        <TableCell>
-                          {row.status === "approved" && row.priceAmount == null && (
-                            <div className="flex flex-wrap items-center gap-2 justify-end">
-                              <Input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                placeholder="Amount"
-                                className="w-32 h-9"
-                                value={fuelPriceInput[row._id] ?? ""}
-                                onChange={(e) =>
-                                  setFuelPriceInput((prev) => ({
-                                    ...prev,
-                                    [row._id]: e.target.value
-                                  }))
-                                }
-                              />
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="bg-amber-600 hover:bg-amber-700"
-                                onClick={async () => {
-                                  const raw = fuelPriceInput[row._id]?.trim();
-                                  const n = raw ? parseFloat(raw) : NaN;
-                                  if (!Number.isFinite(n) || n < 0) {
-                                    toast.error("Enter a valid amount");
-                                    return;
-                                  }
-                                  try {
-                                    await submitFuelPrice({ requestId: row._id, priceAmount: n });
-                                    toast.success("Fuel price saved.");
-                                    setFuelPriceInput((prev) => {
-                                      const next = { ...prev };
-                                      delete next[row._id];
-                                      return next;
-                                    });
-                                  } catch (e: any) {
-                                    toast.error(e.message || "Failed to save");
-                                  }
-                                }}
-                              >
-                                Save
-                              </Button>
-                            </div>
-                          )}
-                        </TableCell>
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-900">Fuel requests</h3>
+              {!receptionFuelRequests ? (
+                <p className="text-sm text-gray-500">Loading…</p>
+              ) : receptionFuelRequests.length === 0 ? (
+                <p className="text-sm text-gray-500">No fuel requests yet.</p>
+              ) : (
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Trip date</TableHead>
+                        <TableHead>Driver</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Amount (NGN)</TableHead>
+                        <TableHead className="text-right w-[220px]">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+                    </TableHeader>
+                    <TableBody>
+                      {receptionFuelRequests.map((row) => (
+                        <TableRow key={row._id}>
+                          <TableCell className="whitespace-nowrap">{row.requestDate}</TableCell>
+                          <TableCell>{fuelDriverLabel(row.driverKey)}</TableCell>
+                          <TableCell>
+                            {row.status === "pending_approval" && (
+                              <Badge className="bg-yellow-100 text-yellow-800">Pending approval</Badge>
+                            )}
+                            {row.status === "approved" && (
+                              <Badge className="bg-blue-100 text-blue-800">Enter price</Badge>
+                            )}
+                            {row.status === "completed" && (
+                              <Badge className="bg-green-100 text-green-800">Recorded</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {row.priceAmount != null ? row.priceAmount.toLocaleString() : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {row.status === "approved" && row.priceAmount == null && (
+                              <div className="flex flex-wrap items-center gap-2 justify-end">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  placeholder="Amount"
+                                  className="w-32 h-9"
+                                  value={fuelPriceInput[row._id] ?? ""}
+                                  onChange={(e) =>
+                                    setFuelPriceInput((prev) => ({
+                                      ...prev,
+                                      [row._id]: e.target.value
+                                    }))
+                                  }
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="bg-amber-600 hover:bg-amber-700"
+                                  onClick={async () => {
+                                    const raw = fuelPriceInput[row._id]?.trim();
+                                    const n = raw ? parseFloat(raw) : NaN;
+                                    if (!Number.isFinite(n) || n < 0) {
+                                      toast.error("Enter a valid amount");
+                                      return;
+                                    }
+                                    try {
+                                      await submitFuelPrice({ requestId: row._id, priceAmount: n });
+                                      toast.success("Fuel price saved.");
+                                      setFuelPriceInput((prev) => {
+                                        const next = { ...prev };
+                                        delete next[row._id];
+                                        return next;
+                                      });
+                                    } catch (e: any) {
+                                      toast.error(e.message || "Failed to save");
+                                    }
+                                  }}
+                                >
+                                  Save
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

@@ -958,7 +958,7 @@ export default function AdminTasks() {
                   <CardTitle>Driver fuel</CardTitle>
                 </div>
                 <CardDescription>
-                  Reception staff create requests from <span className="font-medium">My Tasks</span>. Trip date is set to today automatically. Approve when the driver may leave; the driver enters the purchase amount when they return.
+                  Reception staff create requests from <span className="font-medium">My Tasks</span> and enter the purchase amount after approval when the driver returns. Trip date is set to today automatically.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 min-w-0">
