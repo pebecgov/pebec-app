@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { encryptMessage, decryptMessage } from "../lib/encryption";
+import { api } from "./_generated/api";
 
 // Get all conversations for a user
 export const getUserConversations = query({
@@ -158,6 +159,46 @@ export const sendMessage = mutation({
       updatedAt: Date.now(),
     });
 
+    // Notify other participants by email
+    const conversation = await ctx.db.get(conversationId);
+    const sender = await ctx.db.get(senderId);
+    if (conversation && sender) {
+      const recipientIds = conversation.participants.filter((participantId) => participantId !== senderId);
+      const senderName =
+        `${sender.firstName || ""} ${sender.lastName || ""}`.trim() || sender.email || "A user";
+      const safePreview = content
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const subject = messageType === "file"
+        ? `${senderName} sent you a file`
+        : `${senderName} sent you a message`;
+
+      await Promise.all(
+        recipientIds.map(async (recipientId) => {
+          const recipient = await ctx.db.get(recipientId);
+          if (!recipient?.email) return;
+
+          const html = `
+            <div style="font-family: Arial, sans-serif; color: #111;">
+              <p>Hello ${recipient.firstName || "there"},</p>
+              <p><strong>${senderName}</strong> sent you ${messageType === "file" ? "a file" : "a message"} on PEBEC.</p>
+              <p style="background:#f5f5f5;padding:10px;border-radius:6px;">
+                ${messageType === "file" ? `Attachment: ${fileName || "File"}` : safePreview}
+              </p>
+              <p>Please log in to view and respond.</p>
+            </div>
+          `;
+
+          await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+            to: recipient.email,
+            subject,
+            html,
+          });
+        })
+      );
+    }
+
     return messageId;
   },
 });
@@ -212,7 +253,7 @@ export const getMessageableUsers = query({
   handler: async (ctx, { currentUserId, searchQuery, offset = 0, limit = 100 }) => {
     try {
       const currentUser = await ctx.db.get(currentUserId);
-      if (!currentUser) return [];
+      if (!currentUser) return { users: [], hasMore: false };
 
       // Get users based on role permissions (optimized query)
       let usersQuery;
@@ -231,7 +272,7 @@ export const getMessageableUsers = query({
       // preserving users that already have message history.
       const isSearching = searchQuery && searchQuery.trim().length > 0;
 
-      if (otherUsers.length === 0) return [];
+      if (otherUsers.length === 0) return { users: [], hasMore: false };
 
       // Get conversations in a single batch query
       const allConversations = await ctx.db.query("conversations").collect();
@@ -330,7 +371,7 @@ export const getMessageableUsers = query({
         });
 
       if (isSearching) {
-        return sortedUsers;
+        return { users: sortedUsers, hasMore: false };
       }
 
       // Always include users with existing message history, regardless pagination.
@@ -342,14 +383,16 @@ export const getMessageableUsers = query({
         user => (user.lastMessageTime || 0) <= 0 && (user.unreadCount || 0) <= 0
       );
 
-      return [
+      const pagedUsers = [
         ...usersWithMessages,
         ...usersWithoutMessages.slice(offset, offset + limit),
       ];
+      const hasMore = usersWithoutMessages.length > (offset + limit);
+      return { users: pagedUsers, hasMore };
 
     } catch (error) {
       console.error("Error in getMessageableUsers:", error);
-      return [];
+      return { users: [], hasMore: false };
     }
   },
 });

@@ -114,6 +114,12 @@ export default function MessageBadge() {
       limit: userLimit
     } : "skip"
   );
+  const usersList = Array.isArray(messageableUsers)
+    ? messageableUsers
+    : (messageableUsers?.users || []);
+  const hasMoreFromServer = Array.isArray(messageableUsers)
+    ? (usersList.length >= userLimit)
+    : !!messageableUsers?.hasMore;
 
   // Get conversations for current user
   const conversations = useQuery(
@@ -176,37 +182,12 @@ export default function MessageBadge() {
     return () => clearInterval(cleanup);
   }, []);
 
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          // Only load more when browsing full list and we likely still have more items.
-          if (!searchQuery && (messageableUsers?.length || 0) >= userLimit) {
-            setUserLimit((prev) => prev + 20);
-          }
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    const currentRef = loadMoreRef.current;
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
-
-    return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
-    };
-  }, [messageableUsers?.length, searchQuery, userLimit]);
+  const hasMoreUsers = !searchQuery && hasMoreFromServer;
 
 
 
   // Filter and sort users based on search query, role filter, and last message time
-  const filteredUsers = (messageableUsers || [])
+  const filteredUsers = usersList
     .filter((user: User) => {
       // Add safety checks for user object
       if (!user || !user._id) return false;
@@ -800,8 +781,8 @@ export default function MessageBadge() {
                         onClick={() => handleUserClick(user)}
                         className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
                             <div className="relative">
                               <div className={`w-10 h-10 ${getRoleColor(user.role)} rounded-full flex items-center justify-center text-white font-semibold`}>
                                 {getUserInitials(user)}
@@ -810,26 +791,26 @@ export default function MessageBadge() {
                                 <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
                               )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center space-x-2">
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <div className="flex items-center gap-2 min-w-0">
                                 {user.unreadCount !== undefined && user.unreadCount > 0 && (
                                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                                 )}
-                                <span className="font-medium text-gray-900 truncate max-w-[160px] inline-block align-middle">
+                                <span className="font-medium text-gray-900 truncate flex-1 min-w-0">
                                   {getUserDisplayName(user)}
                                 </span>
                                 {user.role && (
-                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full shrink-0 max-w-[120px] truncate">
                                     {getFormattedRole(user)}
                                   </span>
                                 )}
                               </div>
-                              <div className="text-sm text-gray-500 truncate">
+                              <div className="text-sm text-gray-500 truncate w-full max-w-full">
                                 {user.lastMessage || 'No messages yet'}
                               </div>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right shrink-0">
                             <div className="text-xs text-gray-400">
                               {user.lastMessageTime && formatTime(user.lastMessageTime)}
                             </div>
@@ -843,10 +824,16 @@ export default function MessageBadge() {
                       </div>
                     ))}
 
-                    {/* Loader Sentinel for Infinite Scroll */}
-                    {!searchQuery && (messageableUsers?.length || 0) >= userLimit && (
-                      <div ref={loadMoreRef} className="p-4 flex justify-center">
-                        <div className="w-6 h-6 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
+                    {/* Load more users */}
+                    {hasMoreUsers && (
+                      <div className="p-4 flex justify-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setUserLimit((prev) => prev + 20)}
+                        >
+                          Load more users
+                        </Button>
                       </div>
                     )}
                   </>
@@ -973,8 +960,8 @@ export default function MessageBadge() {
                                   {message.messageType === 'file' ? (
                                     <div className="space-y-2">
                                       {/* File attachment at the top */}
-                                      <div className="flex items-center justify-between p-2 bg-white bg-opacity-10 rounded-lg">
-                                        <div className="flex items-center space-x-2">
+                                      <div className="flex items-center justify-between gap-2 p-2 bg-white bg-opacity-10 rounded-lg min-w-0">
+                                        <div className="flex items-center space-x-2 min-w-0">
                                           <PaperClipIcon className="w-4 h-4" />
                                           <div className="min-w-0">
                                             <div className="font-medium truncate max-w-[140px]">
@@ -1086,11 +1073,11 @@ export default function MessageBadge() {
 
                 {/* File attachment preview */}
                 {selectedFile && (
-                  <div className="mb-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
+                  <div className="mb-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center space-x-2 min-w-0">
                       <PaperClipIcon className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-700">{selectedFile.name}</span>
-                      <span className="text-xs text-gray-500">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                      <span className="text-sm text-gray-700 truncate max-w-[180px]">{selectedFile.name}</span>
+                      <span className="text-xs text-gray-500 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
                     </div>
                     <button
                       onClick={() => {
