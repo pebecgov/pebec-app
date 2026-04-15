@@ -6,21 +6,7 @@ import { v } from "convex/values";
 import { api } from "./_generated/api";
 import { getCurrentUserOrThrow, getCurrentUser } from "./users";
 import { Id } from "./_generated/dataModel";
-
-/** Task inbox / reception — keep in sync with `AUTHORIZED_TASK_ADMIN_EMAILS` in `AdminTasks.tsx`. */
-const AUTHORIZED_TASK_ADMIN_EMAILS: readonly string[] = [
-    "mickaelking2002@gmail.com",
-    "zahrah.mustaphaaudu@pebec.gov.ng"
-];
-
-function isAuthorizedTaskAdmin(user: { email?: string; role?: string } | null): boolean {
-    return (
-        !!user &&
-        user.role === "admin" &&
-        !!user.email &&
-        AUTHORIZED_TASK_ADMIN_EMAILS.includes(user.email)
-    );
-}
+import { AUTHORIZED_TASK_ADMIN_EMAILS, isAuthorizedTaskAdmin } from "../lib/authorizedTaskAdmins";
 
 function escapeHtml(text: string): string {
     return text

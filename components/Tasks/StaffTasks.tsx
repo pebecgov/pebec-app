@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets } from "lucide-react";
+import { getFuelDriverKeyForUser, fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -46,12 +47,21 @@ export default function StaffTasks() {
   const generateReceptionUploadUrl = useMutation(api.tasks.generateReceptionUploadUrl);
   const submitReceptionDocument = useMutation(api.tasks.submitReceptionDocument);
   const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
+  const myFuelDriverKey = currentUser ? getFuelDriverKeyForUser(currentUser) : null;
+  const myFuelRequests = useQuery(
+    api.fuel_requests.listMyFuelRequestsAsDriver,
+    currentUser === undefined ? "skip" : {}
+  );
+  const submitFuelPrice = useMutation(api.fuel_requests.submitFuelPrice);
+  const createFuelRequest = useMutation(api.fuel_requests.createFuelRequest);
 
   const isReceptionist = currentUser?.role === "staff" && currentUser?.staffStream === "receptionist";
 
   const [receptionFile, setReceptionFile] = useState<File | null>(null);
   const [receptionNote, setReceptionNote] = useState("");
   const [receptionUploading, setReceptionUploading] = useState(false);
+  const [fuelPriceInput, setFuelPriceInput] = useState<Record<string, string>>({});
+  const [fuelStaffDriverKey, setFuelStaffDriverKey] = useState<FuelDriverKey | "">("");
   const staffTasks = (myTasks ?? []) as any[];
 
 
@@ -257,6 +267,161 @@ export default function StaffTasks() {
         <h1 className="text-3xl font-bold text-gray-900">My Tasks</h1>
         <p className="text-gray-600 mt-1">View and update tasks assigned to you</p>
       </div>
+
+      {isReceptionist && (
+        <Card className="border-amber-200">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Droplets className="w-5 h-5 text-amber-600" />
+              <CardTitle>Request fuel for a driver</CardTitle>
+            </div>
+            <CardDescription>
+              Trip date is set to today automatically. Designated admins approve the request; the driver enters the purchase price when they return.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-2 min-w-[200px]">
+                <span className="text-sm font-medium text-gray-700 block">Driver</span>
+                <Select
+                  value={fuelStaffDriverKey || undefined}
+                  onValueChange={(v) => setFuelStaffDriverKey(v as FuelDriverKey)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select driver" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FUEL_DRIVERS.map((d) => (
+                      <SelectItem key={d.key} value={d.key}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                className="bg-amber-600 hover:bg-amber-700"
+                disabled={!fuelStaffDriverKey}
+                onClick={async () => {
+                  if (!fuelStaffDriverKey) return;
+                  try {
+                    await createFuelRequest({ driverKey: fuelStaffDriverKey });
+                    toast.success("Fuel request submitted for approval.");
+                    setFuelStaffDriverKey("");
+                  } catch (e: any) {
+                    toast.error(e.message || "Failed to create request");
+                  }
+                }}
+              >
+                Request fuel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {myFuelDriverKey && (
+        <Card className="border-amber-200">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Droplets className="w-5 h-5 text-amber-600" />
+              <CardTitle>Your fuel trips</CardTitle>
+            </div>
+            <CardDescription>
+              When a trip is approved, enter the amount paid for fuel (NGN). Your profile name must match{" "}
+              <span className="font-medium">{fuelDriverLabel(myFuelDriverKey)}</span>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!myFuelRequests ? (
+              <p className="text-sm text-gray-500">Loading…</p>
+            ) : myFuelRequests.length === 0 ? (
+              <p className="text-sm text-gray-500">No fuel requests for you yet.</p>
+            ) : (
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Trip date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Amount paid (NGN)</TableHead>
+                      <TableHead className="w-[220px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {myFuelRequests.map((row) => (
+                      <TableRow key={row._id}>
+                        <TableCell className="whitespace-nowrap">{row.requestDate}</TableCell>
+                        <TableCell>
+                          {row.status === "pending_approval" && (
+                            <Badge className="bg-yellow-100 text-yellow-800">Pending approval</Badge>
+                          )}
+                          {row.status === "approved" && (
+                            <Badge className="bg-blue-100 text-blue-800">Enter price</Badge>
+                          )}
+                          {row.status === "completed" && (
+                            <Badge className="bg-green-100 text-green-800">Recorded</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {row.priceAmount != null ? row.priceAmount.toLocaleString() : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {row.status === "approved" && row.priceAmount == null && (
+                            <div className="flex flex-wrap items-center gap-2 justify-end">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                placeholder="Amount"
+                                className="w-32 h-9"
+                                value={fuelPriceInput[row._id] ?? ""}
+                                onChange={(e) =>
+                                  setFuelPriceInput((prev) => ({
+                                    ...prev,
+                                    [row._id]: e.target.value
+                                  }))
+                                }
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-amber-600 hover:bg-amber-700"
+                                onClick={async () => {
+                                  const raw = fuelPriceInput[row._id]?.trim();
+                                  const n = raw ? parseFloat(raw) : NaN;
+                                  if (!Number.isFinite(n) || n < 0) {
+                                    toast.error("Enter a valid amount");
+                                    return;
+                                  }
+                                  try {
+                                    await submitFuelPrice({ requestId: row._id, priceAmount: n });
+                                    toast.success("Fuel price saved.");
+                                    setFuelPriceInput((prev) => {
+                                      const next = { ...prev };
+                                      delete next[row._id];
+                                      return next;
+                                    });
+                                  } catch (e: any) {
+                                    toast.error(e.message || "Failed to save");
+                                  }
+                                }}
+                              >
+                                Save
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Task Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

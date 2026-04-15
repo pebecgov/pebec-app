@@ -554,6 +554,31 @@ export default defineSchema({
     viewedAt: v.optional(v.number()),
     createdAt: v.number()
   }).index("byStatus", ["status"]).index("byUploadedBy", ["uploadedBy"]),
+  /** Driver fuel: request/approve by designated task admins; drivers enter purchase price when back. */
+  fuel_requests: defineTable({
+    driverKey: v.union(
+      v.literal("dawi_ezra"),
+      v.literal("nathan_james"),
+      v.literal("seidu_isah")
+    ),
+    /** Calendar date (YYYY-MM-DD) in server local context at request time — "system date" for the trip. */
+    requestDate: v.string(),
+    status: v.union(
+      v.literal("pending_approval"),
+      v.literal("approved"),
+      v.literal("completed")
+    ),
+    requestedBy: v.id("users"),
+    requestedAt: v.number(),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    /** Amount paid for fuel (e.g. NGN). */
+    priceAmount: v.optional(v.number()),
+    priceEnteredAt: v.optional(v.number()),
+    priceEnteredBy: v.optional(v.id("users"))
+  })
+    .index("by_status", ["status"])
+    .index("by_driverKey", ["driverKey"]),
   reforms: defineTable({
     title: v.string(),
     description: v.string(),
