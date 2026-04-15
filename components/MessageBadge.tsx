@@ -182,7 +182,10 @@ export default function MessageBadge() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setUserLimit((prev) => prev + 20);
+          // Only load more when browsing full list and we likely still have more items.
+          if (!searchQuery && (messageableUsers?.length || 0) >= userLimit) {
+            setUserLimit((prev) => prev + 20);
+          }
         }
       },
       { threshold: 0.1 }
@@ -198,7 +201,7 @@ export default function MessageBadge() {
         observer.unobserve(currentRef);
       }
     };
-  }, [messageableUsers]);
+  }, [messageableUsers?.length, searchQuery, userLimit]);
 
 
 
@@ -807,12 +810,14 @@ export default function MessageBadge() {
                                 <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
                               )}
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center space-x-2">
                                 {user.unreadCount !== undefined && user.unreadCount > 0 && (
                                   <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                                 )}
-                                <span className="font-medium text-gray-900">{getUserDisplayName(user)}</span>
+                                <span className="font-medium text-gray-900 truncate max-w-[160px] inline-block align-middle">
+                                  {getUserDisplayName(user)}
+                                </span>
                                 {user.role && (
                                   <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
                                     {getFormattedRole(user)}
@@ -971,8 +976,10 @@ export default function MessageBadge() {
                                       <div className="flex items-center justify-between p-2 bg-white bg-opacity-10 rounded-lg">
                                         <div className="flex items-center space-x-2">
                                           <PaperClipIcon className="w-4 h-4" />
-                                          <div>
-                                            <div className="font-medium">{message.fileName || 'File'}</div>
+                                          <div className="min-w-0">
+                                            <div className="font-medium truncate max-w-[140px]">
+                                              {message.fileName || 'File'}
+                                            </div>
                                             {message.fileSize && (
                                               <div className="text-xs opacity-75">
                                                 {(message.fileSize / 1024).toFixed(1)} KB
@@ -997,13 +1004,13 @@ export default function MessageBadge() {
                                       </div>
                                       {/* Content below the file */}
                                       {message.content && message.content !== `📎 ${message.fileName}` && (
-                                        <div className="mt-2">
+                                        <div className="mt-2 break-words">
                                           {message.content}
                                         </div>
                                       )}
                                     </div>
                                   ) : (
-                                    message.content
+                                    <span className="break-words">{message.content}</span>
                                   )}
                                 </>
                               )}
