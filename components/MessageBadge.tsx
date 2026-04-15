@@ -3,7 +3,7 @@
 
 // @ts-nocheck - Temporary suppression for new message edit/delete functionality
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ChatBubbleLeftRightIcon, PaperAirplaneIcon, ArrowLeftIcon, MagnifyingGlassIcon, PaperClipIcon, ArrowDownTrayIcon, FunnelIcon, CheckIcon, ChevronDownIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
@@ -304,6 +304,7 @@ export default function MessageBadge() {
 
   const handleSendMessage = async () => {
     if ((newMessage.trim() || selectedFile) && currentConversationId && currentUser) {
+      const attachedFile = selectedFile;
       const messageContent = newMessage.trim() || (selectedFile ? `📎 ${selectedFile.name}` : '');
       const messageType = selectedFile ? "file" : "text";
 
@@ -342,11 +343,15 @@ export default function MessageBadge() {
       }
 
       // Send message asynchronously without blocking UI
-      sendMessageAsync(tempId, optimisticMessage);
+      sendMessageAsync(tempId, optimisticMessage, attachedFile);
     }
   };
 
-  const sendMessageAsync = async (tempId: string, optimisticMessage: OptimisticMessage) => {
+  const sendMessageAsync = async (
+    tempId: string,
+    optimisticMessage: OptimisticMessage,
+    attachedFile?: File | null
+  ) => {
     if (!currentUser) return;
 
     try {
@@ -354,11 +359,29 @@ export default function MessageBadge() {
       let fileName: string | undefined;
       let fileSize: number | undefined;
 
-      // Upload file if selected
-      if (optimisticMessage.messageType === 'file' && optimisticMessage.fileName) {
-        // For file messages, we need to handle this differently since we cleared the file
-        // For now, we'll just send the text content
-        console.warn('File upload not supported in async mode yet');
+      // Upload attachment to Convex storage before sending message
+      if (optimisticMessage.messageType === 'file' && attachedFile) {
+        const uploadUrl = await generateUploadUrl({});
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": attachedFile.type || "application/octet-stream" },
+          body: attachedFile
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`File upload failed with status ${uploadResponse.status}`);
+        }
+
+        const uploadResult = await uploadResponse.json();
+        const storageId = uploadResult.storageId || uploadResult.id;
+
+        if (!storageId) {
+          throw new Error("File upload succeeded but no storage ID was returned.");
+        }
+
+        fileId = storageId as Id<"_storage">;
+        fileName = attachedFile.name;
+        fileSize = attachedFile.size;
       }
 
       // Track message activity (only once per day)
@@ -431,7 +454,7 @@ export default function MessageBadge() {
 
 
     // Retry sending
-    await sendMessageAsync(newTempId, { ...optimisticMessage, tempId: newTempId, status: 'pending' });
+    await sendMessageAsync(newTempId, { ...optimisticMessage, tempId: newTempId, status: 'pending' }, null);
   };
 
   const handleDownloadFile = async (fileId: Id<"_storage">, fileName: string) => {
