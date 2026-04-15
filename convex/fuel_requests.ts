@@ -4,7 +4,6 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUserOrThrow } from "./users";
 import { isAuthorizedTaskAdmin } from "../lib/authorizedTaskAdmins";
-import { getFuelDriverKeyFromUserDoc } from "../lib/fuelDrivers";
 
 const driverKeyValidator = v.union(
   v.literal("dawi_ezra"),
@@ -32,20 +31,15 @@ export const listFuelRequests = query({
   },
 });
 
-/** Driver: approved trips needing price + recent completed (same driver). */
-export const listMyFuelRequestsAsDriver = query({
+/** Reception staff: all fuel requests (to enter price after approval). */
+export const listFuelRequestsForReception = query({
   args: {},
   handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
-    const key = getFuelDriverKeyFromUserDoc(user);
-    if (!key) {
+    if (user.role !== "staff" || user.staffStream !== "receptionist") {
       return [];
     }
-    const all = await ctx.db
-      .query("fuel_requests")
-      .withIndex("by_driverKey", (q) => q.eq("driverKey", key))
-      .collect();
-    return all.sort((a, b) => b.requestedAt - a.requestedAt);
+    return await ctx.db.query("fuel_requests").order("desc").collect();
   },
 });
 
@@ -102,13 +96,12 @@ export const submitFuelPrice = mutation({
   },
   handler: async (ctx, { requestId, priceAmount }) => {
     const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "staff" || user.staffStream !== "receptionist") {
+      throw new Error("Only reception staff can enter the fuel price");
+    }
     const row = await ctx.db.get(requestId);
     if (!row) {
       throw new Error("Request not found");
-    }
-    const myKey = getFuelDriverKeyFromUserDoc(user);
-    if (!myKey || myKey !== row.driverKey) {
-      throw new Error("Only the assigned driver can enter the fuel price");
     }
     if (row.status !== "approved") {
       throw new Error("Fuel must be approved before you can enter the price");
