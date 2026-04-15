@@ -226,12 +226,10 @@ export const getMessageableUsers = query({
       const users = await usersQuery.collect();
       let otherUsers = users.filter(user => user && user._id !== currentUserId);
 
-      // If no search query, apply pagination
-      // If search query exists, search through all users
+      // If search query exists, search through all users.
+      // For non-search mode, pagination is applied after sorting and after
+      // preserving users that already have message history.
       const isSearching = searchQuery && searchQuery.trim().length > 0;
-      if (!isSearching) {
-        otherUsers = otherUsers.slice(offset, offset + limit);
-      }
 
       if (otherUsers.length === 0) return [];
 
@@ -315,7 +313,7 @@ export const getMessageableUsers = query({
       );
 
       // Sort users efficiently
-      return usersWithConversationData
+      const sortedUsers = usersWithConversationData
         .filter(user => user && user._id)
         .sort((a, b) => {
           // Users with messages first, then by unread count, then alphabetically
@@ -330,6 +328,24 @@ export const getMessageableUsers = query({
           const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email;
           return aName.localeCompare(bName);
         });
+
+      if (isSearching) {
+        return sortedUsers;
+      }
+
+      // Always include users with existing message history, regardless pagination.
+      // Pagination only limits users without message history.
+      const usersWithMessages = sortedUsers.filter(
+        user => (user.lastMessageTime || 0) > 0 || (user.unreadCount || 0) > 0
+      );
+      const usersWithoutMessages = sortedUsers.filter(
+        user => (user.lastMessageTime || 0) <= 0 && (user.unreadCount || 0) <= 0
+      );
+
+      return [
+        ...usersWithMessages,
+        ...usersWithoutMessages.slice(offset, offset + limit),
+      ];
 
     } catch (error) {
       console.error("Error in getMessageableUsers:", error);
