@@ -19,8 +19,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, Archive } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, Archive, Droplets } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
+import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
+import { fuelDriverLabel } from "@/lib/fuelDrivers";
 
 export default function AdminTasks() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -35,7 +37,7 @@ export default function AdminTasks() {
   const [assignmentUploading, setAssignmentUploading] = useState(false);
   const [viewedPopupReceptionId, setViewedPopupReceptionId] = useState<Id<"reception_admin_documents"> | null>(null);
   const searchParams = useSearchParams();
-  const [tasksMainTab, setTasksMainTab] = useState<"tasks" | "reception">("tasks");
+  const [tasksMainTab, setTasksMainTab] = useState<"tasks" | "reception" | "fuel">("tasks");
 
   const allTasks = useQuery(api.tasks.getAllTasks);
   const staffUsers = useQuery(api.tasks.getUsersByRole, { role: "staff" });
@@ -50,16 +52,9 @@ export default function AdminTasks() {
   const stashReceptionDocument = useMutation(api.tasks.stashReceptionDocument);
   const markReceptionDocumentViewed = useMutation(api.tasks.markReceptionDocumentViewed);
   const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
-
-
-  /** Keep in sync with `AUTHORIZED_TASK_ADMIN_EMAILS` in `convex/tasks.ts`. */
-  const AUTHORIZED_TASK_ADMIN_EMAILS = [
-    "mickaelking2002@gmail.com",
-    "zahrah.mustaphaaudu@pebec.gov.ng"
-  ] as const;
-  const isAuthorizedAdmin =
-    !!currentUser?.email &&
-    (AUTHORIZED_TASK_ADMIN_EMAILS as readonly string[]).includes(currentUser.email);
+  const isAuthorizedAdmin = isAuthorizedTaskAdminClient(currentUser ?? null);
+  const fuelRequests = useQuery(api.fuel_requests.listFuelRequests, isAuthorizedAdmin ? {} : "skip");
+  const approveFuelRequest = useMutation(api.fuel_requests.approveFuelRequest);
 
   // Only the specific admin can view pending requests
   const pendingRequestsQuery = useQuery(api.tasks.getPendingCompletionRequests);
@@ -360,6 +355,9 @@ export default function AdminTasks() {
     if (searchParams.get("tab") === "reception") {
       setTasksMainTab("reception");
     }
+    if (searchParams.get("tab") === "fuel") {
+      setTasksMainTab("fuel");
+    }
   }, [isAuthorizedAdmin, searchParams]);
 
   return (
@@ -413,13 +411,19 @@ export default function AdminTasks() {
         </Card>
       </div>
 
-      <Tabs value={tasksMainTab} onValueChange={(v) => setTasksMainTab(v as "tasks" | "reception")} className="w-full min-w-0 max-w-full">
-        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-lg grid-cols-2" : "max-w-xs grid-cols-1"}`}>
+      <Tabs value={tasksMainTab} onValueChange={(v) => setTasksMainTab(v as "tasks" | "reception" | "fuel")} className="w-full min-w-0 max-w-full">
+        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-2xl grid-cols-3" : "max-w-xs grid-cols-1"}`}>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           {isAuthorizedAdmin && (
             <TabsTrigger value="reception" className="gap-1">
               <Inbox className="w-3.5 h-3.5" />
               Recieve Scanned Letters
+            </TabsTrigger>
+          )}
+          {isAuthorizedAdmin && (
+            <TabsTrigger value="fuel" className="gap-1">
+              <Droplets className="w-3.5 h-3.5" />
+              Fuel
             </TabsTrigger>
           )}
         </TabsList>
@@ -713,6 +717,7 @@ export default function AdminTasks() {
         </TabsContent>
 
         {isAuthorizedAdmin && (
+          <>
           <TabsContent value="reception" className="mt-6">
             <Card className="border-teal-200">
               <CardHeader>
@@ -944,6 +949,83 @@ export default function AdminTasks() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="fuel" className="mt-6">
+            <Card className="border-amber-200">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Droplets className="w-5 h-5 text-amber-600" />
+                  <CardTitle>Driver fuel</CardTitle>
+                </div>
+                <CardDescription>
+                  Reception staff create requests from <span className="font-medium">My Tasks</span>. Trip date is set to today automatically. Approve when the driver may leave; the driver enters the purchase amount when they return.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 min-w-0">
+                {!fuelRequests ? (
+                  <p className="text-gray-500">Loading…</p>
+                ) : fuelRequests.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No fuel requests yet.</p>
+                ) : (
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Trip date</TableHead>
+                          <TableHead>Driver</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Amount (NGN)</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {fuelRequests.map((row) => (
+                          <TableRow key={row._id}>
+                            <TableCell>{row.requestDate}</TableCell>
+                            <TableCell>{fuelDriverLabel(row.driverKey)}</TableCell>
+                            <TableCell>
+                              {row.status === "pending_approval" && (
+                                <Badge className="bg-yellow-100 text-yellow-800">Pending approval</Badge>
+                              )}
+                              {row.status === "approved" && (
+                                <Badge className="bg-blue-100 text-blue-800">Awaiting price</Badge>
+                              )}
+                              {row.status === "completed" && (
+                                <Badge className="bg-green-100 text-green-800">Completed</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {row.priceAmount != null ? row.priceAmount.toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.status === "pending_approval" && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    try {
+                                      await approveFuelRequest({ requestId: row._id });
+                                      toast.success("Request approved.");
+                                    } catch (e: any) {
+                                      toast.error(e.message || "Failed to approve");
+                                    }
+                                  }}
+                                >
+                                  Approve
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          </>
         )}
       </Tabs>
 
