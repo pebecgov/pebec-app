@@ -253,7 +253,7 @@ export const getMessageableUsers = query({
   handler: async (ctx, { currentUserId, searchQuery, offset = 0, limit = 100 }) => {
     try {
       const currentUser = await ctx.db.get(currentUserId);
-      if (!currentUser) return { users: [], hasMore: false };
+      if (!currentUser) return { users: [], hasMore: false, offset };
 
       // Get users based on role permissions (optimized query)
       let usersQuery;
@@ -272,7 +272,7 @@ export const getMessageableUsers = query({
       // preserving users that already have message history.
       const isSearching = searchQuery && searchQuery.trim().length > 0;
 
-      if (otherUsers.length === 0) return { users: [], hasMore: false };
+      if (otherUsers.length === 0) return { users: [], hasMore: false, offset };
 
       // Get conversations in a single batch query
       const allConversations = await ctx.db.query("conversations").collect();
@@ -371,7 +371,7 @@ export const getMessageableUsers = query({
         });
 
       if (isSearching) {
-        return { users: sortedUsers, hasMore: false };
+        return { users: sortedUsers, hasMore: false, offset };
       }
 
       // Always include users with existing message history, regardless pagination.
@@ -388,11 +388,11 @@ export const getMessageableUsers = query({
         ...usersWithoutMessages.slice(offset, offset + limit),
       ];
       const hasMore = usersWithoutMessages.length > (offset + limit);
-      return { users: pagedUsers, hasMore };
+      return { users: pagedUsers, hasMore, offset };
 
     } catch (error) {
       console.error("Error in getMessageableUsers:", error);
-      return { users: [], hasMore: false };
+      return { users: [], hasMore: false, offset };
     }
   },
 });

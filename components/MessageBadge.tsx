@@ -94,9 +94,13 @@ export default function MessageBadge() {
   const [editingMessageId, setEditingMessageId] = useState<Id<"messages"> | string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [showMessageMenu, setShowMessageMenu] = useState<Id<"messages"> | string | null>(null);
-  const [userLimit, setUserLimit] = useState(100);
+  const [userLimit] = useState(100);
+  const [userOffset, setUserOffset] = useState(0);
+  const [loadedUsers, setLoadedUsers] = useState<User[]>([]);
+  const [isLoadingMoreUsers, setIsLoadingMoreUsers] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isFetchingMore = useRef(false);
 
   // Activity tracking for messages
   const { trackUserAction } = useGlobalActivityTracker();
@@ -110,16 +114,53 @@ export default function MessageBadge() {
     currentUser ? {
       currentUserId: currentUser._id,
       searchQuery: searchQuery,
-      offset: 0,
+      offset: userOffset,
       limit: userLimit
     } : "skip"
   );
-  const usersList = Array.isArray(messageableUsers)
+  const queryUsers = Array.isArray(messageableUsers)
     ? messageableUsers
     : (messageableUsers?.users || []);
+  const responseOffset = Array.isArray(messageableUsers)
+    ? 0
+    : (messageableUsers?.offset ?? 0);
   const hasMoreFromServer = Array.isArray(messageableUsers)
-    ? (usersList.length >= userLimit)
+    ? (queryUsers.length >= userLimit)
     : !!messageableUsers?.hasMore;
+
+  useEffect(() => {
+    if (messageableUsers === undefined) return;
+
+    // For search mode or first response page, replace.
+    // For subsequent pages, append with de-dup so current users stay visible.
+    if (searchQuery || responseOffset === 0) {
+      setLoadedUsers(queryUsers);
+      setIsLoadingMoreUsers(false);
+      isFetchingMore.current = false;
+      return;
+    }
+
+    // Subsequent pages: silently append, de-duped, never replacing existing users.
+    setLoadedUsers((prev) => {
+      const userMap = new Map<string, User>();
+      prev.forEach((user) => {
+        if (user?._id) userMap.set(String(user._id), user);
+      });
+      queryUsers.forEach((user: User) => {
+        if (user?._id) userMap.set(String(user._id), user);
+      });
+      return Array.from(userMap.values());
+    });
+    setIsLoadingMoreUsers(false);
+    isFetchingMore.current = false;
+  }, [messageableUsers, queryUsers, searchQuery, responseOffset]);
+
+  useEffect(() => {
+    // Reset paging when search changes.
+    setUserOffset(0);
+    setIsLoadingMoreUsers(false);
+    isFetchingMore.current = false;
+  }, [searchQuery]);
 
   // Get conversations for current user
   const conversations = useQuery(
@@ -183,11 +224,23 @@ export default function MessageBadge() {
   }, []);
 
   const hasMoreUsers = !searchQuery && hasMoreFromServer;
+  const isInitialUsersLoading = messageableUsers === undefined && loadedUsers.length === 0;
+  const handleUsersListScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!hasMoreUsers || isLoadingMoreUsers || isFetchingMore.current) return;
+
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom <= 32) {
+      isFetchingMore.current = true;
+      setIsLoadingMoreUsers(true);
+      setUserOffset((prev) => prev + userLimit);
+    }
+  };
 
 
 
   // Filter and sort users based on search query, role filter, and last message time
-  const filteredUsers = usersList
+  const filteredUsers = loadedUsers
     .filter((user: User) => {
       // Add safety checks for user object
       if (!user || !user._id) return false;
@@ -761,8 +814,8 @@ export default function MessageBadge() {
               </div>
 
               {/* Users List */}
-              <div className="h-80 overflow-y-auto">
-                {messageableUsers === undefined ? (
+              <div className="h-80 overflow-y-auto" onScroll={handleUsersListScroll}>
+                {isInitialUsersLoading ? (
                   <div className="p-4 text-center text-gray-500">
                     <div className="flex items-center justify-center space-x-2">
                       <div className="w-4 h-4 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
@@ -824,16 +877,12 @@ export default function MessageBadge() {
                       </div>
                     ))}
 
-                    {/* Load more users */}
-                    {hasMoreUsers && (
-                      <div className="p-4 flex justify-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setUserLimit((prev) => prev + 20)}
-                        >
-                          Load more users
-                        </Button>
+                    {/* Infinite loader */}
+                    {isLoadingMoreUsers && (
+                      <div className="px-4 py-1">
+                        <div className="h-0.5 w-full bg-gray-100 rounded overflow-hidden">
+                          <div className="h-full w-1/3 bg-green-400 rounded animate-pulse" />
+                        </div>
                       </div>
                     )}
                   </>
