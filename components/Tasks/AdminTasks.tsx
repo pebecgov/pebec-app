@@ -740,12 +740,12 @@ export default function AdminTasks() {
                 ) : (
                   <div className="space-y-3 w-full min-w-0">
                   <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-md border border-gray-200 [-webkit-overflow-scrolling:touch]">
-                    <table className="min-w-[1100px] w-max max-w-none text-sm whitespace-nowrap text-left">
+                    <table className="w-full min-w-[1100px] text-sm whitespace-nowrap text-left">
                       <thead className="bg-gray-100">
                         <tr>
                           <th className="p-3 font-medium">File Name</th>
                           <th className="p-3 font-medium">Uploaded By</th>
-                          <th className="p-3 font-medium">Date</th>
+                          <th className="p-3 font-medium">Uploaded</th>
                           <th className="p-3 font-medium">Note</th>
                           <th className="p-3 font-medium">Files</th>
                           <th className="p-3 font-medium">Assigned To</th>
@@ -762,7 +762,9 @@ export default function AdminTasks() {
                                 {doc.fileName}
                               </td>
                               <td className="p-3">{doc.uploaderName}</td>
-                              <td className="p-3">{format(new Date(doc.createdAt), "PPP")}</td>
+                              <td className="p-3 whitespace-normal">
+                                {format(new Date(doc.createdAt), "PPP 'at' p")}
+                              </td>
                               <td className="p-3 max-w-[220px]">
                                 <span className="block truncate" title={doc.note || ""}>
                                   {doc.note || "—"}
