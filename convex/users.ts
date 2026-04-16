@@ -13,6 +13,7 @@ export const getUsers = query({
     return await ctx.db.query('users').collect();
   }
 });
+
 export const getRecentUsers = query({
   args: {},
   handler: async ctx => {
