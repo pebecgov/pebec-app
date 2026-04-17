@@ -21,15 +21,45 @@ export const sendEmail = action({
       throw new Error("Missing RESEND_API_KEY in Convex environment.");
     }
     const resend = new Resend(resendApiKey);
-    try {
-      await resend.emails.send({
-        from: "support@pebecgov.com",
+    const preferredFrom = process.env.RESEND_FROM_EMAIL || "support@pebecgov.com";
+    const fallbackFrom = process.env.RESEND_FALLBACK_FROM_EMAIL || "onboarding@resend.dev";
+
+    const trySend = async (from: string) => {
+      const result = await resend.emails.send({
+        from,
         to,
         subject,
         html
       });
+      return result;
+    };
+
+    try {
+      let result = await trySend(preferredFrom);
+
+      if (result?.error && result.error.message?.includes("domain is not verified") && preferredFrom !== fallbackFrom) {
+        console.warn(`Primary from address failed (${preferredFrom}). Retrying with fallback sender ${fallbackFrom}.`);
+        result = await trySend(fallbackFrom);
+      }
+
+      if (result?.error) {
+        console.error("Resend API returned an error:", result.error);
+        return {
+          success: false,
+          error: result.error.message || "Unknown Resend error"
+        };
+      }
+
+      console.log("Email accepted by Resend:", {
+        to,
+        subject,
+        from: result?.data?.from || preferredFrom,
+        id: result?.data?.id
+      });
+
       return {
-        success: true
+        success: true,
+        id: result?.data?.id
       };
     } catch (error) {
       console.error("Email send failed:", error);
