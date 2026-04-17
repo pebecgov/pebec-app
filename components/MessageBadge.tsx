@@ -114,6 +114,7 @@ export default function MessageBadge() {
     currentUser ? {
       currentUserId: currentUser._id,
       searchQuery: searchQuery,
+      roleFilter,
       offset: userOffset,
       limit: userLimit
     } : "skip"
@@ -156,11 +157,11 @@ export default function MessageBadge() {
   }, [messageableUsers, queryUsers, searchQuery, responseOffset]);
 
   useEffect(() => {
-    // Reset paging when search changes.
+    // Reset paging when server-side filters change.
     setUserOffset(0);
     setIsLoadingMoreUsers(false);
     isFetchingMore.current = false;
-  }, [searchQuery]);
+  }, [searchQuery, roleFilter]);
 
   // Get conversations for current user
   const conversations = useQuery(
@@ -239,71 +240,8 @@ export default function MessageBadge() {
 
 
 
-  // Filter and sort users based on search query, role filter, and last message time
-  const filteredUsers = loadedUsers
-    .filter((user: User) => {
-      // Add safety checks for user object
-      if (!user || !user._id) return false;
-
-      // Add null checks for user properties
-      const userRole = user.role || '';
-      const userEmail = user.email || '';
-      const userFirstName = user.firstName || '';
-      const userLastName = user.lastName || '';
-
-      // Exclude specific roles from being displayed
-      const excludedRoles = ['federal', 'deputies', 'magistrates', 'state_governor', 'president', 'vice_president', 'world_bank', 'ngf', 'dmo', 'user'];
-      if (excludedRoles.includes(userRole)) {
-        return false;
-      }
-
-      const fullName = `${userFirstName} ${userLastName}`.trim();
-      const matchesSearch = fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        userRole.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        userEmail.toLowerCase().includes(searchQuery.toLowerCase());
-
-      // Apply role filter
-      let matchesRole = true;
-      if (currentUser?.role === 'admin' || currentUser?.role === 'staff') {
-        if (roleFilter === 'admin') {
-          matchesRole = userRole === 'admin';
-        } else if (roleFilter === 'staff') {
-          matchesRole = userRole === 'staff';
-        } else if (roleFilter === 'reform_champion') {
-          matchesRole = userRole === 'reform_champion';
-        } else if (roleFilter === 'saber_agent') {
-          matchesRole = userRole === 'saber_agent';
-        } else if (roleFilter === 'mda') {
-          matchesRole = userRole === 'mda';
-        }
-        // 'all' shows all users for admin/staff
-      } else {
-        // Non-admin/staff users only see staff
-        matchesRole = userRole === 'staff';
-      }
-
-      return matchesSearch && matchesRole;
-    })
-    .sort((a, b) => {
-      // Add null safety for sorting
-      const aTime = a.lastMessageTime || 0;
-      const bTime = b.lastMessageTime || 0;
-      const aUnread = a.unreadCount || 0;
-      const bUnread = b.unreadCount || 0;
-
-      // Users with messages first, then by unread count, then by time
-      const aHasMessage = aTime > 0 ? 1 : 0;
-      const bHasMessage = bTime > 0 ? 1 : 0;
-
-      if (bHasMessage !== aHasMessage) return bHasMessage - aHasMessage;
-      if (bUnread !== aUnread) return bUnread - aUnread;
-      if (bTime !== aTime) return bTime - aTime;
-
-      // Finally, sort alphabetically by name
-      const aName = `${a.firstName || ''} ${a.lastName || ''}`.trim() || a.email || '';
-      const bName = `${b.firstName || ''} ${b.lastName || ''}`.trim() || b.email || '';
-      return aName.localeCompare(bName);
-    });
+  // Backend now owns role/search/exclusion filters and sorting.
+  const filteredUsers = loadedUsers.filter((user: User) => !!user && !!user._id);
 
   const handleUserClick = async (selectedUser: User) => {
     if (!currentUser) return;
