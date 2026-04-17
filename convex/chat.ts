@@ -89,16 +89,47 @@ export const sendMessage = mutation({
 
     // Notify all members except sender
     const conversation = await ctx.db.get(args.conversationId);
+    const sender = await ctx.db.get(args.senderId);
     if (conversation && Array.isArray(conversation.participants)) {
+      const senderName =
+        `${sender?.firstName || ""} ${sender?.lastName || ""}`.trim() || sender?.email || "A user";
+      const rawPreview = args.text || args.fileName || "";
+      const safePreview = rawPreview
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const subject = args.fileId
+        ? `${senderName} sent you a file`
+        : `${senderName} sent you a message`;
+
       for (const userId of conversation.participants) {
         if (userId === args.senderId) continue;
+        const recipient = await ctx.db.get(userId);
+
         await ctx.db.insert("notifications", {
           userId,
-          message: "New chat message",
+          message: `${senderName} sent you ${args.fileId ? "a file" : "a message"}`,
           isRead: false,
           createdAt,
           type: "chat_message"
         });
+
+        if (recipient?.email) {
+          await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+            to: recipient.email,
+            subject,
+            html: `
+              <div style="font-family: Arial, sans-serif; color: #111;">
+                <p>Hello ${recipient.firstName || "there"},</p>
+                <p><strong>${senderName}</strong> sent you ${args.fileId ? "a file" : "a message"} on PEBEC.</p>
+                <p style="background:#f5f5f5;padding:10px;border-radius:6px;">
+                  ${args.fileId ? `Attachment: ${args.fileName || "File"}` : safePreview}
+                </p>
+                <p>Please log in to view and respond.</p>
+              </div>
+            `
+          });
+        }
       }
       await ctx.db.patch(args.conversationId, {
         lastMessage: args.text || args.fileName || "",

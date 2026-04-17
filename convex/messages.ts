@@ -114,6 +114,7 @@ export const getOrCreateConversation = mutation({
     const conversationId = await ctx.db.insert("conversations", {
       participants: [userId1, userId2],
       lastMessageAt: Date.now(),
+      unreadCounts: {},
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -151,19 +152,27 @@ export const sendMessage = mutation({
       createdAt: Date.now(),
     });
 
-    // Update conversation with last message info (use original content for preview)
-    await ctx.db.patch(conversationId, {
-      lastMessage: content.length > 50 ? content.substring(0, 50) + "..." : content,
-      lastMessageAt: Date.now(),
-      lastMessageSender: senderId,
-      updatedAt: Date.now(),
-    });
-
-    // Notify other participants by email
     const conversation = await ctx.db.get(conversationId);
     const sender = await ctx.db.get(senderId);
     if (conversation && sender) {
       const recipientIds = conversation.participants.filter((participantId) => participantId !== senderId);
+      const currentUnreadCounts = conversation.unreadCounts || {};
+      const updatedUnreadCounts: Record<string, number> = { ...currentUnreadCounts };
+      for (const recipientId of recipientIds) {
+        const recipientKey = recipientId.toString();
+        updatedUnreadCounts[recipientKey] = (updatedUnreadCounts[recipientKey] || 0) + 1;
+      }
+
+      // Update conversation with last message info and per-user unread counters
+      await ctx.db.patch(conversationId, {
+        lastMessage: content.length > 50 ? content.substring(0, 50) + "..." : content,
+        lastMessageAt: Date.now(),
+        lastMessageSender: senderId,
+        unreadCounts: updatedUnreadCounts,
+        updatedAt: Date.now(),
+      });
+
+      // Notify other participants by email
       const senderName =
         `${sender.firstName || ""} ${sender.lastName || ""}`.trim() || sender.email || "A user";
       const safePreview = content
@@ -174,14 +183,18 @@ export const sendMessage = mutation({
         ? `${senderName} sent you a file`
         : `${senderName} sent you a message`;
 
-      await Promise.all(
-        recipientIds.map(async (recipientId) => {
+      const timestamp = Date.now();
+      for (const recipientId of recipientIds) {
+        try {
           const recipient = await ctx.db.get(recipientId);
-          if (!recipient?.email) return;
+
+          const recipientEmail = recipient?.email?.trim();
+          if (!recipientEmail) continue;
+          const recipientFirstName = recipient?.firstName || "there";
 
           const html = `
             <div style="font-family: Arial, sans-serif; color: #111;">
-              <p>Hello ${recipient.firstName || "there"},</p>
+              <p>Hello ${recipientFirstName},</p>
               <p><strong>${senderName}</strong> sent you ${messageType === "file" ? "a file" : "a message"} on PEBEC.</p>
               <p style="background:#f5f5f5;padding:10px;border-radius:6px;">
                 ${messageType === "file" ? `Attachment: ${fileName || "File"}` : safePreview}
@@ -191,12 +204,14 @@ export const sendMessage = mutation({
           `;
 
           await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
-            to: recipient.email,
+            to: recipientEmail,
             subject,
             html,
           });
-        })
-      );
+        } catch (error) {
+          console.error("Failed to notify message recipient:", recipientId, error);
+        }
+      }
     }
 
     return messageId;
@@ -221,6 +236,18 @@ export const markConversationAsRead = mutation({
     userId: v.id("users")
   },
   handler: async (ctx, { conversationId, userId }) => {
+    const conversation = await ctx.db.get(conversationId);
+    if (conversation) {
+      const currentUnreadCounts = conversation.unreadCounts || {};
+      await ctx.db.patch(conversationId, {
+        unreadCounts: {
+          ...currentUnreadCounts,
+          [userId.toString()]: 0,
+        },
+        updatedAt: Date.now(),
+      });
+    }
+
     const messages = await ctx.db
       .query("messages")
       .withIndex("byConversation", (q) => q.eq("conversationId", conversationId))
@@ -274,84 +301,63 @@ export const getMessageableUsers = query({
 
       if (otherUsers.length === 0) return { users: [], hasMore: false, offset };
 
-      // Get conversations in a single batch query
+      // Get all conversations and keep only ones that include the current user
       const allConversations = await ctx.db.query("conversations").collect();
+      const myConversations = allConversations.filter(
+        (conv) => conv?.participants?.includes(currentUserId)
+      );
 
-      // Create a map for quick conversation lookup
+      // Create a map for quick conversation lookup by the "other participant"
       const conversationMap = new Map();
-      allConversations.forEach(conv => {
-        if (conv?.participants?.includes(currentUserId)) {
-          const otherParticipant = conv.participants.find(id => id !== currentUserId);
-          if (otherParticipant) {
-            conversationMap.set(otherParticipant.toString(), conv);
-          }
+      myConversations.forEach((conv) => {
+        const otherParticipant = conv.participants.find((id) => id !== currentUserId);
+        if (otherParticipant) {
+          conversationMap.set(otherParticipant.toString(), conv);
         }
       });
 
-      // Process users with conversation data
-      const usersWithConversationData = await Promise.all(
-        otherUsers.map(async (user) => {
-          try {
-            const conversation = conversationMap.get(user._id.toString());
-            let lastMessage = undefined;
-            let lastMessageTime = undefined;
-            let unreadCount = 0;
+      // Build user rows using cheap per-conversation last-message lookups and
+      // unread counts stored directly on the conversation doc.
+      const usersWithConversationData = await Promise.all(otherUsers.map(async (user) => {
+        const conversation = conversationMap.get(user._id.toString());
+        const conversationId = conversation?._id?.toString();
 
-            if (conversation?._id) {
-              // Get last message efficiently
-              const lastMessages = await ctx.db
-                .query("messages")
-                .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
-                .order("desc")
-                .take(1);
+        let lastMessage = undefined;
+        let lastMessageTime = undefined;
+        let unreadCount = 0;
 
-              if (lastMessages.length > 0) {
-                const lastMsg = lastMessages[0];
-                // Decrypt last message
-                let decryptedLastMessage = lastMsg.content;
-                if (lastMsg.isEncrypted) {
-                  try {
-                    decryptedLastMessage = decryptMessage(lastMsg.content);
-                  } catch (error) {
-                    decryptedLastMessage = '[Encrypted message]';
-                  }
-                }
-                lastMessage = decryptedLastMessage;
-                lastMessageTime = lastMsg.createdAt;
+        if (conversationId) {
+          const lastMessages = await ctx.db
+            .query("messages")
+            .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
+            .order("desc")
+            .take(1);
+
+          if (lastMessages.length > 0) {
+            const lastMsg = lastMessages[0];
+            let decryptedLastMessage = lastMsg.content;
+            if (lastMsg.isEncrypted) {
+              try {
+                decryptedLastMessage = decryptMessage(lastMsg.content);
+              } catch {
+                decryptedLastMessage = "[Encrypted message]";
               }
-
-              // Get unread count efficiently
-              const unreadMessages = await ctx.db
-                .query("messages")
-                .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
-                .filter((q) => q.and(
-                  q.eq(q.field("senderId"), user._id),
-                  q.eq(q.field("isRead"), false)
-                ))
-                .collect();
-
-              unreadCount = unreadMessages.length;
             }
-
-            return {
-              ...user,
-              lastMessage,
-              lastMessageTime,
-              unreadCount: unreadCount || 0, // Ensure number
-              isOnline: false
-            };
-          } catch (error) {
-            console.error("Error processing user:", user._id, error);
-            return {
-              ...user,
-              lastMessage: undefined,
-              lastMessageTime: undefined,
-              unreadCount: 0,
-              isOnline: false
-            };
+            lastMessage = decryptedLastMessage;
+            lastMessageTime = lastMsg.createdAt;
           }
-        })
-      );
+
+          unreadCount = conversation.unreadCounts?.[currentUserId.toString()] || 0;
+        }
+
+        return {
+          ...user,
+          lastMessage,
+          lastMessageTime,
+          unreadCount,
+          isOnline: false,
+        };
+      }));
 
       // Sort users efficiently
       const sortedUsers = usersWithConversationData
@@ -412,16 +418,7 @@ export const getUnreadMessageCount = query({
     let totalUnread = 0;
 
     for (const conversation of conversations) {
-      const unreadMessages = await ctx.db
-        .query("messages")
-        .withIndex("byConversation", (q) => q.eq("conversationId", conversation._id))
-        .filter((q) => q.and(
-          q.neq(q.field("senderId"), userId),
-          q.eq(q.field("isRead"), false)
-        ))
-        .collect();
-
-      totalUnread += unreadMessages.length;
+      totalUnread += conversation.unreadCounts?.[userId.toString()] || 0;
     }
 
     return totalUnread;

@@ -268,6 +268,7 @@ export default defineSchema({
     lastMessageAt: v.number(), // Timestamp of the last message
     lastMessage: v.optional(v.string()), // Preview of the last message
     lastMessageSender: v.optional(v.id("users")), // Who sent the last message
+    unreadCounts: v.optional(v.record(v.string(), v.number())), // userId -> unread messages in this conversation
     createdAt: v.number(),
     updatedAt: v.number()
   }).index("byParticipant", ["participants"]).index("byLastMessageAt", ["lastMessageAt"]),
