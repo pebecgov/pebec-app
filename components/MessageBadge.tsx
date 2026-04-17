@@ -100,6 +100,7 @@ export default function MessageBadge() {
   const [isLoadingMoreUsers, setIsLoadingMoreUsers] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isFetchingMore = useRef(false);
 
   // Activity tracking for messages
@@ -405,12 +406,17 @@ export default function MessageBadge() {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+  const resizeTextarea = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 100);
+      textareaRef.current.style.height = `${newHeight}px`;
     }
   };
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [newMessage]);
 
   const handleRetryMessage = async (optimisticMessage: OptimisticMessage) => {
     if (!currentUser) return;
@@ -1098,12 +1104,26 @@ export default function MessageBadge() {
                     <PaperClipIcon className="w-4 h-4" />
                   </Button>
 
-                  <Input
+                  <textarea
+                    ref={textareaRef}
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
                     placeholder="Type your message..."
-                    className="flex-1"
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none overflow-y-auto overflow-x-hidden"
+                    rows={1}
+                    style={{
+                      minHeight: "2.5rem",
+                      maxHeight: "100px",
+                      lineHeight: "1.25rem",
+                      overflowWrap: "break-word",
+                      whiteSpace: "pre-wrap",
+                    }}
                   />
                   <Button
                     onClick={handleSendMessage}
