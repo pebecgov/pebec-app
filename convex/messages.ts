@@ -293,6 +293,8 @@ export const getMessageableUsers = query({
 
       const users = await usersQuery.collect();
       let otherUsers = users.filter(user => user && user._id !== currentUserId);
+      console.log("getMessageableUsers: total users fetched:", users.length);
+      console.log("getMessageableUsers: other users after filter:", otherUsers.length);
 
       // If search query exists, search through all users.
       // For non-search mode, pagination is applied after sorting and after
@@ -306,6 +308,7 @@ export const getMessageableUsers = query({
       const myConversations = allConversations.filter(
         (conv) => conv?.participants?.includes(currentUserId)
       );
+      console.log("getMessageableUsers: my conversations:", myConversations.length);
 
       // Create a map for quick conversation lookup by the "other participant"
       const conversationMap = new Map();
@@ -393,6 +396,7 @@ export const getMessageableUsers = query({
         ...usersWithMessages,
         ...usersWithoutMessages.slice(offset, offset + limit),
       ];
+      console.log("getMessageableUsers: final users returned:", pagedUsers.length);
       const hasMore = usersWithoutMessages.length > (offset + limit);
       return { users: pagedUsers, hasMore, offset };
 
