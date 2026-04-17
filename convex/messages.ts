@@ -274,41 +274,66 @@ export const getMessageableUsers = query({
   args: {
     currentUserId: v.id("users"),
     searchQuery: v.optional(v.string()),
+    roleFilter: v.optional(v.union(
+      v.literal("all"),
+      v.literal("admin"),
+      v.literal("staff"),
+      v.literal("reform_champion"),
+      v.literal("saber_agent"),
+      v.literal("mda")
+    )),
     offset: v.optional(v.number()),
     limit: v.optional(v.number())
   },
-  handler: async (ctx, { currentUserId, searchQuery, offset = 0, limit = 100 }) => {
+  handler: async (ctx, { currentUserId, searchQuery, roleFilter = "all", offset = 0, limit = 100 }) => {
     try {
       const currentUser = await ctx.db.get(currentUserId);
       if (!currentUser) return { users: [], hasMore: false, offset };
 
-      // Get users based on role permissions (optimized query)
-      let usersQuery;
+      // Backend role filtering (query only allowed roles instead of scanning all users).
+      let rolesToQuery: Array<"admin" | "staff" | "reform_champion" | "saber_agent" | "mda"> = ["staff"];
       if (currentUser.role === "admin" || currentUser.role === "staff") {
-        usersQuery = ctx.db.query("users");
-      } else {
-        usersQuery = ctx.db.query("users")
-          .filter((q) => q.eq(q.field("role"), "staff"));
+        if (roleFilter === "all") {
+          rolesToQuery = ["admin", "staff", "reform_champion", "saber_agent", "mda"];
+        } else {
+          rolesToQuery = [roleFilter];
+        }
       }
 
-      const users = await usersQuery.collect();
-      let otherUsers = users.filter(user => user && user._id !== currentUserId);
-      console.log("getMessageableUsers: total users fetched:", users.length);
-      console.log("getMessageableUsers: other users after filter:", otherUsers.length);
+      const usersByRole = await Promise.all(
+        rolesToQuery.map((role) =>
+          ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role)).collect()
+        )
+      );
+      const users = usersByRole.flat();
+      let otherUsers = users.filter((user) => user && user._id !== currentUserId);
+
+      // Backend search filtering (frontend should no longer filter search).
+      const normalizedSearch = (searchQuery || "").trim().toLowerCase();
+      const isSearching = normalizedSearch.length > 0;
+      if (isSearching) {
+        otherUsers = otherUsers.filter((user) => {
+          const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim().toLowerCase();
+          const role = (user.role || "").toLowerCase();
+          const email = (user.email || "").toLowerCase();
+          return (
+            fullName.includes(normalizedSearch) ||
+            role.includes(normalizedSearch) ||
+            email.includes(normalizedSearch)
+          );
+        });
+      }
 
       // If search query exists, search through all users.
       // For non-search mode, pagination is applied after sorting and after
       // preserving users that already have message history.
-      const isSearching = searchQuery && searchQuery.trim().length > 0;
-
       if (otherUsers.length === 0) return { users: [], hasMore: false, offset };
 
-      // Get all conversations and keep only ones that include the current user
-      const allConversations = await ctx.db.query("conversations").collect();
-      const myConversations = allConversations.filter(
-        (conv) => conv?.participants?.includes(currentUserId)
-      );
-      console.log("getMessageableUsers: my conversations:", myConversations.length);
+      // Get only conversations that include the current user.
+      const myConversations = await ctx.db
+        .query("conversations")
+        .withIndex("byParticipant", (q) => q.eq("participants", currentUserId))
+        .collect();
 
       // Create a map for quick conversation lookup by the "other participant"
       const conversationMap = new Map();
@@ -396,7 +421,6 @@ export const getMessageableUsers = query({
         ...usersWithMessages,
         ...usersWithoutMessages.slice(offset, offset + limit),
       ];
-      console.log("getMessageableUsers: final users returned:", pagedUsers.length);
       const hasMore = usersWithoutMessages.length > (offset + limit);
       return { users: pagedUsers, hasMore, offset };
 
