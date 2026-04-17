@@ -329,11 +329,11 @@ export const getMessageableUsers = query({
       // preserving users that already have message history.
       if (otherUsers.length === 0) return { users: [], hasMore: false, offset };
 
-      // Get only conversations that include the current user.
-      const myConversations = await ctx.db
-        .query("conversations")
-        .withIndex("byParticipant", (q) => q.eq("participants", currentUserId))
-        .collect();
+      // Current schema indexes the whole participants array, so fetch and filter.
+      const allConversations = await ctx.db.query("conversations").collect();
+      const myConversations = allConversations.filter(
+        (conv) => conv?.participants?.includes(currentUserId)
+      );
 
       // Create a map for quick conversation lookup by the "other participant"
       const conversationMap = new Map();
