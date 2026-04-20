@@ -81,10 +81,12 @@ export const getSaberMaterialsByReference = query({
 export const getPublicSaberMaterials = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("saber_materials")
+    const publicMaterials = await ctx.db.query("saber_materials")
       .withIndex("byPublic", q => q.eq("isPublic", true))
       .order("desc")
       .collect();
+
+    return publicMaterials.filter(material => material.reference === "saber");
   }
 });
 
