@@ -7,7 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import { Globe, Eye } from "lucide-react";
+import { Globe, Eye, Megaphone } from "lucide-react";
 import * as FaIcons from "react-icons/fa";
 import { motion } from "framer-motion";
 import SpotlightCard from "@/components/SpotlightCard";
@@ -178,13 +178,30 @@ export default function SaberUserPage() {
           </motion.div>}
 
           {/* SABER Events and Materials Cards for Public View */}
-          <motion.div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6" initial={{
+          <motion.div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6" initial={{
             opacity: 0
           }} animate={{
             opacity: 1
           }} transition={{
             delay: 1.6
           }}>
+            <SpotlightCard spotlightColor="rgba(0, 229, 255, 0.2)">
+              <div className="space-y-4">
+                <h2 className="text-2xl font-semibold text-sky-200 flex items-center gap-2">
+                  <Megaphone className="w-6 h-6" />
+                  Latest Opportunity
+                </h2>
+                <p className="text-sm text-gray-300">
+                  Request for Expressions of Interest (Consulting Firms Selection) under the SABER program.
+                </p>
+                <Link href="/saber/advertorial/consulting-firms-selection">
+                  <Button className="mt-2">
+                    Read Advertorial
+                  </Button>
+                </Link>
+              </div>
+            </SpotlightCard>
+
             <SpotlightCard spotlightColor="rgba(0, 229, 255, 0.2)">
               <div className="space-y-4">
                 <h2 className="text-2xl font-semibold text-sky-200">Events</h2>
