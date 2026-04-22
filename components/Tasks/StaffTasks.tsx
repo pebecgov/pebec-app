@@ -362,18 +362,20 @@ export default function StaffTasks() {
                             {row.status === "approved" && row.priceAmount == null && (
                               <div className="flex flex-wrap items-center gap-2 justify-end">
                                 <Input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  placeholder="Amount"
+                                  type="text"
+                                  inputMode="decimal"
+                                  placeholder="12,300.20"
                                   className="w-32 h-9"
                                   value={fuelPriceInput[row._id] ?? ""}
-                                  onChange={(e) =>
-                                    setFuelPriceInput((prev) => ({
-                                      ...prev,
-                                      [row._id]: e.target.value
-                                    }))
-                                  }
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (/^[\d,]*\.?\d*$/.test(value)) {
+                                      setFuelPriceInput((prev) => ({
+                                        ...prev,
+                                        [row._id]: value
+                                      }));
+                                    }
+                                  }}
                                 />
                                 <Button
                                   type="button"
@@ -381,7 +383,8 @@ export default function StaffTasks() {
                                   className="bg-amber-600 hover:bg-amber-700"
                                   onClick={async () => {
                                     const raw = fuelPriceInput[row._id]?.trim();
-                                    const n = raw ? parseFloat(raw) : NaN;
+                                    const normalized = raw ? raw.replace(/,/g, "") : "";
+                                    const n = normalized ? parseFloat(normalized) : NaN;
                                     if (!Number.isFinite(n) || n < 0) {
                                       toast.error("Enter a valid amount");
                                       return;
