@@ -17,11 +17,28 @@ import { CalendarDaysIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import StaffAnalytics from "@/components/StaffAnalytics/Meetings";
 export default function StaffPage() {
+  const [showPerformanceAnalytics, setShowPerformanceAnalytics] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    const savedPreference = window.localStorage.getItem("staff-dashboard-show-performance-analytics");
+    if (savedPreference === null) {
+      return true;
+    }
+    return savedPreference === "true";
+  });
   const {
     user,
     isLoaded
   } = useUser();
   const router = useRouter();
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      "staff-dashboard-show-performance-analytics",
+      String(showPerformanceAnalytics)
+    );
+  }, [showPerformanceAnalytics]);
 
 
   if (!isLoaded) {
@@ -52,18 +69,44 @@ export default function StaffPage() {
 
         {/* Section 1: Performance & Analytics */}
         <section>
-          <div className="flex items-center gap-2 mb-6">
-            <div className="h-1 w-8 bg-green-500 rounded-full" />
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Performance & Analytics</h2>
-          </div>
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-            <div className="xl:col-span-2">
-              <MyPerformance />
+          <div className="mb-6 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="h-1 w-8 bg-green-500 rounded-full" />
+              <h2 className="truncate text-[10px] font-bold text-gray-400 uppercase tracking-[0.16em] sm:text-xs sm:tracking-[0.2em]">
+                Performance & Analytics
+              </h2>
             </div>
-            <div className="xl:col-span-1">
-              <StaffLeaderboard />
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowPerformanceAnalytics((prev) => !prev)}
+              aria-pressed={showPerformanceAnalytics}
+              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2 py-1 text-[10px] font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 sm:gap-2 sm:text-[11px]"
+            >
+              <span>Stats</span>
+              <span
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  showPerformanceAnalytics ? "bg-green-500" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    showPerformanceAnalytics ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </span>
+            </button>
           </div>
+
+          {showPerformanceAnalytics && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-stretch">
+              <div className="h-full [&>*]:h-full">
+                <MyPerformance />
+              </div>
+              <div className="h-full [&>*]:h-full">
+                <StaffLeaderboard />
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Section 2: Schedule & Availability */}
@@ -72,18 +115,24 @@ export default function StaffPage() {
             <div className="h-1 w-8 bg-blue-500 rounded-full" />
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Schedule & Resources</h2>
           </div>
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-            <div className="xl:col-span-2">
-              <UpcomingMeetings />
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-8 items-start">
+            <div className="xl:col-span-3 space-y-8">
+              <div className="h-[24rem] overflow-hidden [&>*]:h-full">
+                <UpcomingMeetings />
+              </div>
+              <div className="h-[24rem] overflow-hidden [&>*]:h-full">
+                <HolidayAnnouncementsDisplay />
+              </div>
             </div>
-            <div className="xl:col-span-1 space-y-8">
-              <RoomAvailabilityCardComponent
-                title="Staff Conference Room"
-                href="/staff/rooms"
-                room="staff_conference"
-                showBookButton={true}
-              />
-              <HolidayAnnouncementsDisplay />
+            <div className="xl:col-span-2 h-full">
+              <div className="h-[24rem] w-full overflow-hidden xl:h-[48rem] [&>*]:h-full [&>*]:w-full">
+                <RoomAvailabilityCardComponent
+                  title="Staff Conference Room"
+                  href="/staff/rooms"
+                  room="staff_conference"
+                  showBookButton={true}
+                />
+              </div>
             </div>
           </div>
         </section>

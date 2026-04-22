@@ -1143,7 +1143,8 @@ export const getStaffUsageMetrics = query({
       v.literal("7d"),
       v.literal("30d"),
       v.literal("90d"),
-      v.literal("1y")
+      v.literal("1y"),
+      v.literal("all")
     )),
     stream: v.optional(v.string()),
     limit: v.optional(v.number())
@@ -1165,7 +1166,7 @@ export const getStaffUsageMetrics = query({
         "1y": 365 * 24 * 60 * 60 * 1000
       };
 
-      const startTime = now - timeRanges[timeRange];
+      const startTime = timeRange === "all" ? 0 : now - timeRanges[timeRange];
 
       // Get all staff users (filter by stream if provided)
       let staffUsersQuery = ctx.db

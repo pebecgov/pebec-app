@@ -108,45 +108,51 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
   const isToday = selectedDay.toDateString() === new Date().toDateString();
 
   return (
-    <div className="bg-white border rounded-2xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-md font-semibold text-gray-800">
-          {title} — {formatDateForDisplay(selectedDay)}
-          {isToday && <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Today</span>}
-        </h3>
+    <div className="w-full bg-white border rounded-2xl p-6 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3 border-b border-gray-100 pb-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-base font-semibold text-gray-800">{title}</h3>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="text-sm text-gray-500">{formatDateForDisplay(selectedDay)}</p>
+            {isToday && (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800">
+                Today
+              </span>
+            )}
+          </div>
+        </div>
         {showBookButton && (
-          <a href={href} className="text-sm cursor-pointer text-green-600 hover:underline">Book</a>
+          <a
+            href={href}
+            className="shrink-0 rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-100"
+          >
+            Book
+          </a>
         )}
       </div>
 
       {/* Day Navigation */}
-      <div className="bg-gray-50 p-3 rounded-lg mb-4">
-        <div className="flex items-center justify-between mb-2">
+      <div className="mb-4 rounded-lg border bg-gray-50 p-2.5">
+        <div className="grid grid-cols-[auto,1fr,auto] items-center gap-2">
           <button
             onClick={() => navigateDay('prev')}
-            className="flex items-center gap-1 px-3 py-1 bg-white border rounded-md hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center gap-1 rounded-md border bg-white px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-gray-100"
           >
-            <ChevronLeft className="w-4 h-4" />
-            <span className="text-sm">Previous day</span>
+            <ChevronLeft className="h-3.5 w-3.5" />
+            <span>Previous</span>
           </button>
-          <button
-            onClick={goToToday}
-            className="px-3 py-1 bg-green-100 text-green-700 border border-green-200 rounded-md hover:bg-green-200 transition-colors text-sm font-medium"
-          >
-            Today
-          </button>
+          <div className="text-center">
+            <span className="text-xs font-semibold text-gray-700 sm:text-sm">
+              {formatDateForDisplay(selectedDay)}
+            </span>
+          </div>
           <button
             onClick={() => navigateDay('next')}
-            className="flex items-center gap-1 px-3 py-1 bg-white border rounded-md hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center gap-1 rounded-md border bg-white px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-gray-100"
           >
-            <span className="text-sm">Next day</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>Next</span>
+            <ChevronRight className="h-3.5 w-3.5" />
           </button>
-        </div>
-        <div className="text-center">
-          <span className="text-sm font-medium text-gray-700">
-            {formatDateForDisplay(selectedDay)}
-          </span>
         </div>
       </div>
 
@@ -160,7 +166,7 @@ export default function RoomAvailabilityCard({ title, bookings, href, room, show
         ) : displayBookings.length === 0 ? (
           <div className="text-center py-4">
             <p className="text-sm text-gray-500">Available all day</p>
-            <p className="text-xs text-gray-400 mt-1">8:00 AM - 5:00 PM</p>
+            <p className="text-xs text-gray-400 mt-1">10:00 AM - 5:00 PM</p>
           </div>
         ) : (
           <ul className="space-y-2">

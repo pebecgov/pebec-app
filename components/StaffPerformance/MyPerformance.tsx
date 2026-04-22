@@ -23,7 +23,7 @@ export default function MyPerformance() {
   // Handle loading state
   if (myActivity === undefined || staffMetrics === undefined) {
     return (
-      <Card>
+      <Card className="flex h-full flex-col">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="h-5 w-5 text-blue-500" />
@@ -31,8 +31,8 @@ export default function MyPerformance() {
           </CardTitle>
           <CardDescription>Loading your performance data...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
+        <CardContent className="flex flex-1 items-center justify-center">
+          <div className="flex h-32 items-center justify-center">
             <div className="text-sm text-muted-foreground">Loading...</div>
           </div>
         </CardContent>
@@ -43,7 +43,7 @@ export default function MyPerformance() {
   // Handle error state
   if (myActivity === null || staffMetrics === null) {
     return (
-      <Card>
+      <Card className="flex h-full flex-col">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="h-5 w-5 text-red-500" />
@@ -51,8 +51,8 @@ export default function MyPerformance() {
           </CardTitle>
           <CardDescription>Error loading performance data</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
+        <CardContent className="flex flex-1 items-center justify-center">
+          <div className="flex h-32 items-center justify-center">
             <div className="text-center">
               <div className="text-sm text-red-600 mb-2">Failed to load performance data</div>
               <div className="text-xs text-muted-foreground">
@@ -109,7 +109,7 @@ export default function MyPerformance() {
   const trendPercentage = previousAverage > 0 ? ((recentAverage - previousAverage) / previousAverage) * 100 : 0;
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Target className="h-5 w-5 text-blue-500" />
@@ -119,9 +119,9 @@ export default function MyPerformance() {
           Your activity and performance metrics
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="flex flex-1 flex-col justify-between gap-6">
         {/* Performance Overview */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">{myActivity.totalActivities}</div>
             <p className="text-xs text-muted-foreground">Total Activities</p>
@@ -150,7 +150,7 @@ export default function MyPerformance() {
        
 
         {/* Activity Trend */}
-        <div className="flex items-center gap-2">
+        <div className="mt-auto flex items-center gap-2 border-t pt-4">
           {trendPercentage > 0 ? (
             <TrendingUp className="h-4 w-4 text-green-500" />
           ) : (

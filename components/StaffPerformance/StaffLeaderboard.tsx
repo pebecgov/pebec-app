@@ -6,13 +6,13 @@ import { api } from "@/convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trophy, Medal, Award, TrendingUp, Users, Activity, ChevronDown, ChevronUp } from "lucide-react";
+import { Trophy, Medal, Award, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { formatWorkstream } from "@/lib/formatters";
 
 export default function StaffLeaderboard() {
   const [showAllStaff, setShowAllStaff] = useState(false);
-  const staffMetrics = useQuery(api.users.getStaffUsageMetrics, { timeRange: "1y" });
+  const staffMetrics = useQuery(api.users.getStaffUsageMetrics, { timeRange: "all" });
 
   // Handle loading state
   if (staffMetrics === undefined) {
@@ -75,7 +75,11 @@ export default function StaffLeaderboard() {
   const actualActiveStaff = Object.values(staffMetrics?.streamMetrics || {})
     .reduce((total, stream) => total + (stream?.activeUsers || 0), 0);
   
-  const displayedStaff = showAllStaff ? allStaffMembers : allStaffMembers.slice(0, 1);
+  const displayedStaff = showAllStaff ? allStaffMembers : allStaffMembers.slice(0, 5);
+  const totalActions = Object.values(staffMetrics?.streamMetrics || {}).reduce(
+    (sum, stream) => sum + (stream?.totalActions || 0),
+    0
+  );
 
   const getStreamColor = (stream: string) => {
     const colors: Record<string, string> = {
@@ -120,108 +124,119 @@ export default function StaffLeaderboard() {
   };
 
   return (
-    <Card>
+    <Card className="flex h-[38rem] flex-col overflow-hidden">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-yellow-500" />
           Staff Performance Leaderboard
         </CardTitle>
-        <CardDescription>
-          Top performing staff members in the last 30 days
-        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-            {allStaffMembers.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No activity data available yet</p>
-                <p className="text-sm">Start using the system to see performance metrics</p>
-              </div>
-            ) : (
-              <>
-                {displayedStaff.map((staff, index) => (
-              <div
-                key={`${staff.userId}-${staff.stream}`}
-                className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all hover:shadow-md ${
-                  index < 3 ? 'bg-gradient-to-r from-white to-gray-50' : 'bg-white'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100">
-                    {getRankIcon(index)}
-                  </div>
-                  
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-semibold text-gray-900">{staff.name}</h4>
-                      <Badge className={`text-xs ${getStreamColor(staff.stream)}`}>
-                        {formatWorkstream(staff.stream)}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Last active: {new Date(staff.lastActive).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+        <div className="flex min-h-0 flex-1 flex-col rounded-lg border bg-muted/20 p-2.5 sm:p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Ranking
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Showing {displayedStaff.length} of {allStaffMembers.length}
+            </p>
+          </div>
 
-                <div className="text-right">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge className={getRankBadgeColor(index)}>
-                      #{index + 1}
-                    </Badge>
-                    <span className="text-2xl font-bold text-gray-900">
-                      {staff.activityCount}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">activities</p>
-                </div>
-              </div>
-              ))}
-              {allStaffMembers.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAllStaff(!showAllStaff)}
-                  className="w-full text-xs"
+          {allStaffMembers.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              <Activity className="mx-auto mb-4 h-12 w-12 opacity-50" />
+              <p>No activity data available yet</p>
+              <p className="text-sm">Start using the system to see performance metrics</p>
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+              {displayedStaff.map((staff, index) => (
+                <div
+                  key={`${staff.userId}-${staff.stream}`}
+                  className={`flex items-start justify-between gap-2.5 rounded-lg border px-2.5 py-2 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:gap-3 sm:px-3 ${
+                    index < 3
+                      ? "border-emerald-100 bg-gradient-to-r from-white via-emerald-50/70 to-green-50/60"
+                      : "border-slate-200 bg-gradient-to-r from-white to-slate-50/40"
+                  }`}
                 >
-                  {showAllStaff ? (
-                    <>
-                      <ChevronUp className="h-3 w-3 mr-1" />
-                      Show Less
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="h-3 w-3 mr-1" />
-                      See More ({allStaffMembers.length - 1} more)
-                    </>
-                  )}
-                </Button>
-                )}
-              </>
-            )}
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/90 ring-1 ring-slate-200 sm:h-8 sm:w-8">
+                      {getRankIcon(index)}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h4 className="text-xs font-semibold text-slate-900 break-words sm:text-sm">
+                          {staff.name}
+                        </h4>
+                        <Badge
+                          className={`max-w-full text-[10px] font-medium ${getStreamColor(staff.stream)}`}
+                          title={formatWorkstream(staff.stream)}
+                        >
+                          {formatWorkstream(staff.stream)}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500 sm:text-xs">
+                        Last active: {new Date(staff.lastActive).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 pt-0.5 text-right">
+                    <div className="mb-1 flex items-center justify-end gap-2">
+                      <Badge className={`text-[10px] ${getRankBadgeColor(index)}`}>#{index + 1}</Badge>
+                      <span className="text-base font-bold text-slate-900 sm:text-lg">
+                        {staff.activityCount}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 sm:text-xs">activities</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Summary Stats */}
-        <div className="mt-6 pt-4 border-t">
-          <div className="grid grid-cols-3 gap-4 text-center">
+        {allStaffMembers.length > 5 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAllStaff(!showAllStaff)}
+            className="w-full"
+          >
+            {showAllStaff ? (
+              <>
+                <ChevronUp className="mr-1 h-3 w-3" />
+                Show Less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="mr-1 h-3 w-3" />
+                See More ({allStaffMembers.length - 5} more)
+              </>
+            )}
+          </Button>
+        )}
+
+        <div className="border-t pt-3">
+          <div className="grid grid-cols-3 gap-1.5 text-center sm:gap-2">
             <div>
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-lg font-bold text-blue-600 sm:text-2xl">
                 {staffMetrics?.totalStaffUsers || 0}
               </div>
-              <p className="text-xs text-muted-foreground">Total Staff</p>
+              <p className="text-[10px] text-muted-foreground sm:text-xs">Total Staff</p>
             </div>
             <div>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-lg font-bold text-green-600 sm:text-2xl">
                 {actualActiveStaff}
               </div>
-              <p className="text-xs text-muted-foreground">Active Staff</p>
+              <p className="text-[10px] text-muted-foreground sm:text-xs">Active Staff</p>
             </div>
             <div>
-              <div className="text-2xl font-bold text-purple-600">
-                {Object.values(staffMetrics?.streamMetrics || {}).reduce((sum, stream) => sum + (stream?.totalActions || 0), 0)}
+              <div className="text-lg font-bold text-purple-600 sm:text-2xl">
+                {totalActions}
               </div>
-              <p className="text-xs text-muted-foreground">Total Actions</p>
+              <p className="text-[10px] text-muted-foreground sm:text-xs">Total Actions</p>
             </div>
           </div>
         </div>
