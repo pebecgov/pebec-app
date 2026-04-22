@@ -17,7 +17,7 @@ export default function StaffLeaderboard() {
   // Handle loading state
   if (staffMetrics === undefined) {
     return (
-      <Card>
+      <Card className="flex h-[32rem] flex-col overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-yellow-500" />
@@ -25,8 +25,8 @@ export default function StaffLeaderboard() {
           </CardTitle>
           <CardDescription>Loading performance data...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
+        <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+          <div className="flex h-32 items-center justify-center">
             <div className="text-sm text-muted-foreground">Loading...</div>
           </div>
         </CardContent>
@@ -37,7 +37,7 @@ export default function StaffLeaderboard() {
   // Handle error state
   if (staffMetrics === null) {
     return (
-      <Card>
+      <Card className="flex h-[32rem] flex-col overflow-hidden">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-red-500" />
@@ -45,8 +45,8 @@ export default function StaffLeaderboard() {
           </CardTitle>
           <CardDescription>Error loading performance data</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
+        <CardContent className="flex min-h-0 flex-1 items-center justify-center">
+          <div className="flex h-32 items-center justify-center">
             <div className="text-center">
               <div className="text-sm text-red-600 mb-2">Failed to load leaderboard data</div>
               <div className="text-xs text-muted-foreground">
@@ -124,14 +124,14 @@ export default function StaffLeaderboard() {
   };
 
   return (
-    <Card className="flex h-[38rem] flex-col overflow-hidden">
+    <Card className="flex h-[32rem] flex-col overflow-hidden">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-yellow-500" />
           Staff Performance Leaderboard
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
         <div className="flex min-h-0 flex-1 flex-col rounded-lg border bg-muted/20 p-2.5 sm:p-3">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

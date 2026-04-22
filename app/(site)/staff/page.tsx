@@ -99,10 +99,10 @@ export default function StaffPage() {
 
           {showPerformanceAnalytics && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-stretch">
-              <div className="h-full [&>*]:h-full">
+              <div className="h-full">
                 <MyPerformance />
               </div>
-              <div className="h-full [&>*]:h-full">
+              <div className="h-full">
                 <StaffLeaderboard />
               </div>
             </div>
