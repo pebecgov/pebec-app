@@ -71,72 +71,208 @@ export default function SaberUserPage() {
       </div>
 
       {}
-      <motion.div className="bg-gray-50 border border-gray-200 text-gray-800 text-sm p-6 md:p-10 mt-10 rounded-lg leading-relaxed space-y-4" initial={{
+      <motion.div className="bg-gray-50 border border-gray-200 text-gray-800 text-sm p-6 md:p-10 mt-10 rounded-lg leading-relaxed space-y-8" initial={{
       opacity: 0
     }} animate={{
       opacity: 1
     }} transition={{
       delay: 1.2
     }}>
-        <p>
-          <strong>SABER</strong> (State Action on Business Enabling Reforms) is a
-          $750 million performance-based initiative implemented from 2023 to
-          2025. It’s jointly coordinated by the Nigerian Federal Ministry of
-          Finance, DMO, PEBEC, and NGF Secretariat, it is supported by the World Bank.
-        </p>
-        <p>
-          The program incentivizes Nigerian states to deliver critical reforms
-          that make doing business easier. States can only access DLI
-          disbursements if they first satisfy the <strong>BERAP</strong>{" "}
-          (Business-Enabling Reform Action Plan) eligibility requirements{" "}
-          <b>and</b> the additional requirements set out below.
-        </p>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-gray-900">Introduction - Background</h2>
+          <div className="bg-[#edf3ea] rounded-xl p-5">
+            <p>
+              The State Action on Business Enabling Reforms (SABER) Program is a $750 million 3-year (2023-2025)
+              performance-based intervention designed by the World Bank Technical team and the PEBEC Secretariat
+              with support from the Federal Ministry of Finance, Home Finance Department (HFD), and the Nigeria
+              Governors&apos; Forum (NGF) Secretariat.
+            </p>
+          </div>
+          <div className="bg-[#edf3ea] rounded-xl p-5">
+            <p>
+              SABER seeks to incentivize and strengthen the implementation of business enabling reforms covering
+              land administration, the regulatory framework for private investment in fiber optic infrastructure,
+              public private partnership and investment promotion frameworks, tax administration and the business
+              enabling regulatory environment.
+            </p>
+          </div>
+        </section>
 
-        <div className="space-y-4 mt-6">
-          <p className="font-semibold text-gray-900">
-            Accountability of business enabling reforms
-          </p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>
-              Annual State Business-Enabling Reforms Action Plan for 2026,
-              prepared with, and including records of, private sector
-              participation, approved by the State Executive and published
-              online by <strong>31 December 2025</strong>;
-            </li>
-            <li>
-              2024 State Business-Enabling Reforms Action Plan Progress report
-              submitted to the State Executive Council and published online by{" "}
-              <strong>31 July 2025</strong>;
-            </li>
-          </ul>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-gray-900">Program Features</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-3 bg-white border rounded-lg p-4">
+              <h3 className="font-bold text-lg text-gray-900 mb-3">ELIGIBILITY</h3>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>Open to ALL states and the FCT.</li>
+                <li>State must indicate EX-ANTE which (sub)DLIs it aims to achieve.</li>
+                <li>AND each YEAR, each state must satisfy the ANNUAL ELIGIBILITY CRITERIA to participate.</li>
+              </ul>
+            </div>
+            <div className="lg:col-span-4 bg-white border rounded-lg p-4">
+              <h3 className="font-bold text-lg text-gray-900 mb-3">PRIOR RESULTS</h3>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>
+                  To allow for states to obtain a head-start at improving their business-enabling environment before
+                  the approval of SABER and the signing of the financing agreement (FA), a set of 4 Prior Results were
+                  defined.
+                </li>
+                <li>These were locked in at Negotiations on 30 August 2022.</li>
+                <li>
+                  States that achieved Prior Results as of June 1, 2022, and before the signing of the FA (January 6,
+                  2023) are eligible for disbursements against these results.
+                </li>
+                <li>23 States met the Prior Results EC and 1-4 of the Prior Results.</li>
+              </ul>
+            </div>
+            <div className="lg:col-span-5 bg-white border rounded-lg p-4">
+              <h3 className="font-bold text-lg text-gray-900 mb-3">BASIC DESIGN OF DISBURSEMENT-LINKED INDICATORS (DLIs)</h3>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>
+                  The DLIs focus on concrete steps towards enhancing land administration, business-enabling
+                  infrastructure, PPP and investment promotion frameworks, and business enabling regulatory environment.
+                </li>
+                <li>
+                  Under each DLI, a set of Disbursement-Linked Results (DLRs) are specified with target dates for
+                  completion and specific disbursement amounts associated with each DLR.
+                </li>
+                <li>
+                  Should a state choose to participate and achieve all DLRs it would potentially receive a total
+                  disbursement of USD 52.5 million between 2022 and 2025.
+                </li>
+                <li>
+                  Depending on actual state participation and achievement of DLIs, additional program financing and
+                  restructuring may be required.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
 
-          <p className="font-semibold text-gray-900 mt-6">
-            Selected criteria from the States Fiscal Transparency, Sustainability (SFTAS)
-          </p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>
-              Annual FY25 state budget, prepared under national Chart of
-              Accounts, approved by the State Assembly and published online by{" "}
-              <strong>31 January 2025</strong>;
-            </li>
-            <li>
-              Annual FY24 audited financial statement, prepared in accordance
-              with IPSAS, submitted to the State Assembly and published by{" "}
-              <strong>31 July 2025</strong>;
-            </li>
-            <li>
-              Annual State Debt Sustainability Analysis and Debt Management
-              Strategy Report (SDSA-DMSR) published online by{" "}
-              <strong>31 December 2024</strong>.
-            </li>
-          </ul>
-        </div>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-gray-900">Programme Eligibility Criteria (EC)</h2>
+          <div className="overflow-x-auto border rounded-lg bg-white">
+            <table className="min-w-full text-left">
+              <thead className="bg-[#ecf4e8]">
+                <tr>
+                  <th className="p-3 border font-semibold">Result Area</th>
+                  <th className="p-3 border font-semibold">Description</th>
+                  <th className="p-3 border font-semibold">Recent/Upcoming deadlines</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="align-top">
+                  <td className="p-3 border font-semibold">Improved planning and accountability of business enabling reforms</td>
+                  <td className="p-3 border">
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>
+                        Annual State Business Enabling Reforms Action Plan (BERAP) prepared with private sector
+                        participation (with records), approved by the State Executive Council and published online.
+                        (For the 2023 report, private sector participation not required).
+                      </li>
+                      <li>Previous year&apos;s progress report submitted to the State Executive Council and published online.</li>
+                    </ul>
+                  </td>
+                  <td className="p-3 border space-y-1">
+                    <p>YEAR 1 (2023): BERAP 2023 by Jan-31, 2023</p>
+                    <p>YEAR 1 (2023): BERAP 2024 by Dec-31, 2023</p>
+                    <p>YEAR 2 (2024): 2023 progress report by Jul 30,2024</p>
+                    <p><strong>YEAR 2 (2024): BERAP 2025 by Dec-31, 2024</strong></p>
+                  </td>
+                </tr>
+                <tr className="align-top">
+                  <td className="p-3 border font-semibold">
+                    Continuation of selected criteria from SFTAS: Continued transparency of annual State Budget and
+                    Audited Financial Statements AND Strengthened and transparent debt management
+                  </td>
+                  <td className="p-3 border">
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>
+                        Annual State budget, prepared under national Chart of Accounts, approved by the State Assembly
+                        and published online by end January the next year (Former SFTAS EC).
+                      </li>
+                      <li>
+                        Annual audited financial statement (AFS), prepared in accordance with IPSAS, submitted to the
+                        State Assembly and published by July the next year (Former SFTAS EC).
+                      </li>
+                      <li>
+                        Annual State Debt Sustainability Analysis and Debt Management Strategy Report (SDSA-DMSR)
+                        published end-December as per the criteria set in the verification protocol (former SFTAS DLI).
+                      </li>
+                    </ul>
+                  </td>
+                  <td className="p-3 border space-y-1">
+                    <p>YEAR 1 (2023): FY23 Budget by Jan-31, 2023</p>
+                    <p>YEAR 2 (2024): FY24 Budget by Jan-31, 2024</p>
+                    <p><strong>YEAR 3 (2025): FY25 Budget by Jan-31,2025</strong></p>
+                    <p className="pt-2">Prior Results: FY21 AFS by Oct-31, 2022</p>
+                    <p>YEAR 1 (2023): FY22 AFS by Jul-31, 2023</p>
+                    <p>YEAR 2 (2024): FY23 AFS by Jul-31, 2024</p>
+                    <p className="pt-2">YEAR 1 (2023): SDSA-DMSR by Dec-31, 2022</p>
+                    <p>YEAR 2 (2024): SDSA-DMSR by Dec-31, 2023</p>
+                    <p><strong>YEAR 3 (2025): SDSA-DMSR by Dec-31, 2024.</strong></p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-        <p className="mt-6">
-          States are independently assessed by a third-party IVA. Funding is
-          released only when DLI milestones are met and eligibility criteria
-          confirmed.
-        </p>
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold text-gray-900">Program Disbursement Linked Indicators (DLIs) &amp; Anchor States MDAs</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="lg:col-span-7">
+              <p className="font-semibold text-[#6b8f3e]">Results Area 1: Improved Land Administration and Land-based Investment Process</p>
+              <ul className="list-disc pl-5 mb-2">
+                <li>DLI 1: Improved efficiency in property registration and sustainability of the land-based investment</li>
+              </ul>
+
+              <p className="font-semibold text-[#6b8f3e]">Results Area 2: Improved regulatory framework for private investment in fiber optic infrastructure</p>
+              <ul className="list-disc pl-5 mb-2">
+                <li>DLI 2: Improved regulatory framework for private investment in fiber optic infrastructure.</li>
+              </ul>
+
+              <p className="font-semibold text-[#6b8f3e]">Results Area 3: Improved services provided by investment promotion agencies (IPAs) and public-private partnership (PPP) units.</p>
+              <ul className="list-disc pl-5 mb-2">
+                <li>DLI 3: Development of an effective PPP framework</li>
+                <li>DLI 4: Improved investment promotion environment</li>
+              </ul>
+
+              <p className="font-semibold text-[#6b8f3e]">Results Area 4: Improved efficiency and transparency of government-to-business services.</p>
+              <ul className="list-disc pl-5">
+                <li>DLI 5: Increased transparency of official fees and procedures</li>
+                <li>DLI 6: Increased transparency of fees and levies for inter-state trade and increased exporter certification.</li>
+                <li>DLI 7: Simplified state and local business tax regimes</li>
+                <li>DLI 8: Quick determination of commercial disputes</li>
+              </ul>
+            </div>
+            <div className="lg:col-span-5">
+              <div className="overflow-x-auto border rounded-lg bg-white">
+                <table className="min-w-full">
+                  <thead className="bg-[#f4d8c5]">
+                    <tr>
+                      <th className="p-3 border text-left">Key State MDAs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td className="p-2 border">Ministries of Finance, Budget and Economic Planning (DLI 3*) (DLI 4) (DLI 7*)</td></tr>
+                    <tr><td className="p-2 border">Governor&apos;s offices (DLI 2*) (DLI 3*) (DLI 5*)</td></tr>
+                    <tr><td className="p-2 border">Ministries of Trade and Investment / Commerce and Industry, or equivalent (DLI 4*) (DLI 6*)</td></tr>
+                    <tr><td className="p-2 border">Ministries of Land and Urban Planning, or equivalent (DLI 1*) (DLI 2*)</td></tr>
+                    <tr><td className="p-2 border">Investment Promotion Offices/Agencies (DLI 2) (DLI 4) (DLI 3*) (DLI 4) (DLI 6)</td></tr>
+                    <tr><td className="p-2 border">Ministry of ICT/Digital Economy (DLI 1) (DLI 2*)</td></tr>
+                    <tr><td className="p-2 border">State Internal Revenue Service (DLI 1) (DLI 3) (DLI 7*)</td></tr>
+                    <tr><td className="p-2 border">Ministry of Justice (DLI 1) (DLI 2) (DLI 3) (DLI 7)</td></tr>
+                    <tr><td className="p-2 border">Judiciary (DLI 8*)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-[#b2543f] font-semibold text-sm">
+                *Key State MDAs will have to collaborate with other state MDAs to achieve the results
+              </p>
+            </div>
+          </div>
+        </section>
       </motion.div>
 
       {}
