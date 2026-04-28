@@ -329,6 +329,28 @@ export default function AdminTasks() {
     }
   };
 
+  const [activeFilter, setActiveFilter] = useState<"assigned_todo" | "in_progress" | "pending_approval" | "done" | null>(null);
+
+  const toggleFilter = (filter: "assigned_todo" | "in_progress" | "pending_approval" | "done") => {
+    setActiveFilter((prev) => (prev === filter ? null : filter));
+  };
+
+  const filteredTasks = useMemo(() => {
+    if (!allTasks) return [];
+    switch (activeFilter) {
+      case "assigned_todo":
+        return allTasks.filter((t) => t.status === "assigned" || t.status === "to_do");
+      case "in_progress":
+        return allTasks.filter((t) => t.status === "in_progress");
+      case "pending_approval":
+        return allTasks.filter((t) => t.completionRequestStatus === "pending");
+      case "done":
+        return allTasks.filter((t) => t.status === "done");
+      default:
+        return allTasks;
+    }
+  }, [allTasks, activeFilter]);
+
   const RECEPTION_PAGE_SIZE = 20;
   const [receptionPage, setReceptionPage] = useState(0);
   const receptionTotal = receptionInboxDocuments?.length ?? 0;
@@ -375,40 +397,60 @@ export default function AdminTasks() {
 
       {/* Task Statistics */}
       <div className={`grid grid-cols-1 gap-4 ${isAuthorizedAdmin ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Assigned/To Do</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <button
+          type="button"
+          onClick={() => toggleFilter("assigned_todo")}
+          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "assigned_todo" ? "ring-2 ring-gray-800 border-gray-800" : "hover:border-gray-400"}`}
+        >
+          <div className="p-6 pb-3">
+            <p className="text-sm font-medium text-gray-600">Assigned/To Do</p>
+          </div>
+          <div className="px-6 pb-6">
             <div className="text-2xl font-bold">{tasksByStatus.assigned.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">In Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
+            {activeFilter === "assigned_todo" && <p className="text-xs text-gray-500 mt-1">Filtering active</p>}
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleFilter("in_progress")}
+          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "in_progress" ? "ring-2 ring-blue-600 border-blue-600" : "hover:border-gray-400"}`}
+        >
+          <div className="p-6 pb-3">
+            <p className="text-sm font-medium text-gray-600">In Progress</p>
+          </div>
+          <div className="px-6 pb-6">
             <div className="text-2xl font-bold text-blue-600">{tasksByStatus.in_progress.length}</div>
-          </CardContent>
-        </Card>
+            {activeFilter === "in_progress" && <p className="text-xs text-blue-500 mt-1">Filtering active</p>}
+          </div>
+        </button>
         {isAuthorizedAdmin && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Pending Approval</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <button
+            type="button"
+            onClick={() => toggleFilter("pending_approval")}
+            className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "pending_approval" ? "ring-2 ring-yellow-500 border-yellow-500" : "hover:border-gray-400"}`}
+          >
+            <div className="p-6 pb-3">
+              <p className="text-sm font-medium text-gray-600">Pending Approval</p>
+            </div>
+            <div className="px-6 pb-6">
               <div className="text-2xl font-bold text-yellow-600">{pendingRequests?.length || 0}</div>
-            </CardContent>
-          </Card>
+              {activeFilter === "pending_approval" && <p className="text-xs text-yellow-600 mt-1">Filtering active</p>}
+            </div>
+          </button>
         )}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Completed</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <button
+          type="button"
+          onClick={() => toggleFilter("done")}
+          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "done" ? "ring-2 ring-green-600 border-green-600" : "hover:border-gray-400"}`}
+        >
+          <div className="p-6 pb-3">
+            <p className="text-sm font-medium text-gray-600">Completed</p>
+          </div>
+          <div className="px-6 pb-6">
             <div className="text-2xl font-bold text-green-600">{tasksByStatus.done.length}</div>
-          </CardContent>
-        </Card>
+            {activeFilter === "done" && <p className="text-xs text-green-600 mt-1">Filtering active</p>}
+          </div>
+        </button>
       </div>
 
       <Tabs value={tasksMainTab} onValueChange={(v) => setTasksMainTab(v as "tasks" | "reception" | "fuel")} className="w-full min-w-0 max-w-full">
@@ -561,18 +603,36 @@ export default function AdminTasks() {
 
           {/* Tasks List */}
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold">All Tasks</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">
+                {activeFilter === "assigned_todo" && "Assigned / To Do Tasks"}
+                {activeFilter === "in_progress" && "In Progress Tasks"}
+                {activeFilter === "pending_approval" && "Pending Approval Tasks"}
+                {activeFilter === "done" && "Completed Tasks"}
+                {!activeFilter && "All Tasks"}
+              </h2>
+              {activeFilter && (
+                <button
+                  type="button"
+                  onClick={() => setActiveFilter(null)}
+                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  Clear filter
+                </button>
+              )}
+            </div>
             {!allTasks ? (
               <div className="text-center py-8 text-gray-500">Loading tasks...</div>
-            ) : allTasks.length === 0 ? (
+            ) : filteredTasks.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center text-gray-500">
-                  No tasks yet. Create your first task to get started.
+                  {activeFilter ? "No tasks match this filter." : "No tasks yet. Create your first task to get started."}
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-3">
-                {allTasks.map((task) => (
+                {filteredTasks.map((task) => (
                   <Card key={task._id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
