@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -330,16 +330,25 @@ export default function AdminTasks() {
   };
 
   const [activeFilter, setActiveFilter] = useState<"assigned_todo" | "in_progress" | "pending_approval" | "done" | null>(null);
+  const tasksListRef = useRef<HTMLDivElement>(null);
 
   const toggleFilter = (filter: "assigned_todo" | "in_progress" | "pending_approval" | "done") => {
-    setActiveFilter((prev) => (prev === filter ? null : filter));
+    setActiveFilter((prev) => {
+      const next = prev === filter ? null : filter;
+      if (next !== null) {
+        setTimeout(() => {
+          tasksListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+      }
+      return next;
+    });
   };
 
   const filteredTasks = useMemo(() => {
     if (!allTasks) return [];
     switch (activeFilter) {
       case "assigned_todo":
-        return allTasks.filter((t) => t.status === "assigned" || t.status === "to_do");
+        return allTasks.filter((t) => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress");
       case "in_progress":
         return allTasks.filter((t) => t.status === "in_progress");
       case "pending_approval":
@@ -602,7 +611,7 @@ export default function AdminTasks() {
           )}
 
           {/* Tasks List */}
-          <div className="space-y-4">
+          <div className="space-y-4" ref={tasksListRef}>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
                 {activeFilter === "assigned_todo" && "Assigned / To Do Tasks"}
