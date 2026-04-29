@@ -562,6 +562,16 @@ export default defineSchema({
       v.literal("nathan_james"),
       v.literal("seidu_isah")
     ),
+    /** Vehicle car used for the trip (optional for backward compatibility). */
+    carKey: v.optional(
+      v.union(
+        v.literal("land_cruiser"),
+        v.literal("hilux"),
+        v.literal("highlander"),
+        v.literal("bus"),
+        v.literal("camry")
+      )
+    ),
     /** Calendar date (YYYY-MM-DD) in server local context at request time — "system date" for the trip. */
     requestDate: v.string(),
     status: v.union(

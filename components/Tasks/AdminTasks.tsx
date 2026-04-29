@@ -23,6 +23,7 @@ import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourg
 import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
+import { fuelCarLabel } from "@/lib/fuelCars";
 
 export default function AdminTasks() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -1044,6 +1045,7 @@ export default function AdminTasks() {
                         <TableRow>
                           <TableHead>Trip date</TableHead>
                           <TableHead>Driver</TableHead>
+                          <TableHead>Car</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-right">Amount (NGN)</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
@@ -1054,6 +1056,7 @@ export default function AdminTasks() {
                           <TableRow key={row._id}>
                             <TableCell>{row.requestDate}</TableCell>
                             <TableCell>{fuelDriverLabel(row.driverKey)}</TableCell>
+                            <TableCell>{fuelCarLabel(row.carKey)}</TableCell>
                             <TableCell>
                               {row.status === "pending_approval" && (
                                 <Badge className="bg-yellow-100 text-yellow-800">Pending approval</Badge>
