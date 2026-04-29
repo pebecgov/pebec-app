@@ -11,6 +11,14 @@ const driverKeyValidator = v.union(
   v.literal("seidu_isah")
 );
 
+const carKeyValidator = v.union(
+  v.literal("land_cruiser"),
+  v.literal("hilux"),
+  v.literal("highlander"),
+  v.literal("bus"),
+  v.literal("camry")
+);
+
 function todayYyyyMmDd(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -46,8 +54,9 @@ export const listFuelRequestsForReception = query({
 export const createFuelRequest = mutation({
   args: {
     driverKey: driverKeyValidator,
+    carKey: carKeyValidator
   },
-  handler: async (ctx, { driverKey }) => {
+  handler: async (ctx, { driverKey, carKey }) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "staff" || user.staffStream !== "receptionist") {
       throw new Error("Only reception staff can create fuel requests");
@@ -56,6 +65,7 @@ export const createFuelRequest = mutation({
     const now = Date.now();
     return await ctx.db.insert("fuel_requests", {
       driverKey,
+      carKey,
       requestDate,
       status: "pending_approval",
       requestedBy: user._id,

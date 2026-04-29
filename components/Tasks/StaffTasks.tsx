@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets } from "lucide-react";
 import { fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
+import { fuelCarLabel, FUEL_CARS, type FuelCarKey } from "@/lib/fuelCars";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -65,6 +66,7 @@ export default function StaffTasks() {
   const [receptionUploading, setReceptionUploading] = useState(false);
   const [fuelPriceInput, setFuelPriceInput] = useState<Record<string, string>>({});
   const [fuelStaffDriverKey, setFuelStaffDriverKey] = useState<FuelDriverKey | "">("");
+  const [fuelStaffCarKey, setFuelStaffCarKey] = useState<FuelCarKey | "">("");
   const staffTasks = (myTasks ?? []) as any[];
 
 
@@ -302,16 +304,35 @@ export default function StaffTasks() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 min-w-[200px]">
+                <span className="text-sm font-medium text-gray-700 block">Car</span>
+                <Select
+                  value={fuelStaffCarKey || undefined}
+                  onValueChange={(v) => setFuelStaffCarKey(v as FuelCarKey)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select car" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FUEL_CARS.map((c) => (
+                      <SelectItem key={c.key} value={c.key}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 type="button"
                 className="bg-amber-600 hover:bg-amber-700"
-                disabled={!fuelStaffDriverKey}
+                disabled={!fuelStaffDriverKey || !fuelStaffCarKey}
                 onClick={async () => {
-                  if (!fuelStaffDriverKey) return;
+                  if (!fuelStaffDriverKey || !fuelStaffCarKey) return;
                   try {
-                    await createFuelRequest({ driverKey: fuelStaffDriverKey });
+                    await createFuelRequest({ driverKey: fuelStaffDriverKey, carKey: fuelStaffCarKey });
                     toast.success("Fuel request submitted for approval.");
                     setFuelStaffDriverKey("");
+                    setFuelStaffCarKey("");
                   } catch (e: any) {
                     toast.error(e.message || "Failed to create request");
                   }
@@ -334,6 +355,7 @@ export default function StaffTasks() {
                       <TableRow>
                         <TableHead>Trip date</TableHead>
                         <TableHead>Driver</TableHead>
+                        <TableHead>Car</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Amount (NGN)</TableHead>
                         <TableHead className="text-right w-[220px]">Actions</TableHead>
@@ -344,6 +366,7 @@ export default function StaffTasks() {
                         <TableRow key={row._id}>
                           <TableCell className="whitespace-nowrap">{row.requestDate}</TableCell>
                           <TableCell>{fuelDriverLabel(row.driverKey)}</TableCell>
+                            <TableCell>{fuelCarLabel(row.carKey)}</TableCell>
                           <TableCell>
                             {row.status === "pending_approval" && (
                               <Badge className="bg-yellow-100 text-yellow-800">Pending approval</Badge>
