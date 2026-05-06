@@ -1207,16 +1207,52 @@ export const markReceptionDocumentViewed = mutation({
 });
 
 export const listMyReceptionDocuments = query({
-    handler: async (ctx) => {
+    args: {
+        page: v.optional(v.number()),
+        pageSize: v.optional(v.number())
+    },
+    handler: async (ctx, { page, pageSize }) => {
         const user = await getCurrentUserOrThrow(ctx);
         if (user.role !== "staff" || user.staffStream !== "receptionist") {
-            return [];
+            return {
+                documents: [],
+                totalCount: 0,
+                totalPages: 0,
+                currentPage: 1,
+                pageSize: 20
+            };
         }
-        return await ctx.db
+        const resolvedPageSize = Math.min(Math.max(pageSize ?? 20, 1), 100);
+        const resolvedPage = Math.max(page ?? 1, 1);
+        const rows = await ctx.db
             .query("reception_admin_documents")
-            .withIndex("byUploadedBy", q => q.eq("uploadedBy", user._id))
             .order("desc")
             .collect();
+        const totalCount = rows.length;
+        const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / resolvedPageSize);
+        const clampedPage = totalPages === 0 ? 1 : Math.min(resolvedPage, totalPages);
+        const start = (clampedPage - 1) * resolvedPageSize;
+        const pagedRows = rows.slice(start, start + resolvedPageSize);
+
+        const documents = await Promise.all(
+            pagedRows.map(async (row) => {
+                const uploader = await ctx.db.get(row.uploadedBy);
+                const submittedByName = uploader
+                    ? `${uploader.firstName || ""} ${uploader.lastName || ""}`.trim() || uploader.email || "Unknown"
+                    : "Unknown";
+                return {
+                    ...row,
+                    submittedByName
+                };
+            })
+        );
+        return {
+            documents,
+            totalCount,
+            totalPages,
+            currentPage: clampedPage,
+            pageSize: resolvedPageSize
+        };
     }
 });
 
@@ -1235,11 +1271,10 @@ export const getReceptionDocumentUrl = mutation({
         if (isAuthorizedTaskAdmin(user)) {
             return await ctx.storage.getUrl(row.storageId);
         }
-        const isOwnUpload =
+        const isReceptionist =
             user.role === "staff" &&
-            user.staffStream === "receptionist" &&
-            row.uploadedBy === user._id;
-        if (isOwnUpload) {
+            user.staffStream === "receptionist";
+        if (isReceptionist) {
             return await ctx.storage.getUrl(row.storageId);
         }
         throw new Error("You do not have permission to open this document");

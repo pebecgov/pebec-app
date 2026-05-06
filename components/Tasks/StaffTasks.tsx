@@ -28,6 +28,8 @@ export default function StaffTasks() {
   const [completionDocumentName, setCompletionDocumentName] = useState<string>("");
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
+  const [receptionDocsPage, setReceptionDocsPage] = useState(1);
+  const receptionDocsPageSize = 20;
 
   const myTasks = useQuery(api.tasks.getMyTasks);
   const currentUser = useQuery(api.users.getCurrentUsers);
@@ -36,7 +38,7 @@ export default function StaffTasks() {
     currentUser === undefined
       ? "skip"
       : currentUser?.role === "staff" && currentUser?.staffStream === "receptionist"
-        ? {}
+        ? { page: receptionDocsPage, pageSize: receptionDocsPageSize }
         : "skip"
   );
   const updateTaskStatus = useMutation(api.tasks.updateTaskStatus);
@@ -155,6 +157,7 @@ export default function StaffTasks() {
       toast.success("Document sent to admin successfully.");
       setReceptionFile(null);
       setReceptionNote("");
+      setReceptionDocsPage(1);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Failed to upload document");
@@ -265,6 +268,14 @@ export default function StaffTasks() {
     !!currentTask?.completionNotes &&
     (currentTask?.completionRequestStatus === "awaiting_consensus" ||
       currentTask?.completionRequestStatus === "pending");
+  const receptionDocuments = myReceptionDocuments?.documents ?? [];
+  const receptionTotalPages = myReceptionDocuments?.totalPages ?? 0;
+  const receptionTotalCount = myReceptionDocuments?.totalCount ?? 0;
+  const receptionCurrentPage = myReceptionDocuments?.currentPage ?? receptionDocsPage;
+
+  useEffect(() => {
+    setReceptionDocsPage(1);
+  }, [isReceptionist]);
 
   return (
     <div className="p-6 space-y-6">
@@ -951,63 +962,94 @@ export default function StaffTasks() {
                   </Button>
 
                   <div className="border-t pt-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Your scanned letters</h3>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Scanned letters (all reception uploads)</h3>
                     {!myReceptionDocuments ? (
                       <p className="text-sm text-gray-500">Loading…</p>
-                    ) : myReceptionDocuments.length === 0 ? (
+                    ) : receptionDocuments.length === 0 ? (
                       <p className="text-sm text-gray-500">No uploads yet.</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-md border border-gray-200">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-gray-50 hover:bg-gray-50">
-                              <TableHead className="font-medium">Letter name</TableHead>
-                              <TableHead className="font-medium">Date sent</TableHead>
-                              <TableHead className="font-medium">Status</TableHead>
-                              <TableHead className="font-medium w-[100px]">View</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {myReceptionDocuments.map((doc) => {
-                              const statusUi = staffReceptionStatusUi(doc.status);
-                              const canView = !!doc.storageId && doc.status !== "stashed";
-                              return (
-                                <TableRow key={doc._id}>
-                                  <TableCell className="font-medium max-w-[240px]">
-                                    <span className="block truncate" title={doc.fileName}>
-                                      {doc.fileName}
-                                    </span>
-                                    {doc.note ? (
-                                      <span className="block text-xs text-gray-500 font-normal truncate mt-0.5" title={doc.note}>
-                                        {doc.note}
+                      <div className="space-y-3">
+                        <div className="overflow-x-auto rounded-md border border-gray-200">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-gray-50 hover:bg-gray-50">
+                                <TableHead className="font-medium">Letter name</TableHead>
+                                <TableHead className="font-medium">Submitted by</TableHead>
+                                <TableHead className="font-medium">Date sent</TableHead>
+                                <TableHead className="font-medium">Status</TableHead>
+                                <TableHead className="font-medium w-[100px]">View</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {receptionDocuments.map((doc) => {
+                                const statusUi = staffReceptionStatusUi(doc.status);
+                                const canView = !!doc.storageId && doc.status !== "stashed";
+                                return (
+                                  <TableRow key={doc._id}>
+                                    <TableCell className="font-medium max-w-[240px]">
+                                      <span className="block truncate" title={doc.fileName}>
+                                        {doc.fileName}
                                       </span>
-                                    ) : null}
-                                  </TableCell>
-                                  <TableCell className="text-gray-700 whitespace-nowrap">
-                                    {format(new Date(doc.createdAt), "PPP")}
-                                  </TableCell>
-                                  <TableCell>
-                                    <span className={`inline-flex capitalize px-2 py-1 rounded text-xs font-medium ${statusUi.className}`}>
-                                      {statusUi.label}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      disabled={!canView}
-                                      onClick={() => handleViewMyReceptionDocument(doc._id)}
-                                    >
-                                      <Eye className="w-4 h-4 mr-1" />
-                                      View
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
+                                      {doc.note ? (
+                                        <span className="block text-xs text-gray-500 font-normal truncate mt-0.5" title={doc.note}>
+                                          {doc.note}
+                                        </span>
+                                      ) : null}
+                                    </TableCell>
+                                    <TableCell className="text-gray-700 whitespace-nowrap">
+                                      {doc.submittedByName || "Unknown"}
+                                    </TableCell>
+                                    <TableCell className="text-gray-700 whitespace-nowrap">
+                                      {format(new Date(doc.createdAt), "PPP")}
+                                    </TableCell>
+                                    <TableCell>
+                                      <span className={`inline-flex capitalize px-2 py-1 rounded text-xs font-medium ${statusUi.className}`}>
+                                        {statusUi.label}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!canView}
+                                        onClick={() => handleViewMyReceptionDocument(doc._id)}
+                                      >
+                                        <Eye className="w-4 h-4 mr-1" />
+                                        View
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <span>
+                            Page {receptionCurrentPage} of {Math.max(receptionTotalPages, 1)} ({receptionTotalCount} uploads)
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={receptionCurrentPage <= 1}
+                              onClick={() => setReceptionDocsPage((prev) => Math.max(prev - 1, 1))}
+                            >
+                              Previous
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={receptionCurrentPage >= receptionTotalPages}
+                              onClick={() => setReceptionDocsPage((prev) => Math.min(prev + 1, Math.max(receptionTotalPages, 1)))}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
