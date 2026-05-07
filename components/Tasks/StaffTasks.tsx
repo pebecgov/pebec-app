@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2 } from "lucide-react";
 import { fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
 import { fuelCarLabel, FUEL_CARS, type FuelCarKey } from "@/lib/fuelCars";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -50,6 +50,7 @@ export default function StaffTasks() {
   const generateReceptionUploadUrl = useMutation(api.tasks.generateReceptionUploadUrl);
   const submitReceptionDocument = useMutation(api.tasks.submitReceptionDocument);
   const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
+  const deleteMyReceptionDocument = useMutation(api.tasks.deleteMyReceptionDocument);
   const receptionFuelRequests = useQuery(
     api.fuel_requests.listFuelRequestsForReception,
     currentUser === undefined
@@ -188,6 +189,18 @@ export default function StaffTasks() {
       else toast.error("Could not open document");
     } catch (e: any) {
       toast.error(e.message || "Failed to open document");
+    }
+  };
+
+  const handleDeleteMyReceptionDocument = async (receptionDocumentId: Id<"reception_admin_documents">) => {
+    const confirmed = window.confirm("Delete this letter? This action cannot be undone.");
+    if (!confirmed) return;
+
+    try {
+      await deleteMyReceptionDocument({ receptionDocumentId });
+      toast.success("Letter deleted successfully.");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete letter");
     }
   };
 
@@ -977,13 +990,14 @@ export default function StaffTasks() {
                                 <TableHead className="font-medium">Submitted by</TableHead>
                                 <TableHead className="font-medium">Date sent</TableHead>
                                 <TableHead className="font-medium">Status</TableHead>
-                                <TableHead className="font-medium w-[100px]">View</TableHead>
+                                <TableHead className="font-medium w-[200px]">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {receptionDocuments.map((doc) => {
                                 const statusUi = staffReceptionStatusUi(doc.status);
                                 const canView = !!doc.storageId && doc.status !== "stashed";
+                                const canDelete = doc.status !== "linked";
                                 return (
                                   <TableRow key={doc._id}>
                                     <TableCell className="font-medium max-w-[240px]">
@@ -1008,16 +1022,29 @@ export default function StaffTasks() {
                                       </span>
                                     </TableCell>
                                     <TableCell>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={!canView}
-                                        onClick={() => handleViewMyReceptionDocument(doc._id)}
-                                      >
-                                        <Eye className="w-4 h-4 mr-1" />
-                                        View
-                                      </Button>
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          disabled={!canView}
+                                          onClick={() => handleViewMyReceptionDocument(doc._id)}
+                                        >
+                                          <Eye className="w-4 h-4 mr-1" />
+                                          View
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          disabled={!canDelete}
+                                          onClick={() => handleDeleteMyReceptionDocument(doc._id)}
+                                          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 disabled:text-gray-400 disabled:border-gray-200"
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-1" />
+                                          Delete
+                                        </Button>
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 );

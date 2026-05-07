@@ -1281,6 +1281,31 @@ export const getReceptionDocumentUrl = mutation({
     }
 });
 
+export const deleteMyReceptionDocument = mutation({
+    args: {
+        receptionDocumentId: v.id("reception_admin_documents")
+    },
+    handler: async (ctx, { receptionDocumentId }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "staff" || user.staffStream !== "receptionist") {
+            throw new Error("Only receptionist staff can delete uploaded letters");
+        }
+
+        const doc = await ctx.db.get(receptionDocumentId);
+        if (!doc) throw new Error("Document not found");
+
+        // Prevent deleting letters already linked to tasks for audit/history safety.
+        if (doc.status === "linked" || doc.linkedTaskId) {
+            throw new Error("Linked letters cannot be deleted");
+        }
+
+        if (doc.storageId) {
+            await ctx.storage.delete(doc.storageId);
+        }
+        await ctx.db.delete(receptionDocumentId);
+    }
+});
+
 // Delete task (admin only)
 export const deleteTask = mutation({
     args: {
