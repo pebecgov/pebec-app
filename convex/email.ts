@@ -18,7 +18,7 @@ export const sendEmail = action({
     const resend = new Resend(process.env.RESEND_API_KEY);
     try {
       await resend.emails.send({
-        from: "support@pebecgov.com",
+        from: "noreply@pebecsec.com",
         to,
         subject,
         html

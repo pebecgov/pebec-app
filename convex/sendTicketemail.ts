@@ -27,7 +27,7 @@ export const sendTicketEmail = action({
       }
       console.log(`📧 Sending email to ${to} with ticket link: ${ticketUrl}`);
       const response = await resend.emails.send({
-        from: "support@pebecgov.com",
+        from: "noreply@pebecsec.com",
         to,
         subject: `Your Ticket for ${eventTitle}`,
         html: `

@@ -21,7 +21,7 @@ export const sendEmail = action({
       throw new Error("Missing RESEND_API_KEY in Convex environment.");
     }
     const resend = new Resend(resendApiKey);
-    const preferredFrom = process.env.RESEND_FROM_EMAIL || "support@pebecgov.com";
+    const preferredFrom = process.env.RESEND_FROM_EMAIL || "noreply@pebecsec.com";
     const fallbackFrom = process.env.RESEND_FALLBACK_FROM_EMAIL || "onboarding@resend.dev";
 
     const trySend = async (from: string) => {
@@ -94,7 +94,7 @@ export const sendVerificationCode = action({
     });
     const resend = new Resend(process.env.RESEND_API_KEY!);
     const result = await resend.emails.send({
-      from: "support@pebecgov.com",
+      from: "noreply@pebecsec.com",
       to: args.email,
       subject: "Your Verification Code",
       html: `<p>Your verification code is: <strong>${code}</strong></p>`
