@@ -88,8 +88,8 @@ export default function FeedbackForm() {
 
           <!-- Footer -->
           <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px;">
-            <p>© 2024 PEBEC GOV | <a href="https://www.pebecgov.com" style="color: #007bff;">Visit Website</a></p>
-            <p>Need assistance? <a href="mailto:support@pebecgov.com" style="color: #007bff;">Contact Support</a></p>
+            <p>© 2024 PEBEC SEC | <a href="https://www.pebecsec.com" style="color: #007bff;">Visit Website</a></p>
+            <p>Need assistance? <a href="mailto:noreply@pebecsec.com" style="color: #007bff;">Contact Support</a></p>
           </div>
         </div>
       `;
