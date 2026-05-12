@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 //@ts-nocheck 
 
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUserOrNull, getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { api } from "./_generated/api";
@@ -62,6 +62,7 @@ export const createTicket = mutation({
       description: args.description,
       ticketNumber,
       status: "open",
+      aiStatus: "pending",
       createdBy: user?._id ?? guestUserId!,
       assignedMDA: assignedMDAId,
       assignedAgent: undefined,
@@ -77,6 +78,10 @@ export const createTicket = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
+    await ctx.scheduler.runAfter(0, internal.tickets.enqueueTicketForAi, {
+      ticketId
+    });
+    console.log(`📨 Scheduled AI enqueue for ticket ${ticketNumber} (${ticketId})`);
     const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
     const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
@@ -108,6 +113,143 @@ export const createTicket = mutation({
     return {
       ticketId,
       ticketNumber
+    };
+  }
+});
+
+export const setAiStatusInternal = internalMutation({
+  args: {
+    ticketId: v.id("tickets"),
+    aiStatus: v.union(
+      v.literal("pending"),
+      v.literal("queued"),
+      v.literal("processing"),
+      v.literal("done")
+    )
+  },
+  handler: async (ctx, { ticketId, aiStatus }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found");
+    }
+    await ctx.db.patch(ticketId, {
+      aiStatus,
+      updatedAt: Date.now()
+    });
+  }
+});
+
+export const completeAiProcessingInternal = internalMutation({
+  args: {
+    ticketId: v.id("tickets"),
+    aiResult: v.union(
+      v.literal("MATCH"),
+      v.literal("WRONG_MDA"),
+      v.literal("IRRELEVANT")
+    ),
+    explanation: v.optional(v.string()),
+    nextSteps: v.optional(v.string()),
+    aiConfidence: v.optional(v.number()),
+    processedAt: v.optional(v.number())
+  },
+  handler: async (ctx, { ticketId, aiResult, explanation, nextSteps, aiConfidence, processedAt }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found");
+    }
+    const normalizedConfidence =
+      typeof aiConfidence === "number"
+        ? Math.max(0, Math.min(100, aiConfidence))
+        : undefined;
+    await ctx.db.patch(ticketId, {
+      aiStatus: "done",
+      aiResult,
+      explanation,
+      nextSteps,
+      aiConfidence: normalizedConfidence,
+      processedAt: processedAt ?? Date.now(),
+      updatedAt: Date.now()
+    });
+  }
+});
+
+export const enqueueTicketForAi = internalAction({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.runQuery(internal.tickets.getTicketForAiInternal, {
+      ticketId
+    });
+    if (!ticket) {
+      console.error(`❌ enqueueTicketForAi: ticket not found (${ticketId})`);
+      throw new Error("Ticket not found");
+    }
+    console.log(`🚀 enqueueTicketForAi: preparing ticket ${ticket.ticketNumber} (${ticket._id})`);
+    await ctx.runMutation(internal.tickets.setAiStatusInternal, {
+      ticketId,
+      aiStatus: "queued"
+    });
+    console.log(`🟡 enqueueTicketForAi: aiStatus set to queued for ${ticket.ticketNumber}`);
+    const payload = {
+      ticketId: ticket._id,
+      ticketNumber: ticket.ticketNumber,
+      mdaName: ticket.assignedMdaName,
+      title: ticket.title,
+      complaint: ticket.description,
+      description: ticket.description,
+      state: ticket.state
+    };
+    console.log(
+      `📤 enqueueTicketForAi: sending ticket ${ticket.ticketNumber} to https://settling-laboring-monitor.ngrok-free.dev/enqueue`
+    );
+    try {
+      const response = await fetch("https://settling-laboring-monitor.ngrok-free.dev/enqueue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        await ctx.runMutation(internal.tickets.setAiStatusInternal, {
+          ticketId,
+          aiStatus: "pending"
+        });
+        console.error(
+          `❌ enqueueTicketForAi: failed for ${ticket.ticketNumber}. status=${response.status} statusText=${response.statusText}`
+        );
+        throw new Error(`Failed to enqueue ticket for AI: ${response.status}`);
+      }
+      console.log(`✅ enqueueTicketForAi: successfully queued ${ticket.ticketNumber}`);
+      return { success: true };
+    } catch (error) {
+      await ctx.runMutation(internal.tickets.setAiStatusInternal, {
+        ticketId,
+        aiStatus: "pending"
+      });
+      console.error(
+        `❌ enqueueTicketForAi: network/permission error for ${ticket.ticketNumber}.`,
+        error
+      );
+      throw error;
+    }
+  }
+});
+
+export const getTicketForAiInternal = internalQuery({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      return null;
+    }
+    const mda = ticket.assignedMDA ? await ctx.db.get(ticket.assignedMDA) : null;
+    return {
+      ...ticket,
+      assignedMdaName: mda?.name
     };
   }
 });

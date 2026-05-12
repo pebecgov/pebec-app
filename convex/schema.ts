@@ -170,6 +170,25 @@ export default defineSchema({
     businessName: v.optional(v.string()),
     ticketNumber: v.string(),
     status: v.union(v.literal("open"), v.literal("in_progress"), v.literal("resolved"), v.literal("closed")),
+    aiStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("queued"),
+        v.literal("processing"),
+        v.literal("done")
+      )
+    ),
+    aiResult: v.optional(
+      v.union(
+        v.literal("MATCH"),
+        v.literal("WRONG_MDA"),
+        v.literal("IRRELEVANT")
+      )
+    ),
+    explanation: v.optional(v.string()),
+    nextSteps: v.optional(v.string()),
+    aiConfidence: v.optional(v.number()),
+    processedAt: v.optional(v.number()),
     createdBy: v.id("users"),
     assignedMDA: v.optional(v.id("mdas")),
     assignedAgent: v.optional(v.id("users")),
