@@ -7189,6 +7189,11 @@ natural-compare@^1.4.0:
   resolved "https://registry.npmjs.org/natural-compare/-/natural-compare-1.4.0.tgz"
   integrity sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==
 
+next-google-translate-widget@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/next-google-translate-widget/-/next-google-translate-widget-2.0.1.tgz#e2d53ddf6550963a87b176434ebe6dd9bf91769b"
+  integrity sha512-wxEr+eEKJPFoCxGocXLxoVZ+cqduSxkaxHPLMIga6y3FJ9qu16kPFfM1ZrBZ3fwoCNGfMuwgnL9fuEloyCfNYw==
+
 next-themes@^0.4.4:
   version "0.4.4"
   resolved "https://registry.npmjs.org/next-themes/-/next-themes-0.4.4.tgz"
