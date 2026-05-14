@@ -1,11 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
-import { action, mutation } from "./_generated/server";
+import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { Resend } from "resend";
-import { internal } from './_generated/api';
-import { Id } from './_generated/dataModel';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendGridErrorMessage, sendGridHtmlEmail } from "./sendgridMail";
 
 export const sendTicketEmail = action({
   args: {
@@ -13,11 +9,7 @@ export const sendTicketEmail = action({
     eventTitle: v.string(),
     ticketPdfId: v.id("_storage")
   },
-  handler: async (ctx, {
-    to,
-    eventTitle,
-    ticketPdfId
-  }) => {
+  handler: async (ctx, { to, eventTitle, ticketPdfId }) => {
     try {
       console.log(`📧 Fetching ticket PDF URL for email to ${to}...`);
       const ticketUrl = await ctx.storage.getUrl(ticketPdfId);
@@ -26,8 +18,7 @@ export const sendTicketEmail = action({
         throw new Error("Failed to fetch ticket PDF.");
       }
       console.log(`📧 Sending email to ${to} with ticket link: ${ticketUrl}`);
-      const response = await resend.emails.send({
-        from: "support@pebecgov.com",
+      const result = await sendGridHtmlEmail({
         to,
         subject: `Your Ticket for ${eventTitle}`,
         html: `
@@ -47,10 +38,10 @@ export const sendTicketEmail = action({
           </div>
         `
       });
-      console.log(`✅ Email successfully sent to ${to}`, response);
+      console.log(`✅ Email successfully sent to ${to}`, result);
     } catch (error) {
       console.error("❌ Error sending email:", error);
-      throw new Error("Email sending failed.");
+      throw new Error(sendGridErrorMessage(error) || "Email sending failed.");
     }
   }
 });

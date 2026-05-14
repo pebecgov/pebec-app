@@ -3,26 +3,17 @@
 
 import { action } from "./_generated/server";
 import { v } from "convex/values";
-import { Resend } from "resend";
+import { sendGridErrorMessage, sendGridHtmlEmail } from "./sendgridMail";
+
 export const sendEmail = action({
   args: {
     to: v.string(),
     subject: v.string(),
     html: v.string()
   },
-  handler: async (ctx, {
-    to,
-    subject,
-    html
-  }) => {
-    const resend = new Resend(process.env.RESEND_API_KEY);
+  handler: async (_ctx, { to, subject, html }) => {
     try {
-      await resend.emails.send({
-        from: "support@pebecgov.com",
-        to,
-        subject,
-        html
-      });
+      await sendGridHtmlEmail({ to, subject, html });
       return {
         success: true
       };
@@ -30,7 +21,7 @@ export const sendEmail = action({
       console.error("Failed to send email:", error);
       return {
         success: false,
-        error: error.message
+        error: sendGridErrorMessage(error)
       };
     }
   }
