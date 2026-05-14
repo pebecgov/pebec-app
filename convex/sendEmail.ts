@@ -3,73 +3,37 @@
 
 import { action, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { Resend } from "resend";
 import { api } from "./_generated/api";
+import { sendGridErrorMessage, sendGridHtmlEmail } from "./sendgridMail";
+
 export const sendEmail = action({
   args: {
     to: v.string(),
     subject: v.string(),
     html: v.string()
   },
-  handler: async (_, {
-    to,
-    subject,
-    html
-  }) => {
-    const resendApiKey = process.env.RESEND_API_KEY;
-    if (!resendApiKey) {
-      throw new Error("Missing RESEND_API_KEY in Convex environment.");
-    }
-    const resend = new Resend(resendApiKey);
-    const preferredFrom = process.env.RESEND_FROM_EMAIL || "support@pebecgov.com";
-    const fallbackFrom = process.env.RESEND_FALLBACK_FROM_EMAIL || "onboarding@resend.dev";
-
-    const trySend = async (from: string) => {
-      const result = await resend.emails.send({
-        from,
-        to,
-        subject,
-        html
-      });
-      return result;
-    };
-
+  handler: async (_, { to, subject, html }) => {
     try {
-      let result = await trySend(preferredFrom);
-
-      if (result?.error && result.error.message?.includes("domain is not verified") && preferredFrom !== fallbackFrom) {
-        console.warn(`Primary from address failed (${preferredFrom}). Retrying with fallback sender ${fallbackFrom}.`);
-        result = await trySend(fallbackFrom);
-      }
-
-      if (result?.error) {
-        console.error("Resend API returned an error:", result.error);
-        return {
-          success: false,
-          error: result.error.message || "Unknown Resend error"
-        };
-      }
-
-      console.log("Email accepted by Resend:", {
+      const { messageId } = await sendGridHtmlEmail({ to, subject, html });
+      console.log("Email accepted by SendGrid:", {
         to,
         subject,
-        from: result?.data?.from || preferredFrom,
-        id: result?.data?.id
+        id: messageId
       });
-
       return {
         success: true,
-        id: result?.data?.id
+        id: messageId
       };
     } catch (error) {
       console.error("Email send failed:", error);
       return {
         success: false,
-        error: error.message
+        error: sendGridErrorMessage(error)
       };
     }
   }
 });
+
 export const deleteVerificationCode = mutation({
   args: {
     email: v.string()
@@ -82,6 +46,7 @@ export const deleteVerificationCode = mutation({
     return true;
   }
 });
+
 export const sendVerificationCode = action({
   args: {
     email: v.string()
@@ -92,9 +57,7 @@ export const sendVerificationCode = action({
       email: args.email,
       code
     });
-    const resend = new Resend(process.env.RESEND_API_KEY!);
-    const result = await resend.emails.send({
-      from: "support@pebecgov.com",
+    const result = await sendGridHtmlEmail({
       to: args.email,
       subject: "Your Verification Code",
       html: `<p>Your verification code is: <strong>${code}</strong></p>`
@@ -103,6 +66,7 @@ export const sendVerificationCode = action({
     return true;
   }
 });
+
 export const verifyEmailCode = action({
   args: {
     email: v.string(),
@@ -125,6 +89,7 @@ export const verifyEmailCode = action({
     };
   }
 });
+
 export const storeVerificationCode = mutation({
   args: {
     email: v.string(),
@@ -138,6 +103,7 @@ export const storeVerificationCode = mutation({
     });
   }
 });
+
 export const getVerificationCode = query({
   args: {
     email: v.string()
