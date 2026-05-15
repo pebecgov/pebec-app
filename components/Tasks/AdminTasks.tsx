@@ -19,7 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, Archive, Droplets } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, Archive, Droplets, Search } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
@@ -363,21 +363,33 @@ export default function AdminTasks() {
 
   const RECEPTION_PAGE_SIZE = 20;
   const [receptionPage, setReceptionPage] = useState(0);
-  const receptionTotal = receptionInboxDocuments?.length ?? 0;
+  const [receptionSearch, setReceptionSearch] = useState("");
+  const filteredReceptionDocuments = useMemo(() => {
+    if (!receptionInboxDocuments) return [];
+    const term = receptionSearch.trim().toLowerCase();
+    if (!term) return receptionInboxDocuments;
+    return receptionInboxDocuments.filter((doc) =>
+      doc.fileName.toLowerCase().includes(term)
+    );
+  }, [receptionInboxDocuments, receptionSearch]);
+  const receptionTotal = filteredReceptionDocuments.length;
   const receptionTotalPages = Math.max(1, Math.ceil(receptionTotal / RECEPTION_PAGE_SIZE));
   const receptionPageSafe = Math.min(receptionPage, receptionTotalPages - 1);
   const paginatedReceptionDocuments = useMemo(() => {
-    if (!receptionInboxDocuments) return [];
     const start = receptionPageSafe * RECEPTION_PAGE_SIZE;
-    return receptionInboxDocuments.slice(start, start + RECEPTION_PAGE_SIZE);
-  }, [receptionInboxDocuments, receptionPageSafe]);
+    return filteredReceptionDocuments.slice(start, start + RECEPTION_PAGE_SIZE);
+  }, [filteredReceptionDocuments, receptionPageSafe]);
+
+  useEffect(() => {
+    setReceptionPage(0);
+  }, [receptionSearch]);
 
   useEffect(() => {
     if (receptionInboxDocuments === undefined) return;
     if (receptionPage > receptionTotalPages - 1) {
       setReceptionPage(Math.max(0, receptionTotalPages - 1));
     }
-  }, [receptionInboxDocuments, receptionPage, receptionTotalPages]);
+  }, [receptionInboxDocuments, filteredReceptionDocuments, receptionPage, receptionTotalPages]);
 
   useEffect(() => {
     if (!isAuthorizedAdmin) {
@@ -803,10 +815,23 @@ export default function AdminTasks() {
                 </CardDescription> */}
               </CardHeader>
               <CardContent className="min-w-0">
+                <div className="relative mb-4 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <Input
+                    type="search"
+                    value={receptionSearch}
+                    onChange={(e) => setReceptionSearch(e.target.value)}
+                    placeholder="Search by letter name…"
+                    className="pl-9"
+                    aria-label="Search letters by name"
+                  />
+                </div>
                 {!receptionInboxDocuments ? (
                   <div className="text-sm text-gray-500 py-4">Loading inbox...</div>
                 ) : receptionInboxDocuments.length === 0 ? (
                   <div className="text-sm text-gray-500 py-4">No documents yet.</div>
+                ) : filteredReceptionDocuments.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-4">No letters match your search.</div>
                 ) : (
                   <div className="space-y-3 w-full min-w-0">
                   <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-md border border-gray-200 [-webkit-overflow-scrolling:touch]">

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2 } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2, Search } from "lucide-react";
 import { fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
 import { fuelCarLabel, FUEL_CARS, type FuelCarKey } from "@/lib/fuelCars";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -29,6 +29,7 @@ export default function StaffTasks() {
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
   const [receptionDocsPage, setReceptionDocsPage] = useState(1);
+  const [receptionDocsSearch, setReceptionDocsSearch] = useState("");
   const receptionDocsPageSize = 20;
 
   const myTasks = useQuery(api.tasks.getMyTasks);
@@ -38,7 +39,11 @@ export default function StaffTasks() {
     currentUser === undefined
       ? "skip"
       : currentUser?.role === "staff" && currentUser?.staffStream === "receptionist"
-        ? { page: receptionDocsPage, pageSize: receptionDocsPageSize }
+        ? {
+            page: receptionDocsPage,
+            pageSize: receptionDocsPageSize,
+            search: receptionDocsSearch.trim() || undefined,
+          }
         : "skip"
   );
   const updateTaskStatus = useMutation(api.tasks.updateTaskStatus);
@@ -289,6 +294,10 @@ export default function StaffTasks() {
   useEffect(() => {
     setReceptionDocsPage(1);
   }, [isReceptionist]);
+
+  useEffect(() => {
+    setReceptionDocsPage(1);
+  }, [receptionDocsSearch]);
 
   return (
     <div className="p-6 space-y-6">
@@ -976,10 +985,25 @@ export default function StaffTasks() {
 
                   <div className="border-t pt-4 mt-4">
                     <h3 className="text-sm font-medium text-gray-900 mb-3">Scanned letters (all reception uploads)</h3>
+                    <div className="relative mb-3 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <Input
+                        type="search"
+                        value={receptionDocsSearch}
+                        onChange={(e) => setReceptionDocsSearch(e.target.value)}
+                        placeholder="Search by letter name…"
+                        className="pl-9"
+                        aria-label="Search letters by name"
+                      />
+                    </div>
                     {!myReceptionDocuments ? (
                       <p className="text-sm text-gray-500">Loading…</p>
                     ) : receptionDocuments.length === 0 ? (
-                      <p className="text-sm text-gray-500">No uploads yet.</p>
+                      <p className="text-sm text-gray-500">
+                        {receptionDocsSearch.trim()
+                          ? "No letters match your search."
+                          : "No uploads yet."}
+                      </p>
                     ) : (
                       <div className="space-y-3">
                         <div className="overflow-x-auto rounded-md border border-gray-200">
