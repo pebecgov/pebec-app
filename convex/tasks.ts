@@ -1209,9 +1209,10 @@ export const markReceptionDocumentViewed = mutation({
 export const listMyReceptionDocuments = query({
     args: {
         page: v.optional(v.number()),
-        pageSize: v.optional(v.number())
+        pageSize: v.optional(v.number()),
+        search: v.optional(v.string())
     },
-    handler: async (ctx, { page, pageSize }) => {
+    handler: async (ctx, { page, pageSize, search }) => {
         const user = await getCurrentUserOrThrow(ctx);
         if (user.role !== "staff" || user.staffStream !== "receptionist") {
             return {
@@ -1224,10 +1225,15 @@ export const listMyReceptionDocuments = query({
         }
         const resolvedPageSize = Math.min(Math.max(pageSize ?? 20, 1), 100);
         const resolvedPage = Math.max(page ?? 1, 1);
-        const rows = await ctx.db
+        const searchTerm = (search ?? "").trim().toLowerCase();
+        const allRows = await ctx.db
             .query("reception_admin_documents")
             .order("desc")
             .collect();
+        const rows =
+            searchTerm === ""
+                ? allRows
+                : allRows.filter((row) => row.fileName.toLowerCase().includes(searchTerm));
         const totalCount = rows.length;
         const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / resolvedPageSize);
         const clampedPage = totalPages === 0 ? 1 : Math.min(resolvedPage, totalPages);
