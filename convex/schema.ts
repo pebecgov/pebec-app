@@ -1315,5 +1315,38 @@ export default defineSchema({
     createdBy: v.id("users")
   }).index("byYear", ["year"])
     .index("byYearAndType", ["year", "itemType"])
-    .index("byYearTypeAndActive", ["year", "itemType", "isActive"])
+    .index("byYearTypeAndActive", ["year", "itemType", "isActive"]),
+
+  leaveRequests: defineTable({
+    subject: v.string(),
+    bodyHtml: v.string(),
+    applicantUserId: v.id("users"),
+    applicantName: v.string(),
+    toUserIds: v.array(v.id("users")),
+    ccUserIds: v.array(v.id("users")),
+    startDate: v.string(),
+    endDate: v.string(),
+    workingDays: v.number(),
+    leaveYear: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
+    attachmentIds: v.optional(v.array(v.id("_storage"))),
+    attachmentNames: v.optional(v.array(v.string())),
+    holidayAnnouncementId: v.optional(v.id("holidayAnnouncements")),
+    reviewedBy: v.optional(v.id("users")),
+    reviewedByName: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+    reviewNote: v.optional(v.string()),
+    source: v.optional(
+      v.union(v.literal("staff"), v.literal("admin"))
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_applicant", ["applicantUserId"])
+    .index("by_status", ["status"])
+    .index("by_applicant_year", ["applicantUserId", "leaveYear"]),
 });

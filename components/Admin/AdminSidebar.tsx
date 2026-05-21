@@ -20,6 +20,7 @@ export default function Sidebar({
   const currentUser = useQuery(api.users.getCurrentUsers);
   const allowedPaths = currentUser?.permissions || [];
   const userRole = currentUser?.role;
+  const pendingLeaveCount = useQuery(api.leaveRequests.getPendingLeaveRequestCount, {});
 
   // Admin users should always see all items
   // For staff users, only show what they have explicit permissions for
@@ -71,7 +72,17 @@ export default function Sidebar({
     name: "Score States",
     icon: <CalculatorIcon className="w-5 h-5" />,
     path: "/admin/state-scoring"
-  }, {
+    },
+   {
+    name: "Leave and Calendar",
+    icon: <CalendarDaysIcon className="w-5 h-5" />,
+    items: [
+      { name: "Leave requests", path: "/admin/leave-requests", showPendingBadge: true },
+      { name: "Absence Notice", path: "/admin/holiday-whereabout" },
+      { name: "Event Calendar", path: "/admin/meeting-calendar" },
+      { name: "Meetings", path: "/admin/meetings" },
+    ],
+  },  {
     name: "Reports & Letters",
     icon: <DocumentIcon className="w-5 h-5" />,
     items: [{
@@ -171,14 +182,6 @@ export default function Sidebar({
       name: "Conference Room Bookings",
       path: "/admin/rooms"
     }]
-  }, {
-    name: "Absence Notice",
-    icon: <MapPinIcon className="w-5 h-5" />,
-    path: "/admin/holiday-whereabout"
-  }, {
-    name: "Event Calendar",
-    icon: <CalendarDaysIcon className="w-5 h-5" />,
-    path: "/admin/meeting-calendar"
   },
   // {
   //   name: "Email Management",
@@ -214,6 +217,7 @@ export default function Sidebar({
         {menuSections.filter(section => {
           if (shouldShowAllItems) return true;
           if (section.path === "/admin/meeting-calendar") return true;
+          if (section.name === "Leave and Calendar") return true;
           if (section.path) return allowedPaths.includes(section.path);
           if (section.items) {
             return section.items.some(item => allowedPaths.includes(item.path));
@@ -225,18 +229,33 @@ export default function Sidebar({
               if (!isOpen) return setIsOpen(true);
               toggleDropdown(section.name);
             }} title={!isOpen ? section.name : undefined}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 {section.icon}
-                <span className={`${isOpen ? "block" : "hidden"}`}>{section.name}</span>
+                <span className={`truncate ${isOpen ? "block" : "hidden"}`}>{section.name}</span>
+                {isOpen &&
+                  section.name === "Leave and Calendar" &&
+                  pendingLeaveCount != null &&
+                  pendingLeaveCount > 0 && (
+                    <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">
+                      {pendingLeaveCount > 99 ? "99+" : pendingLeaveCount}
+                    </span>
+                  )}
               </div>
               {isOpen && (openDropdowns[section.name] ? <FaChevronUp /> : <FaChevronDown />)}
             </div>
             {openDropdowns[section.name] && <div className="pl-2 space-y-1">
               {section.items.filter(item => shouldShowAllItems || allowedPaths.includes(item.path)).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
-                <div className={`pl-6 py-2 rounded-md transition-colors cursor-pointer
+                <div className={`pl-6 py-2 rounded-md transition-colors cursor-pointer flex items-center justify-between gap-2
               ${pathname === item.path ? "bg-green-100 text-green-800 font-medium" : "text-gray-700 hover:bg-gray-100"}
             `}>
-                  {item.name}
+                  <span>{item.name}</span>
+                  {item.showPendingBadge &&
+                    pendingLeaveCount != null &&
+                    pendingLeaveCount > 0 && (
+                      <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">
+                        {pendingLeaveCount > 99 ? "99+" : pendingLeaveCount}
+                      </span>
+                    )}
                 </div>
               </Link>)}
             </div>}
