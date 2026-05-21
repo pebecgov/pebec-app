@@ -21,6 +21,7 @@ import ChatbaseScript from "@/components/ChatbaseScript";
 import { Toaster } from "sonner";
 import { usePathname } from "next/navigation";
 import ActivityTracker from "@/components/ActivityTracker";
+import AiCustomerSupport from "@/components/AiCustomerSupport";
 const inter = Inter({
   subsets: ["latin"]
 });
@@ -71,7 +72,8 @@ export default function RootLayout({
       
     </main>
     {!isHiddenPath && <Footer />}
-
+    {!isHiddenPath && <ChatbaseScript />}
+    {!isHiddenPath && <AiCustomerSupport />}
 
                   {}
                   {}

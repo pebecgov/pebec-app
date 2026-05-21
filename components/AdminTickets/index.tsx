@@ -28,6 +28,7 @@ import GenerateMonthlyReport from "../GenerateReports/GenerateMonthlyTicketsRepo
 import { Input } from "../ui/input";
 import { Textarea } from "@headlessui/react";
 import MiniCountdown from "@/components/ui/mini-countdown";
+import TicketAiAnalysis from "./TicketAiAnalysis";
 
 import Loader from "../Loader";
 const TABS = [{
@@ -154,10 +155,25 @@ export default function AdminTicketsPage() {
       TicketNumber: ticket.ticketNumber,
       Title: ticket.title,
       Status: ticket.status,
-      MDA: ticket.assignedMDA,
+      MDA: ticket.assignedMDAName ?? ticket.assignedMDA,
+      AiResult: ticket.aiResult ?? "",
+      AiStatus: ticket.aiStatus ?? "",
       Date: new Date(ticket.createdAt).toLocaleDateString()
     }));
-    const csvContent = [["Report Number", "Title", "Status", "MDA", "Date"], ...csvData.map(item => [item.TicketNumber, item.Title, item.Status, item.MDA, item.Date])].map(e => e.join(",")).join("\n");
+    const csvContent = [
+      ["Report Number", "Title", "Status", "MDA", "AI result", "AI status", "Date"],
+      ...csvData.map(item => [
+        item.TicketNumber,
+        item.Title,
+        item.Status,
+        item.MDA,
+        item.AiResult,
+        item.AiStatus,
+        item.Date,
+      ]),
+    ]
+      .map(e => e.join(","))
+      .join("\n");
     const blob = new Blob([csvContent], {
       type: "text/csv;charset=utf-8;"
     });
@@ -414,7 +430,7 @@ export default function AdminTicketsPage() {
         </div>
       ) : (
         <div className="overflow-auto max-w-full mt-6 rounded-lg border border-gray-200">
-        <Table className="min-w-[1100px]">
+        <Table className="min-w-[1280px]">
       <TableHeader>
         <TableRow>
           <TableHead className="w-10">
@@ -425,6 +441,7 @@ export default function AdminTicketsPage() {
           <TableHead className="min-w-[150px]">Report Number</TableHead>
           <TableHead className="min-w-[150px]">Title</TableHead>
           <TableHead className="min-w-[150px]">MDA</TableHead>
+          <TableHead className="min-w-[160px]">AI analysis</TableHead>
           <TableHead className="min-w-[150px]">Assign</TableHead>
           <TableHead className="min-w-[150px]">Status</TableHead>
           <TableHead className="min-w-[150px]">Submission Date</TableHead>
@@ -452,6 +469,21 @@ export default function AdminTicketsPage() {
 
             <TableCell className="whitespace-normal break-words max-w-[250px] text-sm">
               {ticket.assignedMDAName}
+            </TableCell>
+
+            <TableCell className="w-[160px] min-w-[160px]">
+              <TicketAiAnalysis
+                ticket={{
+                  ticketNumber: ticket.ticketNumber,
+                  assignedMDAName: ticket.assignedMDAName,
+                  aiStatus: ticket.aiStatus,
+                  aiResult: ticket.aiResult,
+                  explanation: ticket.explanation,
+                  nextSteps: ticket.nextSteps,
+                  aiConfidence: ticket.aiConfidence,
+                  processedAt: ticket.processedAt,
+                }}
+              />
             </TableCell>
 
             <TableCell>
