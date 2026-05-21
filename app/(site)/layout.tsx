@@ -82,7 +82,7 @@ export default function RootLayout({
     </main>
     {!isHiddenPath && <Footer />}
     {!isHiddenPath && (
-      <div className="pebec-translate-widget-slot fixed bottom-4 right-4 z-[200]">
+      <div className="pebec-translate-widget-slot fixed bottom-24 right-4 z-[200] xl:bottom-4">
         <NextGoogleTranslateWidget
           pageLanguage="en"
           languages={SITE_TRANSLATE_LANGUAGES}
