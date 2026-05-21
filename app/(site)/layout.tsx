@@ -11,7 +11,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 import { ThemeProvider } from "next-themes";
 import { Inter } from "next/font/google";
 import "../globals.css";
-import "next-google-translate-widget/styles";
+//import "next-google-translate-widget/styles";
 import "../prosemirror.css";
 import ToasterContext from "../context/ToastContext";
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
@@ -81,7 +81,7 @@ export default function RootLayout({
       
     </main>
     {!isHiddenPath && <Footer />}
-    {!isHiddenPath && (
+    {/* {!isHiddenPath && (
       <div className="pebec-translate-widget-slot fixed bottom-24 right-4 z-[200] xl:bottom-4">
         <NextGoogleTranslateWidget
           pageLanguage="en"
@@ -89,7 +89,7 @@ export default function RootLayout({
           menuAlign="right"
         />
       </div>
-    )}
+    )} */}
 
 
                   {}

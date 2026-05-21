@@ -34,6 +34,7 @@ import type * as http from "../http.js";
 import type * as images from "../images.js";
 import type * as internal_notes from "../internal_notes.js";
 import type * as internal_reports from "../internal_reports.js";
+import type * as leaveRequests from "../leaveRequests.js";
 import type * as letters from "../letters.js";
 import type * as mda_scoring from "../mda_scoring.js";
 import type * as media from "../media.js";
@@ -111,6 +112,7 @@ declare const fullApi: ApiFromModules<{
   images: typeof images;
   internal_notes: typeof internal_notes;
   internal_reports: typeof internal_reports;
+  leaveRequests: typeof leaveRequests;
   letters: typeof letters;
   mda_scoring: typeof mda_scoring;
   media: typeof media;
