@@ -7,6 +7,7 @@ import { api } from "./_generated/api";
 import { getCurrentUserOrThrow, getCurrentUser } from "./users";
 import { Id } from "./_generated/dataModel";
 import { AUTHORIZED_TASK_ADMIN_EMAILS, isAuthorizedTaskAdmin } from "../lib/authorizedTaskAdmins";
+import { formatWorkstream } from "../lib/formatters";
 
 function escapeHtml(text: string): string {
     return text
@@ -14,6 +15,10 @@ function escapeHtml(text: string): string {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+}
+
+function canUploadScannedLetters(user: { role?: string }): boolean {
+    return user.role === "staff" || user.role === "admin";
 }
 
 async function userHasJointAssignment(
@@ -274,6 +279,7 @@ async function resolveAssignmentDocuments(
         if (
             !inbox ||
             inbox.status === "stashed" ||
+            inbox.status === "file" ||
             inbox.status === "linked" ||
             (inbox.status !== "pending" && inbox.status !== "acknowledged")
         ) {
@@ -1034,8 +1040,8 @@ export const generateReceptionUploadUrl = mutation({
     args: {},
     handler: async (ctx) => {
         const user = await getCurrentUserOrThrow(ctx);
-        if (user.role !== "staff" || user.staffStream !== "receptionist") {
-            throw new Error("Only receptionist staff can upload documents here");
+        if (!canUploadScannedLetters(user)) {
+            throw new Error("Only staff and admins can upload scanned letters here");
         }
         return await ctx.storage.generateUploadUrl();
     }
@@ -1049,8 +1055,8 @@ export const submitReceptionDocument = mutation({
     },
     handler: async (ctx, { storageId, fileName, note }) => {
         const user = await getCurrentUserOrThrow(ctx);
-        if (user.role !== "staff" || user.staffStream !== "receptionist") {
-            throw new Error("Only receptionist staff can submit documents");
+        if (!canUploadScannedLetters(user)) {
+            throw new Error("Only staff and admins can submit scanned letters");
         }
         const docId = await ctx.db.insert("reception_admin_documents", {
             storageId,
@@ -1062,9 +1068,16 @@ export const submitReceptionDocument = mutation({
         });
 
         const uploaderName =
-            `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Reception";
+            `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Staff";
+        const streamLabel =
+            user.role === "admin"
+                ? "Admin"
+                : user.staffStream
+                  ? formatWorkstream(user.staffStream)
+                  : "Staff";
         const safeFile = escapeHtml(fileName);
         const safeUploader = escapeHtml(uploaderName);
+        const safeStream = escapeHtml(streamLabel);
         const safeNote = note?.trim() ? escapeHtml(note.trim()) : "";
         const adminMessage = `New scanned letter uploaded: "${fileName}" (from ${uploaderName})`;
 
@@ -1093,7 +1106,7 @@ export const submitReceptionDocument = mutation({
                 <div style="font-family: sans-serif; padding: 20px;">
                     <h2 style="color: #0d9488;">New scanned letter</h2>
                     <p>Hello,</p>
-                    <p><strong>${safeUploader}</strong> (Admin/Operations) uploaded a scanned letter for the inbox.</p>
+                    <p><strong>${safeUploader}</strong> (${safeStream}) uploaded a scanned letter for the inbox.</p>
                     <p><strong>File:</strong> ${safeFile}</p>
                     ${safeNote ? `<p><strong>Note:</strong> ${safeNote}</p>` : ""}
                     <p style="margin-top: 20px;">Open the admin portal to review it under <strong>Receive Scanned Letters</strong>.</p>
@@ -1145,8 +1158,8 @@ export const acknowledgeReceptionDocument = mutation({
         }
         const doc = await ctx.db.get(receptionDocumentId);
         if (!doc) throw new Error("Document not found");
-        if (doc.status === "stashed") {
-            throw new Error("Stashed documents cannot be acknowledged");
+        if (doc.status === "stashed" || doc.status === "file") {
+            throw new Error("Filed documents cannot be acknowledged");
         }
         if (doc.status === "linked") {
             throw new Error("Linked documents cannot be acknowledged");
@@ -1158,27 +1171,23 @@ export const acknowledgeReceptionDocument = mutation({
     }
 });
 
-export const stashReceptionDocument = mutation({
+export const fileReceptionDocument = mutation({
     args: {
         receptionDocumentId: v.id("reception_admin_documents")
     },
     handler: async (ctx, { receptionDocumentId }) => {
         const user = await getCurrentUser(ctx);
         if (!isAuthorizedTaskAdmin(user)) {
-            throw new Error("Only the designated admin can stash reception documents");
+            throw new Error("Only the designated admin can file reception documents");
         }
         const doc = await ctx.db.get(receptionDocumentId);
         if (!doc) throw new Error("Document not found");
         if (doc.status === "linked") {
-            throw new Error("Cannot stash a document that is already assigned to a task");
+            throw new Error("Cannot file a document that is already assigned to a task");
         }
-        if (doc.status === "stashed") return;
-        if (doc.storageId) {
-            await ctx.storage.delete(doc.storageId);
-        }
+        if (doc.status === "file" || doc.status === "stashed") return;
         await ctx.db.patch(receptionDocumentId, {
-            status: "stashed",
-            storageId: undefined
+            status: "file"
         });
     }
 });
@@ -1214,7 +1223,7 @@ export const listMyReceptionDocuments = query({
     },
     handler: async (ctx, { page, pageSize, search }) => {
         const user = await getCurrentUserOrThrow(ctx);
-        if (user.role !== "staff" || user.staffStream !== "receptionist") {
+        if (!canUploadScannedLetters(user)) {
             return {
                 documents: [],
                 totalCount: 0,
@@ -1274,13 +1283,7 @@ export const getReceptionDocumentUrl = mutation({
         if (!row.storageId) {
             throw new Error("File is no longer available");
         }
-        if (isAuthorizedTaskAdmin(user)) {
-            return await ctx.storage.getUrl(row.storageId);
-        }
-        const isReceptionist =
-            user.role === "staff" &&
-            user.staffStream === "receptionist";
-        if (isReceptionist) {
+        if (isAuthorizedTaskAdmin(user) || canUploadScannedLetters(user)) {
             return await ctx.storage.getUrl(row.storageId);
         }
         throw new Error("You do not have permission to open this document");
@@ -1293,8 +1296,8 @@ export const deleteMyReceptionDocument = mutation({
     },
     handler: async (ctx, { receptionDocumentId }) => {
         const user = await getCurrentUserOrThrow(ctx);
-        if (user.role !== "staff" || user.staffStream !== "receptionist") {
-            throw new Error("Only receptionist staff can delete uploaded letters");
+        if (!canUploadScannedLetters(user)) {
+            throw new Error("Only staff and admins can delete uploaded letters");
         }
 
         const doc = await ctx.db.get(receptionDocumentId);
