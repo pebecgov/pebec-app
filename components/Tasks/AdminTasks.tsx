@@ -19,7 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, Archive, Droplets, Search } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
@@ -50,7 +50,7 @@ export default function AdminTasks() {
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
   const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
   const acknowledgeReceptionDocument = useMutation(api.tasks.acknowledgeReceptionDocument);
-  const stashReceptionDocument = useMutation(api.tasks.stashReceptionDocument);
+  const fileReceptionDocument = useMutation(api.tasks.fileReceptionDocument);
   const markReceptionDocumentViewed = useMutation(api.tasks.markReceptionDocumentViewed);
   const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
   const isAuthorizedAdmin = isAuthorizedTaskAdminClient(currentUser ?? null);
@@ -279,7 +279,7 @@ export default function AdminTasks() {
   const handleAssignTaskWithReceptionDoc = (doc: {
     _id: Id<"reception_admin_documents">;
     fileName: string;
-    status: "pending" | "acknowledged" | "linked" | "stashed";
+    status: "pending" | "acknowledged" | "linked" | "file" | "stashed";
   }) => {
     if (doc.status !== "pending" && doc.status !== "acknowledged") {
       toast.error("This document cannot be assigned to a task");
@@ -291,7 +291,7 @@ export default function AdminTasks() {
     setIsCreateDialogOpen(true);
   };
 
-  const receptionStatusUi = (status: "pending" | "acknowledged" | "linked" | "stashed") => {
+  const receptionStatusUi = (status: "pending" | "acknowledged" | "linked" | "file" | "stashed") => {
     switch (status) {
       case "pending":
         return { label: "Awaiting Action", className: "bg-orange-100 text-orange-700" };
@@ -299,8 +299,9 @@ export default function AdminTasks() {
         return { label: "Acknowledged", className: "bg-purple-100 text-purple-700" };
       case "linked":
         return { label: "Assigned", className: "bg-blue-100 text-blue-700" };
+      case "file":
       case "stashed":
-        return { label: "Stashed", className: "bg-gray-200 text-gray-700" };
+        return { label: "File", className: "bg-gray-200 text-gray-700" };
       default:
         return { label: status, className: "bg-gray-100 text-gray-600" };
     }
@@ -870,7 +871,7 @@ export default function AdminTasks() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={!doc.storageId || doc.status === "stashed"}
+                                    disabled={!doc.storageId}
                                     onClick={() => handleViewReceptionFile(doc._id)}
                                   >
                                     <Eye className="w-4 h-4 mr-1" />
@@ -962,25 +963,24 @@ export default function AdminTasks() {
                                       )}
                                       {(doc.status === "pending" || doc.status === "acknowledged") && (
                                         <DropdownMenuItem
-                                          className="text-red-600 focus:text-red-600"
                                           onClick={async () => {
                                             if (
                                               !confirm(
-                                                "Stash this document? The file will be removed from storage and the row marked as stashed."
+                                                "File this document? Its status will change to File and it will remain available for viewing."
                                               )
                                             ) {
                                               return;
                                             }
                                             try {
-                                              await stashReceptionDocument({ receptionDocumentId: doc._id });
-                                              toast.success("Document stashed");
+                                              await fileReceptionDocument({ receptionDocumentId: doc._id });
+                                              toast.success("Document filed");
                                             } catch (e: any) {
-                                              toast.error(e.message || "Failed to stash document");
+                                              toast.error(e.message || "Failed to file document");
                                             }
                                           }}
                                         >
-                                          <Archive className="w-4 h-4 mr-2" />
-                                          Stash
+                                          <File className="w-4 h-4 mr-2" />
+                                          File
                                         </DropdownMenuItem>
                                       )}
                                     </DropdownMenuContent>

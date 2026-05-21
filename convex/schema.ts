@@ -547,6 +547,7 @@ export default defineSchema({
       v.literal("pending"),
       v.literal("acknowledged"),
       v.literal("linked"),
+      v.literal("file"),
       v.literal("stashed")
     ),
     linkedTaskId: v.optional(v.id("tasks")),
