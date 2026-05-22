@@ -15,8 +15,8 @@ export default function UserOpenTickets() {
   const mdaUsers = useQuery(api.users.getUsersWithRole, {
     role: "mda"
   }) || [];
-  const adminUsers = useQuery(api.users.getAdmins);
-  const adminEmails = adminUsers?.map(admin => admin.email) ?? [];
+  const adminUsers = useQuery(api.users.getAdminsForEmailNotifications);
+  const adminEmails = adminUsers?.map((admin) => admin.email).filter(Boolean) ?? [];
   const markAsRead = useMutation(api.notifications.markNotificationsAsRead);
   const mdas = useQuery(api.users.getMDAs) || [];
   const cancelTicket = useMutation(api.tickets.cancelTicket);

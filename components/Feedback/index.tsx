@@ -17,8 +17,8 @@ export default function FeedbackForm() {
     user
   } = useUser();
   const sendEmail = useAction(api.sendEmail.sendEmail);
-  const adminUsers = useQuery(api.users.getAdmins);
-  const adminEmails = adminUsers?.map(admin => admin.email) ?? [];
+  const adminUsers = useQuery(api.users.getAdminsForEmailNotifications);
+  const adminEmails = adminUsers?.map((admin) => admin.email).filter(Boolean) ?? [];
   const {
     toast
   } = useToast();
