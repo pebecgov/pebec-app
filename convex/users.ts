@@ -258,11 +258,24 @@ export const getTotalUsers = query({
     return users.length;
   }
 });
+/** All admin users (includes EMAIL_NOTIFICATION_BLACKLIST — use for admin UI lists only). */
 export const getAdmins = query({
   args: {},
   handler: async ctx => {
     return await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
   }
+});
+
+/** Admins who receive blast emails (tickets, feedback, etc.) — excludes EMAIL_NOTIFICATION_BLACKLIST. */
+export const getAdminsForEmailNotifications = query({
+  args: {},
+  handler: async ctx => {
+    const allAdmins = await ctx.db
+      .query("users")
+      .withIndex("byRole", (q) => q.eq("role", "admin"))
+      .collect();
+    return filterAdminsForNotifications(allAdmins);
+  },
 });
 export const updateUserProfile = mutation({
   args: {
@@ -639,29 +652,33 @@ export const deleteMDA = mutation({
     console.log(`🔥 Deleted MDA: ${mda.name}`);
   }
 });
-// Email blacklist for admins who should not receive notifications
+/**
+ * Admins excluded from blast emails, in-app admin notifications, and SABER deadline CCs:
+ * tickets, business letters, event registrations, DLI (in-app), role requests, SABER reminders.
+ */
 const EMAIL_NOTIFICATION_BLACKLIST = [
-  "zahrah.mustaphaaudu@pebec.gov.ng"
+  "zahrah.mustaphaaudu@pebec.gov.ng",
 ];
 
-// Special case: admin who should only receive saber reminder emails
-const SABER_ONLY_ADMIN = "zahrah.mustaphaaudu@pebec.gov.ng";
+const EMAIL_NOTIFICATION_BLACKLIST_LOWER = EMAIL_NOTIFICATION_BLACKLIST.map((e) =>
+  e.trim().toLowerCase()
+);
 
-// Helper function to filter admins based on notification blacklist
+export function isEmailNotificationBlacklisted(email: string | undefined | null): boolean {
+  if (!email?.trim()) return false;
+  return EMAIL_NOTIFICATION_BLACKLIST_LOWER.includes(email.trim().toLowerCase());
+}
+
+/** Filter admins for ticket/letter/event/DLI/role-request emails and matching in-app notifications. */
 export function filterAdminsForNotifications(admins: any[]) {
-  return admins.filter(admin =>
-    admin.email && !EMAIL_NOTIFICATION_BLACKLIST.includes(admin.email)
+  return admins.filter(
+    (admin) => admin.email && !isEmailNotificationBlacklisted(admin.email)
   );
 }
 
-// Helper function to get admins for saber reminder emails (includes the special case)
+/** Admins who receive SABER deadline reminder CC emails (same exclusions as other admin blasts). */
 export function getAdminsForSaberReminders(admins: any[]) {
-  const regularAdmins = admins.filter(admin =>
-    admin.email && admin.email !== SABER_ONLY_ADMIN
-  );
-  const saberOnlyAdmin = admins.filter(admin => admin.email === SABER_ONLY_ADMIN);
-
-  return regularAdmins.concat(saberOnlyAdmin);
+  return filterAdminsForNotifications(admins);
 }
 
 // Helper function to fetch external CC recipients for saber reminders from env
@@ -685,12 +702,10 @@ export function getExternalCcForSaberReminders(): { email: string }[] {
 
 export const getAdminEmails = mutation(async ctx => {
   const users = await ctx.db.query("users").collect();
-  const admins = users.filter(u =>
-    u.role === "admin" &&
-    u.email &&
-    !EMAIL_NOTIFICATION_BLACKLIST.includes(u.email)
+  const admins = users.filter(
+    (u) => u.role === "admin" && u.email && !isEmailNotificationBlacklisted(u.email)
   );
-  return admins.map(u => u.email);
+  return admins.map((u) => u.email);
 });
 export const getGrowthStats = query(async ({
   db
