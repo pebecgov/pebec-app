@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -14,11 +14,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { LeaveRequestRichTextEditor } from "./LeaveRequestRichTextEditor";
 import { countWorkingDays } from "@/lib/leaveWorkingDays";
+import { getPublicHolidaysInRange } from "@/lib/publicHolidays";
 import { wouldExceedLeaveAllowance } from "@/lib/leaveBalance";
 import { LeaveBalanceAlert } from "./LeaveBalanceAlert";
+import {
+  LEAVE_APPROVER_DISPLAY_NAME,
+  LEAVE_APPROVER_ROLE_LABEL,
+} from "@/lib/leaveApprover";
 import { toast } from "sonner";
 import { Paperclip, X } from "lucide-react";
 
@@ -35,8 +39,8 @@ type PendingFile = {
 };
 
 export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
-  const users = useQuery(api.leaveRequests.listStaffAndAdminsForLeave, {});
   const balance = useQuery(api.leaveRequests.getLeaveBalance, {});
+  const approver = useQuery(api.leaveRequests.getLeaveApproverDisplay, {});
   const submit = useMutation(api.leaveRequests.submitLeaveRequest);
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
 
@@ -44,14 +48,16 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
   const [bodyHtml, setBodyHtml] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [toIds, setToIds] = useState<Id<"users">[]>([]);
-  const [ccIds, setCcIds] = useState<Id<"users">[]>([]);
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const admins = useMemo(() => users?.filter((u) => u.role === "admin") ?? [], [users]);
   const workingDaysPreview =
     startDate && endDate && endDate >= startDate ? countWorkingDays(startDate, endDate) : 0;
+
+  const publicHolidaysInRange =
+    startDate && endDate && endDate >= startDate
+      ? getPublicHolidaysInRange(startDate, endDate)
+      : [];
 
   const exceedsBalance =
     !!balance &&
@@ -63,14 +69,7 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
     setBodyHtml("");
     setStartDate("");
     setEndDate("");
-    setToIds([]);
-    setCcIds([]);
     setFiles([]);
-  };
-
-  const toggleId = (list: Id<"users">[], id: Id<"users">, checked: boolean) => {
-    if (checked) return [...list, id];
-    return list.filter((x) => x !== id);
   };
 
   const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,10 +108,6 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
       toast.error("Start and end dates are required");
       return;
     }
-    if (toIds.length === 0) {
-      toast.error("Select at least one admin in To");
-      return;
-    }
     if (workingDaysPreview < 1) {
       toast.error("Leave must include at least one working day");
       return;
@@ -130,8 +125,6 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
       await submit({
         subject: subject.trim(),
         bodyHtml,
-        toUserIds: toIds,
-        ccUserIds: ccIds,
         startDate,
         endDate,
         attachmentIds: uploaded.length ? uploaded.map((u) => u.storageId) : undefined,
@@ -152,9 +145,7 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v) {
-          onClose();
-        }
+        if (!v) onClose();
       }}
     >
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -170,6 +161,13 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
         )}
 
         <div className="space-y-4">
+          <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">To ({approver?.roleLabel ?? LEAVE_APPROVER_ROLE_LABEL}): </span>
+            <span className="font-medium">
+              {approver?.name ?? LEAVE_APPROVER_DISPLAY_NAME}
+            </span>
+          </div>
+
           <div>
             <Label htmlFor="leave-subject">Subject</Label>
             <Input
@@ -208,6 +206,18 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
           {workingDaysPreview > 0 && (
             <p className="text-sm text-gray-600">
               Working days in this request: <strong>{workingDaysPreview}</strong>
+              <span className="text-muted-foreground">
+                {" "}
+                (weekends and public holidays excluded)
+              </span>
+            </p>
+          )}
+          {publicHolidaysInRange.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Public holidays in range (not counted):{" "}
+              {publicHolidaysInRange
+                .map((h) => `${h.localName} (${h.date})`)
+                .join(", ")}
             </p>
           )}
 
@@ -219,50 +229,6 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
               year={balance.year}
             />
           )}
-
-          <div>
-            <Label>To (admins)</Label>
-            <div className="mt-1 max-h-32 overflow-y-auto rounded border p-2 space-y-2">
-              {admins.map((u) => (
-                <label key={u._id} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={toIds.includes(u._id)}
-                    onCheckedChange={(c) =>
-                      setToIds((prev) => toggleId(prev, u._id, c === true))
-                    }
-                  />
-                  <span>
-                    {u.name} <span className="text-muted-foreground">({u.email})</span>
-                  </span>
-                </label>
-              ))}
-              {!admins.length && (
-                <p className="text-sm text-muted-foreground">No admins found</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label>CC (staff & admins)</Label>
-            <div className="mt-1 max-h-40 overflow-y-auto rounded border p-2 space-y-2">
-              {(users ?? []).map((u) => (
-                <label key={u._id} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={ccIds.includes(u._id)}
-                    onCheckedChange={(c) =>
-                      setCcIds((prev) => toggleId(prev, u._id, c === true))
-                    }
-                  />
-                  <span>
-                    {u.name}{" "}
-                    <span className="text-muted-foreground">
-                      ({u.role}) {u.email}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
 
           <LeaveRequestRichTextEditor value={bodyHtml} onChange={setBodyHtml} />
 

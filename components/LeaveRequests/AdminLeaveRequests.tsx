@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,16 @@ import {
   OverviewModalKey,
 } from "./LeaveOverviewStaffDialog";
 import { cn } from "@/lib/utils";
+import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
@@ -67,12 +77,20 @@ const MODAL_TITLES: Record<Exclude<OverviewModalKey, null>, string> = {
 };
 
 export default function AdminLeaveRequests() {
+  const currentUser = useQuery(api.users.getCurrentUsers);
+  const canReviewLeave = isAuthorizedTaskAdminClient(currentUser ?? null);
+
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const overview = useQuery(api.leaveRequests.getAdminLeaveOverview, {});
   const allRequests = useQuery(api.leaveRequests.listAllLeaveRequests, {});
   const [detailId, setDetailId] = useState<Id<"leaveRequests"> | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
   const [overviewModal, setOverviewModal] = useState<OverviewModalKey>(null);
+  const [recalcOpen, setRecalcOpen] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const recalculateWorkingDays = useMutation(
+    api.leaveRequests.recalculateLeaveWorkingDays
+  );
 
   const requests = useMemo(() => {
     if (!allRequests) return undefined;
@@ -173,13 +191,62 @@ export default function AdminLeaveRequests() {
             staff, not number of leave records.
           </p>
         </div>
-        <Button
-          className="shrink-0 bg-green-600 hover:bg-green-700"
-          onClick={() => setRecordOpen(true)}
-        >
-          <PlusIcon className="mr-2 h-4 w-4" />
-          Record staff leave
-        </Button>
+        {canReviewLeave && (
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Button type="button" variant="outline" onClick={() => setRecalcOpen(true)}>
+              Recalculate working days
+            </Button>
+            <Dialog open={recalcOpen} onOpenChange={setRecalcOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Recalculate leave working days?</DialogTitle>
+                  <DialogDescription>
+                    This updates every leave request using the current rules: weekends and Nigeria
+                    public holidays are excluded. Already-approved leave will use the new counts
+                    for annual balance.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    disabled={recalculating}
+                    onClick={() => setRecalcOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={recalculating}
+                    onClick={async () => {
+                      try {
+                        setRecalculating(true);
+                        const result = await recalculateWorkingDays({});
+                        toast.success(
+                          `Updated ${result.updatedCount} of ${result.totalChecked} request(s)`
+                        );
+                        setRecalcOpen(false);
+                      } catch (err: unknown) {
+                        toast.error(
+                          err instanceof Error ? err.message : "Recalculation failed"
+                        );
+                      } finally {
+                        setRecalculating(false);
+                      }
+                    }}
+                  >
+                    {recalculating ? "Recalculating…" : "Recalculate all"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => setRecordOpen(true)}
+            >
+              <PlusIcon className="mr-2 h-4 w-4" />
+              Record staff leave
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -334,6 +401,7 @@ export default function AdminLeaveRequests() {
         open={!!detailId}
         onClose={() => setDetailId(null)}
         isAdmin
+        canReviewLeave={canReviewLeave}
         onReviewed={() => setDetailId(null)}
       />
       <AdminRecordLeaveDialog

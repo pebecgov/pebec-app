@@ -10,6 +10,31 @@ import {
   yearFromDate,
 } from "../lib/leaveWorkingDays";
 import { leaveAllowanceExceededMessage } from "../lib/leaveBalance";
+import { isAuthorizedTaskAdmin } from "../lib/authorizedTaskAdmins";
+import {
+  LEAVE_APPROVER_DISPLAY_NAME,
+  LEAVE_APPROVER_EMAIL,
+  LEAVE_APPROVER_ROLE_LABEL,
+} from "../lib/leaveApprover";
+
+function assertCanReviewLeave(user: { email?: string; role?: string }) {
+  if (!isAuthorizedTaskAdmin(user)) {
+    throw new Error("Only designated approvers can review or record staff leave.");
+  }
+}
+
+async function getLeaveApproverUserId(ctx: { db: any }) {
+  const approver = await ctx.db
+    .query("users")
+    .withIndex("byEmail", (q: any) => q.eq("email", LEAVE_APPROVER_EMAIL))
+    .first();
+  if (!approver) {
+    throw new Error(
+      `Leave approver (${LEAVE_APPROVER_EMAIL}) was not found. Please ensure this user exists.`
+    );
+  }
+  return approver._id;
+}
 
 function assertWithinAnnualAllowance(
   used: number,
@@ -239,6 +264,23 @@ export const listMyLeaveRequests = query({
   },
 });
 
+export const getLeaveApproverDisplay = query({
+  args: {},
+  handler: async (ctx) => {
+    await getCurrentUserOrThrow(ctx);
+    const approver = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q: any) => q.eq("email", LEAVE_APPROVER_EMAIL))
+      .first();
+
+    return {
+      roleLabel: LEAVE_APPROVER_ROLE_LABEL,
+      name: approver ? displayName(approver) : LEAVE_APPROVER_DISPLAY_NAME,
+      email: approver?.email ?? LEAVE_APPROVER_EMAIL,
+    };
+  },
+});
+
 export const getPendingLeaveRequestCount = query({
   args: {},
   handler: async (ctx) => {
@@ -433,8 +475,6 @@ export const submitLeaveRequest = mutation({
   args: {
     subject: v.string(),
     bodyHtml: v.string(),
-    toUserIds: v.array(v.id("users")),
-    ccUserIds: v.array(v.id("users")),
     startDate: v.string(),
     endDate: v.string(),
     attachmentIds: v.optional(v.array(v.id("_storage"))),
@@ -469,14 +509,15 @@ export const submitLeaveRequest = mutation({
 
     assertWithinAnnualAllowance(used, pending, workingDays, leaveYear);
 
+    const approverId = await getLeaveApproverUserId(ctx);
     const now = Date.now();
     return await ctx.db.insert("leaveRequests", {
       subject,
       bodyHtml: args.bodyHtml,
       applicantUserId: user._id,
       applicantName: displayName(user),
-      toUserIds: args.toUserIds,
-      ccUserIds: args.ccUserIds,
+      toUserIds: [approverId],
+      ccUserIds: [],
       startDate: args.startDate,
       endDate: args.endDate,
       workingDays,
@@ -504,9 +545,7 @@ export const adminRecordStaffLeave = mutation({
   },
   handler: async (ctx, args) => {
     const admin = await getCurrentUserOrThrow(ctx);
-    if (admin.role !== "admin") {
-      throw new Error("Unauthorized");
-    }
+    assertCanReviewLeave(admin);
 
     const staff = await ctx.db.get(args.staffUserId);
     if (!staff) throw new Error("Staff member not found");
@@ -531,12 +570,6 @@ export const adminRecordStaffLeave = mutation({
     assertWithinAnnualAllowance(used, pending, workingDays, leaveYear);
 
     const bodyHtml = args.bodyHtml?.trim() || "<p>Leave recorded by admin.</p>";
-    const absenceDescription = [
-      `Admin-recorded leave: ${subject}`,
-      bodyHtml ? `<hr/>${bodyHtml}` : "",
-    ]
-      .filter(Boolean)
-      .join("");
 
     const holidayAnnouncementId = await ctx.runMutation(
       internal.holidayAnnouncements.createFromApprovedLeaveRequest,
@@ -544,7 +577,7 @@ export const adminRecordStaffLeave = mutation({
         applicantUserId: staff._id,
         startDate: args.startDate,
         endDate: args.endDate,
-        description: absenceDescription,
+        description: undefined,
         performedBy: admin._id,
         performedByName: displayName(admin),
         performedByRole: admin.role,
@@ -603,9 +636,7 @@ export const reviewLeaveRequest = mutation({
   },
   handler: async (ctx, args) => {
     const admin = await getCurrentUserOrThrow(ctx);
-    if (admin.role !== "admin") {
-      throw new Error("Unauthorized");
-    }
+    assertCanReviewLeave(admin);
 
     const row = await ctx.db.get(args.leaveRequestId);
     if (!row) throw new Error("Leave request not found");
@@ -625,20 +656,13 @@ export const reviewLeaveRequest = mutation({
       );
       assertWithinAnnualAllowance(used, 0, row.workingDays, row.leaveYear);
 
-      const absenceDescription = [
-        `Approved leave request: ${row.subject}`,
-        row.bodyHtml ? `<hr/>${row.bodyHtml}` : "",
-      ]
-        .filter(Boolean)
-        .join("");
-
       holidayAnnouncementId = await ctx.runMutation(
         internal.holidayAnnouncements.createFromApprovedLeaveRequest,
         {
           applicantUserId: row.applicantUserId,
           startDate: row.startDate,
           endDate: row.endDate,
-          description: absenceDescription,
+          description: undefined,
           performedBy: admin._id,
           performedByName: displayName(admin),
           performedByRole: admin.role,
@@ -674,5 +698,55 @@ export const reviewLeaveRequest = mutation({
     }
 
     return args.leaveRequestId;
+  },
+});
+
+/** Recompute workingDays from dates (weekends + public holidays excluded). Run once after holiday rules change. */
+export const recalculateLeaveWorkingDays = mutation({
+  args: {
+    leaveRequestId: v.optional(v.id("leaveRequests")),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getCurrentUserOrThrow(ctx);
+    assertCanReviewLeave(admin);
+
+    const rows = args.leaveRequestId
+      ? [await ctx.db.get(args.leaveRequestId)].filter(Boolean)
+      : await ctx.db.query("leaveRequests").collect();
+
+    if (args.leaveRequestId && rows.length === 0) {
+      throw new Error("Leave request not found");
+    }
+
+    const changes: Array<{
+      id: string;
+      applicantName: string;
+      subject: string;
+      previous: number;
+      next: number;
+    }> = [];
+
+    for (const row of rows) {
+      const next = countWorkingDays(row.startDate, row.endDate);
+      if (next !== row.workingDays) {
+        await ctx.db.patch(row._id, {
+          workingDays: next,
+          updatedAt: Date.now(),
+        });
+        changes.push({
+          id: row._id,
+          applicantName: row.applicantName,
+          subject: row.subject,
+          previous: row.workingDays,
+          next,
+        });
+      }
+    }
+
+    return {
+      totalChecked: rows.length,
+      updatedCount: changes.length,
+      changes,
+    };
   },
 });
