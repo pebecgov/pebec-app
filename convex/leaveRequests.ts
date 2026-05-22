@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { buildLeaveAbsenceDescription } from "./plainText";
 import { getCurrentUserOrThrow } from "./users";
 import {
   ANNUAL_LEAVE_WORKING_DAYS,
@@ -577,7 +578,7 @@ export const adminRecordStaffLeave = mutation({
         applicantUserId: staff._id,
         startDate: args.startDate,
         endDate: args.endDate,
-        description: undefined,
+        description: buildLeaveAbsenceDescription(subject, bodyHtml),
         performedBy: admin._id,
         performedByName: displayName(admin),
         performedByRole: admin.role,
@@ -662,7 +663,7 @@ export const reviewLeaveRequest = mutation({
           applicantUserId: row.applicantUserId,
           startDate: row.startDate,
           endDate: row.endDate,
-          description: undefined,
+          description: buildLeaveAbsenceDescription(row.subject, row.bodyHtml),
           performedBy: admin._id,
           performedByName: displayName(admin),
           performedByRole: admin.role,

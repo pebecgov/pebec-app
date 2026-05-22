@@ -2,6 +2,7 @@
 
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { htmlToPlainText } from "./plainText";
 
 const logAnnouncementActivity = async (
   ctx: any,
@@ -101,7 +102,9 @@ export const createAnnouncement = mutation({
       endDate: args.endDate,
       startTime: args.startTime,
       endTime: args.endTime,
-      description: args.description,
+      description: args.description
+        ? htmlToPlainText(args.description, 400) || undefined
+        : undefined,
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -117,7 +120,9 @@ export const createAnnouncement = mutation({
         endDate: args.endDate,
         startTime: args.startTime,
         endTime: args.endTime,
-        description: args.description,
+        description: args.description
+          ? htmlToPlainText(args.description, 400) || undefined
+          : undefined,
       },
       action: "created",
       performedBy: user._id,
@@ -295,7 +300,9 @@ export const updateAnnouncement = mutation({
     if (args.endDate !== undefined) updateData.endDate = args.endDate;
     if (args.startTime !== undefined) updateData.startTime = args.startTime;
     if (args.endTime !== undefined) updateData.endTime = args.endTime;
-    if (args.description !== undefined) updateData.description = args.description;
+    if (args.description !== undefined) {
+      updateData.description = htmlToPlainText(args.description, 400) || undefined;
+    }
 
     await ctx.db.patch(args.announcementId, updateData);
 
@@ -467,6 +474,10 @@ export const createFromApprovedLeaveRequest = internalMutation({
     const userName =
       `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email;
 
+    const description = args.description
+      ? htmlToPlainText(args.description, 400) || undefined
+      : undefined;
+
     const announcementId = await ctx.db.insert("holidayAnnouncements", {
       userId: user._id,
       userName,
@@ -475,7 +486,7 @@ export const createFromApprovedLeaveRequest = internalMutation({
       reason: "leave",
       startDate: args.startDate,
       endDate: args.endDate,
-      description: args.description,
+      description,
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -489,7 +500,7 @@ export const createFromApprovedLeaveRequest = internalMutation({
         reason: "leave",
         startDate: args.startDate,
         endDate: args.endDate,
-        description: args.description,
+        description,
       },
       action: "created",
       performedBy: args.performedBy,
