@@ -84,15 +84,15 @@ export default function Admin() {
             // For staff users, extract only the additional admin permissions
             // (exclude the base staff permissions that come from their stream)
             const permissionMap: Record<string, string[]> = {
-              regulatory: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              sub_national: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              innovation: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              judiciary: ["/staff", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              communications: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/profile"],
-              investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              receptionist: ["/staff", "/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              account: ["/staff", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"],
-              auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/profile"]
+              regulatory: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              sub_national: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              innovation: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/materials", "/staff/assigned-letters", "/staff/meetings", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              judiciary: ["/staff", "/staff/deputies-reports", "/staff/magistrates-reports", "/staff/assigned-letters", "/staff/materials", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              communications: ["/staff", "/staff/bfa-reports", "/staff/reportgov", "/staff/meetings", "/staff/assigned-letters", "/staff/newsletters", "/staff/subscribers", "/staff/received-letters", "/staff/send-letters", "/staff/materials", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              receptionist: ["/staff", "/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              account: ["/staff", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"]
             };
             
             const baseStaffPermissions = permissionMap[user.staffStream] ?? [];

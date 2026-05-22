@@ -13,8 +13,8 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import type * as ai_helpers from "../ai_helpers.js";
 import type * as ai_helper_scoring from "../ai_helper_scoring.js";
+import type * as ai_helpers from "../ai_helpers.js";
 import type * as bulkImportStateScores from "../bulkImportStateScores.js";
 import type * as business_letters from "../business_letters.js";
 import type * as calendar from "../calendar.js";
@@ -36,6 +36,7 @@ import type * as http from "../http.js";
 import type * as images from "../images.js";
 import type * as internal_notes from "../internal_notes.js";
 import type * as internal_reports from "../internal_reports.js";
+import type * as leaveRequests from "../leaveRequests.js";
 import type * as letters from "../letters.js";
 import type * as mda_scoring from "../mda_scoring.js";
 import type * as media from "../media.js";
@@ -58,6 +59,7 @@ import type * as migrations_updateCrisisResilience from "../migrations/updateCri
 import type * as migrations from "../migrations.js";
 import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
+import type * as plainText from "../plainText.js";
 import type * as posts from "../posts.js";
 import type * as reforms from "../reforms.js";
 import type * as reports from "../reports.js";
@@ -69,12 +71,13 @@ import type * as saveStateScore from "../saveStateScore.js";
 import type * as scoring_config from "../scoring_config.js";
 import type * as sendEmail from "../sendEmail.js";
 import type * as sendTicketemail from "../sendTicketemail.js";
+import type * as sendgridMail from "../sendgridMail.js";
 import type * as staff_projects from "../staff_projects.js";
 import type * as stateUtils from "../stateUtils.js";
 import type * as state_scores from "../state_scores.js";
 import type * as tasks from "../tasks.js";
-import type * as tickets from "../tickets.js";
 import type * as ticket_comments from "../ticket_comments.js";
+import type * as tickets from "../tickets.js";
 import type * as ungaThankYouEmail from "../ungaThankYouEmail.js";
 import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
@@ -91,8 +94,8 @@ import type * as workshop from "../workshop.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  ai_helpers: typeof ai_helpers;
   ai_helper_scoring: typeof ai_helper_scoring;
+  ai_helpers: typeof ai_helpers;
   bulkImportStateScores: typeof bulkImportStateScores;
   business_letters: typeof business_letters;
   calendar: typeof calendar;
@@ -114,6 +117,7 @@ declare const fullApi: ApiFromModules<{
   images: typeof images;
   internal_notes: typeof internal_notes;
   internal_reports: typeof internal_reports;
+  leaveRequests: typeof leaveRequests;
   letters: typeof letters;
   mda_scoring: typeof mda_scoring;
   media: typeof media;
@@ -136,6 +140,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   newsletters: typeof newsletters;
   notifications: typeof notifications;
+  plainText: typeof plainText;
   posts: typeof posts;
   reforms: typeof reforms;
   reports: typeof reports;
@@ -147,12 +152,13 @@ declare const fullApi: ApiFromModules<{
   scoring_config: typeof scoring_config;
   sendEmail: typeof sendEmail;
   sendTicketemail: typeof sendTicketemail;
+  sendgridMail: typeof sendgridMail;
   staff_projects: typeof staff_projects;
   stateUtils: typeof stateUtils;
   state_scores: typeof state_scores;
   tasks: typeof tasks;
-  tickets: typeof tickets;
   ticket_comments: typeof ticket_comments;
+  tickets: typeof tickets;
   ungaThankYouEmail: typeof ungaThankYouEmail;
   upload: typeof upload;
   uploadTicketsPdf: typeof uploadTicketsPdf;

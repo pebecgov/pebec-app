@@ -88,11 +88,6 @@ export default function Sidebar({
     path: "/staff/tasks"
   },
   {
-    name: "Event Calendar",
-    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/meeting-calendar"
-  },
-  {
     name: "Users letters",
     icon: <EnvelopeOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/business-letters"
@@ -142,10 +137,6 @@ export default function Sidebar({
     path: "/staff/bfa-reports"
   }] : []),
   {
-    name: "Meetings",
-    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/meetings"
-  }, {
     name: "Sherrifs Reports",
     icon: <UsersIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/deputies-reports"
@@ -191,9 +182,14 @@ export default function Sidebar({
   },
 
   {
-    name: "Absence Notice",
-    icon: <MapPinIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/holiday-whereabout"
+    name: "Leave and Calendar",
+    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+    children: [
+      { name: "Leave requests", path: "/staff/leave-requests" },
+      { name: "Absence Notice", path: "/staff/holiday-whereabout" },
+      { name: "Event Calendar", path: "/staff/meeting-calendar" },
+      { name: "Meetings", path: "/staff/meetings" },
+    ],
   }, {
     name: "Profile",
     icon: <UserCircleIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
@@ -375,13 +371,24 @@ export default function Sidebar({
       if (section.path === "/staff/meeting-calendar") {
         return section;
       }
+      if (section.path === "/staff/leave-requests") {
+        return section;
+      }
       // Allow /staff/projects for all staff even if not in permissions array
       if (section.path === "/staff/projects") {
         return section;
       }
       return allowed.includes(section.path!) ? section : null;
     }
-    const visibleItems = section.children.filter(item => allowed.includes(item.path));
+    const leaveAttendancePaths = new Set([
+      "/staff/leave-requests",
+      "/staff/holiday-whereabout",
+      "/staff/meeting-calendar",
+      "/staff/meetings",
+    ]);
+    const visibleItems = section.children.filter(
+      (item) => allowed.includes(item.path) || leaveAttendancePaths.has(item.path)
+    );
     return visibleItems.length > 0 ? {
       ...section,
       children: visibleItems

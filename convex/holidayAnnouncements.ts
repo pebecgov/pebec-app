@@ -1,7 +1,8 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
+import { htmlToPlainText } from "./plainText";
 
 const logAnnouncementActivity = async (
   ctx: any,
@@ -101,7 +102,9 @@ export const createAnnouncement = mutation({
       endDate: args.endDate,
       startTime: args.startTime,
       endTime: args.endTime,
-      description: args.description,
+      description: args.description
+        ? htmlToPlainText(args.description, 400) || undefined
+        : undefined,
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -117,7 +120,9 @@ export const createAnnouncement = mutation({
         endDate: args.endDate,
         startTime: args.startTime,
         endTime: args.endTime,
-        description: args.description,
+        description: args.description
+          ? htmlToPlainText(args.description, 400) || undefined
+          : undefined,
       },
       action: "created",
       performedBy: user._id,
@@ -295,7 +300,9 @@ export const updateAnnouncement = mutation({
     if (args.endDate !== undefined) updateData.endDate = args.endDate;
     if (args.startTime !== undefined) updateData.startTime = args.startTime;
     if (args.endTime !== undefined) updateData.endTime = args.endTime;
-    if (args.description !== undefined) updateData.description = args.description;
+    if (args.description !== undefined) {
+      updateData.description = htmlToPlainText(args.description, 400) || undefined;
+    }
 
     await ctx.db.patch(args.announcementId, updateData);
 
@@ -444,5 +451,63 @@ export const getAnnouncementsByType = query({
         return new Date(b.endDate).getTime() - new Date(a.endDate).getTime();
       }
     });
+  },
+});
+
+/** Created when an admin approves a leave request (skips overlap / past-date checks). */
+export const createFromApprovedLeaveRequest = internalMutation({
+  args: {
+    applicantUserId: v.id("users"),
+    startDate: v.string(),
+    endDate: v.string(),
+    description: v.optional(v.string()),
+    performedBy: v.id("users"),
+    performedByName: v.string(),
+    performedByRole: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.applicantUserId);
+    if (!user) {
+      throw new Error("Applicant not found");
+    }
+
+    const userName =
+      `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email;
+
+    const description = args.description
+      ? htmlToPlainText(args.description, 400) || undefined
+      : undefined;
+
+    const announcementId = await ctx.db.insert("holidayAnnouncements", {
+      userId: user._id,
+      userName,
+      userRole: user.role || "staff",
+      staffStream: user.staffStream,
+      reason: "leave",
+      startDate: args.startDate,
+      endDate: args.endDate,
+      description,
+      isActive: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    await logAnnouncementActivity(ctx, {
+      announcementId,
+      announcement: {
+        userId: user._id,
+        userName,
+        reason: "leave",
+        startDate: args.startDate,
+        endDate: args.endDate,
+        description,
+      },
+      action: "created",
+      performedBy: args.performedBy,
+      performedByName: args.performedByName,
+      performedByRole: args.performedByRole,
+    });
+
+    return announcementId;
   },
 });

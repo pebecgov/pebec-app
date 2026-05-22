@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2 } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2, Search } from "lucide-react";
 import { fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
 import { fuelCarLabel, FUEL_CARS, type FuelCarKey } from "@/lib/fuelCars";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -29,6 +29,7 @@ export default function StaffTasks() {
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
   const [receptionDocsPage, setReceptionDocsPage] = useState(1);
+  const [receptionDocsSearch, setReceptionDocsSearch] = useState("");
   const receptionDocsPageSize = 20;
 
   const myTasks = useQuery(api.tasks.getMyTasks);
@@ -37,8 +38,12 @@ export default function StaffTasks() {
     api.tasks.listMyReceptionDocuments,
     currentUser === undefined
       ? "skip"
-      : currentUser?.role === "staff" && currentUser?.staffStream === "receptionist"
-        ? { page: receptionDocsPage, pageSize: receptionDocsPageSize }
+      : currentUser?.role === "staff" || currentUser?.role === "admin"
+        ? {
+            page: receptionDocsPage,
+            pageSize: receptionDocsPageSize,
+            search: receptionDocsSearch.trim() || undefined,
+          }
         : "skip"
   );
   const updateTaskStatus = useMutation(api.tasks.updateTaskStatus);
@@ -62,7 +67,10 @@ export default function StaffTasks() {
   const submitFuelPrice = useMutation(api.fuel_requests.submitFuelPrice);
   const createFuelRequest = useMutation(api.fuel_requests.createFuelRequest);
 
-  const isReceptionist = currentUser?.role === "staff" && currentUser?.staffStream === "receptionist";
+  const isStaff = currentUser?.role === "staff";
+  const canUploadScannedLetters =
+    currentUser?.role === "staff" || currentUser?.role === "admin";
+  const isReceptionist = isStaff && currentUser?.staffStream === "receptionist";
 
   const [receptionFile, setReceptionFile] = useState<File | null>(null);
   const [receptionNote, setReceptionNote] = useState("");
@@ -167,7 +175,7 @@ export default function StaffTasks() {
     }
   };
 
-  const staffReceptionStatusUi = (status: "pending" | "acknowledged" | "linked" | "stashed") => {
+  const staffReceptionStatusUi = (status: "pending" | "acknowledged" | "linked" | "file" | "stashed") => {
     switch (status) {
       case "pending":
         return { label: "Awaiting Acknowledgment", className: "bg-orange-100 text-orange-800" };
@@ -175,8 +183,9 @@ export default function StaffTasks() {
         return { label: "Acknowledged", className: "bg-purple-100 text-purple-800" };
       case "linked":
         return { label: "Linked to task", className: "bg-blue-100 text-blue-800" };
+      case "file":
       case "stashed":
-        return { label: "Stashed", className: "bg-gray-200 text-gray-700" };
+        return { label: "File", className: "bg-gray-200 text-gray-700" };
       default:
         return { label: status, className: "bg-gray-100 text-gray-600" };
     }
@@ -288,7 +297,11 @@ export default function StaffTasks() {
 
   useEffect(() => {
     setReceptionDocsPage(1);
-  }, [isReceptionist]);
+  }, [canUploadScannedLetters]);
+
+  useEffect(() => {
+    setReceptionDocsPage(1);
+  }, [receptionDocsSearch]);
 
   return (
     <div className="p-6 space-y-6">
@@ -496,10 +509,10 @@ export default function StaffTasks() {
       {/* Tasks List with Tabs */}
       <div className="space-y-4">
         <Tabs defaultValue="active" className="w-full">
-          <TabsList className={`grid w-full ${isReceptionist ? "max-w-2xl grid-cols-3" : "max-w-md grid-cols-2"}`}>
+          <TabsList className={`grid w-full ${canUploadScannedLetters ? "max-w-2xl grid-cols-3" : "max-w-md grid-cols-2"}`}>
             <TabsTrigger value="active">Active Tasks</TabsTrigger>
             <TabsTrigger value="past">Past Tasks</TabsTrigger>
-            {isReceptionist && (
+            {canUploadScannedLetters && (
               <TabsTrigger value="reception" className="gap-1">
                 <Send className="w-3.5 h-3.5" />
                 Upload Scanned Letters
@@ -925,7 +938,7 @@ export default function StaffTasks() {
             )}
           </TabsContent>
 
-          {isReceptionist && (
+          {canUploadScannedLetters && (
             <TabsContent value="reception" className="mt-6">
               <Card>
                 <CardHeader>
@@ -975,11 +988,26 @@ export default function StaffTasks() {
                   </Button>
 
                   <div className="border-t pt-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Scanned letters (all reception uploads)</h3>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Scanned letters (all staff uploads)</h3>
+                    <div className="relative mb-3 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <Input
+                        type="search"
+                        value={receptionDocsSearch}
+                        onChange={(e) => setReceptionDocsSearch(e.target.value)}
+                        placeholder="Search by letter name…"
+                        className="pl-9"
+                        aria-label="Search letters by name"
+                      />
+                    </div>
                     {!myReceptionDocuments ? (
                       <p className="text-sm text-gray-500">Loading…</p>
                     ) : receptionDocuments.length === 0 ? (
-                      <p className="text-sm text-gray-500">No uploads yet.</p>
+                      <p className="text-sm text-gray-500">
+                        {receptionDocsSearch.trim()
+                          ? "No letters match your search."
+                          : "No uploads yet."}
+                      </p>
                     ) : (
                       <div className="space-y-3">
                         <div className="overflow-x-auto rounded-md border border-gray-200">
@@ -996,8 +1024,11 @@ export default function StaffTasks() {
                             <TableBody>
                               {receptionDocuments.map((doc) => {
                                 const statusUi = staffReceptionStatusUi(doc.status);
-                                const canView = !!doc.storageId && doc.status !== "stashed";
-                                const canDelete = doc.status !== "linked";
+                                const canView = !!doc.storageId;
+                                const canDelete =
+                                  doc.status !== "linked" &&
+                                  doc.status !== "file" &&
+                                  doc.status !== "stashed";
                                 return (
                                   <TableRow key={doc._id}>
                                     <TableCell className="font-medium max-w-[240px]">

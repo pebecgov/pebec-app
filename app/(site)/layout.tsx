@@ -11,6 +11,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 import { ThemeProvider } from "next-themes";
 import { Inter } from "next/font/google";
 import "../globals.css";
+import "next-google-translate-widget/styles";
 import "../prosemirror.css";
 import ToasterContext from "../context/ToastContext";
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
@@ -21,7 +22,19 @@ import ChatbaseScript from "@/components/ChatbaseScript";
 import { Toaster } from "sonner";
 import { usePathname } from "next/navigation";
 import ActivityTracker from "@/components/ActivityTracker";
+
 import AiCustomerSupport from "@/components/AiCustomerSupport";
+
+import NextGoogleTranslateWidget, { LANGUAGES } from "next-google-translate-widget";
+
+const SITE_TRANSLATE_LANGUAGES = [
+  { label: "English", value: "en" },
+  ...LANGUAGES.filter((l) => ["fr", "ar", "es", "pt", "hi", "sw"].includes(l.value)),
+  { label: "Hausa", value: "ha", flag: "ng" },
+  { label: "Igbo", value: "ig", flag: "ng" },
+  { label: "Yorùbá", value: "yo", flag: "ng" }
+];
+
 const inter = Inter({
   subsets: ["latin"]
 });
@@ -72,8 +85,19 @@ export default function RootLayout({
       
     </main>
     {!isHiddenPath && <Footer />}
+
     {!isHiddenPath && <ChatbaseScript />}
     {!isHiddenPath && <AiCustomerSupport />}
+     {!isHiddenPath && (
+      <div className="pebec-translate-widget-slot fixed bottom-24 right-4 z-[200] xl:bottom-4">
+        <NextGoogleTranslateWidget
+          pageLanguage="en"
+          languages={SITE_TRANSLATE_LANGUAGES}
+          menuAlign="right"
+        />
+      </div>
+    )}
+
 
                   {}
                   {}

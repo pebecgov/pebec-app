@@ -215,7 +215,11 @@ body.modal-open .cl-modal {
   pointer-events: auto;
 }
 
-
+/* next-google-translate-widget: package opens menu below the button; at bottom-fixed position that clips the viewport — open upward instead */
+.pebec-translate-widget-slot .ngtMenu {
+  top: auto !important;
+  bottom: calc(100% + 6px) !important;
+}
 
 pre {
   background: #0d0d0d;
