@@ -23,6 +23,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   isAdmin?: boolean;
+  canReviewLeave?: boolean;
   onReviewed?: () => void;
 };
 
@@ -37,6 +38,7 @@ export function LeaveRequestDetailDialog({
   open,
   onClose,
   isAdmin,
+  canReviewLeave = false,
   onReviewed,
 }: Props) {
   const detail = useQuery(
@@ -102,10 +104,12 @@ export function LeaveRequestDetailDialog({
               <span className="font-medium text-gray-700">To</span>
               <p>{detail.toUsers.map((u) => u.name).join(", ") || "—"}</p>
             </div>
-            <div>
-              <span className="font-medium text-gray-700">CC</span>
-              <p>{detail.ccUsers.map((u) => u.name).join(", ") || "—"}</p>
-            </div>
+            {detail.ccUsers.length > 0 && (
+              <div>
+                <span className="font-medium text-gray-700">CC</span>
+                <p>{detail.ccUsers.map((u) => u.name).join(", ")}</p>
+              </div>
+            )}
 
             <div>
               <span className="font-medium text-gray-700">Message</span>
@@ -160,7 +164,7 @@ export function LeaveRequestDetailDialog({
               </div>
             )}
 
-            {isAdmin && detail.status === "pending" && (
+            {canReviewLeave && detail.status === "pending" && (
               <div>
                 <Label htmlFor="review-note">Review note (optional)</Label>
                 <Textarea
@@ -179,7 +183,7 @@ export function LeaveRequestDetailDialog({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          {isAdmin && detail?.status === "pending" && (
+          {canReviewLeave && detail?.status === "pending" && (
             <>
               <Button variant="destructive" disabled={busy} onClick={() => handleReview("rejected")}>
                 Reject

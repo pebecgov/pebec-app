@@ -25,6 +25,7 @@ import {
 import { LeaveRequestRichTextEditor } from "./LeaveRequestRichTextEditor";
 import { LeaveBalanceAlert } from "./LeaveBalanceAlert";
 import { countWorkingDays, yearFromDate } from "@/lib/leaveWorkingDays";
+import { getPublicHolidaysInRange } from "@/lib/publicHolidays";
 import { toast } from "sonner";
 
 type Props = {
@@ -53,6 +54,11 @@ export function AdminRecordLeaveDialog({ open, onClose, onSuccess }: Props) {
 
   const workingDaysPreview =
     startDate && endDate && endDate >= startDate ? countWorkingDays(startDate, endDate) : 0;
+
+  const publicHolidaysInRange =
+    startDate && endDate && endDate >= startDate
+      ? getPublicHolidaysInRange(startDate, endDate)
+      : [];
 
   const exceedsBalance = useMemo(() => {
     if (!balance || workingDaysPreview < 1) return false;
@@ -195,6 +201,16 @@ export function AdminRecordLeaveDialog({ open, onClose, onSuccess }: Props) {
           {workingDaysPreview > 0 && (
             <p className="text-sm text-gray-600">
               Working days: <strong>{workingDaysPreview}</strong>
+              <span className="text-muted-foreground">
+                {" "}
+                (weekends and public holidays excluded)
+              </span>
+            </p>
+          )}
+          {publicHolidaysInRange.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Public holidays in range (not counted):{" "}
+              {publicHolidaysInRange.map((h) => `${h.localName} (${h.date})`).join(", ")}
             </p>
           )}
 
