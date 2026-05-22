@@ -193,7 +193,7 @@ export default function AdminLeaveRequests() {
         </div>
         {canReviewLeave && (
           <div className="flex flex-wrap gap-2 shrink-0">
-            <Button type="button" variant="outline" onClick={() => setRecalcOpen(true)}>
+            {/* <Button type="button" variant="outline" onClick={() => setRecalcOpen(true)}>
               Recalculate working days
             </Button>
             <Dialog open={recalcOpen} onOpenChange={setRecalcOpen}>
@@ -237,7 +237,7 @@ export default function AdminLeaveRequests() {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+            </Dialog> */}
             <Button
               className="bg-green-600 hover:bg-green-700"
               onClick={() => setRecordOpen(true)}
