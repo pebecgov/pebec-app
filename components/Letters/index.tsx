@@ -406,10 +406,10 @@ export default function SubmitLetterForm({
           {isSubmitting ? (
             <>
               <Loader2 size={16} className="animate-spin mr-2" />
-              Sending...
+              {isSaberAgent ? "Submitting..." : "Sending..."}
             </>
           ) : (
-            "Send Letter"
+            isSaberAgent ? "Submit Letter" : "Send Letter"
           )}
         </Button>
       </div>
