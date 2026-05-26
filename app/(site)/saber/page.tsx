@@ -11,6 +11,7 @@ import { Globe, Eye, Megaphone } from "lucide-react";
 import * as FaIcons from "react-icons/fa";
 import { motion } from "framer-motion";
 import SpotlightCard from "@/components/SpotlightCard";
+import { ProgrammeEligibilityCriteriaTable } from "@/components/Saber/ProgrammeEligibilityCriteria";
 export default function SaberUserPage() {
   const dlis = useQuery(api.saber.getAllDLIs) || [];
   const beraps = useQuery(api.saber.getAllBERAPs) || [];
@@ -149,74 +150,7 @@ export default function SaberUserPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-2xl font-bold text-gray-900">Programme Eligibility Criteria (EC)</h2>
-          <div className="overflow-x-auto border rounded-lg bg-white">
-            <table className="min-w-full text-left">
-              <thead className="bg-[#ecf4e8]">
-                <tr>
-                  <th className="p-3 border font-semibold">Result Area</th>
-                  <th className="p-3 border font-semibold">Description</th>
-                  <th className="p-3 border font-semibold">Recent/Upcoming deadlines</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="align-top">
-                  <td className="p-3 border font-semibold">Improved planning and accountability of business enabling reforms</td>
-                  <td className="p-3 border">
-                    <ul className="list-disc pl-5 space-y-2">
-                      <li>
-                        Annual State Business Enabling Reforms Action Plan (BERAP) prepared with private sector
-                        participation (with records), approved by the State Executive Council and published online.
-                        (For the 2023 report, private sector participation not required).
-                      </li>
-                      <li>Previous year&apos;s progress report submitted to the State Executive Council and published online.</li>
-                    </ul>
-                  </td>
-                  <td className="p-3 border space-y-1">
-                    <p>YEAR 1 (2023): BERAP 2023 by Jan-31, 2023</p>
-                    <p>YEAR 1 (2023): BERAP 2024 by Dec-31, 2023</p>
-                    <p>YEAR 2 (2024): 2023 progress report by Jul 30,2024</p>
-                    <p><strong>YEAR 2 (2024): BERAP 2025 by Dec-31, 2024</strong></p>
-                  </td>
-                </tr>
-                <tr className="align-top">
-                  <td className="p-3 border font-semibold">
-                    Continuation of selected criteria from SFTAS: Continued transparency of annual State Budget and
-                    Audited Financial Statements AND Strengthened and transparent debt management
-                  </td>
-                  <td className="p-3 border">
-                    <ul className="list-disc pl-5 space-y-2">
-                      <li>
-                        Annual State budget, prepared under national Chart of Accounts, approved by the State Assembly
-                        and published online by end January the next year (Former SFTAS EC).
-                      </li>
-                      <li>
-                        Annual audited financial statement (AFS), prepared in accordance with IPSAS, submitted to the
-                        State Assembly and published by July the next year (Former SFTAS EC).
-                      </li>
-                      <li>
-                        Annual State Debt Sustainability Analysis and Debt Management Strategy Report (SDSA-DMSR)
-                        published end-December as per the criteria set in the verification protocol (former SFTAS DLI).
-                      </li>
-                    </ul>
-                  </td>
-                  <td className="p-3 border space-y-1">
-                    <p>YEAR 1 (2023): FY23 Budget by Jan-31, 2023</p>
-                    <p>YEAR 2 (2024): FY24 Budget by Jan-31, 2024</p>
-                    <p><strong>YEAR 3 (2025): FY25 Budget by Jan-31,2025</strong></p>
-                    <p className="pt-2">Prior Results: FY21 AFS by Oct-31, 2022</p>
-                    <p>YEAR 1 (2023): FY22 AFS by Jul-31, 2023</p>
-                    <p>YEAR 2 (2024): FY23 AFS by Jul-31, 2024</p>
-                    <p className="pt-2">YEAR 1 (2023): SDSA-DMSR by Dec-31, 2022</p>
-                    <p>YEAR 2 (2024): SDSA-DMSR by Dec-31, 2023</p>
-                    <p><strong>YEAR 3 (2025): SDSA-DMSR by Dec-31, 2024.</strong></p>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <ProgrammeEligibilityCriteriaTable />
 
         <section className="space-y-4">
           <h2 className="text-2xl font-bold text-gray-900">Program Disbursement Linked Indicators (DLIs) &amp; Anchor States MDAs</h2>
