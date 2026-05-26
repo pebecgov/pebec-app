@@ -12,7 +12,12 @@ import DLICertificate from "@/components/DLICertificate";
 import { Info, X } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { motion, AnimatePresence } from "framer-motion";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  INITIAL_EC_CHECKS,
+  ProgrammeEligibilityCriteriaModal,
+  type EcChecksState,
+  type SaberEcCriterionId,
+} from "@/components/Saber/ProgrammeEligibilityCriteria";
 export default function ViewDLIPage() {
   const router = useRouter();
   const user = useQuery(api.users.getCurrentUsers);
@@ -109,13 +114,7 @@ export default function ViewDLIPage() {
       setShowECModal(true);
     }
   }, [user]);
-  const [eligibilityChecks, setEligibilityChecks] = useState({
-    ec1: false,
-    ec2: false,
-    ec3: false,
-    ec4: false,
-    ec5: false
-  });
+  const [eligibilityChecks, setEligibilityChecks] = useState<EcChecksState>(INITIAL_EC_CHECKS);
   const allChecked = Object.values(eligibilityChecks).every(Boolean);
   const handleConfirm = async () => {
     if (!allChecked) return;
@@ -124,90 +123,24 @@ export default function ViewDLIPage() {
   };
   return <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
        {}
-       {showECModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white p-6 rounded-xl shadow-lg">
+       {showECModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white p-6 rounded-xl shadow-lg">
             <button onClick={() => setShowECModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-black">
               <X size={20} />
             </button>
 
-            <h2 className="text-2xl font-bold mb-4 text-center">
-              SABER Eligibility Criteria (EC)
+            <h2 className="text-2xl font-bold mb-4 text-center pr-8">
+              Programme Eligibility Criteria (EC)
             </h2>
 
-            <div className="space-y-4">
-              {}
-              <div>
-                <h3 className="font-semibold text-lg">
-                  Improved Planning and Accountability of Business-Enabling Reforms
-                </h3>
-                <div className="flex items-center gap-2">
-                <Checkbox checked={eligibilityChecks.ec1} onCheckedChange={v => setEligibilityChecks({
-                ...eligibilityChecks,
-                ec1: Boolean(v)
-              })} />
-                  <span>
-                    Annual State Business-Enabling Reforms Action Plan for 2026, published by{" "}
-                    <strong>31 December 2025</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                <Checkbox checked={eligibilityChecks.ec2} onCheckedChange={v => setEligibilityChecks({
-                ...eligibilityChecks,
-                ec2: Boolean(v)
-              })} />
-                  <span>
-                    2024 State Business-Enabling Reforms Action Plan Progress report submitted by{" "}
-                    <strong>31 July 2025</strong>
-                  </span>
-                </div>
-              </div>
-
-              {}
-              <div>
-                <h3 className="font-semibold text-lg">
-                  Continuation of Selected Criteria from SFTAS
-                </h3>
-                <div className="flex items-center gap-2">
-                <Checkbox checked={eligibilityChecks.ec3} onCheckedChange={v => setEligibilityChecks({
-                ...eligibilityChecks,
-                ec3: Boolean(v)
-              })} />
-                  <span>
-                    Annual FY25 state budget, published by{" "}
-                    <strong>31 January 2025</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                <Checkbox checked={eligibilityChecks.ec4} onCheckedChange={v => setEligibilityChecks({
-                ...eligibilityChecks,
-                ec4: Boolean(v)
-              })} />
-                  <span>
-                    Annual FY24 audited financial statement, published by{" "}
-                    <strong>31 July 2025</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                <Checkbox checked={eligibilityChecks.ec5} onCheckedChange={v => setEligibilityChecks({
-                ...eligibilityChecks,
-                ec5: Boolean(v)
-              })} />
-                  <span>
-                    Annual State Debt Sustainability Analysis and Debt Management Strategy Report, published by{" "}
-                    <strong>31 December 2024</strong>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <p className="mt-4 text-red-600 text-sm">
-              <strong>N.B:</strong> Meeting <strong>ALL 5</strong> Eligibility Criteria above is a prerequisite for receiving disbursement. Failing to meet EC will result in{" "}
-              <strong>NO DISBURSEMENT</strong>.
-            </p>
-
-            <Button onClick={handleConfirm} disabled={!allChecked} className={`w-full mt-4 ${allChecked ? "bg-green-600" : "bg-gray-400"} text-white`}>
-              Confirm Eligibility
-            </Button>
+            <ProgrammeEligibilityCriteriaModal
+              checks={eligibilityChecks}
+              onCheckChange={(id: SaberEcCriterionId, checked: boolean) =>
+                setEligibilityChecks((prev) => ({ ...prev, [id]: checked }))
+              }
+              onConfirm={handleConfirm}
+              confirmDisabled={!allChecked}
+            />
           </div>
         </div>}
       
