@@ -151,13 +151,13 @@ export default function ChatModal({ open, onClose }: ChatModalProps) {
       <button
         type="button"
         aria-label="Close chat"
-        className="fixed inset-0 z-[65] bg-black/40 backdrop-blur-[2px] lg:bg-transparent lg:backdrop-blur-none"
+        className="fixed inset-0 z-[310] bg-black/40 backdrop-blur-[2px] lg:bg-transparent lg:backdrop-blur-none"
         onClick={onClose}
       />
 
       <div
         className={cn(
-          "fixed z-[70] flex flex-col overflow-hidden rounded-2xl border border-stroke bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 dark:border-strokedark dark:bg-black",
+          "fixed z-[320] flex flex-col overflow-hidden rounded-2xl border border-stroke bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200 dark:border-strokedark dark:bg-black",
           "bottom-36 right-4 h-[min(70vh,520px)] w-[min(calc(100vw-2rem),400px)]",
           "lg:bottom-28 lg:right-8"
         )}

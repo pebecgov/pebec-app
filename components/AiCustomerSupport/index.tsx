@@ -14,7 +14,7 @@ export default function AiCustomerSupport() {
         type="button"
         onClick={() => setChatOpen(true)}
         aria-label="Open AI customer support chat"
-        className="fixed z-[60] bottom-20 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-green-600 to-green-700 text-white shadow-lg transition-transform duration-200 hover:scale-105 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 lg:bottom-8 lg:right-8"
+        className="fixed z-[300] bottom-48 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-green-600 to-green-700 text-white shadow-lg transition-transform duration-200 hover:scale-105 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 lg:bottom-8 lg:right-8"
       >
         <Bot className="h-6 w-6" strokeWidth={2} aria-hidden />
       </button>

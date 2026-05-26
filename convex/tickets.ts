@@ -207,7 +207,8 @@ export const enqueueTicketForAi = internalAction({
       const response = await fetch("https://settling-laboring-monitor.ngrok-free.dev/enqueue", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true" ,
         },
         body: JSON.stringify(payload)
       });

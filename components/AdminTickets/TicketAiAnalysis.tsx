@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { AssistantMarkdown } from "@/components/AiCustomerSupport/AssistantMarkdown";
 
 export type TicketAiFields = {
   ticketNumber?: string;
@@ -171,17 +172,17 @@ export default function TicketAiAnalysis({ ticket }: { ticket: TicketAiFields })
               {ticket.explanation?.trim() && (
                 <div>
                   <p className="mb-1 font-medium text-gray-900">Explanation</p>
-                  <p className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-gray-700">
-                    {ticket.explanation}
-                  </p>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-gray-700">
+                    <AssistantMarkdown content={ticket.explanation} />
+                  </div>
                 </div>
               )}
               {ticket.nextSteps?.trim() && (
                 <div>
                   <p className="mb-1 font-medium text-gray-900">Suggested next steps</p>
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-950">
-                    {ticket.nextSteps}
-                  </p>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                    <AssistantMarkdown content={ticket.nextSteps} />
+                  </div>
                 </div>
               )}
               {!ticket.explanation?.trim() && !ticket.nextSteps?.trim() && !confidence && (
