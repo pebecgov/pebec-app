@@ -120,7 +120,7 @@ export default function StaffPage() {
               <div className="h-[24rem] overflow-hidden [&>*]:h-full">
                 <UpcomingMeetings />
               </div>
-              <div className="h-[24rem] overflow-hidden [&>*]:h-full">
+              <div className="h-[24rem] min-h-0 flex flex-col [&>*]:h-full [&>*]:min-h-0">
                 <HolidayAnnouncementsDisplay />
               </div>
             </div>

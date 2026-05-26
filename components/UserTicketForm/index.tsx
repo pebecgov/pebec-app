@@ -33,8 +33,8 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
   const [ticketNumber, setTicketNumber] = useState<string | null>(null);
   const { toast } = useToast();
   const sendEmail = useAction(api.sendEmail.sendEmail);
-  const adminUsers = useQuery(api.users.getAdmins);
-  const adminEmails = adminUsers?.map(admin => admin.email) ?? [];
+  const adminUsers = useQuery(api.users.getAdminsForEmailNotifications);
+  const adminEmails = adminUsers?.map((admin) => admin.email).filter(Boolean) ?? [];
   const [currentStep, setCurrentStep] = useState(1);
   const userData = !guestMode ? useQuery(api.users.getUserDetails) : null;
   const getUsersWithRole = useQuery(api.users.getUsersWithRole, { role: "mda" }) || [];

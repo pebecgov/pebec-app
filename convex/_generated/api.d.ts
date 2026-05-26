@@ -57,6 +57,7 @@ import type * as migrations_updateCrisisResilience from "../migrations/updateCri
 import type * as migrations from "../migrations.js";
 import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
+import type * as plainText from "../plainText.js";
 import type * as posts from "../posts.js";
 import type * as reforms from "../reforms.js";
 import type * as reports from "../reports.js";
@@ -135,6 +136,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   newsletters: typeof newsletters;
   notifications: typeof notifications;
+  plainText: typeof plainText;
   posts: typeof posts;
   reforms: typeof reforms;
   reports: typeof reports;

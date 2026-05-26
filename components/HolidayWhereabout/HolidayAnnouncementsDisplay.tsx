@@ -18,12 +18,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { cn, htmlToPlainText } from "@/lib/utils";
 
 interface HolidayAnnouncementsDisplayProps {
   type?: "active" | "past";
+  className?: string;
 }
 
-export default function HolidayAnnouncementsDisplay({ type = "active" }: HolidayAnnouncementsDisplayProps) {
+function formatAnnouncementDescription(raw: string | undefined): string | null {
+  if (!raw?.trim()) return null;
+  const plain = htmlToPlainText(raw, 280);
+  return plain || null;
+}
+
+export default function HolidayAnnouncementsDisplay({
+  type = "active",
+  className,
+}: HolidayAnnouncementsDisplayProps) {
   const announcements = useQuery(api.holidayAnnouncements.getAnnouncementsByType, { type });
   const currentUser = useQuery(api.users.current);
   const { toast } = useToast();
@@ -181,8 +192,13 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
   };
 
   return (
-    <Card className="rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <CardHeader>
+    <Card
+      className={cn(
+        "flex h-full min-h-0 flex-col rounded-2xl border border-gray-100 shadow-sm overflow-hidden",
+        className
+      )}
+    >
+      <CardHeader className="shrink-0 pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           <CalendarIcon className="w-5 h-5" />
           {type === 'active' ? 'Current & Upcoming Absence Notices' : 'Past Absence History'}
@@ -191,20 +207,21 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
         Current Absence Notices
         </CardDescription> */}
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+      <CardContent className="min-h-0 flex-1 overflow-y-auto pb-4">
+        <div className="space-y-4 pr-1">
           {announcements?.map((announcement) => {
             const config = reasonConfig[announcement.reason as keyof typeof reasonConfig];
             const isOwner = currentUser?._id === announcement.userId;
+            const descriptionText = formatAnnouncementDescription(announcement.description);
 
             return (
               <div
                 key={announcement._id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex flex-col gap-3 p-4 border rounded-lg hover:bg-gray-50 transition-colors sm:flex-row sm:items-start sm:justify-between"
               >
-                <div className="flex items-center gap-4">
-                  <div className="text-2xl">{config?.icon}</div>
-                  <div className="flex-1">
+                <div className="flex items-start gap-4 min-w-0 flex-1">
+                  <div className="text-2xl shrink-0">{config?.icon}</div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="font-medium">{announcement.userName}</h4>
                       <Badge className={`${config?.color} ${getHoverClasses(announcement.reason)}`}>
@@ -231,13 +248,18 @@ export default function HolidayAnnouncementsDisplay({ type = "active" }: Holiday
                         </span>
                       </div>
                     </div>
-                    {announcement.description && (
-                      <p className="text-sm text-gray-700 mt-2">{announcement.description}</p>
+                    {descriptionText && (
+                      <p
+                        className="text-sm text-gray-700 mt-2 line-clamp-3 break-words"
+                        title={htmlToPlainText(announcement.description || "")}
+                      >
+                        {descriptionText}
+                      </p>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0 sm:ml-2">
                   {getStatusBadge(announcement.startDate, announcement.endDate)}
 
                   {isOwner && type === 'active' && (
