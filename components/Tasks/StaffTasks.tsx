@@ -49,6 +49,7 @@ export default function StaffTasks() {
   const updateTaskStatus = useMutation(api.tasks.updateTaskStatus);
   const requestTaskCompletion = useMutation(api.tasks.requestTaskCompletion);
   const rejectTaskCompletionConsensus = useMutation(api.tasks.rejectTaskCompletionConsensus);
+  const cancelTaskCompletionRequest = useMutation(api.tasks.cancelTaskCompletionRequest);
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
   const saveUploadedFile = useMutation(api.tickets.saveUploadedFile);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
@@ -252,6 +253,26 @@ export default function StaffTasks() {
       toast.error(error.message || "Failed to reject consensus");
     }
   };
+
+  const handleCancelCompletionRequest = async (taskId: Id<"tasks">) => {
+    const confirmed = window.confirm(
+      "Cancel this completion request? You can revise and submit again when ready."
+    );
+    if (!confirmed) return;
+
+    try {
+      await cancelTaskCompletionRequest({ taskId });
+      toast.success("Completion request cancelled.");
+    } catch (error: any) {
+      console.error("Error cancelling completion request:", error);
+      toast.error(error.message || "Failed to cancel completion request");
+    }
+  };
+
+  const canCancelCompletionRequest = (task: any) =>
+    task.completionRequestedBy === currentUser?._id &&
+    (task.completionRequestStatus === "awaiting_consensus" ||
+      task.completionRequestStatus === "pending");
 
   const getPriorityColor = (priority?: string) => {
     return "bg-gray-100 text-gray-800";
@@ -710,6 +731,19 @@ export default function StaffTasks() {
                             Waiting for Other Assignees
                           </Button>
                         )}
+                        {canCancelCompletionRequest(task) &&
+                          task.completionRequestStatus === "awaiting_consensus" &&
+                          task.consensusHasCurrentUserApproved && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCancelCompletionRequest(task._id)}
+                              className="text-gray-600 hover:text-gray-800"
+                            >
+                              <X className="w-4 h-4 mr-1" />
+                              Cancel Request
+                            </Button>
+                          )}
                         {task.completionRequestStatus === "awaiting_consensus" &&
                           !task.consensusHasCurrentUserApproved &&
                           task.completionRequestedBy !== currentUser?._id && (
@@ -732,6 +766,17 @@ export default function StaffTasks() {
                           >
                             <Hourglass className="w-4 h-4 mr-1" />
                             Awaiting Approval
+                          </Button>
+                        )}
+                        {canCancelCompletionRequest(task) && task.completionRequestStatus === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCancelCompletionRequest(task._id)}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Cancel Request
                           </Button>
                         )}
                         {task.completionRequestStatus === "rejected" && (
