@@ -840,6 +840,67 @@ export const rejectTaskCompletionConsensus = mutation({
     }
 });
 
+// Withdraw a completion request before admin approval (original submitter only)
+export const cancelTaskCompletionRequest = mutation({
+    args: {
+        taskId: v.id("tasks")
+    },
+    handler: async (ctx, { taskId }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        const task = await ctx.db.get(taskId);
+
+        if (!task) {
+            throw new Error("Task not found");
+        }
+
+        const canCancel = await isUserTaskParticipant(ctx, task, user);
+        if (!canCancel) {
+            throw new Error("You can only cancel requests for tasks assigned to you or your workstream");
+        }
+
+        if (
+            task.completionRequestStatus !== "awaiting_consensus" &&
+            task.completionRequestStatus !== "pending"
+        ) {
+            throw new Error("This task does not have a completion request that can be cancelled");
+        }
+
+        if (!task.completionRequestedBy || String(task.completionRequestedBy) !== String(user._id)) {
+            throw new Error("Only the staff member who submitted this request can cancel it");
+        }
+
+        const participantIds = await getTaskConsensusParticipantIds(ctx, task);
+        const requesterName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "A teammate";
+        const now = Date.now();
+
+        await clearTaskCompletionVotes(ctx, taskId);
+
+        await ctx.db.patch(taskId, {
+            completionRequestStatus: undefined,
+            completionRequestedAt: undefined,
+            completionRequestedBy: undefined,
+            completionApprovedBy: undefined,
+            completionApprovedAt: undefined,
+            completionAdminComment: undefined,
+            updatedAt: now
+        });
+
+        for (const participantId of participantIds) {
+            if (String(participantId) === String(user._id)) continue;
+            await ctx.db.insert("notifications", {
+                userId: participantId,
+                taskId,
+                message: `${requesterName} cancelled the completion request for "${task.title}".`,
+                isRead: false,
+                createdAt: now,
+                type: "task_completion_rejected"
+            });
+        }
+
+        return { ok: true };
+    }
+});
+
 // Update task status (staff can update their assigned tasks)
 export const updateTaskStatus = mutation({
     args: {
