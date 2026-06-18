@@ -656,18 +656,14 @@ export const deleteMDA = mutation({
  * Admins excluded from blast emails, in-app admin notifications, and SABER deadline CCs:
  * tickets, business letters, event registrations, DLI (in-app), role requests, SABER reminders.
  */
-const EMAIL_NOTIFICATION_BLACKLIST = [
-  "zahrah.mustaphaaudu@pebec.gov.ng",
-];
-
-const EMAIL_NOTIFICATION_BLACKLIST_LOWER = EMAIL_NOTIFICATION_BLACKLIST.map((e) =>
-  e.trim().toLowerCase()
-);
-
 export function isEmailNotificationBlacklisted(email: string | undefined | null): boolean {
   if (!email?.trim()) return false;
-  return EMAIL_NOTIFICATION_BLACKLIST_LOWER.includes(email.trim().toLowerCase());
+  const blacklistEnv = process.env.EMAIL_NOTIFICATION_BLACKLIST;
+  if (!blacklistEnv) return false;
+  const blacklist = blacklistEnv.split(",").map((e) => e.trim().toLowerCase());
+  return blacklist.includes(email.trim().toLowerCase());
 }
+
 
 /** Filter admins for ticket/letter/event/DLI/role-request emails and matching in-app notifications. */
 export function filterAdminsForNotifications(admins: any[]) {
