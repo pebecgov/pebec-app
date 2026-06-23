@@ -186,7 +186,14 @@ export default defineSchema({
     resolutionNote: v.optional(v.string()),
     firstResponseAt: v.optional(v.number()),
     reassignedAt: v.optional(v.number()),
-    lastCreatorReminderSentAt: v.optional(v.number()) // Track when last reminder was sent to ticket creator
+    lastCreatorReminderSentAt: v.optional(v.number()), // Track when last reminder was sent to ticket creator
+    // AI-assisted MDA routing (optional; present on tickets processed by AI matching)
+    aiConfidence: v.optional(v.number()),
+    aiResult: v.optional(v.string()),
+    aiStatus: v.optional(v.string()),
+    explanation: v.optional(v.string()),
+    nextSteps: v.optional(v.string()),
+    processedAt: v.optional(v.number())
   }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]),
   ticket_comments: defineTable({
     content: v.string(),

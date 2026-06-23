@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import VerifyPrimaryEmail from "../VerifyPrimaryEmail";
 import { Menu, Transition } from "@headlessui/react";
 import { formatWorkstream } from "@/lib/formatters";
+import HeaderTranslateWidget from "./HeaderTranslateWidget";
 const Header = () => {
   let hoverTimeout: NodeJS.Timeout;
   const [stickyMenu, setStickyMenu] = useState(false);
@@ -135,6 +136,8 @@ const Header = () => {
             </svg>
             SABER
           </Link>
+
+          <HeaderTranslateWidget compact />
 
           { }
           <MobileMenu />
@@ -287,6 +290,8 @@ const Header = () => {
         { }
         { }
         <div className="hidden xl:flex items-center gap-3">
+          <HeaderTranslateWidget />
+
           { }
           <SignedOut>
             <SignInButton mode="modal">
