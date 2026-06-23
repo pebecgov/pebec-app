@@ -215,10 +215,76 @@ body.modal-open .cl-modal {
   pointer-events: auto;
 }
 
-/* next-google-translate-widget: package opens menu below the button; at bottom-fixed position that clips the viewport — open upward instead */
-.pebec-translate-widget-slot .ngtMenu {
-  top: auto !important;
-  bottom: calc(100% + 6px) !important;
+/* Header translate widget: solid white button + dropdown */
+.pebec-header-translate-widget.ngtContainer {
+  --ngt-bg: #ffffff;
+  --ngt-bg-hover: #f9fafb;
+  --ngt-border: #e5e7eb;
+  --ngt-text: #111827;
+  --ngt-menu-bg: #ffffff;
+  --ngt-menu-border: #e5e7eb;
+  --ngt-active-bg: rgba(45, 139, 16, 0.12);
+  z-index: 60;
+}
+
+.pebec-header-translate-widget .ngtButton {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.pebec-header-translate-widget .ngtMenu {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+}
+
+/* Compact translate button on small / mobile header */
+.pebec-header-translate-widget--compact .ngtButton {
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 9999px;
+}
+
+.pebec-header-translate-widget--compact .ngtButton img {
+  width: 12px !important;
+  height: 9px !important;
+}
+
+.pebec-header-translate-widget--compact .ngtArrow {
+  font-size: 10px;
+}
+
+.pebec-header-translate-widget--compact .ngtMenu {
+  min-width: 130px;
+}
+
+.pebec-header-translate-widget--compact .ngtOption {
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.pebec-header-translate-widget--compact .ngtOption img {
+  width: 12px !important;
+  height: 9px !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pebec-header-translate-widget.ngtContainer {
+    --ngt-bg: #ffffff;
+    --ngt-bg-hover: #f9fafb;
+    --ngt-border: #e5e7eb;
+    --ngt-text: #111827;
+    --ngt-menu-bg: #ffffff;
+    --ngt-menu-border: #e5e7eb;
+    --ngt-active-bg: rgba(45, 139, 16, 0.12);
+  }
+
+  .pebec-header-translate-widget .ngtOption:hover {
+    background: #f3f4f6;
+  }
 }
 
 pre {

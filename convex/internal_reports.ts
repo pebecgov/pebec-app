@@ -1,7 +1,82 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, MutationCtx } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
+import { api } from "./_generated/api";
+import { Doc, Id } from "./_generated/dataModel";
+
+function buildReformChampionReportAckEmail({
+  firstName,
+  reportName,
+  mdaName,
+  submittedAt,
+}: {
+  firstName: string;
+  reportName: string;
+  mdaName?: string;
+  submittedAt: number;
+}) {
+  const submittedOn = new Date(submittedAt).toLocaleString("en-NG", {
+    timeZone: "Africa/Lagos",
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+      <div style="background-color: #2D8B10; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
+        <strong>Report Received</strong>
+      </div>
+      <div style="padding: 20px; color: #333;">
+        <p style="font-size: 16px;">Dear <strong>${firstName}</strong>,</p>
+        <p>PEBEC has received your monthly report submission.</p>
+        <div style="background-color: #f8f8f8; padding: 15px; border-left: 5px solid #2D8B10; margin: 15px 0;">
+          <p style="margin: 0 0 8px;"><strong>Report:</strong> ${reportName}</p>
+          ${mdaName ? `<p style="margin: 0 0 8px;"><strong>MDA:</strong> ${mdaName}</p>` : ""}
+          <p style="margin: 0;"><strong>Submitted on:</strong> ${submittedOn}</p>
+        </div>
+        <p>This email confirms that your report was successfully received and is now on record with PEBEC.</p>
+        <p style="color: #666; font-size: 14px; margin-top: 24px;">Thank you for your submission.</p>
+      </div>
+      <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px;">
+        <p>© ${new Date().getFullYear()} PEBEC GOV. | <a href="https://www.pebec.gov.ng" style="color: #2D8B10; text-decoration: none;">Visit Website</a></p>
+      </div>
+    </div>
+  `;
+}
+
+async function sendReformChampionReportAcknowledgement(
+  ctx: MutationCtx,
+  {
+    role,
+    submittedBy,
+    reportName,
+    submittedAt,
+  }: {
+    role: string;
+    submittedBy: Id<"users">;
+    reportName: string;
+    submittedAt: number;
+  }
+) {
+  if (role !== "reform_champion") return;
+
+  const user = await ctx.db.get(submittedBy) as Doc<"users"> | null;
+  if (!user?.email) return;
+
+  const firstName = user.firstName?.trim() || "Reform Champion";
+
+  await ctx.scheduler.runAfter(0, api.email.sendEmail, {
+    to: user.email,
+    subject: `PEBEC Received Your Report: ${reportName}`,
+    html: buildReformChampionReportAckEmail({
+      firstName,
+      reportName,
+      mdaName: user.mdaName,
+      submittedAt,
+    }),
+  });
+}
 export const createReportTemplate = mutation({
   args: {
     title: v.string(),
@@ -69,10 +144,17 @@ export const submitReport = mutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.submittedBy);
     const mdaName = user?.mdaName ?? undefined;
+    const submittedAt = Date.now();
     await ctx.db.insert("submitted_reports", {
       ...args,
       mdaName,
-      submittedAt: Date.now()
+      submittedAt
+    });
+    await sendReformChampionReportAcknowledgement(ctx, {
+      role: args.role,
+      submittedBy: args.submittedBy,
+      reportName: args.reportName ?? args.fileName ?? "Monthly Report",
+      submittedAt,
     });
   }
 });
@@ -223,15 +305,23 @@ export const submitInternalReport = mutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.submittedBy);
     const mdaName = user?.mdaName ?? undefined;
+    const submittedAt = Date.now();
+    const template = await ctx.db.get(args.templateId);
     await ctx.db.insert("submitted_reports", {
       templateId: args.templateId,
       submittedBy: args.submittedBy,
       role: args.role,
       data: args.data,
       mdaName,
-      submittedAt: Date.now(),
+      submittedAt,
       isDraft: false,
       reportName: args.reportName
+    });
+    await sendReformChampionReportAcknowledgement(ctx, {
+      role: args.role,
+      submittedBy: args.submittedBy,
+      reportName: args.reportName ?? template?.title ?? "Monthly Report",
+      submittedAt,
     });
   }
 });
@@ -316,10 +406,22 @@ export const submitDraftReport = mutation({
     draftId: v.id("submitted_reports")
   },
   handler: async (ctx, { draftId }) => {
+    const draft = await ctx.db.get(draftId);
+    if (!draft) throw new Error("Draft not found");
+
+    const submittedAt = Date.now();
     await ctx.db.patch(draftId, {
       isDraft: false,
-      submittedAt: Date.now(),
-      updatedAt: Date.now()
+      submittedAt,
+      updatedAt: submittedAt
+    });
+
+    const template = draft.templateId ? await ctx.db.get(draft.templateId) : null;
+    await sendReformChampionReportAcknowledgement(ctx, {
+      role: draft.role,
+      submittedBy: draft.submittedBy,
+      reportName: draft.reportName ?? template?.title ?? "Monthly Report",
+      submittedAt,
     });
   }
 });
@@ -624,19 +726,27 @@ export const submitLargeReport = mutation({
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.submittedBy);
     const mdaName = user?.mdaName ?? undefined;
+    const submittedAt = Date.now();
+    const template = await ctx.db.get(args.templateId);
     await ctx.db.insert("submitted_reports", {
       templateId: args.templateId,
       submittedBy: args.submittedBy,
       role: args.role,
       data: [], // Empty data since we're using file
       mdaName,
-      submittedAt: Date.now(),
+      submittedAt,
       isDraft: false,
       reportName: args.reportName,
       fileId: args.fileId,
       fileName: args.fileName,
       fileSize: args.fileSize,
       totalRows: args.totalRows
+    });
+    await sendReformChampionReportAcknowledgement(ctx, {
+      role: args.role,
+      submittedBy: args.submittedBy,
+      reportName: args.reportName ?? template?.title ?? args.fileName ?? "Monthly Report",
+      submittedAt,
     });
   }
 });

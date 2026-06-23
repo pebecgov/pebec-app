@@ -55,6 +55,7 @@ import type * as migrations_resetStateScores from "../migrations/resetStateScore
 import type * as migrations_resetWorkforceDevelopment from "../migrations/resetWorkforceDevelopment.js";
 import type * as migrations_updateCrisisResilience from "../migrations/updateCrisisResilience.js";
 import type * as migrations from "../migrations.js";
+import type * as missingReportReminders from "../missingReportReminders.js";
 import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
 import type * as plainText from "../plainText.js";
@@ -134,6 +135,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/resetWorkforceDevelopment": typeof migrations_resetWorkforceDevelopment;
   "migrations/updateCrisisResilience": typeof migrations_updateCrisisResilience;
   migrations: typeof migrations;
+  missingReportReminders: typeof missingReportReminders;
   newsletters: typeof newsletters;
   notifications: typeof notifications;
   plainText: typeof plainText;
