@@ -261,7 +261,7 @@ export default defineSchema({
       assessment: v.optional(v.string()),
       assessedBy: v.optional(v.string())
     }))
-  }).index("byUser", ["userId"]).index("byType", ["type"]).index("byMeeting", ["meetingId"]).index("byTicket", ["ticketId"]).index("byTask", ["taskId"]).index("byUserAndTicket", ["userId", "ticketId"]).index("byDmoReport", ["dmoReportId"]),
+  }).index("byUser", ["userId"]).index("byUserAndIsRead", ["userId", "isRead"]).index("byType", ["type"]).index("byMeeting", ["meetingId"]).index("byTicket", ["ticketId"]).index("byTask", ["taskId"]).index("byUserAndTicket", ["userId", "ticketId"]).index("byDmoReport", ["dmoReportId"]),
   comments: defineTable({
     content: v.string(),
     postId: v.id("posts"),

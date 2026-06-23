@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
@@ -36,15 +36,18 @@ export default function NotificationBadge() {
     }
   };
   const notificationsQuery = useQuery(api.notifications.getNotifications, clerkUserId ? {
+    clerkUserId,
+    limit: 20,
+  } : "skip");
+  const unreadCountQuery = useQuery(api.notifications.getUnreadNotificationCount, clerkUserId ? {
     clerkUserId
-  } : "skip") || [];
+  } : "skip");
   const markAsReadMutation = useMutation(api.notifications.updateNotificationStatus);
   const deleteNotificationMutation = useMutation(api.notifications.deleteNotification);
+  const clearAllMutation = useMutation(api.notifications.clearAllNotifications);
   const toggleNotifications = () => setNotificationsOpen(!notificationsOpen);
   const notifications = notificationsQuery || [];
-  const unreadCount = useMemo(() => {
-    return notifications.filter(notification => !notification.isRead).length;
-  }, [notifications]);
+  const unreadCount = unreadCountQuery ?? 0;
   
   // Function to get navigation URL based on notification type
   const getNotificationUrl = (notification: any): string | null => {
@@ -194,10 +197,14 @@ export default function NotificationBadge() {
         </Link>
 
         { }
-        {notifications.length > 0 && <button onClick={() => {
-          notifications.forEach(async notification => {
-            await handleDeleteNotification(notification._id as Id<"notifications">);
-          });
+        {notifications.length > 0 && <button onClick={async () => {
+          if (!clerkUserId) return;
+          try {
+            await clearAllMutation({ clerkUserId });
+            toast.success("Clearing notifications...");
+          } catch {
+            toast.error("Failed to clear notifications.");
+          }
         }} className="mt-2 w-full text-sm font-semibold text-red-600 border border-red-600 rounded-md py-2 hover:bg-red-600 hover:text-white transition duration-200">
           Clear All Notifications
         </button>}
