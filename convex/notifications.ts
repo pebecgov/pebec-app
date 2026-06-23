@@ -4,10 +4,9 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { getCurrentUserOrThrow } from "./users";
 import { internal } from "./_generated/api";
-import { Id } from "./_generated/dataModel";
 
 const MAX_NOTIFICATION_LIMIT = 200;
-const PAGE_SIZE = 500;
+const MAX_COUNT_SCAN = 8192;
 
 async function resolveUserByClerkId(ctx: QueryCtx, clerkUserId: string) {
   const user = await ctx.db
@@ -18,48 +17,6 @@ async function resolveUserByClerkId(ctx: QueryCtx, clerkUserId: string) {
     throw new Error("User not found");
   }
   return user;
-}
-
-async function countAllNotifications(ctx: QueryCtx, userId: Id<"users">) {
-  let count = 0;
-  let cursor: string | null = null;
-
-  while (true) {
-    const page = await ctx.db
-      .query("notifications")
-      .withIndex("byUser", (q) => q.eq("userId", userId))
-      .paginate({ numItems: PAGE_SIZE, cursor });
-
-    count += page.page.length;
-    if (page.isDone) {
-      break;
-    }
-    cursor = page.continueCursor;
-  }
-
-  return count;
-}
-
-async function countUnreadNotifications(ctx: QueryCtx, userId: Id<"users">) {
-  let count = 0;
-  let cursor: string | null = null;
-
-  while (true) {
-    const page = await ctx.db
-      .query("notifications")
-      .withIndex("byUserAndIsRead", (q) =>
-        q.eq("userId", userId).eq("isRead", false)
-      )
-      .paginate({ numItems: PAGE_SIZE, cursor });
-
-    count += page.page.length;
-    if (page.isDone) {
-      break;
-    }
-    cursor = page.continueCursor;
-  }
-
-  return count;
 }
 
 /** Recent notifications for the header badge popover (capped). */
@@ -98,27 +55,19 @@ export const listNotifications = query({
   },
 });
 
-export const getNotificationStats = query({
-  args: {
-    clerkUserId: v.string(),
-  },
-  handler: async (ctx, { clerkUserId }) => {
-    const user = await resolveUserByClerkId(ctx, clerkUserId);
-    const [total, unread] = await Promise.all([
-      countAllNotifications(ctx, user._id),
-      countUnreadNotifications(ctx, user._id),
-    ]);
-    return { total, unread };
-  },
-});
-
 export const getUnreadNotificationCount = query({
   args: {
     clerkUserId: v.string(),
   },
   handler: async (ctx, { clerkUserId }) => {
     const user = await resolveUserByClerkId(ctx, clerkUserId);
-    return await countUnreadNotifications(ctx, user._id);
+    const unread = await ctx.db
+      .query("notifications")
+      .withIndex("byUserAndIsRead", (q) =>
+        q.eq("userId", user._id).eq("isRead", false)
+      )
+      .take(MAX_COUNT_SCAN);
+    return unread.length;
   },
 });
 

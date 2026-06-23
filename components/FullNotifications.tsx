@@ -20,8 +20,8 @@ export default function FullNotifications() {
     { initialNumItems: 30 }
   );
 
-  const stats = useQuery(
-    api.notifications.getNotificationStats,
+  const unreadCountQuery = useQuery(
+    api.notifications.getUnreadNotificationCount,
     clerkUserId ? { clerkUserId } : "skip"
   );
 
@@ -115,13 +115,14 @@ export default function FullNotifications() {
     }
   };
 
-  const totalCount = stats?.total ?? notifications.length;
-  const unreadCount = stats?.unread ?? notifications.filter((n) => !n.isRead).length;
+  const loadedCount = notifications.length;
+  const hasMore = status === "CanLoadMore" || status === "LoadingMore";
+  const unreadCount = unreadCountQuery ?? notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-2">
-        All Notifications ({totalCount})
+        All Notifications{hasMore ? ` (${loadedCount}+)` : ` (${loadedCount})`}
       </h1>
       {unreadCount > 0 && (
         <p className="text-sm text-gray-500 mb-6">{unreadCount} unread</p>
