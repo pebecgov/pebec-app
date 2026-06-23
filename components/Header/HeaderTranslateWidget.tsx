@@ -11,14 +11,14 @@ const SITE_TRANSLATE_LANGUAGES = [
   { label: "Yorùbá", value: "yo", flag: "ng" },
 ];
 
-export default function HeaderTranslateWidget({ compact = false }: { compact?: boolean }) {
+export default function HeaderTranslateWidget() {
   return (
-    <div className={compact ? "pebec-header-translate pebec-header-translate--compact" : "pebec-header-translate"}>
+    <div className="pebec-header-translate shrink-0">
       <NextGoogleTranslateWidget
         pageLanguage="en"
         languages={SITE_TRANSLATE_LANGUAGES}
         menuAlign="right"
-        className={`pebec-header-translate-widget${compact ? " pebec-header-translate-widget--compact" : ""}`}
+        className="pebec-header-translate-widget"
       />
     </div>
   );

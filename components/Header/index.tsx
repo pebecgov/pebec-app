@@ -111,42 +111,16 @@ const Header = () => {
   };
   return <>
     <AnnouncementBar onVisibilityChange={setShowAnnouncementBar} />
-    <header className={`fixed left-0 top-0 w-full py-14 transition-all duration-300 ${stickyMenu ? "bg-white !py-4 shadow dark:bg-black" : "bg-transparent"} ${modalOpen ? "pointer-events-none opacity-50" : "z-50"}`} style={{ marginTop: showAnnouncementBar ? '48px' : '0' }}>
-      <div className="relative mx-auto max-w-7xl flex items-center justify-between px-4 md:px-8 xl:px-0">
+    <header className={`fixed left-0 top-0 z-50 w-full py-14 transition-all duration-300 ${stickyMenu ? "bg-white !py-4 shadow dark:bg-black" : "bg-transparent"} ${modalOpen ? "pointer-events-none opacity-50" : ""}`} style={{ marginTop: showAnnouncementBar ? '48px' : '0' }}>
+      <div className="relative mx-auto max-w-7xl flex items-center justify-between px-4 md:px-8 lg:px-0">
         { }
-        <a href="/" className="flex items-center gap-3">
+        <a href="/" className="relative z-[60] flex shrink-0 items-center gap-3">
           <Image src="/images/logo/logo_pebec1.PNG" alt="logo" width={140} height={40} priority />
         </a>
 
         { }
-        { }
-        <div className="xl:hidden flex items-center gap-2">
-          { }
-          <button onClick={handleReportGovClick} className="flex items-center rounded-full bg-[#FF3226] text-white text-xs font-bold px-2.5 py-1.5">
-            reportgov
-            <span className="ml-1 bg-[#2D8B10] text-white text-[10px] px-1 py-0.5 rounded">
-              .ng
-            </span>
-          </button>
-
-          { }
-          <Link href="/saber" className="flex items-center gap-1 rounded-full bg-[#2563EB] text-white text-xs font-bold px-3 py-1.5">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 ..."></path>
-            </svg>
-            SABER
-          </Link>
-
-          <HeaderTranslateWidget compact />
-
-          { }
-          <MobileMenu />
-        </div>
-
-
-        { }
-        <nav className="hidden xl:flex ">
-          <ul className="flex space-x-6 text-gray-700 dark:text-white text-[15px] font-medium">
+        <nav className="pointer-events-none relative z-40 hidden lg:flex flex-1 justify-center px-4 min-w-0">
+          <ul className="pointer-events-auto flex space-x-6 text-gray-700 dark:text-white text-[15px] font-medium">
             { }
             <li>
               <a href="/" className={`hover:text-[#2D8B10] dark:hover:text-gray-300 ${pathUrl === "/" ? "text-[#2D8B10] font-semibold" : ""}`}>
@@ -288,11 +262,30 @@ const Header = () => {
         </nav>
 
         { }
-        { }
-        <div className="hidden xl:flex items-center gap-3">
+        <div className="relative z-[60] flex shrink-0 items-center gap-2 lg:gap-3">
+          <div className="flex items-center gap-2 lg:hidden">
+            <button onClick={handleReportGovClick} className="flex items-center rounded-full bg-[#FF3226] text-white text-xs font-bold px-2.5 py-1.5">
+              reportgov
+              <span className="ml-1 bg-[#2D8B10] text-white text-[10px] px-1 py-0.5 rounded">
+                .ng
+              </span>
+            </button>
+
+            <Link href="/saber" className="flex items-center gap-1 rounded-full bg-[#2563EB] text-white text-xs font-bold px-3 py-1.5">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 ..."></path>
+              </svg>
+              SABER
+            </Link>
+          </div>
+
           <HeaderTranslateWidget />
 
-          { }
+          <div className="lg:hidden">
+            <MobileMenu />
+          </div>
+
+          <div className="hidden lg:flex items-center gap-3">
           <SignedOut>
             <SignInButton mode="modal">
               <button className="bg-gray-900 hover:bg-black text-white text-sm font-semibold px-5 py-2 rounded-full shadow-md transition-all duration-200">
@@ -363,6 +356,7 @@ const Header = () => {
           { }
           {user && <NotificationBadge />}
           {showReportGovModal && <ReportGovModal onClose={() => setShowReportGovModal(false)} />}
+          </div>
         </div>
 
       </div>
