@@ -109,6 +109,104 @@ async function clearTaskCompletionVotes(ctx: any, taskId: Id<"tasks">) {
     }
 }
 
+type TaskParticipantInput =
+    | { type: "workstream"; id: string }
+    | { type: "staff"; userId: Id<"users"> };
+
+const taskParticipantsArg = v.array(
+    v.union(
+        v.object({ type: v.literal("workstream"), id: v.string() }),
+        v.object({ type: v.literal("staff"), userId: v.id("users") })
+    )
+);
+
+async function resolveParticipantsToUserIds(
+    ctx: any,
+    participants: TaskParticipantInput[]
+): Promise<Id<"users">[]> {
+    const userIdSet = new Set<Id<"users">>();
+    for (const p of participants) {
+        if (p.type === "staff") {
+            const u = await ctx.db.get(p.userId);
+            if (!u) {
+                throw new Error("Selected staff user not found");
+            }
+            userIdSet.add(p.userId);
+        } else {
+            const ids = await expandWorkstreamToUserIds(ctx, p.id);
+            for (const id of ids) {
+                userIdSet.add(id);
+            }
+        }
+    }
+    return [...userIdSet];
+}
+
+async function buildAssignedToNameFromUserIds(ctx: any, userIds: Id<"users">[]): Promise<string | undefined> {
+    if (userIds.length === 0) {
+        return undefined;
+    }
+
+    const nameParts: string[] = [];
+    for (const uid of userIds) {
+        const u = await ctx.db.get(uid);
+        if (u) {
+            nameParts.push(`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || String(uid));
+        }
+    }
+    nameParts.sort((a, b) => a.localeCompare(b));
+
+    let assignedToName = nameParts.join(", ");
+    if (assignedToName.length > 500) {
+        assignedToName = `${assignedToName.slice(0, 497)}...`;
+    }
+    return assignedToName;
+}
+
+async function getCurrentTaskAssigneeIds(ctx: any, task: { _id: Id<"tasks">; assignedTo?: Id<"users">; assignedStream?: string }): Promise<Set<string>> {
+    const ids = new Set<string>();
+    const links = await ctx.db
+        .query("task_assignments")
+        .withIndex("byTaskId", (q: any) => q.eq("taskId", task._id))
+        .collect();
+
+    for (const link of links) {
+        ids.add(String(link.userId));
+    }
+
+    if (links.length === 0) {
+        if (task.assignedTo) {
+            ids.add(String(task.assignedTo));
+        }
+        if (task.assignedStream) {
+            const streamIds = await expandWorkstreamToUserIds(ctx, task.assignedStream);
+            for (const id of streamIds) {
+                ids.add(String(id));
+            }
+        }
+    }
+
+    return ids;
+}
+
+async function replaceTaskAssignments(ctx: any, taskId: Id<"tasks">, userIds: Id<"users">[]) {
+    const links = await ctx.db
+        .query("task_assignments")
+        .withIndex("byTaskId", (q: any) => q.eq("taskId", taskId))
+        .collect();
+
+    for (const link of links) {
+        await ctx.db.delete(link._id);
+    }
+
+    for (const uid of userIds) {
+        await ctx.db.insert("task_assignments", {
+            taskId,
+            userId: uid
+        });
+    }
+}
+
 async function expandWorkstreamToUserIds(ctx: any, stream: string): Promise<Id<"users">[]> {
     const s = stream.trim();
     if (!s) return [];
@@ -495,12 +593,7 @@ export const createTasks = mutation({
         receptionInboxId: v.optional(v.id("reception_admin_documents")),
         assignmentDocumentId: v.optional(v.id("_storage")),
         assignmentDocumentName: v.optional(v.string()),
-        participants: v.array(
-            v.union(
-                v.object({ type: v.literal("workstream"), id: v.string() }),
-                v.object({ type: v.literal("staff"), userId: v.id("users") })
-            )
-        )
+        participants: taskParticipantsArg
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUserOrThrow(ctx);
@@ -522,19 +615,7 @@ export const createTasks = mutation({
             assignmentDocumentName: args.assignmentDocumentName
         });
 
-        const userIdSet = new Set<Id<"users">>();
-        for (const p of args.participants) {
-            if (p.type === "staff") {
-                const u = await ctx.db.get(p.userId);
-                if (!u) throw new Error("Selected staff user not found");
-                userIdSet.add(p.userId);
-            } else {
-                const ids = await expandWorkstreamToUserIds(ctx, p.id);
-                for (const id of ids) userIdSet.add(id);
-            }
-        }
-
-        const userIds = [...userIdSet];
+        const userIds = await resolveParticipantsToUserIds(ctx, args.participants);
         if (userIds.length === 0) {
             throw new Error("No staff matched your selection (check workstreams or add individuals)");
         }
@@ -542,19 +623,7 @@ export const createTasks = mutation({
             throw new Error("Too many assignees in one task");
         }
 
-        const nameParts: string[] = [];
-        for (const uid of userIds) {
-            const u = await ctx.db.get(uid);
-            if (u) {
-                nameParts.push(`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email || String(uid));
-            }
-        }
-        nameParts.sort((a, b) => a.localeCompare(b));
-        let assignedToName = nameParts.join(", ");
-        if (assignedToName.length > 500) {
-            assignedToName = `${assignedToName.slice(0, 497)}...`;
-        }
-
+        const assignedToName = await buildAssignedToNameFromUserIds(ctx, userIds);
         const assignedTo: Id<"users"> | undefined = userIds.length === 1 ? userIds[0] : undefined;
 
         const taskId = await ctx.db.insert("tasks", {
@@ -625,6 +694,188 @@ export const createTasks = mutation({
         }
 
         return [taskId];
+    }
+});
+
+export const getTaskAssignees = query({
+    args: {
+        taskId: v.id("tasks")
+    },
+    handler: async (ctx, { taskId }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "admin") {
+            throw new Error("Only admins can view task assignees");
+        }
+
+        const task = await ctx.db.get(taskId);
+        if (!task) {
+            throw new Error("Task not found");
+        }
+
+        const links = await ctx.db
+            .query("task_assignments")
+            .withIndex("byTaskId", (q: any) => q.eq("taskId", taskId))
+            .collect();
+
+        const participants: Array<
+            | { type: "workstream"; id: string }
+            | { type: "staff"; userId: Id<"users">; name: string }
+        > = [];
+
+        if (links.length > 0) {
+            for (const link of links) {
+                const assignee = await ctx.db.get(link.userId);
+                participants.push({
+                    type: "staff",
+                    userId: link.userId,
+                    name:
+                        assignee
+                            ? `${assignee.firstName || ""} ${assignee.lastName || ""}`.trim() ||
+                              assignee.email ||
+                              "Staff"
+                            : "Staff"
+                });
+            }
+        } else if (task.assignedStream) {
+            participants.push({ type: "workstream", id: task.assignedStream });
+        } else if (task.assignedTo) {
+            const assignee = await ctx.db.get(task.assignedTo);
+            participants.push({
+                type: "staff",
+                userId: task.assignedTo,
+                name:
+                    assignee
+                        ? `${assignee.firstName || ""} ${assignee.lastName || ""}`.trim() ||
+                          assignee.email ||
+                          "Staff"
+                        : task.assignedToName || "Staff"
+            });
+        }
+
+        return {
+            taskId,
+            title: task.title,
+            participants
+        };
+    }
+});
+
+export const updateTaskAssignees = mutation({
+    args: {
+        taskId: v.id("tasks"),
+        participants: taskParticipantsArg
+    },
+    handler: async (ctx, { taskId, participants }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "admin") {
+            throw new Error("Only admins can update task assignees");
+        }
+
+        if (participants.length > 60) {
+            throw new Error("Too many participant entries in one request");
+        }
+
+        const task = await ctx.db.get(taskId);
+        if (!task) {
+            throw new Error("Task not found");
+        }
+
+        if (task.status === "done") {
+            throw new Error("Cannot change assignees on a completed task");
+        }
+
+        const newUserIds = await resolveParticipantsToUserIds(ctx, participants);
+        if (newUserIds.length > 250) {
+            throw new Error("Too many assignees in one task");
+        }
+
+        const previousAssigneeIds = await getCurrentTaskAssigneeIds(ctx, task);
+        const newAssigneeIdSet = new Set(newUserIds.map((id) => String(id)));
+        const addedIds = newUserIds.filter((id) => !previousAssigneeIds.has(String(id)));
+        const removedIds = [...previousAssigneeIds].filter((id) => !newAssigneeIdSet.has(id));
+
+        await replaceTaskAssignments(ctx, taskId, newUserIds);
+
+        const assignedToName = await buildAssignedToNameFromUserIds(ctx, newUserIds);
+        const assignedTo: Id<"users"> | undefined = newUserIds.length === 1 ? newUserIds[0] : undefined;
+        const now = Date.now();
+
+        const patchData: any = {
+            assignedTo: assignedTo ?? undefined,
+            assignedToName: assignedToName ?? undefined,
+            assignedStream: undefined,
+            assignedRole: newUserIds.length > 0 ? "staff" : undefined,
+            updatedAt: now
+        };
+
+        if (
+            task.completionRequestStatus === "awaiting_consensus" ||
+            task.completionRequestStatus === "pending"
+        ) {
+            await clearTaskCompletionVotes(ctx, taskId);
+            patchData.completionRequestStatus = undefined;
+            patchData.completionRequestedAt = undefined;
+            patchData.completionRequestedBy = undefined;
+            patchData.completionApprovedBy = undefined;
+            patchData.completionApprovedAt = undefined;
+            patchData.completionAdminComment = undefined;
+        }
+
+        if (newUserIds.length === 0) {
+            patchData.assignedTo = undefined;
+            patchData.assignedToName = undefined;
+            patchData.assignedRole = undefined;
+        }
+
+        await ctx.db.patch(taskId, patchData);
+
+        for (const uid of addedIds) {
+            await ctx.db.insert("notifications", {
+                userId: uid,
+                taskId,
+                message: `You have been assigned to task: "${task.title}"`,
+                isRead: false,
+                createdAt: now,
+                type: "task_assignment"
+            });
+
+            const assignee = await ctx.db.get(uid);
+            if (assignee?.email) {
+                await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+                    to: assignee.email,
+                    subject: `Task Assignment Updated: ${task.title}`,
+                    html: `
+                        <div style="font-family: sans-serif; padding: 20px;">
+                            <h2 style="color: #059669;">Task Assignment Updated</h2>
+                            <p>Hello ${assignee.firstName || "Staff"},</p>
+                            <p>You have been assigned to the task: <strong>"${task.title}"</strong></p>
+                            <p style="margin-top: 20px;">Please log in to the portal to view the details.</p>
+                            <div style="margin-top: 20px;">
+                                <a href="https://www.pebec.gov.ng/staff/tasks" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Task</a>
+                            </div>
+                        </div>
+                    `
+                });
+            }
+        }
+
+        for (const idStr of removedIds) {
+            const uid = idStr as Id<"users">;
+            await ctx.db.insert("notifications", {
+                userId: uid,
+                taskId,
+                message: `You have been removed from task: "${task.title}"`,
+                isRead: false,
+                createdAt: now,
+                type: "task_assignment"
+            });
+        }
+
+        return {
+            addedCount: addedIds.length,
+            removedCount: removedIds.length,
+            totalAssignees: newUserIds.length
+        };
     }
 });
 

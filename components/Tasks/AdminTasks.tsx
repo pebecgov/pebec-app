@@ -19,17 +19,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search, Users } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
 import { fuelCarLabel } from "@/lib/fuelCars";
 
+type TaskParticipant = { type: "workstream" | "staff"; id: string; name: string };
+
 export default function AdminTasks() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [customTaskId, setCustomTaskId] = useState("");
   const [description, setDescription] = useState("");
-  type TaskParticipant = { type: "workstream" | "staff"; id: string; name: string };
   const [taskParticipants, setTaskParticipants] = useState<TaskParticipant[]>([]);
   const [dueDate, setDueDate] = useState("");
   const [receptionInboxIdForTask, setReceptionInboxIdForTask] = useState<Id<"reception_admin_documents"> | null>(null);
@@ -39,6 +40,17 @@ export default function AdminTasks() {
   const [viewedPopupReceptionId, setViewedPopupReceptionId] = useState<Id<"reception_admin_documents"> | null>(null);
   const searchParams = useSearchParams();
   const [tasksMainTab, setTasksMainTab] = useState<"tasks" | "reception" | "fuel">("tasks");
+  const [editAssigneesTaskId, setEditAssigneesTaskId] = useState<Id<"tasks"> | null>(null);
+  const [isEditAssigneesDialogOpen, setIsEditAssigneesDialogOpen] = useState(false);
+  const [editTaskParticipants, setEditTaskParticipants] = useState<TaskParticipant[]>([]);
+  const [editingTaskTitle, setEditingTaskTitle] = useState("");
+  const [savingAssignees, setSavingAssignees] = useState(false);
+  const assigneesHydratedForTaskRef = useRef<Id<"tasks"> | null>(null);
+
+  const taskAssigneesData = useQuery(
+    api.tasks.getTaskAssignees,
+    editAssigneesTaskId ? { taskId: editAssigneesTaskId } : "skip"
+  );
 
   const allTasks = useQuery(api.tasks.getAllTasks);
   const staffUsers = useQuery(api.tasks.getUsersByRole, { role: "staff" });
@@ -46,6 +58,7 @@ export default function AdminTasks() {
   const currentUser = useQuery(api.users.getCurrentUsers);
   const createTasks = useMutation(api.tasks.createTasks);
   const deleteTask = useMutation(api.tasks.deleteTask);
+  const updateTaskAssignees = useMutation(api.tasks.updateTaskAssignees);
   const confirmTaskCompletion = useMutation(api.tasks.confirmTaskCompletion);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
   const getReceptionDocumentUrl = useMutation(api.tasks.getReceptionDocumentUrl);
@@ -207,6 +220,67 @@ export default function AdminTasks() {
     } catch (error) {
       console.error("Error deleting task:", error);
       toast.error("Failed to delete task");
+    }
+  };
+
+  const handleOpenEditAssignees = (task: { _id: Id<"tasks">; title: string }) => {
+    assigneesHydratedForTaskRef.current = null;
+    setEditAssigneesTaskId(task._id);
+    setEditingTaskTitle(task.title);
+    setEditTaskParticipants([]);
+    setIsEditAssigneesDialogOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isEditAssigneesDialogOpen || !editAssigneesTaskId || !taskAssigneesData) return;
+    if (assigneesHydratedForTaskRef.current === editAssigneesTaskId) return;
+
+    assigneesHydratedForTaskRef.current = editAssigneesTaskId;
+    setEditTaskParticipants(
+      taskAssigneesData.participants.map((participant) =>
+        participant.type === "workstream"
+          ? { type: "workstream", id: participant.id, name: participant.id }
+          : { type: "staff", id: participant.userId, name: participant.name }
+      )
+    );
+  }, [isEditAssigneesDialogOpen, editAssigneesTaskId, taskAssigneesData]);
+
+  const handleSaveAssignees = async () => {
+    if (!editAssigneesTaskId) return;
+
+    if (editTaskParticipants.length === 0) {
+      const confirmed = window.confirm(
+        "Remove all assignees from this task? It will be unassigned until you add someone again."
+      );
+      if (!confirmed) return;
+    }
+
+    const participants = editTaskParticipants.map((p) =>
+      p.type === "workstream"
+        ? { type: "workstream" as const, id: p.id }
+        : { type: "staff" as const, userId: p.id as Id<"users"> }
+    );
+
+    try {
+      setSavingAssignees(true);
+      const result = await updateTaskAssignees({
+        taskId: editAssigneesTaskId,
+        participants
+      });
+      toast.success(
+        result.totalAssignees === 0
+          ? "All assignees removed."
+          : `Assignees updated (${result.totalAssignees} total).`
+      );
+      setIsEditAssigneesDialogOpen(false);
+      setEditAssigneesTaskId(null);
+      setEditTaskParticipants([]);
+      assigneesHydratedForTaskRef.current = null;
+    } catch (error: any) {
+      console.error("Error updating assignees:", error);
+      toast.error(error.message || "Failed to update assignees");
+    } finally {
+      setSavingAssignees(false);
     }
   };
 
@@ -528,6 +602,15 @@ export default function AdminTasks() {
                       {task.dueDate && (
                         <CountdownTimer dueDate={task.dueDate} createdAt={task.createdAt} />
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEditAssignees(task)}
+                        className="text-blue-600 hover:text-blue-700"
+                        title="Manage assignees"
+                      >
+                        <Users className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -679,6 +762,15 @@ export default function AdminTasks() {
                       {task.status !== "done" && task.dueDate && (
                         <CountdownTimer dueDate={task.dueDate} createdAt={task.createdAt} />
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenEditAssignees(task)}
+                        className="text-blue-600 hover:text-blue-700"
+                        title="Manage assignees"
+                      >
+                        <Users className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1240,104 +1332,12 @@ export default function AdminTasks() {
               </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Assign to (workstreams &amp; staff) *
-              </label>
-              <div className="space-y-3 border border-gray-200 rounded-md p-3">
-                <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-                    Workstreams &amp; staff
-                  </p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3">
-                    {WORKSTREAM_IDS.map((ws) => (
-                      <label
-                        key={ws}
-                        className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-blue-600 transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={taskParticipants.some((p) => p.type === "workstream" && p.id === ws)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setTaskParticipants([
-                                ...taskParticipants,
-                                { type: "workstream", id: ws, name: ws }
-                              ]);
-                            } else {
-                              setTaskParticipants(
-                                taskParticipants.filter((p) => !(p.type === "workstream" && p.id === ws))
-                              );
-                            }
-                          }}
-                          className="h-3 w-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                        />
-                        <span className="truncate">{formatWorkstream(ws)}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <select
-                      className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none"
-                      onChange={(e) => {
-                        const staffId = e.target.value as Id<"users">;
-                        if (!staffId) return;
-                        const staff = staffMembers.find((s) => s._id === staffId);
-                        if (
-                          staff &&
-                          !taskParticipants.some((p) => p.type === "staff" && p.id === staffId)
-                        ) {
-                          setTaskParticipants([
-                            ...taskParticipants,
-                            {
-                              type: "staff",
-                              id: staffId,
-                              name: `${staff.firstName ?? ""} ${staff.lastName ?? ""}`.trim() || staff.email || ""
-                            }
-                          ]);
-                        }
-                        e.target.value = "";
-                      }}
-                    >
-                      <option value="">Select individual staff…</option>
-                      {staffMembers
-                        .filter((s) => !taskParticipants.some((p) => p.type === "staff" && p.id === s._id))
-                        .map((s) => (
-                          <option key={s._id} value={s._id}>
-                            {s.firstName} {s.lastName}
-                          </option>
-                        ))}
-                    </select>
-
-                    <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
-                      {taskParticipants.map((p, i) => (
-                        <span
-                          key={`${p.type}-${p.id}-${i}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-tighter"
-                        >
-                          {p.type === "workstream" ? ` ${formatWorkstream(p.name)}` : p.name}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setTaskParticipants(taskParticipants.filter((_, idx) => idx !== i))
-                            }
-                            className="hover:text-red-500"
-                            aria-label="Remove"
-                          >
-                            <XMarkIcon className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Everyone selected shares one task. Whole workstreams include all staff in that stream; add
-                individuals by name as needed.
-              </p>
-            </div>
+            <TaskParticipantPicker
+              participants={taskParticipants}
+              setParticipants={setTaskParticipants}
+              staffMembers={staffMembers}
+              workstreamIds={WORKSTREAM_IDS}
+            />
 
             <div className="grid grid-cols-1 gap-4">
               <div>
@@ -1363,6 +1363,63 @@ export default function AdminTasks() {
               className="bg-green-600 hover:bg-green-700"
             >
               {assignmentUploading ? "Uploading…" : "Assign Task"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isEditAssigneesDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditAssigneesDialogOpen(open);
+          if (!open) {
+            setEditAssigneesTaskId(null);
+            setEditTaskParticipants([]);
+            setEditingTaskTitle("");
+            assigneesHydratedForTaskRef.current = null;
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Manage Assignees: {editingTaskTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {!taskAssigneesData && editAssigneesTaskId ? (
+              <p className="text-sm text-gray-500">Loading current assignees…</p>
+            ) : (
+              <>
+                <TaskParticipantPicker
+                  participants={editTaskParticipants}
+                  setParticipants={setEditTaskParticipants}
+                  staffMembers={staffMembers}
+                  workstreamIds={WORKSTREAM_IDS}
+                  allowEmpty
+                />
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
+                  Removing assignees or changing the list will reset any in-progress completion request for this task.
+                </p>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditAssigneesDialogOpen(false);
+                setEditAssigneesTaskId(null);
+                setEditTaskParticipants([]);
+                assigneesHydratedForTaskRef.current = null;
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveAssignees}
+              disabled={savingAssignees || !taskAssigneesData}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {savingAssignees ? "Saving…" : "Save Assignees"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1589,6 +1646,118 @@ function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+function TaskParticipantPicker({
+  participants,
+  setParticipants,
+  staffMembers,
+  workstreamIds,
+  allowEmpty = false
+}: {
+  participants: TaskParticipant[];
+  setParticipants: React.Dispatch<React.SetStateAction<TaskParticipant[]>>;
+  staffMembers: Array<{ _id: Id<"users">; firstName?: string; lastName?: string; email?: string }>;
+  workstreamIds: string[];
+  allowEmpty?: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Assign to (workstreams &amp; staff){allowEmpty ? "" : " *"}
+      </label>
+      <div className="space-y-3 border border-gray-200 rounded-md p-3">
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+            Workstreams &amp; staff
+          </p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3">
+            {workstreamIds.map((ws) => (
+              <label
+                key={ws}
+                className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-blue-600 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={participants.some((p) => p.type === "workstream" && p.id === ws)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setParticipants([...participants, { type: "workstream", id: ws, name: ws }]);
+                    } else {
+                      setParticipants(participants.filter((p) => !(p.type === "workstream" && p.id === ws)));
+                    }
+                  }}
+                  className="h-3 w-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <span className="truncate">{formatWorkstream(ws)}</span>
+              </label>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <select
+              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none"
+              onChange={(e) => {
+                const staffId = e.target.value as Id<"users">;
+                if (!staffId) return;
+                const staff = staffMembers.find((s) => s._id === staffId);
+                if (staff && !participants.some((p) => p.type === "staff" && p.id === staffId)) {
+                  setParticipants([
+                    ...participants,
+                    {
+                      type: "staff",
+                      id: staffId,
+                      name: `${staff.firstName ?? ""} ${staff.lastName ?? ""}`.trim() || staff.email || ""
+                    }
+                  ]);
+                }
+                e.target.value = "";
+              }}
+            >
+              <option value="">Select individual staff…</option>
+              {staffMembers
+                .filter((s) => !participants.some((p) => p.type === "staff" && p.id === s._id))
+                .map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s.firstName} {s.lastName}
+                  </option>
+                ))}
+            </select>
+
+            <div className="flex flex-wrap gap-1.5 mt-2 min-h-[28px]">
+              {participants.length === 0 ? (
+                <span className="text-xs text-gray-400 italic">
+                  {allowEmpty ? "No assignees selected." : "Add at least one assignee."}
+                </span>
+              ) : (
+                participants.map((p, i) => (
+                  <span
+                    key={`${p.type}-${p.id}-${i}`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-tighter"
+                  >
+                    {p.type === "workstream" ? ` ${formatWorkstream(p.name)}` : p.name}
+                    <button
+                      type="button"
+                      onClick={() => setParticipants(participants.filter((_, idx) => idx !== i))}
+                      className="hover:text-red-500"
+                      aria-label="Remove"
+                    >
+                      <XMarkIcon className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mt-1">
+        Everyone selected shares one task. Whole workstreams include all staff in that stream; add
+        individuals by name as needed.
+        {allowEmpty ? " Remove all assignees to leave the task unassigned." : ""}
+      </p>
     </div>
   );
 }
