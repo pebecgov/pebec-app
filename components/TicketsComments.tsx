@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, Trash, Edit, Paperclip } from "lucide-react";
+import { MoreHorizontal, Trash, Edit, Paperclip, X } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -43,6 +43,8 @@ export default function TicketComments({
     id: Id<"_storage">;
     name: string;
   }[]>([]);
+  const [uploadKey, setUploadKey] = useState(0);
+  const [isPosting, setIsPosting] = useState(false);
   const [commentFilesMap, setCommentFilesMap] = useState<Record<string, string[]>>({});
   const commentsRef = useRef<HTMLDivElement | null>(null);
   const handleFileAttach = (storageId: string, fileName: string) => {
@@ -53,17 +55,25 @@ export default function TicketComments({
   };
   const handleAddComment = async () => {
     if (commentText.trim() === "" && attachedFiles.length === 0) return;
-    await addComment({
-      ticketId: ticketId as Id<"tickets">,
-      content: commentText,
-      fileIds: attachedFiles.map(f => f.id)
-    });
-    setCommentText("");
-    setAttachedFiles([]);
-    if (commentsRef.current) {
-      commentsRef.current.scrollIntoView({
-        behavior: "smooth"
+    try {
+      setIsPosting(true);
+      await addComment({
+        ticketId: ticketId as Id<"tickets">,
+        content: commentText,
+        fileIds: attachedFiles.map((f) => f.id),
       });
+      setCommentText("");
+      setAttachedFiles([]);
+      setUploadKey((k) => k + 1);
+      toast.success("Update posted successfully.");
+      if (commentsRef.current) {
+        commentsRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    } catch (error) {
+      console.error("Failed to post comment:", error);
+      toast.error("Failed to post update. Please try again.");
+    } finally {
+      setIsPosting(false);
     }
   };
   const handleEditComment = async (commentId: string) => {
@@ -99,31 +109,50 @@ export default function TicketComments({
   return <div className="w-full bg-white p-6 rounded-lg shadow-md">
     <h3 className="text-xl font-semibold mb-4">Updates ({comments?.length || 0})</h3>
 
-    {!readOnly && <div className="flex flex-col gap-3 mb-6">
-      <div className="relative">
-        <Textarea value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Write a comment..." rows={3} className="resize-none border p-2 rounded-md pr-10" />
-        <div className="absolute top-2 right-2">
-          <FileUploader setFileId={handleFileAttach} />
+    {!readOnly && (
+      <div className="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <Textarea
+          value={commentText}
+          onChange={(e) => setCommentText(e.target.value)}
+          placeholder="Write an update..."
+          rows={4}
+          className="min-h-[110px] resize-none rounded-none border-0 border-b border-gray-200 px-4 py-3 shadow-none focus-visible:ring-0"
+        />
+
+        {attachedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3">
+            {attachedFiles.map((file, idx) => (
+              <div
+                key={file.id}
+                className="inline-flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700"
+              >
+                <Paperclip className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                <span className="truncate">{file.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                  className="text-gray-400 hover:text-red-600"
+                  aria-label="Remove attachment"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <FileUploader key={uploadKey} setFileId={handleFileAttach} compact resetAfterUpload />
+          <Button
+            onClick={handleAddComment}
+            disabled={isPosting || (commentText.trim() === "" && attachedFiles.length === 0)}
+            className="w-full sm:w-auto"
+          >
+            {isPosting ? "Posting..." : "Post Update"}
+          </Button>
         </div>
       </div>
-
-      {attachedFiles.length > 0 && <div className="mt-2 text-sm text-gray-700 border rounded-md p-3 bg-gray-50">
-        <p className="font-medium mb-2">Attached Files:</p>
-        <ul className="space-y-1">
-          {attachedFiles.map((file, idx) => <li key={idx} className="flex items-center justify-between text-sm text-gray-800 bg-white px-3 py-1 rounded border">
-            <span className="truncate">{file.name}</span>
-            <button onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))} className="ml-2 text-red-500 hover:text-red-700 text-xs" aria-label="Remove file">
-              ✕
-            </button>
-          </li>)}
-        </ul>
-      </div>}
-
-
-      <Button onClick={handleAddComment} className="w-fit mt-2">
-        Post
-      </Button>
-    </div>}
+    )}
 
 
     <ul className="space-y-6">
