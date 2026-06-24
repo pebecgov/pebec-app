@@ -405,10 +405,15 @@ export default function AdminTasks() {
     }
   };
 
-  const [activeFilter, setActiveFilter] = useState<"assigned_todo" | "in_progress" | "pending_approval" | "done" | null>(null);
+  const [activeFilter, setActiveFilter] = useState<"assigned_todo" | "in_progress" | "pending_approval" | null>(null);
+  const [tasksListTab, setTasksListTab] = useState<"active" | "completed">("active");
+  const TASK_PAGE_SIZE = 20;
+  const [activeTasksPage, setActiveTasksPage] = useState(0);
+  const [completedTasksPage, setCompletedTasksPage] = useState(0);
   const tasksListRef = useRef<HTMLDivElement>(null);
 
-  const toggleFilter = (filter: "assigned_todo" | "in_progress" | "pending_approval" | "done") => {
+  const toggleFilter = (filter: "assigned_todo" | "in_progress" | "pending_approval") => {
+    setTasksListTab("active");
     setActiveFilter((prev) => {
       const next = prev === filter ? null : filter;
       if (next !== null) {
@@ -420,21 +425,63 @@ export default function AdminTasks() {
     });
   };
 
-  const filteredTasks = useMemo(() => {
+  const openCompletedTasksTab = () => {
+    setTasksListTab("completed");
+    setActiveFilter(null);
+    setTimeout(() => {
+      tasksListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
+
+  const activeTabTasks = useMemo(() => {
     if (!allTasks) return [];
+    const nonCompleted = allTasks.filter((t) => t.status !== "done");
     switch (activeFilter) {
       case "assigned_todo":
-        return allTasks.filter((t) => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress");
+        return nonCompleted.filter((t) => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress");
       case "in_progress":
-        return allTasks.filter((t) => t.status === "in_progress");
+        return nonCompleted.filter((t) => t.status === "in_progress");
       case "pending_approval":
-        return allTasks.filter((t) => t.completionRequestStatus === "pending");
-      case "done":
-        return allTasks.filter((t) => t.status === "done");
+        return nonCompleted.filter((t) => t.completionRequestStatus === "pending");
       default:
-        return allTasks;
+        return nonCompleted;
     }
   }, [allTasks, activeFilter]);
+
+  const completedTabTasks = useMemo(() => {
+    if (!allTasks) return [];
+    return allTasks.filter((t) => t.status === "done");
+  }, [allTasks]);
+
+  const activeTasksTotalPages = Math.max(1, Math.ceil(activeTabTasks.length / TASK_PAGE_SIZE));
+  const activeTasksPageSafe = Math.min(activeTasksPage, activeTasksTotalPages - 1);
+  const paginatedActiveTasks = useMemo(() => {
+    const start = activeTasksPageSafe * TASK_PAGE_SIZE;
+    return activeTabTasks.slice(start, start + TASK_PAGE_SIZE);
+  }, [activeTabTasks, activeTasksPageSafe]);
+
+  const completedTasksTotalPages = Math.max(1, Math.ceil(completedTabTasks.length / TASK_PAGE_SIZE));
+  const completedTasksPageSafe = Math.min(completedTasksPage, completedTasksTotalPages - 1);
+  const paginatedCompletedTasks = useMemo(() => {
+    const start = completedTasksPageSafe * TASK_PAGE_SIZE;
+    return completedTabTasks.slice(start, start + TASK_PAGE_SIZE);
+  }, [completedTabTasks, completedTasksPageSafe]);
+
+  useEffect(() => {
+    setActiveTasksPage(0);
+  }, [activeFilter, tasksListTab]);
+
+  useEffect(() => {
+    if (activeTasksPage > activeTasksTotalPages - 1) {
+      setActiveTasksPage(Math.max(0, activeTasksTotalPages - 1));
+    }
+  }, [activeTabTasks, activeTasksPage, activeTasksTotalPages]);
+
+  useEffect(() => {
+    if (completedTasksPage > completedTasksTotalPages - 1) {
+      setCompletedTasksPage(Math.max(0, completedTasksTotalPages - 1));
+    }
+  }, [completedTabTasks, completedTasksPage, completedTasksTotalPages]);
 
   const RECEPTION_PAGE_SIZE = 20;
   const [receptionPage, setReceptionPage] = useState(0);
@@ -537,15 +584,15 @@ export default function AdminTasks() {
         )}
         <button
           type="button"
-          onClick={() => toggleFilter("done")}
-          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "done" ? "ring-2 ring-green-600 border-green-600" : "hover:border-gray-400"}`}
+          onClick={openCompletedTasksTab}
+          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tasksListTab === "completed" ? "ring-2 ring-green-600 border-green-600" : "hover:border-gray-400"}`}
         >
           <div className="p-6 pb-3">
             <p className="text-sm font-medium text-gray-600">Completed</p>
           </div>
           <div className="px-6 pb-6">
             <div className="text-2xl font-bold text-green-600">{tasksByStatus.done.length}</div>
-            {activeFilter === "done" && <p className="text-xs text-green-600 mt-1">Filtering active</p>}
+            {tasksListTab === "completed" && <p className="text-xs text-green-600 mt-1">Viewing completed</p>}
           </div>
         </button>
       </div>
@@ -709,36 +756,52 @@ export default function AdminTasks() {
 
           {/* Tasks List */}
           <div className="space-y-4" ref={tasksListRef}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">
-                {activeFilter === "assigned_todo" && "Assigned / To Do Tasks"}
-                {activeFilter === "in_progress" && "In Progress Tasks"}
-                {activeFilter === "pending_approval" && "Pending Approval Tasks"}
-                {activeFilter === "done" && "Completed Tasks"}
-                {!activeFilter && "All Tasks"}
-              </h2>
-              {activeFilter && (
-                <button
-                  type="button"
-                  onClick={() => setActiveFilter(null)}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  Clear filter
-                </button>
-              )}
-            </div>
-            {!allTasks ? (
-              <div className="text-center py-8 text-gray-500">Loading tasks...</div>
-            ) : filteredTasks.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-gray-500">
-                  {activeFilter ? "No tasks match this filter." : "No tasks yet. Create your first task to get started."}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {filteredTasks.map((task) => (
+            <Tabs
+              value={tasksListTab}
+              onValueChange={(value) => {
+                setTasksListTab(value as "active" | "completed");
+                if (value === "completed") {
+                  setActiveFilter(null);
+                }
+              }}
+              className="w-full"
+            >
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="active">Active Tasks</TabsTrigger>
+                <TabsTrigger value="completed">Completed Tasks</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="active" className="mt-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">
+                    {activeFilter === "assigned_todo" && "Assigned / To Do Tasks"}
+                    {activeFilter === "in_progress" && "In Progress Tasks"}
+                    {activeFilter === "pending_approval" && "Pending Approval Tasks"}
+                    {!activeFilter && "Active Tasks"}
+                  </h2>
+                  {activeFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveFilter(null)}
+                      className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                      Clear filter
+                    </button>
+                  )}
+                </div>
+                {!allTasks ? (
+                  <div className="text-center py-8 text-gray-500">Loading tasks...</div>
+                ) : activeTabTasks.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-gray-500">
+                      {activeFilter ? "No active tasks match this filter." : "No active tasks yet. Create your first task to get started."}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      {paginatedActiveTasks.map((task) => (
                   <Card key={task._id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -885,9 +948,124 @@ export default function AdminTasks() {
                   <TaskUpdates taskId={task._id} />
                 </CardContent>
               </Card>
-                ))}
-              </div>
-            )}
+                      ))}
+                    </div>
+                    <TaskListPagination
+                      page={activeTasksPageSafe}
+                      totalPages={activeTasksTotalPages}
+                      total={activeTabTasks.length}
+                      pageSize={TASK_PAGE_SIZE}
+                      onPrevious={() => {
+                        const maxP = Math.max(0, activeTasksTotalPages - 1);
+                        setActiveTasksPage((p) => Math.max(0, Math.min(p, maxP) - 1));
+                      }}
+                      onNext={() => {
+                        const maxP = Math.max(0, activeTasksTotalPages - 1);
+                        setActiveTasksPage((p) => Math.min(maxP, Math.min(p, maxP) + 1));
+                      }}
+                    />
+                  </>
+                )}
+              </TabsContent>
+
+              <TabsContent value="completed" className="mt-4 space-y-4">
+                <h2 className="text-xl font-semibold">Completed Tasks</h2>
+                {!allTasks ? (
+                  <div className="text-center py-8 text-gray-500">Loading tasks...</div>
+                ) : completedTabTasks.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-gray-500">
+                      No completed tasks yet.
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      {paginatedCompletedTasks.map((task) => (
+                        <Card key={task._id} className="hover:shadow-md transition-shadow">
+                          <CardHeader>
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  {task.customTaskId && (
+                                    <Badge variant="outline" className="text-xs font-mono">
+                                      {task.customTaskId}
+                                    </Badge>
+                                  )}
+                                  <CardTitle className="text-lg">{task.title}</CardTitle>
+                                </div>
+                                <CardDescription className="mt-1">
+                                  Assigned to: {task.assignedToName || (task.assignedStream ? `All ${formatWorkstream(task.assignedStream)} Staff` : "Unassigned")}
+                                </CardDescription>
+                              </div>
+                              <div className="flex gap-2">
+                                <Badge className="bg-green-100 text-green-800">Done</Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteTask(task._id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            {task.description && (
+                              <p className="text-sm text-gray-600 mb-3">{task.description}</p>
+                            )}
+                            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                              {task.dueDate && (
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  Due: {format(new Date(task.dueDate), "PPP")}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <User className="w-4 h-4" />
+                                Created by: {task.createdByName || "Admin"} • {format(new Date(task.createdAt), "PPP 'at' p")}
+                              </div>
+                              {task.completedAt && (
+                                <div className="flex items-center gap-1 text-green-600">
+                                  Completed: {format(new Date(task.completedAt), "PPP 'at' p")}
+                                </div>
+                              )}
+                            </div>
+                            {task.completionNotes && (
+                              <div className="mt-3 p-3 bg-green-50 rounded-md">
+                                <p className="text-sm font-medium text-green-900 mb-1">Completion Notes:</p>
+                                {getCompletionRequesterName(task) && (
+                                  <p className="text-xs text-green-700 mb-1">
+                                    Submitted by: {getCompletionRequesterName(task)}
+                                  </p>
+                                )}
+                                <p className="text-sm text-green-800">{task.completionNotes}</p>
+                              </div>
+                            )}
+                            <TaskUpdates taskId={task._id} />
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                    <TaskListPagination
+                      page={completedTasksPageSafe}
+                      totalPages={completedTasksTotalPages}
+                      total={completedTabTasks.length}
+                      pageSize={TASK_PAGE_SIZE}
+                      onPrevious={() => {
+                        const maxP = Math.max(0, completedTasksTotalPages - 1);
+                        setCompletedTasksPage((p) => Math.max(0, Math.min(p, maxP) - 1));
+                      }}
+                      onNext={() => {
+                        const maxP = Math.max(0, completedTasksTotalPages - 1);
+                        setCompletedTasksPage((p) => Math.min(maxP, Math.min(p, maxP) + 1));
+                      }}
+                    />
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </TabsContent>
 
@@ -1646,6 +1824,53 @@ function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+function TaskListPagination({
+  page,
+  totalPages,
+  total,
+  pageSize,
+  onPrevious,
+  onNext
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  pageSize: number;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  if (total <= pageSize) return null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600 pt-2">
+      <span>
+        Showing{" "}
+        <span className="font-medium text-gray-900">
+          {total === 0 ? 0 : page * pageSize + 1}–{Math.min(page * pageSize + pageSize, total)}
+        </span>{" "}
+        of <span className="font-medium text-gray-900">{total}</span>
+      </span>
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={page <= 0} onClick={onPrevious}>
+          Previous
+        </Button>
+        <span className="tabular-nums px-1">
+          Page {page + 1} of {totalPages}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages - 1}
+          onClick={onNext}
+        >
+          Next
+        </Button>
+      </div>
     </div>
   );
 }
