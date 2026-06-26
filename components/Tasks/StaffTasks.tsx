@@ -229,9 +229,9 @@ export default function StaffTasks() {
       });
 
       if (result?.stage === "awaiting_consensus") {
-        toast.success(`Consensus updated (${result.approvedCount}/${result.totalParticipants}). Waiting for teammates.`);
+        toast.success(`Team approval recorded (${result.approvedCount}/${result.totalParticipants}). Awaiting remaining assignees.`);
       } else {
-        toast.success("Completion request submitted! Awaiting admin approval.");
+        toast.success("Submitted for approval. Awaiting admin review.");
       }
       setIsCompletionDialogOpen(false);
       setSelectedTask(null);
@@ -240,7 +240,7 @@ export default function StaffTasks() {
       setCompletionNotes("");
     } catch (error: any) {
       console.error("Error requesting completion:", error);
-      toast.error(error.message || "Failed to submit completion request");
+      toast.error(error.message || "Failed to submit for approval");
     }
   };
 
@@ -256,16 +256,16 @@ export default function StaffTasks() {
 
   const handleCancelCompletionRequest = async (taskId: Id<"tasks">) => {
     const confirmed = window.confirm(
-      "Cancel this completion request? You can revise and submit again when ready."
+      "Cancel this submission? You can revise and submit again when ready."
     );
     if (!confirmed) return;
 
     try {
       await cancelTaskCompletionRequest({ taskId });
-      toast.success("Completion request cancelled.");
+      toast.success("Submission cancelled.");
     } catch (error: any) {
       console.error("Error cancelling completion request:", error);
-      toast.error(error.message || "Failed to cancel completion request");
+      toast.error(error.message || "Failed to cancel submission");
     }
   };
 
@@ -273,6 +273,16 @@ export default function StaffTasks() {
     task.completionRequestedBy === currentUser?._id &&
     (task.completionRequestStatus === "awaiting_consensus" ||
       task.completionRequestStatus === "pending");
+
+  const getCompletionActionLabel = (task: any) => {
+    if ((task.consensusTotalParticipants ?? 0) <= 1) {
+      return "Submit for Approval";
+    }
+    if (task.completionRequestStatus === "awaiting_consensus") {
+      return task.consensusHasCurrentUserApproved ? "Submit for Approval" : "Approve Submission";
+    }
+    return "Submit for Approval";
+  };
 
   const getPriorityColor = (priority?: string) => {
     return "bg-gray-100 text-gray-800";
@@ -683,7 +693,7 @@ export default function StaffTasks() {
                       {task.consensusTotalParticipants > 1 && task.completionRequestStatus === "awaiting_consensus" && (
                         <div className="mt-3 p-3 rounded-md mb-3 bg-amber-50 border border-amber-200">
                           <p className="text-sm font-medium text-amber-900">
-                            {(task.completionRequestedByName || "A teammate")} wants to request completion, do you approve?
+                            {(task.completionRequestedByName || "A teammate")} has submitted this task for approval. Do you approve?
                           </p>
                           <p className="text-xs text-amber-800 mt-1">
                             Submission Voting: {task.consensusApprovedCount || 0}/{task.consensusTotalParticipants} assignees approved
@@ -713,11 +723,7 @@ export default function StaffTasks() {
                             className="text-green-600 hover:text-green-700"
                           >
                             <CheckCircle2 className="w-4 h-4 mr-1" />
-                            {task.consensusTotalParticipants > 1
-                              ? task.consensusHasCurrentUserApproved
-                                ? "Update Completion Request"
-                                : "Approve submission"
-                              : "Request Completion"}
+                            {getCompletionActionLabel(task)}
                           </Button>
                         )}
                         {task.completionRequestStatus === "awaiting_consensus" && task.consensusHasCurrentUserApproved && (
@@ -728,7 +734,7 @@ export default function StaffTasks() {
                             className="text-amber-700"
                           >
                             <Hourglass className="w-4 h-4 mr-1" />
-                            Waiting for Other Assignees
+                            Awaiting Team Approval
                           </Button>
                         )}
                         {canCancelCompletionRequest(task) &&
@@ -765,7 +771,7 @@ export default function StaffTasks() {
                             className="text-yellow-600"
                           >
                             <Hourglass className="w-4 h-4 mr-1" />
-                            Awaiting Approval
+                            Awaiting Admin Approval
                           </Button>
                         )}
                         {canCancelCompletionRequest(task) && task.completionRequestStatus === "pending" && (
@@ -787,7 +793,7 @@ export default function StaffTasks() {
                             className="text-orange-600 hover:text-orange-700"
                           >
                             <CheckCircle2 className="w-4 h-4 mr-1" />
-                            Resubmit Request
+                            Resubmit for Approval
                           </Button>
                         )}
                         {task.completionAdminComment && (
@@ -1033,7 +1039,13 @@ export default function StaffTasks() {
                   </Button>
 
                   <div className="border-t pt-4 mt-4">
-                    <h3 className="text-sm font-medium text-gray-900 mb-3">Scanned letters (all staff uploads)</h3>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      {currentUser?.role === "admin"
+                        ? "Scanned letters (all uploads)"
+                        : isReceptionist
+                          ? "Scanned letters (reception workstream)"
+                          : "Your uploaded scanned letters"}
+                    </h3>
                     <div className="relative mb-3 max-w-md">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                       <Input
@@ -1073,7 +1085,8 @@ export default function StaffTasks() {
                                 const canDelete =
                                   doc.status !== "linked" &&
                                   doc.status !== "file" &&
-                                  doc.status !== "stashed";
+                                  doc.status !== "stashed" &&
+                                  (currentUser?.role === "admin" || doc.uploadedBy === currentUser?._id);
                                 return (
                                   <TableRow key={doc._id}>
                                     <TableCell className="font-medium max-w-[240px]">
@@ -1168,7 +1181,7 @@ export default function StaffTasks() {
       <Dialog open={isCompletionDialogOpen} onOpenChange={setIsCompletionDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Request Task Completion: {currentTask?.title}</DialogTitle>
+            <DialogTitle>Submit for Approval: {currentTask?.title}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
@@ -1283,7 +1296,7 @@ export default function StaffTasks() {
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-sm text-blue-800">
                 <AlertCircle className="w-4 h-4 inline mr-1" />
-                Your completion request will be sent to the admin for approval. You will be notified once a decision is made.
+                Your submission will be sent to the admin for approval. You will be notified once a decision is made.
               </p>
             </div>
           </div>
@@ -1301,7 +1314,7 @@ export default function StaffTasks() {
               className="bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />
-              Submit Request
+              Submit for Approval
             </Button>
           </DialogFooter>
         </DialogContent>

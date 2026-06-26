@@ -410,7 +410,24 @@ export default function AdminTasks() {
   const TASK_PAGE_SIZE = 20;
   const [activeTasksPage, setActiveTasksPage] = useState(0);
   const [completedTasksPage, setCompletedTasksPage] = useState(0);
+  const [tasksSearch, setTasksSearch] = useState("");
   const tasksListRef = useRef<HTMLDivElement>(null);
+
+  const staffSearchIndex = useMemo(() => {
+    return staffMembers.map((member) => ({
+      _id: member._id,
+      staffStream: member.staffStream,
+      searchText: [
+        member.firstName,
+        member.lastName,
+        `${member.firstName ?? ""} ${member.lastName ?? ""}`.trim(),
+        member.email
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+    }));
+  }, [staffMembers]);
 
   const toggleFilter = (filter: "assigned_todo" | "in_progress" | "pending_approval") => {
     setTasksListTab("active");
@@ -433,25 +450,46 @@ export default function AdminTasks() {
     }, 50);
   };
 
+  const filterTasksBySearch = useMemo(() => {
+    const term = tasksSearch.trim().toLowerCase();
+    if (!term) {
+      return (tasks: any[]) => tasks;
+    }
+
+    const matchingStaffIds = new Set(
+      staffSearchIndex.filter((member) => member.searchText.includes(term)).map((member) => member._id)
+    );
+
+    return (tasks: any[]) =>
+      tasks.filter((task) =>
+        taskMatchesAdminSearch(task, term, matchingStaffIds, staffSearchIndex)
+      );
+  }, [tasksSearch, staffSearchIndex]);
+
   const activeTabTasks = useMemo(() => {
     if (!allTasks) return [];
     const nonCompleted = allTasks.filter((t) => t.status !== "done");
+    let tasks = nonCompleted;
     switch (activeFilter) {
       case "assigned_todo":
-        return nonCompleted.filter((t) => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress");
+        tasks = nonCompleted.filter((t) => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress");
+        break;
       case "in_progress":
-        return nonCompleted.filter((t) => t.status === "in_progress");
+        tasks = nonCompleted.filter((t) => t.status === "in_progress");
+        break;
       case "pending_approval":
-        return nonCompleted.filter((t) => t.completionRequestStatus === "pending");
+        tasks = nonCompleted.filter((t) => t.completionRequestStatus === "pending");
+        break;
       default:
-        return nonCompleted;
+        break;
     }
-  }, [allTasks, activeFilter]);
+    return filterTasksBySearch(tasks);
+  }, [allTasks, activeFilter, filterTasksBySearch]);
 
   const completedTabTasks = useMemo(() => {
     if (!allTasks) return [];
-    return allTasks.filter((t) => t.status === "done");
-  }, [allTasks]);
+    return filterTasksBySearch(allTasks.filter((t) => t.status === "done"));
+  }, [allTasks, filterTasksBySearch]);
 
   const activeTasksTotalPages = Math.max(1, Math.ceil(activeTabTasks.length / TASK_PAGE_SIZE));
   const activeTasksPageSafe = Math.min(activeTasksPage, activeTasksTotalPages - 1);
@@ -469,7 +507,8 @@ export default function AdminTasks() {
 
   useEffect(() => {
     setActiveTasksPage(0);
-  }, [activeFilter, tasksListTab]);
+    setCompletedTasksPage(0);
+  }, [activeFilter, tasksListTab, tasksSearch]);
 
   useEffect(() => {
     if (activeTasksPage > activeTasksTotalPages - 1) {
@@ -756,6 +795,22 @@ export default function AdminTasks() {
 
           {/* Tasks List */}
           <div className="space-y-4" ref={tasksListRef}>
+            <div className="relative max-w-xl">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <Input
+                type="search"
+                value={tasksSearch}
+                onChange={(e) => setTasksSearch(e.target.value)}
+                placeholder="Search by task title, description, ID, or assignee name…"
+                className="pl-9"
+              />
+            </div>
+            {tasksSearch.trim() && (
+              <p className="text-sm text-gray-500">
+                Showing matches for <span className="font-medium text-gray-800">&quot;{tasksSearch.trim()}&quot;</span> in{" "}
+                {tasksListTab === "active" ? "active" : "completed"} tasks.
+              </p>
+            )}
             <Tabs
               value={tasksListTab}
               onValueChange={(value) => {
@@ -795,7 +850,11 @@ export default function AdminTasks() {
                 ) : activeTabTasks.length === 0 ? (
                   <Card>
                     <CardContent className="py-8 text-center text-gray-500">
-                      {activeFilter ? "No active tasks match this filter." : "No active tasks yet. Create your first task to get started."}
+                      {tasksSearch.trim()
+                        ? "No active tasks match your search."
+                        : activeFilter
+                          ? "No active tasks match this filter."
+                          : "No active tasks yet. Create your first task to get started."}
                     </CardContent>
                   </Card>
                 ) : (
@@ -975,7 +1034,7 @@ export default function AdminTasks() {
                 ) : completedTabTasks.length === 0 ? (
                   <Card>
                     <CardContent className="py-8 text-center text-gray-500">
-                      No completed tasks yet.
+                      {tasksSearch.trim() ? "No completed tasks match your search." : "No completed tasks yet."}
                     </CardContent>
                   </Card>
                 ) : (
@@ -1826,6 +1885,56 @@ function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
       )}
     </div>
   );
+}
+
+function taskMatchesAdminSearch(
+  task: {
+    title: string;
+    description?: string;
+    customTaskId?: string;
+    assignedToName?: string;
+    assignedTo?: Id<"users">;
+    assignedStream?: string;
+    createdByName?: string;
+    assigneeUserIds?: Id<"users">[];
+  },
+  term: string,
+  matchingStaffIds: Set<Id<"users">>,
+  staffSearchIndex: Array<{ _id: Id<"users">; staffStream?: string; searchText: string }>
+) {
+  const taskText = [
+    task.title,
+    task.description,
+    task.customTaskId,
+    task.assignedToName,
+    task.createdByName,
+    task.assignedStream ? formatWorkstream(task.assignedStream) : ""
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (taskText.includes(term)) {
+    return true;
+  }
+
+  const assigneeIds = new Set<Id<"users">>(task.assigneeUserIds ?? []);
+  if (task.assignedTo) {
+    assigneeIds.add(task.assignedTo);
+  }
+
+  for (const staffId of matchingStaffIds) {
+    if (assigneeIds.has(staffId)) {
+      return true;
+    }
+
+    const staff = staffSearchIndex.find((member) => member._id === staffId);
+    if (staff?.staffStream && task.assignedStream === staff.staffStream) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function TaskListPagination({
