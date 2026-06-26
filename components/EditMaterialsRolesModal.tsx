@@ -10,7 +10,6 @@ import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import {
-  NIGERIAN_STATES,
   SABER_MATERIAL_TYPE_LABELS,
   type SaberMaterialType,
 } from "@/lib/saberMaterials";
@@ -35,14 +34,12 @@ export default function EditMaterialRolesModal({
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const [materialType, setMaterialType] = useState<SaberMaterialType>("general");
-  const [state, setState] = useState("");
 
   useEffect(() => {
     if (material) {
       setSelectedRoles(material.roles || []);
       setSelectedReference(material.reference || null);
       setMaterialType(material.materialType || "general");
-      setState(material.state || "");
     }
   }, [material]);
 
@@ -53,11 +50,6 @@ export default function EditMaterialRolesModal({
   };
 
   const handleSave = async () => {
-    if (["final_results", "prior_results"].includes(materialType) && !state) {
-      toast.error("Please select a state for this report type.");
-      return;
-    }
-
     try {
       await updateRoles({
         materialId: material._id,
@@ -72,7 +64,7 @@ export default function EditMaterialRolesModal({
       await updateClassification({
         materialId: material._id,
         materialType,
-        state: materialType === "general" ? undefined : state,
+        state: undefined,
       });
       toast.success("Material updated");
       onClose();
@@ -93,10 +85,7 @@ export default function EditMaterialRolesModal({
           <span className="font-medium text-sm text-gray-700">Public page type</span>
           <Select
             value={materialType}
-            onValueChange={(val) => {
-              setMaterialType(val as SaberMaterialType);
-              if (val === "general") setState("");
-            }}
+            onValueChange={(val) => setMaterialType(val as SaberMaterialType)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select type" />
@@ -110,24 +99,6 @@ export default function EditMaterialRolesModal({
             </SelectContent>
           </Select>
         </div>
-
-        {["final_results", "prior_results"].includes(materialType) && (
-          <div className="mt-4">
-            <span className="font-medium text-sm text-gray-700">State</span>
-            <Select value={state} onValueChange={setState}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select state" />
-              </SelectTrigger>
-              <SelectContent>
-                {NIGERIAN_STATES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
 
         <div className="grid gap-3 mt-4">
           <span className="font-medium text-sm text-gray-700">Roles Access</span>

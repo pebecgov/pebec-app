@@ -3,12 +3,13 @@
 
 import type { ReactNode } from "react";
 
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Download, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -75,16 +76,9 @@ function MaterialCard({
         </div>
       )}
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center space-x-2 min-w-0">
-            {!thumbnailUrl && getFileIcon(material.title)}
-            <CardTitle className="text-lg leading-tight">{material.title}</CardTitle>
-          </div>
-          {material.state && (
-            <Badge variant="outline" className="shrink-0 text-xs">
-              {material.state}
-            </Badge>
-          )}
+        <div className="flex items-center space-x-2 min-w-0">
+          {!thumbnailUrl && getFileIcon(material.title)}
+          <CardTitle className="text-lg leading-tight">{material.title}</CardTitle>
         </div>
         <CardDescription className="text-sm line-clamp-2">
           {material.description}
@@ -103,11 +97,11 @@ function MaterialCard({
           {material.reference && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Category:</span>
-              <Badge className={getReferenceColor(material.reference)}>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getReferenceColor(material.reference)}`}>
                 {material.reference === "internal-general"
                   ? "Internal"
                   : material.reference.charAt(0).toUpperCase() + material.reference.slice(1)}
-              </Badge>
+              </span>
             </div>
           )}
         </div>
@@ -153,7 +147,7 @@ function MaterialsGrid({
   }
 
   return (
-    <div className="grid gap-6 sm:grid-cols-2">
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {materials.map((material) => (
         <MaterialCard
           key={material._id}
@@ -171,6 +165,7 @@ function MaterialsGrid({
 export default function SaberMaterialsPage() {
   const grouped = useQuery(api.saber_materials.getPublicSaberMaterialsGrouped);
   const getDownloadUrl = useMutation(api.tickets.getStorageUrl);
+  const [stateFilter, setStateFilter] = useState("all");
 
   const getFileIcon = (fileName: string) => {
     const extension = fileName.split(".").pop()?.toLowerCase();
@@ -202,10 +197,21 @@ export default function SaberMaterialsPage() {
     }
   };
 
-  const finalResults = grouped?.finalResults ?? [];
-  const priorResults = grouped?.priorResults ?? [];
+  const allFinal = grouped?.finalResults ?? [];
+  const allPrior = grouped?.priorResults ?? [];
   const generalMaterials = grouped?.generalMaterials ?? [];
   const total = grouped?.total ?? 0;
+
+  // States that have data in either Final or Prior Results
+  const statesWithData = Array.from(
+    new Set([
+      ...allFinal.map((m) => m.state),
+      ...allPrior.map((m) => m.state),
+    ].filter(Boolean) as string[])
+  ).sort();
+
+  const finalResults = stateFilter === "all" ? allFinal : allFinal.filter((m) => m.state === stateFilter);
+  const priorResults = stateFilter === "all" ? allPrior : allPrior.filter((m) => m.state === stateFilter);
 
   return (
     <div>
@@ -255,12 +261,35 @@ export default function SaberMaterialsPage() {
             </Card>
           ) : (
             <Tabs defaultValue="final" className="w-full">
+              {statesWithData.length > 0 && (
+                <div className="flex items-center gap-3 mb-4">
+                  <Select value={stateFilter} onValueChange={setStateFilter}>
+                    <SelectTrigger className="w-56">
+                      <SelectValue placeholder="Filter by state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All States</SelectItem>
+                      {statesWithData.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {stateFilter !== "all" && (
+                    <button
+                      onClick={() => setStateFilter("all")}
+                      className="text-sm text-gray-500 hover:text-gray-800 underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
               <TabsList className="grid w-full grid-cols-3 h-auto">
                 <TabsTrigger value="final" className="text-xs sm:text-sm py-2">
-                  Final Results ({finalResults.length})
+                  Final Results {stateFilter !== "all" ? `(${finalResults.length})` : `(${allFinal.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="prior" className="text-xs sm:text-sm py-2">
-                  Prior Results ({priorResults.length})
+                  Prior Results {stateFilter !== "all" ? `(${priorResults.length})` : `(${allPrior.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="general" className="text-xs sm:text-sm py-2">
                   Materials ({generalMaterials.length})
