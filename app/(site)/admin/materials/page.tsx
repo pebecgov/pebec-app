@@ -33,6 +33,10 @@ export default function SaberMaterialsPage() {
   const getDownloadUrl = useMutation(api.tickets.getStorageUrl);
   const allMaterials = useQuery(api.saber_materials.getAllSaberMaterials);
   const deleteMaterial = useMutation(api.saber_materials.deleteSaberMaterial);
+  const autoTagMaterials = useMutation(api.saber_materials.autoTagStateReportMaterials);
+  const [showMigrateDialog, setShowMigrateDialog] = useState(false);
+  const [migratePreview, setMigratePreview] = useState<any>(null);
+  const [isMigrating, setIsMigrating] = useState(false);
   const groupedMaterials = references.reduce((acc, ref) => {
     acc[ref] = allMaterials?.filter(mat => {
       const matchesRole = selectedRole === "all" || mat.roles.includes(selectedRole as Role);
@@ -56,6 +60,10 @@ export default function SaberMaterialsPage() {
                   </h2>
                   <span className="text-xs text-gray-400 mt-1 block">
                     {(mat.fileSize / 1024 / 1024).toFixed(2)} MB
+                    {mat.materialType && mat.materialType !== "general" && (
+                      <> · {mat.materialType === "final_results" ? "Final" : "Prior"}
+                      {mat.state ? ` · ${mat.state}` : ""}</>
+                    )}
                   </span>
                 </div>
               </div>
@@ -97,11 +105,33 @@ export default function SaberMaterialsPage() {
       </>;
   };
   return <div className="max-w-7xl mx-auto px-6 py-10">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap gap-3 justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-black">Materials</h1>
-        <Button onClick={() => setShowAddModal(true)} className="bg-green-600 text-white">
-          + Add Material
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {userRole === "admin" && (
+            <Button
+              variant="outline"
+              disabled={isMigrating}
+              onClick={async () => {
+                setIsMigrating(true);
+                try {
+                  const result = await autoTagMaterials({ dryRun: true });
+                  setMigratePreview(result);
+                  setShowMigrateDialog(true);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Preview failed");
+                } finally {
+                  setIsMigrating(false);
+                }
+              }}
+            >
+              {isMigrating ? "Checking..." : "Auto-tag APA reports"}
+            </Button>
+          )}
+          <Button onClick={() => setShowAddModal(true)} className="bg-green-600 text-white">
+            + Add Material
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -145,6 +175,71 @@ export default function SaberMaterialsPage() {
 
       <AddSaberMaterialModal open={showAddModal} onClose={() => setShowAddModal(false)} />
       {editingMaterial && <EditMaterialRolesModal open={!!editingMaterial} onClose={() => setEditingMaterial(null)} material={editingMaterial} />}
+
+      <Dialog open={showMigrateDialog} onOpenChange={setShowMigrateDialog}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Auto-tag Final APA reports</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            This updates existing <strong>saber</strong> materials in place — no re-upload. Titles like
+            &quot;Katsina State Final SABER APA Report YR 1&quot; become <strong>Final Results</strong> with state
+            parsed from the title.
+          </p>
+          {migratePreview && (
+            <div className="space-y-3 text-sm">
+              <p>
+                <strong>{migratePreview.updatedCount}</strong> will be tagged ·{" "}
+                <strong>{migratePreview.skippedCount}</strong> skipped
+              </p>
+              {migratePreview.updated.length > 0 && (
+                <ul className="max-h-40 overflow-y-auto border rounded p-2 space-y-1">
+                  {migratePreview.updated.map((item: { title: string; state?: string }) => (
+                    <li key={item.title} className="text-gray-700">
+                      ✓ {item.title}
+                      {item.state ? ` → ${item.state}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {migratePreview.skipped.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer text-gray-500">Skipped ({migratePreview.skipped.length})</summary>
+                  <ul className="mt-2 max-h-32 overflow-y-auto text-xs text-gray-500 space-y-1">
+                    {migratePreview.skipped.map((item: { title: string; reason: string }) => (
+                      <li key={item.id}>{item.title}: {item.reason}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowMigrateDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-green-600 text-white"
+              disabled={isMigrating || !migratePreview?.updatedCount}
+              onClick={async () => {
+                setIsMigrating(true);
+                try {
+                  const result = await autoTagMaterials({ dryRun: false });
+                  toast.success(`Tagged ${result.updatedCount} material(s)`);
+                  setShowMigrateDialog(false);
+                  setMigratePreview(null);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Auto-tag failed");
+                } finally {
+                  setIsMigrating(false);
+                }
+              }}
+            >
+              Apply tags
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
