@@ -692,8 +692,14 @@ export default defineSchema({
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
     reference: v.optional(v.union(v.literal("saber"), v.literal("website"), v.literal("internal-general"), v.literal("framework"))),
-    isPublic: v.optional(v.boolean())
-  }).index("byRoles", ["roles"]).index("byCreatedBy", ["createdBy"]).index("byReference", ["reference"]).index("byPublic", ["isPublic"]),
+    isPublic: v.optional(v.boolean()),
+    materialType: v.optional(v.union(
+      v.literal("general"),
+      v.literal("final_results"),
+      v.literal("prior_results")
+    )),
+    state: v.optional(v.string())
+  }).index("byRoles", ["roles"]).index("byCreatedBy", ["createdBy"]).index("byReference", ["reference"]).index("byPublic", ["isPublic"]).index("byMaterialType", ["materialType"]),
   business_letters: defineTable({
     title: v.string(),
     companyName: v.string(),

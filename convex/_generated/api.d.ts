@@ -62,6 +62,7 @@ import type * as posts from "../posts.js";
 import type * as reforms from "../reforms.js";
 import type * as reports from "../reports.js";
 import type * as saber from "../saber.js";
+import type * as saberMaterialUtils from "../saberMaterialUtils.js";
 import type * as saber_deadlines from "../saber_deadlines.js";
 import type * as saber_materials from "../saber_materials.js";
 import type * as saber_reports from "../saber_reports.js";
@@ -141,6 +142,7 @@ declare const fullApi: ApiFromModules<{
   reforms: typeof reforms;
   reports: typeof reports;
   saber: typeof saber;
+  saberMaterialUtils: typeof saberMaterialUtils;
   saber_deadlines: typeof saber_deadlines;
   saber_materials: typeof saber_materials;
   saber_reports: typeof saber_reports;

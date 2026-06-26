@@ -13,6 +13,11 @@ import { useUser } from "@clerk/nextjs";
 import FileUploader from "../file-uploader-comments";
 import ImageUploader from "../image-uploader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import {
+  NIGERIAN_STATES,
+  SABER_MATERIAL_TYPE_LABELS,
+  type SaberMaterialType,
+} from "@/lib/saberMaterials";
 const ROLES = ["admin", "mda", "staff", "reform_champion", "deputies", "saber_agent", "magistrates", "state_governor", "president", "vice_president", "world_bank"] as const;
 type Role = typeof ROLES[number];
 type Props = {
@@ -40,6 +45,8 @@ export default function AddSaberMaterialModal({
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [reference, setReference] = useState<Reference | "">("");
   const [isPublic, setIsPublic] = useState(false);
+  const [materialType, setMaterialType] = useState<SaberMaterialType>("general");
+  const [state, setState] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const addMaterial = useMutation(api.saber_materials.addSaberMaterial);
   const handleSubmit = async () => {
@@ -54,6 +61,9 @@ export default function AddSaberMaterialModal({
     if (!reference) missing.push("Reference");
     if (["saber", "internal-general"].includes(reference) && selectedRoles.length === 0) {
       missing.push("Access Roles");
+    }
+    if (["final_results", "prior_results"].includes(materialType) && !state) {
+      missing.push("State");
     }
     if (!convexUser?._id) missing.push("User");
     if (missing.length > 0) {
@@ -73,7 +83,9 @@ export default function AddSaberMaterialModal({
         materialUploadId: fileId as any,
         thumbnailId: thumbnailId ? (thumbnailId as any) : undefined,
         reference: reference as Reference,
-        isPublic
+        isPublic,
+        materialType,
+        ...(["final_results", "prior_results"].includes(materialType) ? { state } : {}),
       });
       toast.success("Material uploaded successfully");
       setTitle("");
@@ -81,6 +93,9 @@ export default function AddSaberMaterialModal({
       setFileId(null);
       setThumbnailId(null);
       setSelectedRoles([]);
+      setIsPublic(false);
+      setMaterialType("general");
+      setState("");
       setReference("");
       setErrors([]);
       onClose();
@@ -125,6 +140,49 @@ export default function AddSaberMaterialModal({
               <Textarea placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} className="border-gray-300" />
               {errors.includes("Description") && <p className="text-sm text-red-600 mt-1">Description is required.</p>}
             </div>
+
+            <div>
+              <h3 className="text-sm font-medium mb-2">Material type (public SABER page)</h3>
+              <Select
+                value={materialType}
+                onValueChange={(val) => {
+                  setMaterialType(val as SaberMaterialType);
+                  if (val === "general") setState("");
+                }}
+              >
+                <SelectTrigger className="w-full border-gray-300 bg-white">
+                  <SelectValue placeholder="Select material type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(SABER_MATERIAL_TYPE_LABELS) as SaberMaterialType[]).map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {SABER_MATERIAL_TYPE_LABELS[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {["final_results", "prior_results"].includes(materialType) && (
+              <div>
+                <h3 className="text-sm font-medium mb-2">State</h3>
+                <Select value={state} onValueChange={setState}>
+                  <SelectTrigger className="w-full border-gray-300 bg-white">
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {NIGERIAN_STATES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.includes("State") && (
+                  <p className="text-sm text-red-600 mt-1">State is required for state reports.</p>
+                )}
+              </div>
+            )}
 
             <div>
               <h3 className="text-sm font-medium mb-2">Material Location</h3>
