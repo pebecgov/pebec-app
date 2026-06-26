@@ -21,6 +21,61 @@ function canUploadScannedLetters(user: { role?: string }): boolean {
     return user.role === "staff" || user.role === "admin";
 }
 
+const RECEPTIONIST_STREAM = "receptionist";
+
+function isReceptionistStaff(user: { role?: string; staffStream?: string }): boolean {
+    return user.role === "staff" && user.staffStream === RECEPTIONIST_STREAM;
+}
+
+async function canStaffAccessReceptionDocument(
+    ctx: any,
+    user: { _id: Id<"users">; role?: string; staffStream?: string },
+    doc: { uploadedBy: Id<"users"> }
+): Promise<boolean> {
+    if (user.role === "admin" || isAuthorizedTaskAdmin(user)) {
+        return true;
+    }
+    if (!canUploadScannedLetters(user)) {
+        return false;
+    }
+    if (isReceptionistStaff(user)) {
+        const uploader = await ctx.db.get(doc.uploadedBy);
+        return uploader?.staffStream === RECEPTIONIST_STREAM;
+    }
+    return doc.uploadedBy === user._id;
+}
+
+async function listAccessibleReceptionDocumentsForUser(
+    ctx: any,
+    user: { _id: Id<"users">; role?: string; staffStream?: string }
+) {
+    if (user.role === "admin" || isAuthorizedTaskAdmin(user)) {
+        return await ctx.db.query("reception_admin_documents").order("desc").collect();
+    }
+    if (isReceptionistStaff(user)) {
+        const receptionistUsers = await ctx.db
+            .query("users")
+            .filter((q: any) => q.eq(q.field("staffStream"), RECEPTIONIST_STREAM))
+            .collect();
+        const allRows: any[] = [];
+        for (const receptionistUser of receptionistUsers) {
+            const docs = await ctx.db
+                .query("reception_admin_documents")
+                .withIndex("byUploadedBy", (q: any) => q.eq("uploadedBy", receptionistUser._id))
+                .collect();
+            allRows.push(...docs);
+        }
+        allRows.sort((a, b) => b.createdAt - a.createdAt);
+        return allRows;
+    }
+    const ownRows = await ctx.db
+        .query("reception_admin_documents")
+        .withIndex("byUploadedBy", (q: any) => q.eq("uploadedBy", user._id))
+        .collect();
+    ownRows.sort((a, b) => b.createdAt - a.createdAt);
+    return ownRows;
+}
+
 async function userHasJointAssignment(
     ctx: any,
     taskId: Id<"tasks">,
@@ -235,7 +290,31 @@ export const getTasksByStatus = query({
 
 export const getAllTasks = query({
     handler: async ctx => {
-        return await ctx.db.query("tasks").order("desc").collect();
+        const tasks = await ctx.db.query("tasks").order("desc").collect();
+        const assignmentLinks = await ctx.db.query("task_assignments").collect();
+        const assigneeIdsByTaskId = new Map<string, Id<"users">[]>();
+
+        for (const link of assignmentLinks) {
+            const key = String(link.taskId);
+            const existing = assigneeIdsByTaskId.get(key) ?? [];
+            existing.push(link.userId);
+            assigneeIdsByTaskId.set(key, existing);
+        }
+
+        return tasks.map((task) => {
+            const fromLinks = assigneeIdsByTaskId.get(String(task._id)) ?? [];
+            const assigneeUserIds =
+                fromLinks.length > 0
+                    ? fromLinks
+                    : task.assignedTo
+                      ? [task.assignedTo]
+                      : [];
+
+            return {
+                ...task,
+                assigneeUserIds
+            };
+        });
     }
 });
 
@@ -1547,10 +1626,7 @@ export const listMyReceptionDocuments = query({
         const resolvedPageSize = Math.min(Math.max(pageSize ?? 20, 1), 100);
         const resolvedPage = Math.max(page ?? 1, 1);
         const searchTerm = (search ?? "").trim().toLowerCase();
-        const allRows = await ctx.db
-            .query("reception_admin_documents")
-            .order("desc")
-            .collect();
+        const allRows = await listAccessibleReceptionDocumentsForUser(ctx, user);
         const rows =
             searchTerm === ""
                 ? allRows
@@ -1595,7 +1671,7 @@ export const getReceptionDocumentUrl = mutation({
         if (!row.storageId) {
             throw new Error("File is no longer available");
         }
-        if (isAuthorizedTaskAdmin(user) || canUploadScannedLetters(user)) {
+        if (await canStaffAccessReceptionDocument(ctx, user, row)) {
             return await ctx.storage.getUrl(row.storageId);
         }
         throw new Error("You do not have permission to open this document");
@@ -1615,9 +1691,22 @@ export const deleteMyReceptionDocument = mutation({
         const doc = await ctx.db.get(receptionDocumentId);
         if (!doc) throw new Error("Document not found");
 
+        if (!(await canStaffAccessReceptionDocument(ctx, user, doc))) {
+            throw new Error("You do not have permission to delete this document");
+        }
+
         // Prevent deleting letters already linked to tasks for audit/history safety.
         if (doc.status === "linked" || doc.linkedTaskId) {
             throw new Error("Linked letters cannot be deleted");
+        }
+
+        // Staff may only delete their own uploads; admins may delete any accessible document.
+        if (
+            user.role !== "admin" &&
+            !isAuthorizedTaskAdmin(user) &&
+            doc.uploadedBy !== user._id
+        ) {
+            throw new Error("You can only delete letters you uploaded");
         }
 
         if (doc.storageId) {
