@@ -61,7 +61,7 @@ export default function SaberMaterialsPage() {
                   <span className="text-xs text-gray-400 mt-1 block">
                     {(mat.fileSize / 1024 / 1024).toFixed(2)} MB
                     {mat.materialType && mat.materialType !== "general" && (
-                      <> · {mat.materialType === "final_results" ? "Final" : "Prior"}
+                      <> · {mat.materialType === "final_results" ? "Yr 1" : "Prior"}
                       {mat.state ? ` · ${mat.state}` : ""}</>
                     )}
                   </span>
@@ -183,7 +183,7 @@ export default function SaberMaterialsPage() {
           </DialogHeader>
           <p className="text-sm text-gray-600">
             This updates existing <strong>saber</strong> materials in place — no re-upload. Titles like
-            &quot;Katsina State Final SABER APA Report YR 1&quot; become <strong>Final Results</strong> with state
+            &quot;Katsina State Final SABER APA Report YR 1&quot; become <strong>Year 1 Results</strong> with state
             parsed from the title.
           </p>
           {migratePreview && (
