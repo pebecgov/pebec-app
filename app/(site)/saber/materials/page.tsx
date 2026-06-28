@@ -286,7 +286,7 @@ export default function SaberMaterialsPage() {
               )}
               <TabsList className="grid w-full grid-cols-3 h-auto">
                 <TabsTrigger value="final" className="text-xs sm:text-sm py-2">
-                  Final Results {stateFilter !== "all" ? `(${finalResults.length})` : `(${allFinal.length})`}
+                  Year 1 Results {stateFilter !== "all" ? `(${finalResults.length})` : `(${allFinal.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="prior" className="text-xs sm:text-sm py-2">
                   Prior Results {stateFilter !== "all" ? `(${priorResults.length})` : `(${allPrior.length})`}
@@ -299,8 +299,8 @@ export default function SaberMaterialsPage() {
               <TabsContent value="final" className="mt-6">
                 <MaterialsGrid
                   materials={finalResults}
-                  emptyTitle="No Final Results yet"
-                  emptyDescription="Final APA reports by state will appear here once uploaded and tagged."
+                  emptyTitle="No Year 1 Results yet"
+                  emptyDescription="Year 1 APA reports by state will appear here once uploaded and tagged."
                   getDownloadUrl={getDownloadUrl}
                   getFileIcon={getFileIcon}
                   formatFileSize={formatFileSize}
@@ -341,7 +341,7 @@ export default function SaberMaterialsPage() {
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600">Final Results</p>
+                  <p className="text-sm text-gray-600">Year 1 Results</p>
                   <p className="text-xl font-bold text-gray-900">{finalResults.length}</p>
                 </div>
                 <div className="flex items-center justify-between">
