@@ -4,14 +4,87 @@
 
 import { UserJSON } from '@clerk/backend';
 import { v, Validator } from 'convex/values';
+import { paginationOptsValidator } from 'convex/server';
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
 import { api } from './_generated/api';
+
+const MAX_USERS_RETURN = 8191;
+
+function applyUserListFilters(
+  users: Array<any>,
+  staffStream?: string,
+  mdaName?: string
+) {
+  return users.filter((user) => {
+    if (!user.clerkUserId || user.clerkUserId.startsWith("guest_")) return false;
+    if (staffStream && staffStream !== "all") {
+      if (user.role !== "staff" || user.staffStream !== staffStream) return false;
+    }
+    if (mdaName && mdaName !== "all" && user.mdaName !== mdaName) return false;
+    return true;
+  });
+}
+
 export const getUsers = query({
   args: {},
   handler: async ctx => {
-    return await ctx.db.query('users').collect();
+    return await ctx.db.query('users').take(MAX_USERS_RETURN);
   }
+});
+
+/** Paginated users for admin user management. */
+export const listUsers = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+    role: v.optional(v.string()),
+    staffStream: v.optional(v.string()),
+    mdaName: v.optional(v.string()),
+  },
+  handler: async (ctx, { paginationOpts, role, staffStream, mdaName }) => {
+    let usersQuery =
+      role && role !== "all"
+        ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
+        : ctx.db.query("users");
+
+    if (staffStream && staffStream !== "all") {
+      usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
+    }
+    if (mdaName && mdaName !== "all") {
+      usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
+    }
+
+    const page = await usersQuery.order("desc").paginate(paginationOpts);
+    return {
+      ...page,
+      page: applyUserListFilters(page.page, staffStream, mdaName),
+    };
+  },
+});
+
+/** Export users matching filters (capped). */
+export const exportUsers = query({
+  args: {
+    role: v.optional(v.string()),
+    staffStream: v.optional(v.string()),
+    mdaName: v.optional(v.string()),
+  },
+  handler: async (ctx, { role, staffStream, mdaName }) => {
+    let usersQuery =
+      role && role !== "all"
+        ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
+        : ctx.db.query("users");
+
+    if (staffStream && staffStream !== "all") {
+      usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
+    }
+    if (mdaName && mdaName !== "all") {
+      usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
+    }
+
+    const users = await usersQuery.order("desc").take(MAX_USERS_RETURN);
+    return applyUserListFilters(users, staffStream, mdaName);
+  },
 });
 
 export const getRecentUsers = query({
