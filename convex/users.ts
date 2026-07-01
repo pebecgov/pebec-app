@@ -751,14 +751,23 @@ export const getGrowthStats = query(async ({
   };
 });
 export const getAllUsers = query({
-  args: {},
-  handler: async ctx => {
-    const users = await ctx.db.query("users").collect();
-    return users.map(user => ({
+  args: {
+    limit: v.optional(v.number()),
+    role: v.optional(v.string()),
+  },
+  handler: async (ctx, { limit, role }) => {
+    const cappedLimit = Math.min(Math.max(limit ?? 8000, 1), 8191);
+    const users = role
+      ? await ctx.db
+          .query("users")
+          .withIndex("byRole", (q) => q.eq("role", role))
+          .take(cappedLimit)
+      : await ctx.db.query("users").take(cappedLimit);
+    return users.map((user) => ({
       ...user,
-      fullName: `${user.firstName || ""} ${user.lastName || ""}`.trim()
+      fullName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
     }));
-  }
+  },
 });
 export const getAllAdminsAndStaff = query({
   handler: async ctx => {

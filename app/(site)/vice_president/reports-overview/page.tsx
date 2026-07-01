@@ -41,12 +41,7 @@ export default function SubmittedReportsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
-  const allUsers = useQuery(api.users.getAllUsers) ?? [];
   const itemsPerPage = 20;
-  const getUserImage = (userName: string) => {
-    const user = allUsers.find(u => u.fullName === userName);
-    return user?.imageUrl;
-  };
   useEffect(() => {
     const fetchFileUrls = async () => {
       if (submittedReports.length > 0) {
@@ -229,7 +224,7 @@ export default function SubmittedReportsPage() {
             return <TableRow key={i} className=" hover:bg-gray-50 border-b">
               <TableCell className="min-w-[180px] sm:min-w-[200px]">
   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 w-full">
-    <img src={getUserImage(r.userName) || "/placeholder.png"} alt={r.userName} className="w-10 h-10 rounded-full object-cover" />
+    <img src={r.userImageUrl || "/placeholder.png"} alt={r.userName} className="w-10 h-10 rounded-full object-cover" />
     <div className="text-center sm:text-left">
       <p className="text-sm font-semibold text-gray-800 leading-tight break-words">{r.userName}</p>
       <p className="text-xs text-gray-500">

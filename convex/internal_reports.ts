@@ -266,6 +266,7 @@ export const getAllSubmittedReports = query({
         ...report,
         fileUrl,
         userName: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Unknown" : "Unknown",
+        userImageUrl: user?.imageUrl ?? undefined,
         mdaName: user?.mdaName ?? report.mdaName ?? "Unknown"
       };
     }));
@@ -659,6 +660,7 @@ export const getDeputyReports = query({
         ...report,
         fileUrl,
         userName: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Unknown",
+        userImageUrl: user?.imageUrl ?? undefined,
         mdaName: user?.mdaName ?? "Unknown",
         state: user?.state ?? "Unknown"
       };
@@ -676,6 +678,7 @@ export const getMagistratesReports = query({
         ...report,
         fileUrl,
         userName: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Unknown",
+        userImageUrl: user?.imageUrl ?? undefined,
         mdaName: user?.mdaName ?? "Unknown",
         state: user?.state ?? "Unknown"
       };
