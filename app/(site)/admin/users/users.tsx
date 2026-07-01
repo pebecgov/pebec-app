@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { setRole } from "./action";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -32,7 +32,7 @@ const formatDateTime = (value?: number) => {
 };
 
 export default function Admin() {
-  const users = useQuery(api.users.getUsers);
+  const convex = useConvex();
   const mdas = useQuery(api.users.getMDAs) || [];
   const assignUserToMDA = useMutation(api.users.assignUserToMDA);
   const updateUserRoleInConvex = useMutation(api.users.updateUserRoleInConvex);
@@ -59,6 +59,27 @@ export default function Admin() {
   const nigeriaStates = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
   const [selectedMdaFilter, setSelectedMdaFilter] = useState("all");
   const [mdaSearch, setMdaSearch] = useState("");
+  const { results: users, status, loadMore } = usePaginatedQuery(
+    api.users.listUsers,
+    {
+      role: selectedRoleFilter === "all" ? undefined : selectedRoleFilter,
+      staffStream: selectedStreamFilter === "all" ? undefined : selectedStreamFilter,
+      mdaName: selectedMdaFilter === "all" ? undefined : selectedMdaFilter,
+    },
+    { initialNumItems: 60 }
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedRoleFilter, selectedStreamFilter, selectedMdaFilter, searchTerm]);
+
+  useEffect(() => {
+    const needed = currentPage * recordsPerPage;
+    if (users.length < needed && status === "CanLoadMore") {
+      loadMore(60);
+    }
+  }, [currentPage, users.length, status, loadMore, recordsPerPage]);
+
   useEffect(() => {
     if (!selectedUser) return;
     if (!hasManuallySelectedRole) {
@@ -194,8 +215,21 @@ export default function Admin() {
       setIsLoading(false);
     }
   };
-  const handleDownloadExcel = () => {
-    const data = filteredUsers.map(user => {
+  const handleDownloadExcel = async () => {
+    try {
+      const exportUsers = await convex.query(api.users.exportUsers, {
+        role: selectedRoleFilter === "all" ? undefined : selectedRoleFilter,
+        staffStream: selectedStreamFilter === "all" ? undefined : selectedStreamFilter,
+        mdaName: selectedMdaFilter === "all" ? undefined : selectedMdaFilter,
+      });
+      const data = exportUsers
+        .filter((user) => {
+          const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some((field) =>
+            field?.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+          return !searchTerm || matchesSearch;
+        })
+        .map((user) => {
       const history = user.roleApprovalHistory ?? [];
       const latestApproval = history.length ? history[history.length - 1] : undefined;
       return {
@@ -217,21 +251,22 @@ export default function Admin() {
   
     // Download
     XLSX.writeFile(workbook, "users.xlsx");
+    } catch (error) {
+      console.error("Failed to export users:", error);
+      toast.error("Failed to export users.");
+    }
   };
   const filteredUsers =
     users
-      ?.filter(user => user.clerkUserId && !user.clerkUserId.startsWith("guest_"))
       .filter(user => {
         const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field =>
           field?.toLowerCase().includes(searchTerm.toLowerCase())
         );
-        const matchesRole = selectedRoleFilter === "all" || user.role === selectedRoleFilter;
-        const matchesStream = selectedStreamFilter === "all" || (user.role === "staff" && user.staffStream === selectedStreamFilter);
-        const matchesMda = selectedMdaFilter === "all" || (user.mdaName && `${user.mdaName}` === selectedMdaFilter);
-        return matchesSearch && matchesRole && matchesStream && matchesMda;
-      }) || [];
-  const totalPages = Math.ceil(filteredUsers.length / recordsPerPage);
+        return !searchTerm || matchesSearch;
+      });
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / recordsPerPage));
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
+  const canGoNext = currentPage < totalPages || status === "CanLoadMore";
   const content = (
     <div className="w-full max-w-[1600px] mx-auto px-4 md:px-8 py-6">
       <h1 className="text-2xl font-semibold mb-4">Manage Users</h1>
@@ -328,7 +363,7 @@ export default function Admin() {
       </Button>
     )}
 
-    {users === undefined ? (
+    {status === "LoadingFirstPage" ? (
       <div className="flex justify-center items-center py-12">
         <Loader />
       </div>
@@ -781,9 +816,22 @@ export default function Admin() {
         <Button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)}>
           Previous
         </Button>
-        <span className="text-gray-600">Page {currentPage} of {totalPages}</span>
-        <Button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)}>
-          Next
+        <span className="text-gray-600">
+          Page {currentPage} of {totalPages}
+          {status === "CanLoadMore" ? "+" : ""}
+        </span>
+        <Button
+          disabled={!canGoNext || status === "LoadingMore"}
+          onClick={() => {
+            if (currentPage < totalPages) {
+              setCurrentPage((prev) => prev + 1);
+            } else if (status === "CanLoadMore") {
+              loadMore(60);
+              setCurrentPage((prev) => prev + 1);
+            }
+          }}
+        >
+          {status === "LoadingMore" ? "Loading..." : "Next"}
         </Button>
       </div>
     </div>
