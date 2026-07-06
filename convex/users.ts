@@ -8,6 +8,11 @@ import { paginationOptsValidator } from 'convex/server';
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
 import { api } from './_generated/api';
+import {
+  auditDisplayName,
+  formatRoleSnapshot,
+  logAuditEvent,
+} from './utils/auditLog';
 
 const MAX_USERS_RETURN = 8191;
 
@@ -150,12 +155,33 @@ export const deleteFromClerk = internalMutation({
   }) {
     const user = await userByClerkUserId(ctx, clerkUserId);
     if (user !== null) {
+      const targetName = auditDisplayName(user);
+      const before = {
+        role: user.role,
+        staffStream: user.staffStream,
+        state: user.state,
+        email: user.email,
+      };
+
       if (user.mdaId) {
         await ctx.scheduler.runAfter(0, api.users.removeUserFromMDA, {
           clerkUserId
         });
       }
       await ctx.db.delete(user._id);
+
+      await logAuditEvent(ctx, {
+        action: "user.deleted",
+        category: "user",
+        summary: `Deleted user ${targetName} (${formatRoleSnapshot(user)})`,
+        actor: null,
+        target: {
+          type: "user",
+          id: user._id,
+          label: targetName,
+        },
+        metadata: { before },
+      });
     } else {
       console.warn(`No user found for Clerk ID: ${clerkUserId}`);
     }
@@ -614,8 +640,21 @@ export const updateUserRoleInConvex = mutation({
     state,
     permissions
   }) => {
+    const actor = await getCurrentUserOrThrow(ctx);
+    if (actor.role !== "admin") {
+      throw new Error("Unauthorized: Only admins can change user roles");
+    }
+
     const user = await ctx.db.query("users").withIndex("byClerkUserId", q => q.eq("clerkUserId", clerkUserId)).unique();
     if (!user) throw new Error(`User not found: ${clerkUserId}`);
+
+    const before = {
+      role: user.role,
+      staffStream: user.staffStream,
+      state: user.state,
+    };
+    const targetName = auditDisplayName(user);
+
     const patchData: Record<string, any> = {
       role
     };
@@ -658,6 +697,25 @@ export const updateUserRoleInConvex = mutation({
       patchData.state = undefined;
     }
     await ctx.db.patch(user._id, patchData);
+
+    const after = {
+      role,
+      staffStream: patchData.staffStream,
+      state: patchData.state,
+    };
+
+    await logAuditEvent(ctx, {
+      action: "user.role_changed",
+      category: "user",
+      summary: `Changed ${targetName}'s role from ${formatRoleSnapshot(before)} to ${formatRoleSnapshot(after)}`,
+      actor,
+      target: {
+        type: "user",
+        id: user._id,
+        label: targetName,
+      },
+      metadata: { before, after },
+    });
   }
 });
 export const getTotalMDAs = query({
@@ -1003,6 +1061,23 @@ export const approveRoleRequest = mutation({
       html: `<p>Dear ${user.roleRequest.firstName},</p>
             <p>Your request for internal access has been approved. Next time you log in, you will have access to your dashboard. If you're already logged in, please refresh the page.</p>`
     });
+
+    const targetName = auditDisplayName(user);
+    await logAuditEvent(ctx, {
+      action: "user.role_request_approved",
+      category: "user",
+      summary: `Approved role request for ${targetName} as ${formatRoleSnapshot({ role: args.role, staffStream: args.staffStream, state: args.state })}`,
+      actor: admin,
+      target: {
+        type: "user",
+        id: user._id,
+        label: targetName,
+      },
+      metadata: {
+        before: { role: user.role, roleRequest: user.roleRequest },
+        after: { role: args.role, staffStream: args.staffStream, state: args.state, mdaName: args.mdaName },
+      },
+    });
   }
 });
 export const rejectRoleRequest = mutation({
@@ -1021,6 +1096,22 @@ export const rejectRoleRequest = mutation({
         ...user.roleRequest,
         status: "rejected"
       }
+    });
+
+    const targetName = auditDisplayName(user);
+    await logAuditEvent(ctx, {
+      action: "user.role_request_rejected",
+      category: "user",
+      summary: `Rejected role request for ${targetName}`,
+      actor: admin,
+      target: {
+        type: "user",
+        id: user._id,
+        label: targetName,
+      },
+      metadata: {
+        roleRequest: user.roleRequest,
+      },
     });
   }
 });

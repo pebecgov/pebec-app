@@ -8,6 +8,7 @@ import { getCurrentUserOrThrow, getCurrentUser } from "./users";
 import { Id } from "./_generated/dataModel";
 import { AUTHORIZED_TASK_ADMIN_EMAILS, isAuthorizedTaskAdmin } from "../lib/authorizedTaskAdmins";
 import { formatWorkstream } from "../lib/formatters";
+import { auditDisplayName, logAuditEvent } from "./utils/auditLog";
 
 function escapeHtml(text: string): string {
     return text
@@ -1355,6 +1356,23 @@ export const confirmTaskCompletion = mutation({
                 });
             }
         }
+
+        await logAuditEvent(ctx, {
+            action: "task.completion_reviewed",
+            category: "task",
+            summary: `${approved ? "Approved" : "Rejected"} task completion for "${task.title}"`,
+            actor: user,
+            target: {
+                type: "task",
+                id: taskId,
+                label: task.title,
+            },
+            metadata: {
+                decision: approved ? "approved" : "rejected",
+                adminComment: adminComment?.trim() || undefined,
+                requestedBy: task.completionRequestedBy,
+            },
+        });
 
         return await ctx.db.patch(taskId, updateData);
     }

@@ -2,6 +2,8 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { indicators } from "./config/indicators";
 import { normalizeStateName } from "./stateUtils";
+import { getCurrentUserOrThrow } from "./users";
+import { logAuditEvent } from "./utils/auditLog";
 
 export const saveStateScore = mutation({
   args: {
@@ -12,6 +14,11 @@ export const saveStateScore = mutation({
     linkToSource: v.optional(v.string())
   },
   handler: async (ctx, { state, indicator, subIndicator, value, linkToSource }) => {
+    const actor = await getCurrentUserOrThrow(ctx);
+    if (actor.role !== "admin" && actor.role !== "staff") {
+      throw new Error("Unauthorized");
+    }
+
     const normalizedState = normalizeStateName(state);
     let score = 0;
 
@@ -42,12 +49,27 @@ export const saveStateScore = mutation({
       .first();
     
     if (existingRecord) {
+      const before = { value: existingRecord.value, score: existingRecord.score };
       // Update existing record
       await ctx.db.patch(existingRecord._id, {
         value,
         score,
         ...(linkToSource !== undefined && { linkToSource })
       });
+
+      await logAuditEvent(ctx, {
+        action: "bfa.state_score_saved",
+        category: "bfa",
+        summary: `Updated ${normalizedState} score for ${indicator} / ${subIndicator}`,
+        actor,
+        target: {
+          type: "state",
+          id: existingRecord._id,
+          label: normalizedState,
+        },
+        metadata: { indicator, subIndicator, before, after: { value, score } },
+      });
+
       return existingRecord._id;
     } else {
       // Create new record
@@ -60,6 +82,20 @@ export const saveStateScore = mutation({
         linkToSource,
         createdAt: Date.now()
       });
+
+      await logAuditEvent(ctx, {
+        action: "bfa.state_score_saved",
+        category: "bfa",
+        summary: `Set ${normalizedState} score for ${indicator} / ${subIndicator}`,
+        actor,
+        target: {
+          type: "state",
+          id: scoreId,
+          label: normalizedState,
+        },
+        metadata: { indicator, subIndicator, after: { value, score } },
+      });
+
       return scoreId;
     }
   }

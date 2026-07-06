@@ -15,6 +15,7 @@ import type {
 } from "convex/server";
 import type * as ai_helpers from "../ai_helpers.js";
 import type * as ai_helper_scoring from "../ai_helper_scoring.js";
+import type * as auditLogs from "../auditLogs.js";
 import type * as bulkImportStateScores from "../bulkImportStateScores.js";
 import type * as business_letters from "../business_letters.js";
 import type * as calendar from "../calendar.js";
@@ -83,6 +84,7 @@ import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
 import type * as utils_appResult from "../utils/appResult.js";
+import type * as utils_auditLog from "../utils/auditLog.js";
 import type * as workshop from "../workshop.js";
 
 /**
@@ -96,6 +98,7 @@ import type * as workshop from "../workshop.js";
 declare const fullApi: ApiFromModules<{
   ai_helpers: typeof ai_helpers;
   ai_helper_scoring: typeof ai_helper_scoring;
+  auditLogs: typeof auditLogs;
   bulkImportStateScores: typeof bulkImportStateScores;
   business_letters: typeof business_letters;
   calendar: typeof calendar;
@@ -164,6 +167,7 @@ declare const fullApi: ApiFromModules<{
   uploadTicketsPdf: typeof uploadTicketsPdf;
   users: typeof users;
   "utils/appResult": typeof utils_appResult;
+  "utils/auditLog": typeof utils_auditLog;
   workshop: typeof workshop;
 }>;
 export declare const api: FilterApi<

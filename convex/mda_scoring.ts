@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
+import { logAuditEvent } from "./utils/auditLog";
 
 function normalizeMdaKey(name: string) {
   return String(name || "")
@@ -334,6 +335,26 @@ export const calculateAndSaveMDAScore = mutation({
       resolutionRate: args.resolutionRate,
       notes: args.notes,
       recommendations: args.recommendations
+    });
+
+    await logAuditEvent(ctx, {
+      action: "bfa.mda_score_saved",
+      category: "bfa",
+      summary: `Saved BFA score for ${args.mdaName} (${args.scoringPeriod}): ${totalPercentage.toFixed(1)}%`,
+      actor: user,
+      target: {
+        type: "mda",
+        id: args.mdaId,
+        label: args.mdaName,
+      },
+      metadata: {
+        scoringPeriod: args.scoringPeriod,
+        totalScore,
+        totalPercentage,
+        grade,
+        status,
+        historyId,
+      },
     });
 
     // No need to update MDA table anymore - all scoring data is in mda_scoring_history
