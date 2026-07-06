@@ -17,6 +17,7 @@ import {
   LEAVE_APPROVER_EMAIL,
   LEAVE_APPROVER_ROLE_LABEL,
 } from "../lib/leaveApprover";
+import { auditDisplayName, logAuditEvent } from "./utils/auditLog";
 
 function assertCanReviewLeave(user: { email?: string; role?: string }) {
   if (!isAuthorizedTaskAdmin(user)) {
@@ -625,6 +626,25 @@ export const adminRecordStaffLeave = mutation({
       { recordedByAdmin: true }
     );
 
+    await logAuditEvent(ctx, {
+      action: "leave.admin_recorded",
+      category: "leave",
+      summary: `Recorded approved leave for ${displayName(staff)} (${workingDays} working days, ${args.startDate} – ${args.endDate})`,
+      actor: admin,
+      target: {
+        type: "leaveRequest",
+        id: leaveRequestId,
+        label: subject,
+      },
+      metadata: {
+        applicantName: displayName(staff),
+        startDate: args.startDate,
+        endDate: args.endDate,
+        workingDays,
+        reviewNote: args.reviewNote?.trim() || "Recorded by admin",
+      },
+    });
+
     return leaveRequestId;
   },
 });
@@ -697,6 +717,27 @@ export const reviewLeaveRequest = mutation({
         args.reviewNote?.trim()
       );
     }
+
+    const applicantName = row.applicantName || (applicant ? displayName(applicant) : "Unknown");
+    await logAuditEvent(ctx, {
+      action: "leave.reviewed",
+      category: "leave",
+      summary: `${args.decision === "approved" ? "Approved" : "Rejected"} leave for ${applicantName} (${row.workingDays} working days, ${row.startDate} – ${row.endDate})`,
+      actor: admin,
+      target: {
+        type: "leaveRequest",
+        id: args.leaveRequestId,
+        label: row.subject,
+      },
+      metadata: {
+        decision: args.decision,
+        applicantName,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        workingDays: row.workingDays,
+        reviewNote: args.reviewNote?.trim() || undefined,
+      },
+    });
 
     return args.leaveRequestId;
   },

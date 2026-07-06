@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { SignOutButton } from "@clerk/nextjs";
 import { FaChevronDown, FaChevronUp, FaAngleDoubleLeft, FaAngleDoubleRight, FaFileArchive, FaRegFileArchive } from "react-icons/fa";
 import { ChartAreaIcon, LogOut, NotebookPenIcon, ChartBarIcon } from "lucide-react";
-import { ChevronDownIcon, ChevronUpIcon, ArrowLeftCircleIcon, ArrowRightCircleIcon, HomeIcon, ClipboardDocumentIcon, PresentationChartBarIcon, UserGroupIcon, DocumentIcon, EnvelopeIcon, PuzzlePieceIcon, BookOpenIcon, UserCircleIcon, ExclamationTriangleIcon, CalendarDaysIcon, MapPinIcon, CalculatorIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronUpIcon, ArrowLeftCircleIcon, ArrowRightCircleIcon, HomeIcon, ClipboardDocumentIcon, PresentationChartBarIcon, UserGroupIcon, DocumentIcon, EnvelopeIcon, PuzzlePieceIcon, BookOpenIcon, UserCircleIcon, ExclamationTriangleIcon, CalendarDaysIcon, MapPinIcon, CalculatorIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -269,7 +269,22 @@ export default function Sidebar({
         </div>)}
       </nav>
 
-      <div className="mt-auto p-2">
+      <div className="mt-auto p-2 space-y-2">
+        {userRole === "admin" && (
+          <Link href="/admin/audit-log" onClick={handleCloseSidebar}>
+            <div
+              className={`flex items-center justify-start gap-2 rounded-lg transition hover:bg-gray-100
+                ${pathname === "/admin/audit-log" ? "bg-green-100 text-green-800" : "text-gray-700"}
+                ${isOpen ? "px-4 py-2" : "w-12 h-12 mx-auto"}`}
+              title={!isOpen ? "Audit Log" : undefined}
+            >
+              <ShieldCheckIcon className={isOpen ? "w-5 h-5" : "w-6 h-6"} />
+              <span className={`text-sm font-medium ${isOpen ? "block" : "hidden"}`}>
+                Audit Log
+              </span>
+            </div>
+          </Link>
+        )}
         <SignOutButton redirectUrl="/">
           <button className={`flex items-center justify-center gap-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition
                 ${isOpen ? "px-4 py-2 w-40" : "w-12 h-12"}`}>

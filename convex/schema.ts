@@ -1362,4 +1362,38 @@ export default defineSchema({
     .index("by_applicant", ["applicantUserId"])
     .index("by_status", ["status"])
     .index("by_applicant_year", ["applicantUserId", "leaveYear"]),
+
+  audit_logs: defineTable({
+    action: v.union(
+      v.literal("user.role_changed"),
+      v.literal("user.deleted"),
+      v.literal("user.role_request_approved"),
+      v.literal("user.role_request_rejected"),
+      v.literal("task.completion_reviewed"),
+      v.literal("leave.reviewed"),
+      v.literal("leave.admin_recorded"),
+      v.literal("bfa.mda_score_saved"),
+      v.literal("bfa.state_score_saved")
+    ),
+    category: v.union(
+      v.literal("user"),
+      v.literal("task"),
+      v.literal("leave"),
+      v.literal("bfa")
+    ),
+    summary: v.string(),
+    actorUserId: v.optional(v.id("users")),
+    actorName: v.string(),
+    actorEmail: v.optional(v.string()),
+    actorRole: v.optional(v.string()),
+    targetType: v.optional(v.string()),
+    targetId: v.optional(v.string()),
+    targetLabel: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_createdAt", ["createdAt"])
+    .index("by_category", ["category", "createdAt"])
+    .index("by_action", ["action", "createdAt"])
+    .index("by_actor", ["actorUserId", "createdAt"]),
 });
