@@ -205,7 +205,9 @@ export default defineSchema({
     resolutionNote: v.optional(v.string()),
     firstResponseAt: v.optional(v.number()),
     reassignedAt: v.optional(v.number()),
-    lastCreatorReminderSentAt: v.optional(v.number()) // Track when last reminder was sent to ticket creator
+    lastCreatorReminderSentAt: v.optional(v.number()), // Track when last reminder was sent to ticket creator
+    isPreview: v.optional(v.boolean()), // Opt-in AI review draft before final submit
+    wrongMdaNoticeSentAt: v.optional(v.number()) // Background WRONG_MDA email sent to reporter
   }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]),
   ticket_comments: defineTable({
     content: v.string(),

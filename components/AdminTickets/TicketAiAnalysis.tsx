@@ -1,7 +1,12 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 "use client";
 
-import { Eye, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Eye, Loader2, ArrowRightLeft } from "lucide-react";
+import { useMutation } from "convex/react";
+import { toast } from "sonner";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +16,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { AssistantMarkdown } from "@/components/AiCustomerSupport/AssistantMarkdown";
 
@@ -24,6 +36,63 @@ export type TicketAiFields = {
   aiConfidence?: number;
   processedAt?: number;
 };
+
+type MdaOption = {
+  _id: string;
+  name: string;
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The AI has no structured "suggested MDA" field, so detect it from the narrative text.
+ * MDA names look like "FAAN - Federal Airports Authority of Nigeria", while the AI text
+ * may only mention the acronym ("FAAN") or the full name — so match against both parts.
+ */
+function detectSuggestedMda(
+  ticket: TicketAiFields,
+  mdaList: MdaOption[]
+): string | undefined {
+  const haystack = `${ticket.nextSteps ?? ""} ${ticket.explanation ?? ""}`.trim();
+  if (!haystack) return undefined;
+  const lower = haystack.toLowerCase();
+
+  let best: string | undefined;
+  let bestScore = 0;
+
+  for (const mda of mdaList) {
+    const name = mda.name?.trim();
+    if (!name) continue;
+    if (name.toLowerCase() === ticket.assignedMDAName?.toLowerCase()) continue;
+
+    // Candidate strings to match: the full name plus each part around a dash separator.
+    const parts = name
+      .split(/\s*[-–—:]\s*/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const candidates = Array.from(new Set([name, ...parts]));
+
+    for (const candidate of candidates) {
+      const c = candidate.toLowerCase();
+      if (c.length < 3) continue;
+
+      // Short all-letter tokens are acronyms — require word boundaries to avoid false hits.
+      const isAcronym = /^[a-z]{2,7}$/.test(c);
+      const matched = isAcronym
+        ? new RegExp(`\\b${escapeRegExp(c)}\\b`, "i").test(haystack)
+        : lower.includes(c);
+
+      if (matched && candidate.length > bestScore) {
+        best = name;
+        bestScore = candidate.length;
+      }
+    }
+  }
+
+  return best;
+}
 
 function formatConfidence(value?: number): string | null {
   if (value == null || Number.isNaN(value)) return null;
@@ -87,10 +156,68 @@ function getAiStatusLabel(status?: TicketAiFields["aiStatus"]) {
   }
 }
 
-export default function TicketAiAnalysis({ ticket }: { ticket: TicketAiFields }) {
+export default function TicketAiAnalysis({
+  ticket,
+  ticketId,
+  mdaList = [],
+}: {
+  ticket: TicketAiFields;
+  ticketId?: Id<"tickets">;
+  mdaList?: MdaOption[];
+}) {
   const isDone = ticket.aiStatus === "done" && !!ticket.aiResult;
   const confidence = formatConfidence(ticket.aiConfidence);
   const canViewDetails = isDone;
+
+  const assignMDA = useMutation(api.tickets.assignTicketMDA);
+  const [open, setOpen] = useState(false);
+  const [isReassigning, setIsReassigning] = useState(false);
+
+  const sortedMdas = useMemo(
+    () =>
+      mdaList
+        .filter((mda) => mda.name && mda.name.trim() !== "")
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [mdaList]
+  );
+
+  const suggestedMda = useMemo(
+    () => detectSuggestedMda(ticket, sortedMdas),
+    [ticket, sortedMdas]
+  );
+
+  const canReassign = !!ticketId && sortedMdas.length > 0;
+  const [selectedMda, setSelectedMda] = useState<string>("");
+
+  useEffect(() => {
+    if (open) {
+      setSelectedMda(suggestedMda ?? ticket.assignedMDAName ?? "");
+    }
+  }, [open, suggestedMda, ticket.assignedMDAName]);
+
+  const handleReassign = async () => {
+    if (!ticketId || !selectedMda) return;
+    const mdaRecord = sortedMdas.find((mda) => mda.name === selectedMda);
+    if (!mdaRecord) {
+      toast.error("MDA not found.");
+      return;
+    }
+    setIsReassigning(true);
+    try {
+      await assignMDA({
+        ticketId,
+        mdaId: mdaRecord._id as Id<"mdas">,
+        // Admin corrected the routing — mark the AI flag as MATCH in the DB (no AI re-run).
+        markAiMatch: ticket.aiResult !== "MATCH",
+      });
+      toast.success(`Report reassigned to ${selectedMda}.`);
+      setOpen(false);
+    } catch {
+      toast.error("Failed to reassign MDA.");
+    } finally {
+      setIsReassigning(false);
+    }
+  };
 
   return (
     <div className="flex w-full min-w-[140px] items-center justify-between gap-2">
@@ -119,7 +246,7 @@ export default function TicketAiAnalysis({ ticket }: { ticket: TicketAiFields })
       )}
 
       {canViewDetails ? (
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button
               type="button"
@@ -131,17 +258,17 @@ export default function TicketAiAnalysis({ ticket }: { ticket: TicketAiFields })
               <Eye className="h-4 w-4" />
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-[calc(100vw-2rem)] overflow-x-hidden sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>AI analysis</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="break-words">
                 {ticket.ticketNumber
                   ? `Report ${ticket.ticketNumber}`
                   : "Automated routing review"}
                 {ticket.assignedMDAName ? ` · Assigned MDA: ${ticket.assignedMDAName}` : ""}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 text-sm">
+            <div className="space-y-4 overflow-x-hidden break-words text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
@@ -187,6 +314,57 @@ export default function TicketAiAnalysis({ ticket }: { ticket: TicketAiFields })
               )}
               {!ticket.explanation?.trim() && !ticket.nextSteps?.trim() && !confidence && (
                 <p className="text-gray-500">No additional narrative was returned for this analysis.</p>
+              )}
+
+              {canReassign && (
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="mb-1 flex items-center gap-2 font-medium text-gray-900">
+                    <ArrowRightLeft className="h-4 w-4 text-green-700" aria-hidden />
+                    Reassign MDA
+                  </div>
+                  <p className="mb-2 text-xs text-gray-500">
+                    {suggestedMda
+                      ? "The MDA suggested by the AI is selected below. Change it if needed, then confirm."
+                      : "Select the correct MDA for this report, then confirm."}
+                  </p>
+                  <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                    <Select value={selectedMda} onValueChange={setSelectedMda}>
+                      <SelectTrigger className="w-full min-w-0 flex-1 [&>span]:truncate">
+                        <SelectValue placeholder="Select an MDA" />
+                      </SelectTrigger>
+                      <SelectContent className="max-w-[min(90vw,24rem)]">
+                        {sortedMdas.map((mda) => (
+                          <SelectItem key={mda._id} value={mda.name}>
+                            <span className="block truncate">
+                              {mda.name}
+                              {mda.name === suggestedMda ? " (AI suggested)" : ""}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      onClick={handleReassign}
+                      disabled={
+                        !selectedMda ||
+                        isReassigning ||
+                        selectedMda === ticket.assignedMDAName
+                      }
+                      className="w-full shrink-0 bg-green-600 text-white hover:bg-green-700 sm:w-auto"
+                    >
+                      {isReassigning ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      ) : null}
+                      Change MDA
+                    </Button>
+                  </div>
+                  {selectedMda && selectedMda === ticket.assignedMDAName && (
+                    <p className="mt-2 text-xs text-amber-600">
+                      This is the MDA the report is already assigned to.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </DialogContent>

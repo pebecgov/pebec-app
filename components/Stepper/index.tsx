@@ -1,6 +1,9 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
-import React, { useState, Children, useRef, useLayoutEffect, HTMLAttributes, ReactNode, JSX } from "react";
+import React, { useState, Children, useRef, useLayoutEffect, useImperativeHandle, forwardRef, HTMLAttributes, ReactNode, JSX } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
+export interface StepperHandle {
+  goToStep: (step: number) => void;
+}
 interface StepperProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   initialStep?: number;
@@ -23,7 +26,7 @@ interface RenderStepIndicatorProps {
   currentStep: number;
   onStepClick: (clicked: number) => void;
 }
-export default function Stepper({
+const Stepper = forwardRef<StepperHandle, StepperProps>(function Stepper({
   children,
   initialStep = 1,
   onStepChange = () => {},
@@ -40,7 +43,7 @@ export default function Stepper({
   disableStepIndicators = false,
   renderStepIndicator,
   ...rest
-}: StepperProps) {
+}: StepperProps, ref) {
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
   const [direction, setDirection] = useState<number>(0);
   const stepsArray = Children.toArray(children);
@@ -58,6 +61,15 @@ export default function Stepper({
       onStepChange(newStep);
     }
   };
+  useImperativeHandle(ref, () => ({
+    goToStep: (step: number) => {
+      const target = Math.max(1, Math.min(step, totalSteps));
+      setDirection(target > currentStep ? 1 : -1);
+      // Backward navigation bypasses the isNextDisabled guard by design.
+      setCurrentStep(target);
+      onStepChange(target);
+    }
+  }), [currentStep, totalSteps, onStepChange]);
   const handleBack = () => {
     if (currentStep > 1) {
       setDirection(-1);
@@ -109,7 +121,7 @@ export default function Stepper({
                     {backButtonText}
                   </button>}
         <button onClick={isLastStep ? handleComplete : handleNext} className={`next-button ${isNextDisabled ? "bg-gray-300 cursor-not-allowed" : "bg-green-600 text-white"}`} disabled={isNextDisabled} {...nextButtonProps}>
-  {isLastStep ? "Complete" : nextButtonText}
+  {nextButtonText}
           </button>
 
 
@@ -117,7 +129,8 @@ export default function Stepper({
             </div>}
         </div>
       </div>;
-}
+});
+export default Stepper;
 interface StepContentWrapperProps {
   isCompleted: boolean;
   currentStep: number;

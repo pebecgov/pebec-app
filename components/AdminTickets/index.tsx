@@ -473,6 +473,8 @@ export default function AdminTicketsPage() {
 
             <TableCell className="w-[160px] min-w-[160px]">
               <TicketAiAnalysis
+                ticketId={ticket._id}
+                mdaList={mdaList}
                 ticket={{
                   ticketNumber: ticket.ticketNumber,
                   assignedMDAName: ticket.assignedMDAName,

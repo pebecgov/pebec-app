@@ -1,7 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 //@ts-nocheck 
 
-import { mutation, query, internalMutation, internalAction, internalQuery } from "./_generated/server";
+import { action, mutation, query, internalMutation, internalAction, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUserOrNull, getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { api } from "./_generated/api";
@@ -11,6 +11,26 @@ import { calculateBusinessHours, addBusinessHours, skipWeekendsHours } from "../
 
 function generateTicketNumber() {
   return `TICKET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+}
+
+const REPORTGOV_SITE_BASE_URL =
+  process.env.SITE_URL?.replace(/\/$/, "") ?? "https://www.pebec.gov.ng";
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function stripHtml(value: string): string {
+  return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1).trim()}…`;
 }
 
 export const createTicket = mutation({
@@ -26,7 +46,9 @@ export const createTicket = mutation({
     state: v.optional(v.string()),
     address: v.optional(v.string()),
     supportingDocuments: v.optional(v.array(v.id("_storage"))),
-    businessName: v.optional(v.string())
+    businessName: v.optional(v.string()),
+    // Preview tickets are created during opt-in AI review; notifications/enqueue happen on finalize.
+    forAiPreviewOnly: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrNull(ctx);
@@ -75,13 +97,123 @@ export const createTicket = mutation({
       address: args.address ?? "",
       supportingDocuments: args.supportingDocuments ?? [],
       businessName: args.businessName ?? "",
+      isPreview: args.forAiPreviewOnly === true,
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
-    await ctx.scheduler.runAfter(0, internal.tickets.enqueueTicketForAi, {
-      ticketId
+    if (!args.forAiPreviewOnly) {
+      await ctx.scheduler.runAfter(0, internal.tickets.enqueueTicketForAi, {
+        ticketId
+      });
+      console.log(`📨 Scheduled AI enqueue for ticket ${ticketNumber} (${ticketId})`);
+      const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+      const admins = filterAdminsForNotifications(allAdmins);
+      for (const admin of admins) {
+        await ctx.db.insert("notifications", {
+          userId: admin._id,
+          ticketId,
+          message: `New ticket created: ${ticketNumber}`,
+          isRead: false,
+          createdAt: Date.now(),
+          type: "new_ticket"
+        });
+      }
+      if (assignedMDAId) {
+        const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", assignedMDAId)).collect();
+        for (const mdaUser of mdaUsers) {
+          await ctx.db.insert("notifications", {
+            userId: mdaUser._id,
+            ticketId,
+            message: `New ticket assigned to you: ${ticketNumber}`,
+            isRead: false,
+            createdAt: Date.now(),
+            type: "ticket_assignment"
+          });
+        }
+        await ctx.scheduler.runAfter(2 * 60 * 1000, api.tickets.checkAndSendReminder, {
+          ticketId
+        });
+      }
+    }
+    return {
+      ticketId,
+      ticketNumber
+    };
+  }
+});
+
+export const updatePreviewTicket = mutation({
+  args: {
+    ticketId: v.id("tickets"),
+    title: v.string(),
+    description: v.string(),
+    assignedMDA: v.string(),
+    fullName: v.string(),
+    email: v.string(),
+    phoneNumber: v.string(),
+    incidentDate: v.number(),
+    location: v.optional(v.string()),
+    state: v.optional(v.string()),
+    address: v.optional(v.string()),
+    supportingDocuments: v.optional(v.array(v.id("_storage"))),
+    businessName: v.optional(v.string())
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrNull(ctx);
+    const ticket = await ctx.db.get(args.ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found.");
+    }
+    if (user && ticket.createdBy !== user._id) {
+      throw new Error("Unauthorized.");
+    }
+    const mdaRecord = await ctx.db
+      .query("mdas")
+      .withIndex("byName", q => q.eq("name", args.assignedMDA))
+      .first();
+    await ctx.db.patch(args.ticketId, {
+      title: args.title,
+      description: args.description,
+      assignedMDA: mdaRecord?._id,
+      fullName: args.fullName,
+      email: args.email,
+      phoneNumber: args.phoneNumber,
+      incidentDate: args.incidentDate,
+      location: args.location,
+      state: args.state ?? "",
+      address: args.address ?? "",
+      supportingDocuments: args.supportingDocuments ?? [],
+      businessName: args.businessName ?? "",
+      aiStatus: "pending",
+      aiResult: undefined,
+      explanation: undefined,
+      nextSteps: undefined,
+      aiConfidence: undefined,
+      processedAt: undefined,
+      updatedAt: Date.now()
     });
-    console.log(`📨 Scheduled AI enqueue for ticket ${ticketNumber} (${ticketId})`);
+    return { ticketId: args.ticketId, ticketNumber: ticket.ticketNumber };
+  }
+});
+
+export const finalizePreviewTicket = mutation({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const user = await getCurrentUserOrNull(ctx);
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) {
+      throw new Error("Ticket not found.");
+    }
+    if (user && ticket.createdBy !== user._id) {
+      throw new Error("Unauthorized.");
+    }
+    await ctx.db.patch(ticketId, {
+      isPreview: false,
+      updatedAt: Date.now()
+    });
+    const ticketNumber = ticket.ticketNumber;
     const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
     const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
@@ -94,8 +226,11 @@ export const createTicket = mutation({
         type: "new_ticket"
       });
     }
-    if (assignedMDAId) {
-      const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", assignedMDAId)).collect();
+    if (ticket.assignedMDA) {
+      const mdaUsers = await ctx.db
+        .query("users")
+        .withIndex("byMdaId", q => q.eq("mdaId", ticket.assignedMDA))
+        .collect();
       for (const mdaUser of mdaUsers) {
         await ctx.db.insert("notifications", {
           userId: mdaUser._id,
@@ -110,10 +245,7 @@ export const createTicket = mutation({
         ticketId
       });
     }
-    return {
-      ticketId,
-      ticketNumber
-    };
+    return { ticketId, ticketNumber };
   }
 });
 
@@ -170,6 +302,135 @@ export const completeAiProcessingInternal = internalMutation({
       processedAt: processedAt ?? Date.now(),
       updatedAt: Date.now()
     });
+
+    // Notify reporter only for background analysis on submitted complaints (not opt-in preview drafts).
+    if (
+      aiResult === "WRONG_MDA" &&
+      !ticket.isPreview &&
+      !ticket.wrongMdaNoticeSentAt &&
+      ticket.email?.trim()
+    ) {
+      await ctx.scheduler.runAfter(0, internal.tickets.sendWrongMdaReporterEmail, {
+        ticketId
+      });
+    }
+  }
+});
+
+export const sendWrongMdaReporterEmail = internalAction({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.runQuery(internal.tickets.getTicketForAiInternal, {
+      ticketId
+    });
+    if (
+      !ticket ||
+      ticket.aiResult !== "WRONG_MDA" ||
+      ticket.isPreview ||
+      ticket.wrongMdaNoticeSentAt ||
+      !ticket.email?.trim()
+    ) {
+      return;
+    }
+
+    const dashboardUrl = `${REPORTGOV_SITE_BASE_URL}/reportgov`;
+    const ticketUrl = `${REPORTGOV_SITE_BASE_URL}/reportgov/tickets/${ticketId}`;
+    const assignedMda = ticket.assignedMdaName ?? "the selected agency";
+    const explanationSnippet = ticket.explanation
+      ? truncateText(stripHtml(ticket.explanation), 400)
+      : "";
+    const nextStepsSnippet = ticket.nextSteps
+      ? truncateText(stripHtml(ticket.nextSteps), 300)
+      : "";
+
+    const emailTemplate = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+        <div style="background-color: #2D8B10; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
+          <strong>ReportGov – MDA assignment review</strong>
+        </div>
+        <div style="padding: 20px; color: #333;">
+          <p style="font-size: 16px;">Dear <strong>${escapeHtml(ticket.fullName || "Reporter")}</strong>,</p>
+          <p>
+            Our automated review of your complaint <strong>#${escapeHtml(ticket.ticketNumber)}</strong>
+            suggests it may have been assigned to the wrong government agency (MDA).
+          </p>
+          <p>
+            You currently selected <strong>${escapeHtml(assignedMda)}</strong>.
+            Please sign in to your ReportGov dashboard to review the assignment and, if needed,
+            reassign your complaint to the correct MDA.
+          </p>
+          <p style="color: #555; font-size: 14px;">
+            If you believe the current assignment is correct, you can ignore this message — your report will continue to be processed.
+          </p>
+          ${
+            explanationSnippet
+              ? `<div style="background-color: #f8f8f8; padding: 12px; border-left: 4px solid #2D8B10; margin: 16px 0;">
+            <p style="margin: 0 0 6px; font-weight: bold; font-size: 14px;">Why we flagged this</p>
+            <p style="margin: 0; font-size: 14px; color: #444;">${escapeHtml(explanationSnippet)}</p>
+          </div>`
+              : ""
+          }
+          ${
+            nextStepsSnippet
+              ? `<div style="background-color: #fff8e6; padding: 12px; border-left: 4px solid #f59e0b; margin: 16px 0;">
+            <p style="margin: 0 0 6px; font-weight: bold; font-size: 14px;">Suggested next steps</p>
+            <p style="margin: 0; font-size: 14px; color: #444;">${escapeHtml(nextStepsSnippet)}</p>
+          </div>`
+              : ""
+          }
+          <div style="text-align: center; margin: 24px 0 8px;">
+            <a href="${dashboardUrl}"
+              style="background-color: #2D8B10; color: white; padding: 12px 24px; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 6px; display: inline-block;">
+              Go to my dashboard
+            </a>
+          </div>
+          <p style="text-align: center; font-size: 13px; color: #666;">
+            Or <a href="${ticketUrl}" style="color: #2D8B10;">view this report</a> directly.
+          </p>
+        </div>
+        <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px;">
+          <p style="margin: 0;">© ${new Date().getFullYear()} PEBEC GOV. | <a href="${REPORTGOV_SITE_BASE_URL}" style="color: #2D8B10;">www.pebec.gov.ng</a></p>
+        </div>
+      </div>
+    `;
+
+    const result = await ctx.runAction(api.sendEmail.sendEmail, {
+      to: ticket.email.trim(),
+      subject: `Action suggested: review MDA for report #${ticket.ticketNumber}`,
+      html: emailTemplate
+    });
+
+    if (result?.success) {
+      await ctx.runMutation(internal.tickets.markWrongMdaNoticeSentInternal, {
+        ticketId
+      });
+      console.log(
+        `📧 Wrong-MDA notice sent to ${ticket.email} for ticket ${ticket.ticketNumber}`
+      );
+    } else {
+      console.error(
+        `❌ Failed to send wrong-MDA notice for ticket ${ticket.ticketNumber}:`,
+        result?.error
+      );
+    }
+  }
+});
+
+export const markWrongMdaNoticeSentInternal = internalMutation({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket || ticket.wrongMdaNoticeSentAt) {
+      return;
+    }
+    await ctx.db.patch(ticketId, {
+      wrongMdaNoticeSentAt: Date.now(),
+      updatedAt: Date.now()
+    });
   }
 });
 
@@ -191,27 +452,12 @@ export const enqueueTicketForAi = internalAction({
       aiStatus: "queued"
     });
     console.log(`🟡 enqueueTicketForAi: aiStatus set to queued for ${ticket.ticketNumber}`);
-    const payload = {
-      ticketId: ticket._id,
-      ticketNumber: ticket.ticketNumber,
-      mdaName: ticket.assignedMdaName,
-      title: ticket.title,
-      complaint: ticket.description,
-      description: ticket.description,
-      state: ticket.state
-    };
+    const payload = buildAiEnqueuePayload(ticket);
     console.log(
-      `📤 enqueueTicketForAi: sending ticket ${ticket.ticketNumber} to https://settling-laboring-monitor.ngrok-free.dev/enqueue`
+      `📤 enqueueTicketForAi: sending ticket ${ticket.ticketNumber} to ${getAiAnalysisBaseUrl()}/enqueue`
     );
     try {
-      const response = await fetch("https://settling-laboring-monitor.ngrok-free.dev/enqueue", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true" ,
-        },
-        body: JSON.stringify(payload)
-      });
+      const response = await postTicketToAiEnqueue(payload);
       if (!response.ok) {
         await ctx.runMutation(internal.tickets.setAiStatusInternal, {
           ticketId,
@@ -238,6 +484,185 @@ export const enqueueTicketForAi = internalAction({
   }
 });
 
+const AI_ANALYSIS_BASE_URL = "https://settling-laboring-monitor.ngrok-free.dev";
+const AI_ENQUEUE_POLL_INTERVAL_MS = 2000;
+const AI_ENQUEUE_POLL_TIMEOUT_MS = 5 * 60 * 1000; // wait up to 5 minutes for the AI result
+
+function getAiAnalysisBaseUrl(): string {
+  const url =
+    process.env.RAG_API_URL?.trim() ||
+    process.env.PEBEC_AI_API_BASE_URL?.trim() ||
+    AI_ANALYSIS_BASE_URL;
+  return url.replace(/\/$/, "");
+}
+
+function buildAiEnqueuePayload(ticket: {
+  _id: Id<"tickets">;
+  ticketNumber: string;
+  assignedMdaName?: string;
+  title: string;
+  description: string;
+  state?: string;
+}) {
+  return {
+    ticketId: ticket._id,
+    ticketNumber: ticket.ticketNumber,
+    mdaName: ticket.assignedMdaName,
+    title: ticket.title,
+    complaint: ticket.description,
+    description: ticket.description,
+    state: ticket.state ?? ""
+  };
+}
+
+function postTicketToAiEnqueue(payload: Record<string, unknown>) {
+  return fetch(`${getAiAnalysisBaseUrl()}/enqueue`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true"
+    },
+    body: JSON.stringify(payload)
+  });
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function normalizeAiResult(value: unknown): "MATCH" | "WRONG_MDA" | "IRRELEVANT" | null {
+  if (typeof value !== "string") return null;
+  const upper = value.trim().toUpperCase();
+  if (upper === "MATCH" || upper === "WRONG_MDA" || upper === "IRRELEVANT") {
+    return upper;
+  }
+  return null;
+}
+
+function parseInlineAiEnqueueResponse(data: Record<string, unknown>) {
+  const aiResult =
+    normalizeAiResult(data.aiResult) ??
+    normalizeAiResult(data.result) ??
+    normalizeAiResult((data.data as Record<string, unknown> | undefined)?.aiResult);
+  if (!aiResult) return null;
+  const explanation =
+    typeof data.aiExplanation === "string"
+      ? data.aiExplanation
+      : typeof data.explanation === "string"
+        ? data.explanation
+        : undefined;
+  const nextSteps = typeof data.nextSteps === "string" ? data.nextSteps : undefined;
+  const rawConfidence =
+    typeof data.aiConfidence === "number" ? data.aiConfidence : undefined;
+  const aiConfidence =
+    typeof rawConfidence === "number"
+      ? Math.max(0, Math.min(100, rawConfidence))
+      : undefined;
+  return { aiResult, explanation, nextSteps, aiConfidence };
+}
+
+/**
+ * Enqueue a preview ticket for AI analysis (same /enqueue as background flow) and block until
+ * the webhook writes aiResult onto the ticket, or the inline enqueue response already contains it.
+ */
+export const enqueueAndWaitForAiAnalysis = action({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.runQuery(internal.tickets.getTicketForAiInternal, {
+      ticketId
+    });
+    if (!ticket) {
+      return { success: false as const, error: "Ticket not found." };
+    }
+
+    await ctx.runMutation(internal.tickets.setAiStatusInternal, {
+      ticketId,
+      aiStatus: "queued"
+    });
+
+    const payload = buildAiEnqueuePayload(ticket);
+    let inlineResult: ReturnType<typeof parseInlineAiEnqueueResponse> = null;
+
+    try {
+      const response = await postTicketToAiEnqueue(payload);
+      if (!response.ok) {
+        await ctx.runMutation(internal.tickets.setAiStatusInternal, {
+          ticketId,
+          aiStatus: "pending"
+        });
+        return {
+          success: false as const,
+          error: `The AI service is unavailable right now (status ${response.status}).`
+        };
+      }
+
+      try {
+        const data = (await response.json()) as Record<string, unknown>;
+        inlineResult = parseInlineAiEnqueueResponse(data);
+      } catch {
+        // Enqueue may return an empty body; webhook polling handles that case.
+      }
+    } catch (error) {
+      await ctx.runMutation(internal.tickets.setAiStatusInternal, {
+        ticketId,
+        aiStatus: "pending"
+      });
+      console.error("❌ enqueueAndWaitForAiAnalysis: network error", error);
+      return {
+        success: false as const,
+        error: "Unable to reach the AI analysis service. You can still submit your complaint."
+      };
+    }
+
+    if (inlineResult) {
+      await ctx.runMutation(internal.tickets.completeAiProcessingInternal, {
+        ticketId,
+        aiResult: inlineResult.aiResult,
+        explanation: inlineResult.explanation,
+        nextSteps: inlineResult.nextSteps,
+        aiConfidence: inlineResult.aiConfidence,
+        processedAt: Date.now()
+      });
+      return {
+        success: true as const,
+        ticketId,
+        ticketNumber: ticket.ticketNumber,
+        ...inlineResult
+      };
+    }
+
+    const deadline = Date.now() + AI_ENQUEUE_POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const fields = await ctx.runQuery(internal.tickets.getTicketAiFieldsInternal, {
+        ticketId
+      });
+      if (fields?.aiStatus === "done" && fields.aiResult) {
+        return {
+          success: true as const,
+          ticketId,
+          ticketNumber: ticket.ticketNumber,
+          aiResult: fields.aiResult,
+          explanation: fields.explanation,
+          nextSteps: fields.nextSteps,
+          aiConfidence: fields.aiConfidence
+        };
+      }
+      await sleep(AI_ENQUEUE_POLL_INTERVAL_MS);
+    }
+
+    await ctx.runMutation(internal.tickets.setAiStatusInternal, {
+      ticketId,
+      aiStatus: "pending"
+    });
+    return {
+      success: false as const,
+      error: "AI analysis is taking longer than expected. You can submit your complaint anyway."
+    };
+  }
+});
+
 export const getTicketForAiInternal = internalQuery({
   args: {
     ticketId: v.id("tickets")
@@ -251,6 +676,24 @@ export const getTicketForAiInternal = internalQuery({
     return {
       ...ticket,
       assignedMdaName: mda?.name
+    };
+  }
+});
+
+export const getTicketAiFieldsInternal = internalQuery({
+  args: {
+    ticketId: v.id("tickets")
+  },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await ctx.db.get(ticketId);
+    if (!ticket) return null;
+    return {
+      aiStatus: ticket.aiStatus,
+      aiResult: ticket.aiResult,
+      explanation: ticket.explanation,
+      nextSteps: ticket.nextSteps,
+      aiConfidence: ticket.aiConfidence,
+      processedAt: ticket.processedAt
     };
   }
 });
@@ -700,11 +1143,15 @@ export const getTicketsByState = query({
 export const assignTicketMDA = mutation({
   args: {
     ticketId: v.id("tickets"),
-    mdaId: v.id("mdas")
+    mdaId: v.id("mdas"),
+    // When reassigning after an AI "Wrong MDA" flag, flip the stored result to MATCH
+    // (DB-only, no AI re-run) so the table badge reflects the corrected assignment.
+    markAiMatch: v.optional(v.boolean())
   },
   handler: async (ctx, {
     ticketId,
-    mdaId
+    mdaId,
+    markAiMatch
   }) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "admin") {
@@ -727,6 +1174,13 @@ export const assignTicketMDA = mutation({
       updatedAt: Date.now(),
       reassignedAt: Date.now() // Reset timeline for 72-hour calculation
     };
+
+    // Admin has manually resolved the AI mismatch — mark it as a match without re-running AI.
+    if (markAiMatch && ticket.aiResult && ticket.aiResult !== "MATCH") {
+      patchData.aiResult = "MATCH";
+      patchData.aiStatus = "done";
+      patchData.processedAt = Date.now();
+    }
 
     // Reopen closed tickets when transferred
     if (isTransferringClosedTicket) {

@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import FileUploader from "@/components/file-uploader"; // Your updated FileUploader
 import { useToast } from "@/hooks/use-toast";
 import { Id } from "@/convex/_generated/dataModel";
-import Stepper, { Step } from "@/components/Stepper";
+import Stepper, { Step, type StepperHandle } from "@/components/Stepper";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { mdasList } from "@/components/mdaList";
 import RichTextEditor from "@/components/RichTextEditor";
@@ -25,9 +25,79 @@ import { useRouter } from "next/navigation";
 
 const nigerianStates = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara", "Federal Capital Territory"];
 
+type ComplaintAnalysis = {
+  aiResult: "MATCH" | "WRONG_MDA" | "IRRELEVANT";
+  explanation?: string;
+  nextSteps?: string;
+  aiConfidence?: number;
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The AI returns free text, not a structured MDA id — so infer the MDA it suggests by matching
+ * each option (its acronym and full-name parts) against the explanation / next-steps text.
+ */
+function detectSuggestedMda(
+  analysis: ComplaintAnalysis | null,
+  mdaOptions: string[],
+  currentMda: string
+): string | undefined {
+  if (!analysis) return undefined;
+  const haystack = `${analysis.nextSteps ?? ""} ${analysis.explanation ?? ""}`.trim();
+  if (!haystack) return undefined;
+  const lower = haystack.toLowerCase();
+
+  let best: string | undefined;
+  let bestScore = 0;
+
+  for (const name of mdaOptions) {
+    const trimmed = name?.trim();
+    if (!trimmed) continue;
+    if (trimmed.toLowerCase() === currentMda.trim().toLowerCase()) continue;
+
+    const parts = trimmed
+      .split(/\s*[-–—:]\s*/)
+      .map(p => p.trim())
+      .filter(Boolean);
+    const candidates = Array.from(new Set([trimmed, ...parts]));
+
+    for (const candidate of candidates) {
+      const c = candidate.toLowerCase();
+      if (c.length < 3) continue;
+      const isAcronym = /^[a-z]{2,7}$/.test(c);
+      const matched = isAcronym
+        ? new RegExp(`\\b${escapeRegExp(c)}\\b`, "i").test(haystack)
+        : lower.includes(c);
+      if (matched && candidate.length > bestScore) {
+        best = trimmed;
+        bestScore = candidate.length;
+      }
+    }
+  }
+  return best;
+}
+
+function formatConfidence(value?: number): string | null {
+  if (value == null || Number.isNaN(value)) return null;
+  const pct = value <= 1 ? Math.round(value * 100) : Math.round(value);
+  return `${pct}%`;
+}
+
 export default function UserTicketForm({ guestMode = false }: { guestMode?: boolean; }) {
   const { user } = useUser();
   const createTicket = useMutation(api.tickets.createTicket);
+  const updatePreviewTicket = useMutation(api.tickets.updatePreviewTicket);
+  const finalizePreviewTicket = useMutation(api.tickets.finalizePreviewTicket);
+  const enqueueAndWaitForAi = useAction(api.tickets.enqueueAndWaitForAiAnalysis);
+  const stepperRef = useRef<StepperHandle>(null);
+  const [aiReviewEnabled, setAiReviewEnabled] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<ComplaintAnalysis | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [previewTicketId, setPreviewTicketId] = useState<Id<"tickets"> | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [ticketId, setTicketId] = useState<Id<"tickets"> | null>(null);
   const [ticketNumber, setTicketNumber] = useState<string | null>(null);
@@ -148,6 +218,22 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
     }
   }
 
+  function buildTicketPayload() {
+    return {
+      title: form.title,
+      description: form.description,
+      assignedMDA: form.assignedMDA,
+      incidentDate: new Date(form.incidentDate).getTime(),
+      location: form.location,
+      phoneNumber: form.phoneNumber,
+      fullName: form.fullName,
+      email: form.email,
+      state: form.state,
+      businessName: form.businessName,
+      supportingDocuments: form.supportingDocuments.map(doc => doc.storageId)
+    };
+  }
+
   async function handleSubmit() {
     if (!isStepValid(currentStep)) {
       toast({
@@ -162,25 +248,30 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
         title: "Submitting...",
         description: "Please wait while we submit your ticket."
       });
-      const { ticketId, ticketNumber } = await createTicket({
-        title: form.title,
-        description: form.description,
-        assignedMDA: form.assignedMDA,
-        incidentDate: new Date(form.incidentDate).getTime(),
-        location: form.location,
-        phoneNumber: form.phoneNumber,
-        fullName: form.fullName,
-        email: form.email,
-        state: form.state,
-        businessName: form.businessName,
-        // Pass only the storageIds to Convex
-        supportingDocuments: form.supportingDocuments.map(doc => doc.storageId)
-      });
-      if (!ticketId || !ticketNumber) {
-        throw new Error("❌ Failed to create ticket.");
+
+      let submittedTicketId: Id<"tickets">;
+      let submittedTicketNumber: string;
+
+      if (previewTicketId) {
+        await updatePreviewTicket({
+          ticketId: previewTicketId,
+          ...buildTicketPayload()
+        });
+        const finalized = await finalizePreviewTicket({ ticketId: previewTicketId });
+        submittedTicketId = finalized.ticketId;
+        submittedTicketNumber = finalized.ticketNumber;
+      } else {
+        const created = await createTicket(buildTicketPayload());
+        if (!created.ticketId || !created.ticketNumber) {
+          throw new Error("❌ Failed to create ticket.");
+        }
+        submittedTicketId = created.ticketId;
+        submittedTicketNumber = created.ticketNumber;
       }
-      setTicketId(ticketId);
-      setTicketNumber(ticketNumber);
+
+      setTicketId(submittedTicketId);
+      setTicketNumber(submittedTicketNumber);
+      setPreviewTicketId(null);
       if (adminEmails.length === 0) {
         throw new Error("❌ No admin emails found.");
       }
@@ -197,7 +288,7 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
           <p style="font-size: 16px;">Dear <strong>${form.fullName}</strong>,</p>
           <p>Your report has been successfully created. Below are the details:</p>
           <div style="background-color: #f8f8f8; padding: 10px; border-radius: 5px; margin: 15px 0;">
-            <p style="font-size: 16px; font-weight: bold;">Report Number: <span style="color: #4CAF50;">${ticketNumber}</span></p>
+            <p style="font-size: 16px; font-weight: bold;">Report Number: <span style="color: #4CAF50;">${submittedTicketNumber}</span></p>
           </div>
           <table style="width: 100%; border-collapse: collapse;">
             <tr style="background-color: #f8f8f8;">
@@ -233,7 +324,7 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
         </div>
         <div style="padding: 20px; color: #333;">
           <p>A new report has been assigned to your MDA (${form.assignedMDA}).</p>
-          <p><strong>Report Number:</strong> ${ticketNumber}</p>
+          <p><strong>Report Number:</strong> ${submittedTicketNumber}</p>
           <p><strong>Title:</strong> ${form.title}</p>
           <p><strong>Description:</strong> ${form.description}</p>
           <p><strong>Location:</strong> ${form.state}</p>
@@ -253,7 +344,7 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
         <div style="padding: 20px; color: #333;">
           <p style="font-size: 16px;">A new report has been created. Below are the details:</p>
           <div style="background-color: #f8f8f8; padding: 10px; border-radius: 5px; margin: 15px 0;">
-            <p style="font-size: 16px; font-weight: bold;">Report Number: <span style="color: #FF9800;">${ticketNumber}</span></p>
+            <p style="font-size: 16px; font-weight: bold;">Report Number: <span style="color: #FF9800;">${submittedTicketNumber}</span></p>
           </div>
           <table style="width: 100%; border-collapse: collapse;">
             <tr style="background-color: #f8f8f8;">
@@ -295,12 +386,12 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
       }
       await sendEmail({
         to: form.email,
-        subject: `Your Ticket #${ticketNumber} Has Been Created`,
+        subject: `Your Ticket #${submittedTicketNumber} Has Been Created`,
         html: userEmailTemplate
       });
       await Promise.all(adminEmails.map(adminEmail => sendEmail({
         to: adminEmail,
-        subject: `New Ticket Created - ${ticketNumber}`,
+        subject: `New Ticket Created - ${submittedTicketNumber}`,
         html: adminEmailTemplate
       })));
 
@@ -322,6 +413,11 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
   function handleCloseDialog() {
     setCurrentStep(1);
     setModalOpen(false);
+    setAiReviewEnabled(false);
+    setAnalysis(null);
+    setAnalysisError(null);
+    setIsAnalyzing(false);
+    setPreviewTicketId(null);
     setForm({
       fullName: guestMode ? "" : `${user?.firstName ?? ""} ${user?.lastName ?? ""}`,
       email: guestMode ? "" : user?.emailAddresses[0]?.emailAddress ?? "",
@@ -368,12 +464,105 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
     toast({ title: "File Removed", description: "File removed from list." });
   };
 
+  const mdaOptions = Array.from(
+    new Set(
+      (getUsersWithRole ?? [])
+        .map(mdaUser => mdaUser.mdaName)
+        .filter((name): name is string => !!name?.trim())
+    )
+  );
+
+  // The AI verdict is tied to the exact complaint + MDA — invalidate it whenever those change.
+  useEffect(() => {
+    setAnalysis(null);
+    setAnalysisError(null);
+    setPreviewTicketId(null);
+  }, [form.title, form.description, form.assignedMDA, form.state]);
+
+  const handleAnalyzeComplaint = async () => {
+    if (!form.title.trim() || !form.description.trim() || !form.assignedMDA.trim()) {
+      toast({
+        title: "Missing details",
+        description: "Please complete the MDA, title and description before analysing.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!form.incidentDate.trim()) {
+      toast({
+        title: "Missing incident date",
+        description: "Please complete the incident date before analysing.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      let activePreviewId = previewTicketId;
+      const payload = buildTicketPayload();
+
+      if (!activePreviewId) {
+        const created = await createTicket({
+          ...payload,
+          forAiPreviewOnly: true
+        });
+        activePreviewId = created.ticketId;
+        setPreviewTicketId(created.ticketId);
+        setTicketNumber(created.ticketNumber);
+      } else {
+        await updatePreviewTicket({
+          ticketId: activePreviewId,
+          ...payload
+        });
+      }
+
+      const result = await enqueueAndWaitForAi({ ticketId: activePreviewId });
+      if (result.success) {
+        setAnalysis({
+          aiResult: result.aiResult,
+          explanation: result.explanation,
+          nextSteps: result.nextSteps,
+          aiConfidence: result.aiConfidence
+        });
+        if (result.ticketNumber) {
+          setTicketNumber(result.ticketNumber);
+        }
+      } else {
+        setAnalysisError(result.error);
+      }
+    } catch (error) {
+      console.error("❌ Complaint analysis failed:", error);
+      setAnalysisError("Unable to analyse your complaint right now. You can still submit it.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleChangeMdaFromAnalysis = () => {
+    const suggested = detectSuggestedMda(analysis, mdaOptions, form.assignedMDA);
+    if (suggested) {
+      setForm(prev => ({ ...prev, assignedMDA: suggested }));
+      toast({
+        title: "Suggested MDA selected",
+        description: `We pre-selected "${suggested}". Review it and continue.`
+      });
+    }
+    setAnalysis(null);
+    setAnalysisError(null);
+    stepperRef.current?.goToStep(2);
+  };
+
+  const suggestedMda = detectSuggestedMda(analysis, mdaOptions, form.assignedMDA);
+  const analysisConfidence = formatConfidence(analysis?.aiConfidence);
+
 
   return (
     <div className="max-w-5xl mx-auto w-full bg-white shadow-md rounded-md p-2">
       <h2 className="text-2xl font-bold text-center mb-4">Submit a Complaint</h2>
       <TooltipProvider>
         <Stepper
+          ref={stepperRef}
           key={modalOpen ? "open" : "closed"}
           initialStep={1}
           onStepChange={step => {
@@ -390,7 +579,7 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
           onFinalStepCompleted={handleSubmit}
           backButtonText="Previous"
           nextButtonText={currentStep === 4 ? "Submit" : "Next"}
-          isNextDisabled={!isStepValid(currentStep)}
+          isNextDisabled={!isStepValid(currentStep) || (currentStep === 4 && aiReviewEnabled)}
         >
           {/* Step 1: Personal Info */}
              <Step>
@@ -643,6 +832,156 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
                 onFileRemoved={handleFileRemoved} // Pass a handler to remove files from parent state
                 existingFiles={form.supportingDocuments} // Pass existing files for display
               />
+
+              {/* AI pre-submission review */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 accent-green-600"
+                    checked={aiReviewEnabled}
+                    onChange={e => {
+                      const enabled = e.target.checked;
+                      setAiReviewEnabled(enabled);
+                      setAnalysis(null);
+                      setAnalysisError(null);
+                      if (!enabled) {
+                        setPreviewTicketId(null);
+                      }
+                    }}
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-800">
+                      Let AI review my complaint before submitting
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      We&apos;ll check whether your complaint is going to the right MDA and suggest a better one if needed.
+                    </span>
+                  </span>
+                </label>
+
+                {aiReviewEnabled && (
+                  <div className="mt-4 space-y-3">
+                    {!analysis && (
+                      <Button
+                        type="button"
+                        onClick={handleAnalyzeComplaint}
+                        disabled={isAnalyzing}
+                        className="w-full bg-green-600 text-white hover:bg-green-700"
+                      >
+                        {isAnalyzing
+                          ? "Enqueuing and waiting for AI analysis..."
+                          : "Analyse complaint"}
+                      </Button>
+                    )}
+
+                    {analysisError && (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        <p>{analysisError}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAnalyzeComplaint}
+                            disabled={isAnalyzing}
+                          >
+                            Try again
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            onClick={handleSubmit}
+                          >
+                            Submit anyway
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis?.aiResult === "MATCH" && (
+                      <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm">
+                        <p className="font-semibold text-green-800">
+                          Looks correct{analysisConfidence ? ` (${analysisConfidence} confident)` : ""}
+                        </p>
+                        <p className="mt-1 text-green-900">
+                          {analysis.explanation?.trim() ||
+                            `This complaint is a good match for ${form.assignedMDA}.`}
+                        </p>
+                        <Button
+                          type="button"
+                          onClick={handleSubmit}
+                          className="mt-3 w-full bg-green-600 text-white hover:bg-green-700"
+                        >
+                          Send complaint
+                        </Button>
+                      </div>
+                    )}
+
+                    {analysis?.aiResult === "WRONG_MDA" && (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+                        <p className="font-semibold text-amber-900">
+                          This may be the wrong MDA
+                          {analysisConfidence ? ` (${analysisConfidence} confident)` : ""}
+                        </p>
+                        {analysis.explanation?.trim() && (
+                          <p className="mt-1 text-amber-950">{analysis.explanation}</p>
+                        )}
+                        {suggestedMda && (
+                          <p className="mt-2 text-amber-950">
+                            Suggested MDA: <strong>{suggestedMda}</strong>
+                          </p>
+                        )}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            onClick={handleChangeMdaFromAnalysis}
+                          >
+                            {suggestedMda ? "Change MDA & review" : "Change MDA"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleSubmit}
+                          >
+                            Confirm &amp; send anyway
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {analysis?.aiResult === "IRRELEVANT" && (
+                      <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm">
+                        <p className="font-semibold text-red-800">
+                          This complaint may not be relevant
+                          {analysisConfidence ? ` (${analysisConfidence} confident)` : ""}
+                        </p>
+                        {analysis.explanation?.trim() && (
+                          <p className="mt-1 text-red-900">{analysis.explanation}</p>
+                        )}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            className="bg-green-600 text-white hover:bg-green-700"
+                            onClick={() => stepperRef.current?.goToStep(3)}
+                          >
+                            Edit complaint
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleSubmit}
+                          >
+                            Confirm &amp; send anyway
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </Step>
         </Stepper>
