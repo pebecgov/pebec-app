@@ -10,6 +10,34 @@ import { AUTHORIZED_TASK_ADMIN_EMAILS, isAuthorizedTaskAdmin } from "../lib/auth
 import { formatWorkstream } from "../lib/formatters";
 import { auditDisplayName, logAuditEvent } from "./utils/auditLog";
 
+const completionDocumentValidator = v.object({
+    storageId: v.id("_storage"),
+    fileName: v.string()
+});
+
+function getTaskCompletionDocuments(task: {
+    completionDocuments?: { storageId: Id<"_storage">; fileName: string }[];
+    completionDocumentId?: Id<"_storage">;
+    completionDocumentName?: string;
+}) {
+    if (task.completionDocuments && task.completionDocuments.length > 0) {
+        return task.completionDocuments;
+    }
+    if (task.completionDocumentId && task.completionDocumentName) {
+        return [{ storageId: task.completionDocumentId, fileName: task.completionDocumentName }];
+    }
+    return [];
+}
+
+function completionDocumentSetsMatch(
+    existing: { storageId: Id<"_storage">; fileName: string }[],
+    incoming: { storageId: Id<"_storage">; fileName: string }[]
+) {
+    if (existing.length !== incoming.length) return false;
+    const existingIds = new Set(existing.map((doc) => String(doc.storageId)));
+    return incoming.every((doc) => existingIds.has(String(doc.storageId)));
+}
+
 function escapeHtml(text: string): string {
     return text
         .replace(/&/g, "&amp;")
@@ -965,9 +993,10 @@ export const requestTaskCompletion = mutation({
         taskId: v.id("tasks"),
         completionNotes: v.optional(v.string()),
         completionDocumentId: v.optional(v.id("_storage")),
-        completionDocumentName: v.optional(v.string())
+        completionDocumentName: v.optional(v.string()),
+        completionDocuments: v.optional(v.array(completionDocumentValidator))
     },
-    handler: async (ctx, { taskId, completionNotes, completionDocumentId, completionDocumentName }) => {
+    handler: async (ctx, { taskId, completionNotes, completionDocumentId, completionDocumentName, completionDocuments }) => {
         const user = await getCurrentUserOrThrow(ctx);
         const task = await ctx.db.get(taskId);
 
@@ -984,14 +1013,21 @@ export const requestTaskCompletion = mutation({
             throw new Error("This task is already awaiting admin approval");
         }
 
-        // Lock the original supporting document while consensus/admin review is ongoing.
+        const existingDocs = getTaskCompletionDocuments(task);
+        const incomingDocs =
+            completionDocuments ??
+            (completionDocumentId && completionDocumentName
+                ? [{ storageId: completionDocumentId, fileName: completionDocumentName }]
+                : []);
+
+        // Lock supporting documents while consensus/admin review is ongoing.
         if (
-            task.completionDocumentId &&
+            existingDocs.length > 0 &&
             (task.completionRequestStatus === "awaiting_consensus" || task.completionRequestStatus === "pending") &&
-            completionDocumentId &&
-            String(task.completionDocumentId) !== String(completionDocumentId)
+            incomingDocs.length > 0 &&
+            !completionDocumentSetsMatch(existingDocs, incomingDocs)
         ) {
-            throw new Error("Supporting document is locked until this request is rejected");
+            throw new Error("Supporting documents are locked until this request is rejected");
         }
         if (
             task.completionNotes &&
@@ -1019,10 +1055,11 @@ export const requestTaskCompletion = mutation({
             updatedAt: now
         };
 
-        // Add document if provided
-        if (completionDocumentId) {
-            updateData.completionDocumentId = completionDocumentId;
-            updateData.completionDocumentName = completionDocumentName;
+        // Add documents if provided
+        if (incomingDocs.length > 0) {
+            updateData.completionDocuments = incomingDocs;
+            updateData.completionDocumentId = incomingDocs[0].storageId;
+            updateData.completionDocumentName = incomingDocs[0].fileName;
         }
 
         if (!consensusRequired) {
@@ -1411,7 +1448,8 @@ export const getCompletionDocumentUrl = mutation({
         if (taskId) {
             const task = await ctx.db.get(taskId);
             if (task) {
-                const matchesCompletion = task.completionDocumentId === storageId;
+                const completionDocs = getTaskCompletionDocuments(task);
+                const matchesCompletion = completionDocs.some((doc) => doc.storageId === storageId);
                 const matchesAssignment = task.assignmentDocumentId === storageId;
                 if (matchesCompletion || matchesAssignment) {
                     if (user.role === "admin") {

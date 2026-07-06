@@ -518,6 +518,14 @@ export default defineSchema({
     completionRequestedBy: v.optional(v.id("users")), // Staff member who requested completion
     completionDocumentId: v.optional(v.id("_storage")), // Document uploaded with completion request
     completionDocumentName: v.optional(v.string()), // Name of the uploaded document
+    completionDocuments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          fileName: v.string()
+        })
+      )
+    ),
     completionApprovedBy: v.optional(v.id("users")), // Admin who approved/rejected
     completionApprovedAt: v.optional(v.number()), // When completion was approved/rejected
     completionAdminComment: v.optional(v.string()), // Admin's comment when approving/rejecting
