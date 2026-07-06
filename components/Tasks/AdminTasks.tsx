@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { XMarkIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import * as XLSX from "xlsx";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -24,8 +25,19 @@ import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
 import { fuelCarLabel } from "@/lib/fuelCars";
+import { getCompletionDocumentsFromTask } from "@/lib/taskCompletionDocuments";
 
 type TaskParticipant = { type: "workstream" | "staff"; id: string; name: string };
+
+type TaskStatusFilter = "all" | "assigned_todo" | "in_progress" | "pending_approval" | "completed";
+
+const TASK_STATUS_TABS: { label: string; value: TaskStatusFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Assigned / To Do", value: "assigned_todo" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Pending Approval", value: "pending_approval" },
+  { label: "Completed", value: "completed" }
+];
 
 export default function AdminTasks() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -405,7 +417,8 @@ export default function AdminTasks() {
     }
   };
 
-  const [activeFilter, setActiveFilter] = useState<"assigned_todo" | "in_progress" | "pending_approval" | null>(null);
+  const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>("all");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [tasksListTab, setTasksListTab] = useState<"active" | "completed">("active");
   const TASK_PAGE_SIZE = 20;
   const [activeTasksPage, setActiveTasksPage] = useState(0);
@@ -429,11 +442,15 @@ export default function AdminTasks() {
     }));
   }, [staffMembers]);
 
-  const toggleFilter = (filter: "assigned_todo" | "in_progress" | "pending_approval") => {
-    setTasksListTab("active");
-    setActiveFilter((prev) => {
-      const next = prev === filter ? null : filter;
-      if (next !== null) {
+  const applyStatusFilter = (filter: TaskStatusFilter) => {
+    setStatusFilter((prev) => {
+      const next = prev === filter && filter !== "all" ? "all" : filter;
+      if (next === "completed") {
+        setTasksListTab("completed");
+      } else if (next !== "all") {
+        setTasksListTab("active");
+      }
+      if (next !== "all") {
         setTimeout(() => {
           tasksListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 50);
@@ -442,12 +459,11 @@ export default function AdminTasks() {
     });
   };
 
-  const openCompletedTasksTab = () => {
-    setTasksListTab("completed");
-    setActiveFilter(null);
-    setTimeout(() => {
-      tasksListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
+  const resetTaskFilters = () => {
+    setTasksSearch("");
+    setStatusFilter("all");
+    setDateRange({ start: "", end: "" });
+    setTasksListTab("active");
   };
 
   const filterTasksBySearch = useMemo(() => {
@@ -466,30 +482,27 @@ export default function AdminTasks() {
       );
   }, [tasksSearch, staffSearchIndex]);
 
-  const activeTabTasks = useMemo(() => {
+  const filteredTasks = useMemo(() => {
     if (!allTasks) return [];
-    const nonCompleted = allTasks.filter((t) => t.status !== "done");
-    let tasks = nonCompleted;
-    switch (activeFilter) {
-      case "assigned_todo":
-        tasks = nonCompleted.filter((t) => t.status === "assigned" || t.status === "to_do" || t.status === "in_progress");
-        break;
-      case "in_progress":
-        tasks = nonCompleted.filter((t) => t.status === "in_progress");
-        break;
-      case "pending_approval":
-        tasks = nonCompleted.filter((t) => t.completionRequestStatus === "pending");
-        break;
-      default:
-        break;
-    }
-    return filterTasksBySearch(tasks);
-  }, [allTasks, activeFilter, filterTasksBySearch]);
+    return allTasks.filter(
+      (task) =>
+        taskMatchesStatusFilter(task, statusFilter) &&
+        taskMatchesDateRange(task, dateRange) &&
+        filterTasksBySearch([task]).length > 0
+    );
+  }, [allTasks, statusFilter, dateRange, filterTasksBySearch]);
+
+  const activeTabTasks = useMemo(() => {
+    if (statusFilter === "completed") return [];
+    if (statusFilter !== "all") return filteredTasks;
+    return filteredTasks.filter((t) => t.status !== "done");
+  }, [filteredTasks, statusFilter]);
 
   const completedTabTasks = useMemo(() => {
-    if (!allTasks) return [];
-    return filterTasksBySearch(allTasks.filter((t) => t.status === "done"));
-  }, [allTasks, filterTasksBySearch]);
+    if (statusFilter !== "all" && statusFilter !== "completed") return [];
+    if (statusFilter === "completed") return filteredTasks;
+    return filteredTasks.filter((t) => t.status === "done");
+  }, [filteredTasks, statusFilter]);
 
   const activeTasksTotalPages = Math.max(1, Math.ceil(activeTabTasks.length / TASK_PAGE_SIZE));
   const activeTasksPageSafe = Math.min(activeTasksPage, activeTasksTotalPages - 1);
@@ -505,10 +518,37 @@ export default function AdminTasks() {
     return completedTabTasks.slice(start, start + TASK_PAGE_SIZE);
   }, [completedTabTasks, completedTasksPageSafe]);
 
+  const handleExportTasksExcel = () => {
+    const tasksToExport = tasksListTab === "completed" ? completedTabTasks : activeTabTasks;
+    if (tasksToExport.length === 0) {
+      toast.error("No tasks to export with the current filters.");
+      return;
+    }
+
+    const data = tasksToExport.map((task) => ({
+      Title: task.title,
+      Status: getTaskStatusLabel(task),
+      "Assigned To":
+        task.assignedToName ||
+        (task.assignedStream ? `All ${formatWorkstream(task.assignedStream)} Staff` : "Unassigned"),
+      "Due Date": task.dueDate ? format(new Date(task.dueDate), "PPP") : "—",
+      "Created At": format(new Date(task.createdAt), "PPP 'at' p"),
+      "Created By": task.createdByName || "Admin",
+      "Completed At": task.completedAt ? format(new Date(task.completedAt), "PPP 'at' p") : "—",
+      Description: task.description ?? "—"
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks");
+    XLSX.writeFile(workbook, `tasks-export-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast.success(`Exported ${tasksToExport.length} task(s) to Excel.`);
+  };
+
   useEffect(() => {
     setActiveTasksPage(0);
     setCompletedTasksPage(0);
-  }, [activeFilter, tasksListTab, tasksSearch]);
+  }, [statusFilter, tasksListTab, tasksSearch, dateRange]);
 
   useEffect(() => {
     if (activeTasksPage > activeTasksTotalPages - 1) {
@@ -582,56 +622,58 @@ export default function AdminTasks() {
       <div className={`grid grid-cols-1 gap-4 ${isAuthorizedAdmin ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         <button
           type="button"
-          onClick={() => toggleFilter("assigned_todo")}
-          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "assigned_todo" ? "ring-2 ring-gray-800 border-gray-800" : "hover:border-gray-400"}`}
+          onClick={() => applyStatusFilter("assigned_todo")}
+          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === "assigned_todo" ? "ring-2 ring-gray-800 border-gray-800" : "hover:border-gray-400"}`}
         >
           <div className="p-6 pb-3">
             <p className="text-sm font-medium text-gray-600">Assigned/To Do</p>
           </div>
           <div className="px-6 pb-6">
             <div className="text-2xl font-bold">{tasksByStatus.assigned.length}</div>
-            {activeFilter === "assigned_todo" && <p className="text-xs text-gray-500 mt-1">Filtering active</p>}
+            {statusFilter === "assigned_todo" && <p className="text-xs text-gray-500 mt-1">Filtering active</p>}
           </div>
         </button>
         <button
           type="button"
-          onClick={() => toggleFilter("in_progress")}
-          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "in_progress" ? "ring-2 ring-blue-600 border-blue-600" : "hover:border-gray-400"}`}
+          onClick={() => applyStatusFilter("in_progress")}
+          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === "in_progress" ? "ring-2 ring-blue-600 border-blue-600" : "hover:border-gray-400"}`}
         >
           <div className="p-6 pb-3">
             <p className="text-sm font-medium text-gray-600">In Progress</p>
           </div>
           <div className="px-6 pb-6">
             <div className="text-2xl font-bold text-blue-600">{tasksByStatus.in_progress.length}</div>
-            {activeFilter === "in_progress" && <p className="text-xs text-blue-500 mt-1">Filtering active</p>}
+            {statusFilter === "in_progress" && <p className="text-xs text-blue-500 mt-1">Filtering active</p>}
           </div>
         </button>
         {isAuthorizedAdmin && (
           <button
             type="button"
-            onClick={() => toggleFilter("pending_approval")}
-            className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === "pending_approval" ? "ring-2 ring-yellow-500 border-yellow-500" : "hover:border-gray-400"}`}
+            onClick={() => applyStatusFilter("pending_approval")}
+            className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === "pending_approval" ? "ring-2 ring-yellow-500 border-yellow-500" : "hover:border-gray-400"}`}
           >
             <div className="p-6 pb-3">
               <p className="text-sm font-medium text-gray-600">Pending Approval</p>
             </div>
             <div className="px-6 pb-6">
               <div className="text-2xl font-bold text-yellow-600">{pendingRequests?.length || 0}</div>
-              {activeFilter === "pending_approval" && <p className="text-xs text-yellow-600 mt-1">Filtering active</p>}
+              {statusFilter === "pending_approval" && <p className="text-xs text-yellow-600 mt-1">Filtering active</p>}
             </div>
           </button>
         )}
         <button
           type="button"
-          onClick={openCompletedTasksTab}
-          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tasksListTab === "completed" ? "ring-2 ring-green-600 border-green-600" : "hover:border-gray-400"}`}
+          onClick={() => applyStatusFilter("completed")}
+          className={`text-left rounded-lg border bg-card shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${statusFilter === "completed" || (statusFilter === "all" && tasksListTab === "completed") ? "ring-2 ring-green-600 border-green-600" : "hover:border-gray-400"}`}
         >
           <div className="p-6 pb-3">
             <p className="text-sm font-medium text-gray-600">Completed</p>
           </div>
           <div className="px-6 pb-6">
             <div className="text-2xl font-bold text-green-600">{tasksByStatus.done.length}</div>
-            {tasksListTab === "completed" && <p className="text-xs text-green-600 mt-1">Viewing completed</p>}
+            {(statusFilter === "completed" || (statusFilter === "all" && tasksListTab === "completed")) && (
+              <p className="text-xs text-green-600 mt-1">Viewing completed</p>
+            )}
           </div>
         </button>
       </div>
@@ -722,38 +764,10 @@ export default function AdminTasks() {
                     </div>
                   )}
 
-                  {task.completionDocumentId && task.completionDocumentName && (
-                    <div className="mt-3 mb-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
-                      <p className="text-sm font-medium text-purple-900 mb-2">Supporting Document:</p>
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-purple-600" />
-                        <span className="text-sm text-purple-800 flex-1">{task.completionDocumentName}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            try {
-                              const url = await getCompletionDocumentUrl({
-                                storageId: task.completionDocumentId!,
-                                taskId: task._id
-                              });
-                              if (url) {
-                                window.open(url, "_blank");
-                              } else {
-                                toast.error("Could not retrieve document");
-                              }
-                            } catch (error: any) {
-                              toast.error(error.message || "Failed to open document");
-                            }
-                          }}
-                          className="text-purple-600 hover:text-purple-700"
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  <AdminTaskCompletionDocuments
+                    task={task}
+                    getCompletionDocumentUrl={getCompletionDocumentUrl}
+                  />
                   <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-4">
                     {task.dueDate && (
                       <div className="flex items-center gap-1">
@@ -795,28 +809,119 @@ export default function AdminTasks() {
 
           {/* Tasks List */}
           <div className="space-y-4" ref={tasksListRef}>
-            <div className="relative max-w-xl">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <Input
-                type="search"
-                value={tasksSearch}
-                onChange={(e) => setTasksSearch(e.target.value)}
-                placeholder="Search by task title, description, ID, or assignee name…"
-                className="pl-9"
-              />
+            <div className="bg-zinc-800 text-white p-4 rounded-xl shadow-md">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:flex-wrap gap-4">
+                <div className="flex-1 min-w-[250px] sm:max-w-xs">
+                  <div className="relative h-12">
+                    <MagnifyingGlassIcon className="absolute left-3 top-3 w-5 h-5 text-zinc-400" />
+                    <input
+                      type="text"
+                      value={tasksSearch}
+                      onChange={(e) => setTasksSearch(e.target.value)}
+                      className="pl-10 pr-3 py-2 w-full h-full bg-zinc-700 border border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+                      placeholder="Search by task title or assignee name"
+                    />
+                  </div>
+                </div>
+
+                <div className="w-full sm:w-48 h-12">
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => {
+                      const filter = value as TaskStatusFilter;
+                      setStatusFilter(filter);
+                      if (filter === "completed") {
+                        setTasksListTab("completed");
+                      } else if (filter !== "all") {
+                        setTasksListTab("active");
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full h-full bg-zinc-700 text-white border-zinc-600">
+                      <SelectValue placeholder="Filter by Status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-800 text-white">
+                      {TASK_STATUS_TABS.filter(
+                        (tab) => tab.value !== "pending_approval" || isAuthorizedAdmin
+                      ).map((tab) => (
+                        <SelectItem key={tab.value} value={tab.value}>
+                          {tab.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex flex-col w-full sm:w-40">
+                    <label className="text-xs text-zinc-300 mb-1">From</label>
+                    <Input
+                      type="date"
+                      value={dateRange.start}
+                      onChange={(e) => {
+                        const newStart = e.target.value;
+                        setDateRange((prev) => ({
+                          ...prev,
+                          start: newStart,
+                          end: prev.end && prev.end < newStart ? "" : prev.end
+                        }));
+                      }}
+                      className="bg-zinc-700 text-white border border-zinc-600 h-12"
+                    />
+                  </div>
+                  <div className="flex flex-col w-full sm:w-40">
+                    <label className="text-xs text-zinc-300 mb-1">To</label>
+                    <Input
+                      type="date"
+                      value={dateRange.end}
+                      min={dateRange.start || undefined}
+                      onChange={(e) => {
+                        setDateRange((prev) => ({ ...prev, end: e.target.value }));
+                      }}
+                      className="bg-zinc-700 text-white border border-zinc-600 h-12"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+                  <Button
+                    onClick={resetTaskFilters}
+                    variant="outline"
+                    className="bg-white text-black hover:bg-zinc-100 h-12"
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    className="bg-green-600 text-white hover:bg-green-700 h-12"
+                    onClick={handleExportTasksExcel}
+                  >
+                    Export Excel
+                  </Button>
+                </div>
+              </div>
             </div>
-            {tasksSearch.trim() && (
+            {(tasksSearch.trim() || statusFilter !== "all" || dateRange.start || dateRange.end) && (
               <p className="text-sm text-gray-500">
-                Showing matches for <span className="font-medium text-gray-800">&quot;{tasksSearch.trim()}&quot;</span> in{" "}
-                {tasksListTab === "active" ? "active" : "completed"} tasks.
+                Showing filtered results
+                {tasksSearch.trim() && (
+                  <>
+                    {" "}
+                    matching <span className="font-medium text-gray-800">&quot;{tasksSearch.trim()}&quot;</span>
+                  </>
+                )}
+                {" "}
+                in {tasksListTab === "active" ? "active" : "completed"} tasks.
               </p>
             )}
             <Tabs
               value={tasksListTab}
               onValueChange={(value) => {
                 setTasksListTab(value as "active" | "completed");
-                if (value === "completed") {
-                  setActiveFilter(null);
+                if (value === "completed" && statusFilter !== "completed") {
+                  setStatusFilter("all");
+                }
+                if (value === "active" && statusFilter === "completed") {
+                  setStatusFilter("all");
                 }
               }}
               className="w-full"
@@ -829,15 +934,16 @@ export default function AdminTasks() {
               <TabsContent value="active" className="mt-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold">
-                    {activeFilter === "assigned_todo" && "Assigned / To Do Tasks"}
-                    {activeFilter === "in_progress" && "In Progress Tasks"}
-                    {activeFilter === "pending_approval" && "Pending Approval Tasks"}
-                    {!activeFilter && "Active Tasks"}
+                    {statusFilter === "assigned_todo" && "Assigned / To Do Tasks"}
+                    {statusFilter === "in_progress" && "In Progress Tasks"}
+                    {statusFilter === "pending_approval" && "Pending Approval Tasks"}
+                    {statusFilter === "all" && "Active Tasks"}
+                    {statusFilter === "completed" && "Completed Tasks"}
                   </h2>
-                  {activeFilter && (
+                  {statusFilter !== "all" && (
                     <button
                       type="button"
-                      onClick={() => setActiveFilter(null)}
+                      onClick={() => setStatusFilter("all")}
                       className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
                     >
                       <X className="w-4 h-4" />
@@ -850,11 +956,9 @@ export default function AdminTasks() {
                 ) : activeTabTasks.length === 0 ? (
                   <Card>
                     <CardContent className="py-8 text-center text-gray-500">
-                      {tasksSearch.trim()
-                        ? "No active tasks match your search."
-                        : activeFilter
-                          ? "No active tasks match this filter."
-                          : "No active tasks yet. Create your first task to get started."}
+                      {tasksSearch.trim() || statusFilter !== "all" || dateRange.start || dateRange.end
+                        ? "No active tasks match your filters."
+                        : "No active tasks yet. Create your first task to get started."}
                     </CardContent>
                   </Card>
                 ) : (
@@ -972,38 +1076,10 @@ export default function AdminTasks() {
                     </div>
                   )}
 
-                  {task.completionDocumentId && task.completionDocumentName && (
-                    <div className="mt-3 mb-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
-                      <p className="text-sm font-medium text-purple-900 mb-2">Supporting Document:</p>
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-purple-600" />
-                        <span className="text-sm text-purple-800 flex-1">{task.completionDocumentName}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async () => {
-                            try {
-                              const url = await getCompletionDocumentUrl({
-                                storageId: task.completionDocumentId!,
-                                taskId: task._id
-                              });
-                              if (url) {
-                                window.open(url, "_blank");
-                              } else {
-                                toast.error("Could not retrieve document");
-                              }
-                            } catch (error: any) {
-                              toast.error(error.message || "Failed to open document");
-                            }
-                          }}
-                          className="text-purple-600 hover:text-purple-700"
-                        >
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  <AdminTaskCompletionDocuments
+                    task={task}
+                    getCompletionDocumentUrl={getCompletionDocumentUrl}
+                  />
                   <TaskUpdates taskId={task._id} />
                 </CardContent>
               </Card>
@@ -1034,7 +1110,9 @@ export default function AdminTasks() {
                 ) : completedTabTasks.length === 0 ? (
                   <Card>
                     <CardContent className="py-8 text-center text-gray-500">
-                      {tasksSearch.trim() ? "No completed tasks match your search." : "No completed tasks yet."}
+                      {tasksSearch.trim() || statusFilter !== "all" || dateRange.start || dateRange.end
+                        ? "No completed tasks match your filters."
+                        : "No completed tasks yet."}
                     </CardContent>
                   </Card>
                 ) : (
@@ -1885,6 +1963,102 @@ function TaskUpdates({ taskId }: { taskId: Id<"tasks"> }) {
       )}
     </div>
   );
+}
+
+function AdminTaskCompletionDocuments({
+  task,
+  getCompletionDocumentUrl
+}: {
+  task: { _id: Id<"tasks">; completionDocuments?: { storageId: Id<"_storage">; fileName: string }[]; completionDocumentId?: Id<"_storage">; completionDocumentName?: string };
+  getCompletionDocumentUrl: (args: { storageId: Id<"_storage">; taskId: Id<"tasks"> }) => Promise<string | null>;
+}) {
+  const documents = getCompletionDocumentsFromTask(task);
+  if (documents.length === 0) return null;
+
+  return (
+    <div className="mt-3 mb-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
+      <p className="text-sm font-medium text-purple-900 mb-2">
+        Supporting Document{documents.length > 1 ? "s" : ""}:
+      </p>
+      <div className="space-y-2">
+        {documents.map((doc) => (
+          <div key={doc.storageId} className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-purple-600 shrink-0" />
+            <span className="text-sm text-purple-800 flex-1 truncate">{doc.fileName}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const url = await getCompletionDocumentUrl({
+                    storageId: doc.storageId,
+                    taskId: task._id
+                  });
+                  if (url) {
+                    window.open(url, "_blank");
+                  } else {
+                    toast.error("Could not retrieve document");
+                  }
+                } catch (error: any) {
+                  toast.error(error.message || "Failed to open document");
+                }
+              }}
+              className="text-purple-600 hover:text-purple-700 shrink-0"
+            >
+              <Download className="w-4 h-4 mr-1" />
+              Download
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getTaskStatusLabel(task: {
+  status: string;
+  completionRequestStatus?: string;
+}): string {
+  if (task.completionRequestStatus === "pending") return "Pending Approval";
+  if (task.status === "done") return "Completed";
+  if (task.status === "in_progress") return "In Progress";
+  if (task.status === "to_do") return "To Do";
+  if (task.status === "assigned") return "Assigned";
+  return task.status;
+}
+
+function taskMatchesStatusFilter(
+  task: { status: string; completionRequestStatus?: string },
+  filter: TaskStatusFilter
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "completed") return task.status === "done";
+  if (filter === "assigned_todo") {
+    return task.status === "assigned" || task.status === "to_do" || task.status === "in_progress";
+  }
+  if (filter === "in_progress") return task.status === "in_progress";
+  if (filter === "pending_approval") return task.completionRequestStatus === "pending";
+  return true;
+}
+
+function taskMatchesDateRange(
+  task: { createdAt: number },
+  dateRange: { start: string; end: string }
+): boolean {
+  const taskDate = new Date(task.createdAt);
+  const startDate = dateRange.start ? new Date(dateRange.start) : null;
+  const endDate = dateRange.end ? new Date(dateRange.end) : null;
+
+  if (startDate) {
+    startDate.setHours(0, 0, 0, 0);
+    if (taskDate < startDate) return false;
+  }
+  if (endDate) {
+    const endOfDay = new Date(endDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    if (taskDate > endOfDay) return false;
+  }
+  return true;
 }
 
 function taskMatchesAdminSearch(
