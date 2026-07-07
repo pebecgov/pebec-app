@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -30,6 +30,15 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  mode?: "create" | "edit";
+  editRequest?: {
+    _id: Id<"leaveRequests">;
+    subject: string;
+    bodyHtml: string;
+    startDate: string;
+    endDate: string;
+    workingDays?: number;
+  } | null;
 };
 
 type PendingFile = {
@@ -38,10 +47,17 @@ type PendingFile = {
   uploading?: boolean;
 };
 
-export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
+export function LeaveRequestApplyDialog({
+  open,
+  onClose,
+  onSuccess,
+  mode = "create",
+  editRequest = null,
+}: Props) {
   const balance = useQuery(api.leaveRequests.getLeaveBalance, {});
   const approver = useQuery(api.leaveRequests.getLeaveApproverDisplay, {});
   const submit = useMutation(api.leaveRequests.submitLeaveRequest);
+  const updatePending = useMutation(api.leaveRequests.updateMyPendingLeaveRequest);
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
 
   const [subject, setSubject] = useState("");
@@ -50,6 +66,18 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
   const [endDate, setEndDate] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const isEdit = mode === "edit" && !!editRequest;
+
+  const existingRequestWorkingDays =
+    isEdit && editRequest
+      ? (editRequest.workingDays ??
+        countWorkingDays(editRequest.startDate, editRequest.endDate))
+      : 0;
+
+  const effectivePendingDays = balance
+    ? Math.max(0, balance.pending - existingRequestWorkingDays)
+    : 0;
 
   const workingDaysPreview =
     startDate && endDate && endDate >= startDate ? countWorkingDays(startDate, endDate) : 0;
@@ -62,7 +90,12 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
   const exceedsBalance =
     !!balance &&
     workingDaysPreview > 0 &&
-    wouldExceedLeaveAllowance(balance.used, balance.pending, workingDaysPreview);
+    wouldExceedLeaveAllowance(
+      balance.used,
+      effectivePendingDays,
+      workingDaysPreview,
+      balance.annualAllowance,
+    );
 
   const reset = () => {
     setSubject("");
@@ -71,6 +104,19 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
     setEndDate("");
     setFiles([]);
   };
+
+  useEffect(() => {
+    if (!open) return;
+    if (isEdit && editRequest) {
+      setSubject(editRequest.subject);
+      setBodyHtml(editRequest.bodyHtml || "");
+      setStartDate(editRequest.startDate);
+      setEndDate(editRequest.endDate);
+      setFiles([]);
+      return;
+    }
+    reset();
+  }, [open, isEdit, editRequest]);
 
   const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? []);
@@ -121,16 +167,27 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
 
     try {
       setSubmitting(true);
-      const uploaded = await uploadAll();
-      await submit({
-        subject: subject.trim(),
-        bodyHtml,
-        startDate,
-        endDate,
-        attachmentIds: uploaded.length ? uploaded.map((u) => u.storageId) : undefined,
-        attachmentNames: uploaded.length ? uploaded.map((u) => u.name) : undefined,
-      });
-      toast.success("Leave request submitted");
+      if (isEdit && editRequest) {
+        await updatePending({
+          leaveRequestId: editRequest._id,
+          subject: subject.trim(),
+          bodyHtml,
+          startDate,
+          endDate,
+        });
+        toast.success("Leave request updated");
+      } else {
+        const uploaded = await uploadAll();
+        await submit({
+          subject: subject.trim(),
+          bodyHtml,
+          startDate,
+          endDate,
+          attachmentIds: uploaded.length ? uploaded.map((u) => u.storageId) : undefined,
+          attachmentNames: uploaded.length ? uploaded.map((u) => u.name) : undefined,
+        });
+        toast.success("Leave request submitted");
+      }
       reset();
       onClose();
       onSuccess?.();
@@ -150,7 +207,7 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
     >
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Apply for leave</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit leave request" : "Apply for leave"}</DialogTitle>
         </DialogHeader>
 
         {balance && (
@@ -225,41 +282,44 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
             <LeaveBalanceAlert
               requestedDays={workingDaysPreview}
               used={balance.used}
-              pending={balance.pending}
+              pending={effectivePendingDays}
               year={balance.year}
+              annualAllowance={balance.annualAllowance}
             />
           )}
 
           <LeaveRequestRichTextEditor value={bodyHtml} onChange={setBodyHtml} />
 
-          <div>
-            <Label>Attachments</Label>
-            <div className="mt-1 flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" asChild>
-                <label className="cursor-pointer">
-                  <Paperclip className="mr-1 inline h-4 w-4" />
-                  Add files
-                  <input type="file" multiple className="hidden" onChange={handleFilePick} />
-                </label>
-              </Button>
+          {!isEdit && (
+            <div>
+              <Label>Attachments</Label>
+              <div className="mt-1 flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <label className="cursor-pointer">
+                    <Paperclip className="mr-1 inline h-4 w-4" />
+                    Add files
+                    <input type="file" multiple className="hidden" onChange={handleFilePick} />
+                  </label>
+                </Button>
+              </div>
+              {files.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {files.map((f, i) => (
+                    <li key={`${f.file.name}-${i}`} className="flex items-center justify-between text-sm">
+                      <span>{f.file.name}</span>
+                      <button
+                        type="button"
+                        className="text-gray-500 hover:text-red-600"
+                        onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            {files.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {files.map((f, i) => (
-                  <li key={`${f.file.name}-${i}`} className="flex items-center justify-between text-sm">
-                    <span>{f.file.name}</span>
-                    <button
-                      type="button"
-                      className="text-gray-500 hover:text-red-600"
-                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -267,7 +327,7 @@ export function LeaveRequestApplyDialog({ open, onClose, onSuccess }: Props) {
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={submitting || exceedsBalance}>
-            {submitting ? "Submitting…" : "Submit request"}
+            {submitting ? (isEdit ? "Saving…" : "Submitting…") : isEdit ? "Save changes" : "Submit request"}
           </Button>
         </DialogFooter>
       </DialogContent>

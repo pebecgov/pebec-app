@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import StaffLeaveRequests from "./StaffLeaveRequests";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
@@ -249,7 +251,14 @@ export default function AdminLeaveRequests() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Tabs defaultValue="manage" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="manage">Manage Staff Leave</TabsTrigger>
+          <TabsTrigger value="my-leave">My Leave Requests</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="manage" className="space-y-8">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => (
           <Card key={card.key} className={cn("border shadow-sm", card.className)}>
             <CardContent className="flex gap-3 p-5">
@@ -385,6 +394,12 @@ export default function AdminLeaveRequests() {
           </Table>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="my-leave">
+          <StaffLeaveRequests />
+        </TabsContent>
+      </Tabs>
 
       {overviewModal && (
         <LeaveOverviewStaffDialog

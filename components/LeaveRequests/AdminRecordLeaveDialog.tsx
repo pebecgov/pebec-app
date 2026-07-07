@@ -221,6 +221,7 @@ export function AdminRecordLeaveDialog({ open, onClose, onSuccess }: Props) {
               pending={balance.pending}
               year={balance.year}
               staffName={balance.userName}
+              annualAllowance={balance.annualAllowance}
             />
           )}
 

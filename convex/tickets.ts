@@ -1,13 +1,21 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
-//@ts-nocheck 
+//@ts-nocheck
 
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUserOrNull, getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
+import {
+  getCurrentUserOrNull,
+  getCurrentUserOrThrow,
+  filterAdminsForNotifications,
+} from "./users";
 import { api } from "./_generated/api";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { calculateBusinessHours, addBusinessHours, skipWeekendsHours } from "../lib/businessHours";
+import {
+  calculateBusinessHours,
+  addBusinessHours,
+  skipWeekendsHours,
+} from "../lib/businessHours";
 
 function generateTicketNumber() {
   return `TICKET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -26,11 +34,14 @@ export const createTicket = mutation({
     state: v.optional(v.string()),
     address: v.optional(v.string()),
     supportingDocuments: v.optional(v.array(v.id("_storage"))),
-    businessName: v.optional(v.string())
+    businessName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrNull(ctx);
-    const mdaRecord = await ctx.db.query("mdas").withIndex("byName", q => q.eq("name", args.assignedMDA)).first();
+    const mdaRecord = await ctx.db
+      .query("mdas")
+      .withIndex("byName", (q) => q.eq("name", args.assignedMDA))
+      .first();
     const assignedMDAId = mdaRecord ? mdaRecord._id : undefined;
     const now = new Date();
     const day = String(now.getDate()).padStart(2, "0");
@@ -39,7 +50,15 @@ export const createTicket = mutation({
     const dateKey = `${day}${month}${year}`;
     const startOfDay = new Date(now.setHours(0, 0, 0, 0)).getTime();
     const endOfDay = new Date(now.setHours(23, 59, 59, 999)).getTime();
-    const todaysTickets = await ctx.db.query("tickets").filter(q => q.and(q.gte(q.field("createdAt"), startOfDay), q.lte(q.field("createdAt"), endOfDay))).collect();
+    const todaysTickets = await ctx.db
+      .query("tickets")
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("createdAt"), startOfDay),
+          q.lte(q.field("createdAt"), endOfDay),
+        ),
+      )
+      .collect();
     const dailyCount = todaysTickets.length + 1;
     const ticketSuffix = String(dailyCount).padStart(3, "0");
     const ticketNumber = `REP-${dateKey}-${ticketSuffix}`;
@@ -54,7 +73,7 @@ export const createTicket = mutation({
         address: args.address ?? "",
         role: "user",
         imageUrl: "",
-        clerkUserId: "guest_" + Date.now()
+        clerkUserId: "guest_" + Date.now(),
       });
     }
     const ticketId = await ctx.db.insert("tickets", {
@@ -75,9 +94,12 @@ export const createTicket = mutation({
       supportingDocuments: args.supportingDocuments ?? [],
       businessName: args.businessName ?? "",
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
-    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdmins = await ctx.db
+      .query("users")
+      .withIndex("byRole", (q) => q.eq("role", "admin"))
+      .collect();
     const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
       await ctx.db.insert("notifications", {
@@ -86,11 +108,14 @@ export const createTicket = mutation({
         message: `New ticket created: ${ticketNumber}`,
         isRead: false,
         createdAt: Date.now(),
-        type: "new_ticket"
+        type: "new_ticket",
       });
     }
     if (assignedMDAId) {
-      const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", assignedMDAId)).collect();
+      const mdaUsers = await ctx.db
+        .query("users")
+        .withIndex("byMdaId", (q) => q.eq("mdaId", assignedMDAId))
+        .collect();
       for (const mdaUser of mdaUsers) {
         await ctx.db.insert("notifications", {
           userId: mdaUser._id,
@@ -98,42 +123,51 @@ export const createTicket = mutation({
           message: `New ticket assigned to you: ${ticketNumber}`,
           isRead: false,
           createdAt: Date.now(),
-          type: "ticket_assignment"
+          type: "ticket_assignment",
         });
       }
-      await ctx.scheduler.runAfter(2 * 60 * 1000, api.tickets.checkAndSendReminder, {
-        ticketId
-      });
+      await ctx.scheduler.runAfter(
+        2 * 60 * 1000,
+        api.tickets.checkAndSendReminder,
+        {
+          ticketId,
+        },
+      );
     }
     return {
       ticketId,
-      ticketNumber
+      ticketNumber,
     };
-  }
+  },
 });
 
 export const checkAndSendReminder = mutation({
   args: {
-    ticketId: v.id("tickets")
+    ticketId: v.id("tickets"),
   },
-  handler: async (ctx, {
-    ticketId
-  }) => {
+  handler: async (ctx, { ticketId }) => {
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) {
       console.log("❌ Ticket not found, stopping reminder.");
       return;
     }
     if (ticket.status !== "open") {
-      console.log(`✅ Ticket ${ticket.ticketNumber} is updated. No reminder needed.`);
+      console.log(
+        `✅ Ticket ${ticket.ticketNumber} is updated. No reminder needed.`,
+      );
       return;
     }
-    const mdaUser = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", ticket.assignedMDA)).first();
+    const mdaUser = await ctx.db
+      .query("users")
+      .withIndex("byMdaId", (q) => q.eq("mdaId", ticket.assignedMDA))
+      .first();
     if (!mdaUser || !mdaUser.email) {
       console.log(`❌ No MDA user found for ticket ${ticket.ticketNumber}`);
       return;
     }
-    console.log(`📧 Sending reminder to ${mdaUser.email} for ticket ${ticket.ticketNumber}`);
+    console.log(
+      `📧 Sending reminder to ${mdaUser.email} for ticket ${ticket.ticketNumber}`,
+    );
     const emailTemplate = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
         <div style="background-color: #FF9800; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
@@ -156,140 +190,174 @@ export const checkAndSendReminder = mutation({
     await ctx.scheduler.runAfter(0, api.email.sendEmail, {
       to: mdaUser.email,
       subject: `Reminder: Update Ticket #${ticket.ticketNumber}`,
-      html: emailTemplate
+      html: emailTemplate,
     });
     const nigeriaTimeOffset = 1 * 60 * 60 * 1000;
     const now = new Date();
     const tomorrow10AM = new Date(now);
     tomorrow10AM.setUTCDate(now.getUTCDate() + 1);
     tomorrow10AM.setUTCHours(9, 0, 0, 0);
-    console.log(`⏳ Next reminder scheduled for ${tomorrow10AM.toLocaleString("en-NG", {
-      timeZone: "Africa/Lagos"
-    })}`);
+    console.log(
+      `⏳ Next reminder scheduled for ${tomorrow10AM.toLocaleString("en-NG", {
+        timeZone: "Africa/Lagos",
+      })}`,
+    );
     await ctx.scheduler.runAt(tomorrow10AM, api.tickets.checkAndSendReminder, {
-      ticketId
+      ticketId,
     });
-  }
+  },
 });
 
 export const getUserTickets = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
-    const tickets = await ctx.db.query("tickets").withIndex("byUser", q => q.eq("createdBy", user._id)).order("desc").collect();
-    const mdaIds = [...new Set(tickets.map(ticket => ticket.assignedMDA).filter((id): id is Id<"mdas"> => !!id))];
-    const mdas = await Promise.all(mdaIds.map(mdaId => ctx.db.get(mdaId)));
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("byUser", (q) => q.eq("createdBy", user._id))
+      .order("desc")
+      .collect();
+    const mdaIds = [
+      ...new Set(
+        tickets
+          .map((ticket) => ticket.assignedMDA)
+          .filter((id): id is Id<"mdas"> => !!id),
+      ),
+    ];
+    const mdas = await Promise.all(mdaIds.map((mdaId) => ctx.db.get(mdaId)));
     const mdaMap: Record<string, string> = {};
-    mdas.forEach(mda => {
+    mdas.forEach((mda) => {
       if (mda) mdaMap[mda._id] = mda.name;
     });
-    return tickets.map(ticket => ({
+    return tickets.map((ticket) => ({
       ...ticket,
       assignedMDA: ticket.assignedMDA,
-      assignedMDAName: ticket.assignedMDA ? mdaMap[ticket.assignedMDA] || "Unassigned" : "Unassigned",
+      assignedMDAName: ticket.assignedMDA
+        ? mdaMap[ticket.assignedMDA] || "Unassigned"
+        : "Unassigned",
       createdByUser: {
         firstName: user.firstName || "Unknown",
         lastName: user.lastName || "",
-        imageUrl: user.imageUrl || ""
-      }
+        imageUrl: user.imageUrl || "",
+      },
     }));
-  }
+  },
 });
 
 export const getAllTickets = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     const allowedRoles = ["admin", "staff", "president", "vice_president"];
     if (!user.role || !allowedRoles.includes(user.role)) {
-      throw new Error("Unauthorized: You do not have permission to view all tickets.");
+      throw new Error(
+        "Unauthorized: You do not have permission to view all tickets.",
+      );
     }
     const tickets = await ctx.db.query("tickets").order("desc").collect();
-    const userIds = [...new Set(tickets.map(ticket => ticket.createdBy))];
-    const users = await Promise.all(userIds.map(userId => ctx.db.get(userId)));
-    const userMap: Record<string, {
-      firstName?: string;
-      lastName?: string;
-      imageUrl?: string;
-    }> = {};
-    users.forEach(user => {
+    const userIds = [...new Set(tickets.map((ticket) => ticket.createdBy))];
+    const users = await Promise.all(
+      userIds.map((userId) => ctx.db.get(userId)),
+    );
+    const userMap: Record<
+      string,
+      {
+        firstName?: string;
+        lastName?: string;
+        imageUrl?: string;
+      }
+    > = {};
+    users.forEach((user) => {
       if (user) {
         userMap[user._id] = {
           firstName: user.firstName || "Unknown",
           lastName: user.lastName || "",
-          imageUrl: user.imageUrl || ""
+          imageUrl: user.imageUrl || "",
         };
       }
     });
-    const mdaIds = [...new Set(tickets.map(ticket => ticket.assignedMDA).filter((id): id is Id<"mdas"> => !!id))];
-    const mdas = await Promise.all(mdaIds.map(mdaId => ctx.db.get(mdaId)));
+    const mdaIds = [
+      ...new Set(
+        tickets
+          .map((ticket) => ticket.assignedMDA)
+          .filter((id): id is Id<"mdas"> => !!id),
+      ),
+    ];
+    const mdas = await Promise.all(mdaIds.map((mdaId) => ctx.db.get(mdaId)));
     const mdaMap: Record<string, string> = {};
-    mdas.forEach(mda => {
+    mdas.forEach((mda) => {
       if (mda) mdaMap[mda._id] = mda.name;
     });
-    return tickets.map(ticket => ({
+    return tickets.map((ticket) => ({
       ...ticket,
       assignedMDA: ticket.assignedMDA,
-      assignedMDAName: ticket.assignedMDA ? mdaMap[ticket.assignedMDA] || "Unassigned" : "Unassigned",
+      assignedMDAName: ticket.assignedMDA
+        ? mdaMap[ticket.assignedMDA] || "Unassigned"
+        : "Unassigned",
       createdByUser: userMap[ticket.createdBy] || {
         firstName: "Unknown",
         lastName: "",
-        imageUrl: ""
-      }
+        imageUrl: "",
+      },
     }));
-  }
+  },
 });
 
 export const assignTicketAgent = mutation({
   args: {
     ticketId: v.id("tickets"),
-    agentId: v.id("users")
+    agentId: v.id("users"),
   },
-  handler: async (ctx, {
-    ticketId,
-    agentId
-  }) => {
+  handler: async (ctx, { ticketId, agentId }) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "admin") {
       throw new Error("Unauthorized: Only admins can assign agents.");
     }
     await ctx.db.patch(ticketId, {
       assignedAgent: agentId,
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
-  }
+  },
 });
 
 export const updateTicketStatus = mutation({
   args: {
     ticketId: v.id("tickets"),
-    status: v.union(v.literal("open"), v.literal("in_progress"), v.literal("resolved"), v.literal("closed")),
-    resolutionNote: v.optional(v.string())
+    status: v.union(
+      v.literal("open"),
+      v.literal("in_progress"),
+      v.literal("resolved"),
+      v.literal("closed"),
+    ),
+    resolutionNote: v.optional(v.string()),
   },
-  handler: async (ctx, {
-    ticketId,
-    status,
-    resolutionNote
-  }) => {
+  handler: async (ctx, { ticketId, status, resolutionNote }) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "admin" && user.role !== "mda") {
-      throw new Error("Unauthorized: Only admins and MDAs can update ticket status.");
+      throw new Error(
+        "Unauthorized: Only admins and MDAs can update ticket status.",
+      );
     }
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) {
       throw new Error("Ticket not found");
     }
     if ((status === "resolved" || status === "closed") && !resolutionNote) {
-      throw new Error("Resolution note is required when resolving or closing a ticket.");
+      throw new Error(
+        "Resolution note is required when resolving or closing a ticket.",
+      );
     }
     const ticketCreator = await ctx.db.get(ticket.createdBy);
     const firstName = ticketCreator?.firstName || "Citizen";
     const patch: Partial<Doc<"tickets">> = {
       status,
       updatedAt: Date.now(),
-      resolutionNote
+      resolutionNote,
     };
-    if (!ticket.firstResponseAt && ["in_progress", "resolved", "closed"].includes(status)) {
+    if (
+      !ticket.firstResponseAt &&
+      ["in_progress", "resolved", "closed"].includes(status)
+    ) {
       patch.firstResponseAt = Date.now();
     }
     await ctx.db.patch(ticketId, patch);
@@ -300,7 +368,7 @@ export const updateTicketStatus = mutation({
       message,
       isRead: false,
       createdAt: Date.now(),
-      type: "ticket_update"
+      type: "ticket_update",
     });
     let emailBody = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
@@ -349,25 +417,31 @@ export const updateTicketStatus = mutation({
     await ctx.scheduler.runAfter(0, api.email.sendEmail, {
       to: ticket.email,
       subject: `Update on Your Ticket #${ticket.ticketNumber}`,
-      html: emailBody
+      html: emailBody,
     });
-    console.log(`📧 Email sent to ${ticket.email} for status update to ${status}`);
+    console.log(
+      `📧 Email sent to ${ticket.email} for status update to ${status}`,
+    );
     return true;
-  }
+  },
 });
 
 export const getTicketById = query({
   args: {
-    ticketId: v.id("tickets")
+    ticketId: v.id("tickets"),
   },
-  handler: async (ctx, {
-    ticketId
-  }) => {
+  handler: async (ctx, { ticketId }) => {
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) throw new Error("Ticket not found");
-    const mda = ticket.assignedMDA ? await ctx.db.get(ticket.assignedMDA) : null;
+    const mda = ticket.assignedMDA
+      ? await ctx.db.get(ticket.assignedMDA)
+      : null;
     const mdaName = mda?.name || "Unassigned";
-    const comments = await ctx.db.query("ticket_comments").withIndex("byTicket", q => q.eq("ticketId", ticketId)).order("desc").collect();
+    const comments = await ctx.db
+      .query("ticket_comments")
+      .withIndex("byTicket", (q) => q.eq("ticketId", ticketId))
+      .order("desc")
+      .collect();
     const user = await ctx.db.get(ticket.createdBy);
     return {
       ...ticket,
@@ -375,82 +449,79 @@ export const getTicketById = query({
       comments,
       supportingDocuments: ticket.supportingDocuments ?? [],
       clerkUserId: user?.clerkUserId ?? null,
-      businessName: user?.businessName ?? ticket.businessName ?? ""
+      businessName: user?.businessName ?? ticket.businessName ?? "",
     };
-  }
+  },
 });
 
 export const addTicketComment = mutation({
   args: {
     ticketId: v.id("tickets"),
     authorId: v.optional(v.id("users")),
-    content: v.string()
+    content: v.string(),
   },
-  handler: async (ctx, {
-    ticketId,
-    authorId,
-    content
-  }) => {
+  handler: async (ctx, { ticketId, authorId, content }) => {
     await ctx.db.insert("ticket_comments", {
       ticketId,
       authorId,
       content,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     });
     const ticket = await ctx.db.get(ticketId);
     if (ticket && !ticket.firstResponseAt) {
       await ctx.db.patch(ticketId, {
-        firstResponseAt: Date.now()
+        firstResponseAt: Date.now(),
       });
     }
-  }
+  },
 });
 
 export const generateUploadUrl = mutation({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     return await ctx.storage.generateUploadUrl();
-  }
+  },
 });
 
 export const getStorageUrl = mutation({
   args: {
-    storageId: v.id("_storage")
+    storageId: v.id("_storage"),
   },
-  handler: async (ctx, {
-    storageId
-  }) => {
+  handler: async (ctx, { storageId }) => {
     return await ctx.storage.getUrl(storageId);
-  }
+  },
 });
 
 export const getIncidentsStats = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const incidents = await ctx.db.query("tickets").collect();
     return {
       total: incidents.length,
-      open: incidents.filter(t => t.status === "open").length,
-      in_progress: incidents.filter(t => t.status === "in_progress").length,
-      resolved: incidents.filter(t => t.status === "resolved").length,
-      closed: incidents.filter(t => t.status === "closed").length,
-      pending: incidents.filter(t => t.status === "open").length
+      open: incidents.filter((t) => t.status === "open").length,
+      in_progress: incidents.filter((t) => t.status === "in_progress").length,
+      resolved: incidents.filter((t) => t.status === "resolved").length,
+      closed: incidents.filter((t) => t.status === "closed").length,
+      pending: incidents.filter((t) => t.status === "open").length,
     };
-  }
+  },
 });
 
 export const getMDAIncidentsStats = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const incidents = await ctx.db.query("tickets").collect();
-    const groupedByMDA: Record<string, {
-      mdaName: string;
-      total: number;
-      open: number;
-      in_progress: number;
-      resolved: number;
-      closed: number;
-    }> = {};
+    const groupedByMDA: Record<
+      string,
+      {
+        mdaName: string;
+        total: number;
+        open: number;
+        in_progress: number;
+        resolved: number;
+        closed: number;
+      }
+    > = {};
     for (const incident of incidents) {
       if (!incident.assignedMDA) continue;
       const mda = await ctx.db.get(incident.assignedMDA);
@@ -463,63 +534,70 @@ export const getMDAIncidentsStats = query({
           open: 0,
           in_progress: 0,
           resolved: 0,
-          closed: 0
+          closed: 0,
         };
       }
       groupedByMDA[incident.assignedMDA].total += 1;
       groupedByMDA[incident.assignedMDA][incident.status] += 1;
     }
     return groupedByMDA;
-  }
+  },
 });
 
 export const getTicketsByMda = query({
   args: {
-    mdaId: v.id("mdas")
+    mdaId: v.id("mdas"),
   },
-  handler: async (ctx, {
-    mdaId
-  }) => {
-    const tickets = await ctx.db.query("tickets").withIndex("byMDA", q => q.eq("assignedMDA", mdaId)).order("desc").collect();
-    const userIds = [...new Set(tickets.map(ticket => ticket.createdBy))];
-    const users = await Promise.all(userIds.map(userId => ctx.db.get(userId)));
-    const userMap: Record<string, {
-      firstName?: string;
-      lastName?: string;
-      imageUrl?: string;
-    }> = {};
-    users.forEach(user => {
+  handler: async (ctx, { mdaId }) => {
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("byMDA", (q) => q.eq("assignedMDA", mdaId))
+      .order("desc")
+      .collect();
+    const userIds = [...new Set(tickets.map((ticket) => ticket.createdBy))];
+    const users = await Promise.all(
+      userIds.map((userId) => ctx.db.get(userId)),
+    );
+    const userMap: Record<
+      string,
+      {
+        firstName?: string;
+        lastName?: string;
+        imageUrl?: string;
+      }
+    > = {};
+    users.forEach((user) => {
       if (user) {
         userMap[user._id] = {
           firstName: user.firstName || "Unknown",
           lastName: user.lastName || "",
-          imageUrl: user.imageUrl || ""
+          imageUrl: user.imageUrl || "",
         };
       }
     });
     const mda = await ctx.db.get(mdaId);
     const mdaName = mda ? mda.name : "Unknown MDA";
-    return tickets.map(ticket => ({
+    return tickets.map((ticket) => ({
       ...ticket,
       assignedMDA: ticket.assignedMDA,
       assignedMDAName: mdaName,
       createdByUser: userMap[ticket.createdBy] || {
         firstName: "Unknown",
         lastName: "",
-        imageUrl: ""
-      }
+        imageUrl: "",
+      },
     }));
-  }
+  },
 });
 
 export const getIncidentsStatsByMonth = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const incidents = await ctx.db.query("tickets").collect();
     const statsByMonth = {};
-    incidents.forEach(incident => {
+    incidents.forEach((incident) => {
       const month = new Date(incident.createdAt).toLocaleString("en-US", {
-        month: "short"
+        month: "short",
       });
       if (!statsByMonth[month]) {
         statsByMonth[month] = {
@@ -527,42 +605,40 @@ export const getIncidentsStatsByMonth = query({
           resolved: 0,
           in_progress: 0,
           closed: 0,
-          pending: 0
+          pending: 0,
         };
       }
       statsByMonth[month].total += 1;
       if (incident.status === "resolved") statsByMonth[month].resolved += 1;
-      if (incident.status === "in_progress") statsByMonth[month].in_progress += 1;
+      if (incident.status === "in_progress")
+        statsByMonth[month].in_progress += 1;
       if (incident.status === "closed") statsByMonth[month].closed += 1;
       if (incident.status === "open") statsByMonth[month].pending += 1;
     });
     return statsByMonth;
-  }
+  },
 });
 
 export const getTicketsByState = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const tickets = await ctx.db.query("tickets").collect();
     const ticketsByState: Record<string, number> = {};
-    tickets.forEach(ticket => {
+    tickets.forEach((ticket) => {
       if (ticket.state) {
         ticketsByState[ticket.state] = (ticketsByState[ticket.state] || 0) + 1;
       }
     });
     return ticketsByState;
-  }
+  },
 });
 
 export const assignTicketMDA = mutation({
   args: {
     ticketId: v.id("tickets"),
-    mdaId: v.id("mdas")
+    mdaId: v.id("mdas"),
   },
-  handler: async (ctx, {
-    ticketId,
-    mdaId
-  }) => {
+  handler: async (ctx, { ticketId, mdaId }) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "admin") {
       throw new Error("Unauthorized: Only admins can assign MDAs.");
@@ -578,11 +654,11 @@ export const assignTicketMDA = mutation({
 
     // If ticket is closed, reopen it and reset timeline
     const isTransferringClosedTicket = ticket.status === "closed";
-    
+
     const patchData: any = {
       assignedMDA: mdaId,
       updatedAt: Date.now(),
-      reassignedAt: Date.now() // Reset timeline for 72-hour calculation
+      reassignedAt: Date.now(), // Reset timeline for 72-hour calculation
     };
 
     // Reopen closed tickets when transferred
@@ -592,23 +668,26 @@ export const assignTicketMDA = mutation({
     }
 
     await ctx.db.patch(ticketId, patchData);
-    
+
     const updatedTicket = await ctx.db.get(ticketId);
     console.log(`✅ Updated Ticket:`, updatedTicket);
-    
-    const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", mdaId)).collect();
+
+    const mdaUsers = await ctx.db
+      .query("users")
+      .withIndex("byMdaId", (q) => q.eq("mdaId", mdaId))
+      .collect();
     for (const mdaUser of mdaUsers) {
-      const message = isTransferringClosedTicket 
+      const message = isTransferringClosedTicket
         ? `Closed ticket #${ticket.ticketNumber} reopened and assigned to ${mda.name}`
         : `New ticket assigned to ${mda.name}`;
-      
+
       await ctx.db.insert("notifications", {
         userId: mdaUser._id,
         ticketId,
         message,
         isRead: false,
         createdAt: Date.now(),
-        type: "ticket_assignment"
+        type: "ticket_assignment",
       });
     }
 
@@ -620,32 +699,30 @@ export const assignTicketMDA = mutation({
         message: `Your ticket #${ticket.ticketNumber} has been reopened and reassigned to ${mda.name}`,
         isRead: false,
         createdAt: Date.now(),
-        type: "ticket_reopened"
+        type: "ticket_reopened",
       });
     }
 
     return {
       success: true,
-      message: isTransferringClosedTicket 
-        ? `Closed ticket reopened and assigned to ${mda.name}` 
-        : `Ticket assigned to ${mda.name}`
+      message: isTransferringClosedTicket
+        ? `Closed ticket reopened and assigned to ${mda.name}`
+        : `Ticket assigned to ${mda.name}`,
     };
-  }
+  },
 });
 
 export const cancelTicket = mutation({
   args: {
-    ticketId: v.id("tickets")
+    ticketId: v.id("tickets"),
   },
-  handler: async (ctx, {
-    ticketId
-  }) => {
+  handler: async (ctx, { ticketId }) => {
     const user = await getCurrentUserOrThrow(ctx);
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) throw new Error("Ticket not found.");
     await ctx.db.patch(ticketId, {
       status: "closed",
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
     await ctx.db.insert("notifications", {
       userId: user._id,
@@ -653,10 +730,13 @@ export const cancelTicket = mutation({
       message: `You canceled ticket #${ticket.ticketNumber}.`,
       isRead: false,
       createdAt: Date.now(),
-      type: "ticket_canceled"
+      type: "ticket_canceled",
     });
     if (ticket.assignedMDA) {
-      const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", ticket.assignedMDA)).collect();
+      const mdaUsers = await ctx.db
+        .query("users")
+        .withIndex("byMdaId", (q) => q.eq("mdaId", ticket.assignedMDA))
+        .collect();
       for (const mdaUser of mdaUsers) {
         await ctx.db.insert("notifications", {
           userId: mdaUser._id,
@@ -664,11 +744,14 @@ export const cancelTicket = mutation({
           message: `A ticket assigned to your MDA (#${ticket.ticketNumber}) was canceled.`,
           isRead: false,
           createdAt: Date.now(),
-          type: "ticket_canceled"
+          type: "ticket_canceled",
         });
       }
     }
-    const allAdmins = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdmins = await ctx.db
+      .query("users")
+      .withIndex("byRole", (q) => q.eq("role", "admin"))
+      .collect();
     const admins = filterAdminsForNotifications(allAdmins);
     for (const admin of admins) {
       await ctx.db.insert("notifications", {
@@ -677,25 +760,23 @@ export const cancelTicket = mutation({
         message: `A ticket (#${ticket.ticketNumber}) was canceled.`,
         isRead: false,
         createdAt: Date.now(),
-        type: "ticket_canceled"
+        type: "ticket_canceled",
       });
     }
-  }
+  },
 });
 
 export const reopenTicket = mutation({
   args: {
-    ticketId: v.id("tickets")
+    ticketId: v.id("tickets"),
   },
-  handler: async (ctx, {
-    ticketId
-  }) => {
+  handler: async (ctx, { ticketId }) => {
     const user = await getCurrentUserOrThrow(ctx);
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) throw new Error("Ticket not found.");
     await ctx.db.patch(ticketId, {
       status: "open",
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
     await ctx.db.insert("notifications", {
       userId: user._id,
@@ -703,10 +784,13 @@ export const reopenTicket = mutation({
       message: `Your ticket #${ticket.ticketNumber} has been reopened.`,
       isRead: false,
       createdAt: Date.now(),
-      type: "ticket_reopened"
+      type: "ticket_reopened",
     });
     if (ticket.assignedMDA) {
-      const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", ticket.assignedMDA)).collect();
+      const mdaUsers = await ctx.db
+        .query("users")
+        .withIndex("byMdaId", (q) => q.eq("mdaId", ticket.assignedMDA))
+        .collect();
       for (const mdaUser of mdaUsers) {
         await ctx.db.insert("notifications", {
           userId: mdaUser._id,
@@ -714,11 +798,14 @@ export const reopenTicket = mutation({
           message: `A ticket assigned to your MDA (#${ticket.ticketNumber}) has been reopened.`,
           isRead: false,
           createdAt: Date.now(),
-          type: "ticket_reopened"
+          type: "ticket_reopened",
         });
       }
     }
-    const allAdminsReopen = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdminsReopen = await ctx.db
+      .query("users")
+      .withIndex("byRole", (q) => q.eq("role", "admin"))
+      .collect();
     const adminsReopen = filterAdminsForNotifications(allAdminsReopen);
     for (const admin of adminsReopen) {
       await ctx.db.insert("notifications", {
@@ -727,34 +814,30 @@ export const reopenTicket = mutation({
         message: `A ticket (#${ticket.ticketNumber}) was reopened.`,
         isRead: false,
         createdAt: Date.now(),
-        type: "ticket_reopened"
+        type: "ticket_reopened",
       });
     }
-  }
+  },
 });
 
 export const deleteTicket = mutation({
   args: {
-    ticketId: v.id("tickets")
+    ticketId: v.id("tickets"),
   },
-  handler: async (ctx, {
-    ticketId
-  }) => {
+  handler: async (ctx, { ticketId }) => {
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) return;
     if (ticket.status === "closed") {
       await ctx.db.delete(ticketId);
     }
-  }
+  },
 });
 
 export const deleteTicketMutation = mutation({
   args: {
-    ticketId: v.id("tickets")
+    ticketId: v.id("tickets"),
   },
-  handler: async (ctx, {
-    ticketId
-  }) => {
+  handler: async (ctx, { ticketId }) => {
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) {
       console.log(`⚠ Ticket ${ticketId} not found or already deleted.`);
@@ -765,7 +848,10 @@ export const deleteTicketMutation = mutation({
       console.log(`⚠ User who created ticket ${ticketId} not found.`);
       return;
     }
-    const notifications = await ctx.db.query("notifications").withIndex("byTicket", q => q.eq("ticketId", ticketId)).collect();
+    const notifications = await ctx.db
+      .query("notifications")
+      .withIndex("byTicket", (q) => q.eq("ticketId", ticketId))
+      .collect();
     for (const notification of notifications) {
       await ctx.db.delete(notification._id);
     }
@@ -775,10 +861,13 @@ export const deleteTicketMutation = mutation({
       message: `Your ticket #${ticket.ticketNumber} has been deleted.`,
       isRead: false,
       createdAt: Date.now(),
-      type: "ticket_deleted"
+      type: "ticket_deleted",
     });
     if (ticket.assignedMDA) {
-      const mdaUsers = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", ticket.assignedMDA)).collect();
+      const mdaUsers = await ctx.db
+        .query("users")
+        .withIndex("byMdaId", (q) => q.eq("mdaId", ticket.assignedMDA))
+        .collect();
       for (const mdaUser of mdaUsers) {
         await ctx.db.insert("notifications", {
           userId: mdaUser._id,
@@ -786,11 +875,14 @@ export const deleteTicketMutation = mutation({
           message: `A ticket assigned to your MDA (#${ticket.ticketNumber}) has been deleted.`,
           isRead: false,
           createdAt: Date.now(),
-          type: "ticket_deleted"
+          type: "ticket_deleted",
         });
       }
     }
-    const allAdminsDelete = await ctx.db.query("users").withIndex("byRole", q => q.eq("role", "admin")).collect();
+    const allAdminsDelete = await ctx.db
+      .query("users")
+      .withIndex("byRole", (q) => q.eq("role", "admin"))
+      .collect();
     const adminsDelete = filterAdminsForNotifications(allAdminsDelete);
     for (const admin of adminsDelete) {
       await ctx.db.insert("notifications", {
@@ -799,21 +891,24 @@ export const deleteTicketMutation = mutation({
         message: `A ticket (#${ticket.ticketNumber}) has been deleted.`,
         isRead: false,
         createdAt: Date.now(),
-        type: "ticket_deleted"
+        type: "ticket_deleted",
       });
     }
     await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
       to: user.email,
       subject: `Your Ticket #${ticket.ticketNumber} Has Been Deleted`,
-      html: `<p>Dear ${user.firstName || user.email},</p><p>Your support ticket <strong>#${ticket.ticketNumber}</strong> has been deleted.</p>`
+      html: `<p>Dear ${user.firstName || user.email},</p><p>Your support ticket <strong>#${ticket.ticketNumber}</strong> has been deleted.</p>`,
     });
     if (ticket.assignedMDA) {
-      const mdaUser = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", ticket.assignedMDA)).first();
+      const mdaUser = await ctx.db
+        .query("users")
+        .withIndex("byMdaId", (q) => q.eq("mdaId", ticket.assignedMDA))
+        .first();
       if (mdaUser) {
         await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
           to: mdaUser.email,
           subject: `Ticket #${ticket.ticketNumber} Assigned to Your MDA Has Been Deleted`,
-          html: `<p>A ticket assigned to your MDA (${ticket.assignedMDA}) has been deleted.</p>`
+          html: `<p>A ticket assigned to your MDA (${ticket.assignedMDA}) has been deleted.</p>`,
         });
       }
     }
@@ -821,29 +916,32 @@ export const deleteTicketMutation = mutation({
       await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
         to: admin.email,
         subject: `Ticket #${ticket.ticketNumber} Has Been Deleted`,
-        html: `<p>Ticket #${ticket.ticketNumber} has been deleted by an administrator.</p>`
+        html: `<p>Ticket #${ticket.ticketNumber} has been deleted by an administrator.</p>`,
       });
     }
     await ctx.db.delete(ticketId);
     console.log(`✅ Ticket ${ticket.ticketNumber} has been deleted.`);
-  }
+  },
 });
 
 export const getMDAIncidentsStat = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "mda") {
       throw new Error("Unauthorized: Only MDA users can access this data.");
     }
-    const tickets = await ctx.db.query("tickets").withIndex("byMDA", q => q.eq("assignedMDA", user.mdaId)).collect();
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("byMDA", (q) => q.eq("assignedMDA", user.mdaId))
+      .collect();
     const now = Date.now();
     const twoDaysInMillis = 48 * 60 * 60 * 1000;
     let resolvedCount = 0;
     let closedCount = 0;
     let totalAssigned = tickets.length;
     let score = 0;
-    tickets.forEach(ticket => {
+    tickets.forEach((ticket) => {
       if (ticket.status === "resolved") {
         resolvedCount++;
         const updatedAt = ticket.updatedAt || ticket.createdAt;
@@ -865,24 +963,30 @@ export const getMDAIncidentsStat = query({
       resolved: resolvedCount,
       unresolved: totalAssigned - resolvedCount - closedCount,
       closed: closedCount,
-      resolvedPercentage: totalAssigned > 0 ? Math.round((resolvedCount + closedCount) / totalAssigned * 100) : 0,
-      score
+      resolvedPercentage:
+        totalAssigned > 0
+          ? Math.round(((resolvedCount + closedCount) / totalAssigned) * 100)
+          : 0,
+      score,
     };
-  }
+  },
 });
 
 export const getMDAIncidentsStatsByMonth = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "mda") {
       throw new Error("Unauthorized: Only MDA users can access this data.");
     }
-    const tickets = await ctx.db.query("tickets").withIndex("byMDA", q => q.eq("assignedMDA", user.mdaId)).collect();
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("byMDA", (q) => q.eq("assignedMDA", user.mdaId))
+      .collect();
     const statsByMonth = {};
-    tickets.forEach(ticket => {
+    tickets.forEach((ticket) => {
       const month = new Date(ticket.createdAt).toLocaleString("en-US", {
-        month: "short"
+        month: "short",
       });
       if (!statsByMonth[month]) {
         statsByMonth[month] = {
@@ -890,7 +994,7 @@ export const getMDAIncidentsStatsByMonth = query({
           resolved: 0,
           in_progress: 0,
           closed: 0,
-          pending: 0
+          pending: 0,
         };
       }
       statsByMonth[month].total += 1;
@@ -900,71 +1004,95 @@ export const getMDAIncidentsStatsByMonth = query({
       if (ticket.status === "open") statsByMonth[month].pending += 1;
     });
     return statsByMonth;
-  }
+  },
 });
 
 export const getMDAReports = query({
   args: {
     fromDate: v.number(),
     toDate: v.number(),
-    mdaIds: v.array(v.id("mdas"))
+    mdaIds: v.array(v.id("mdas")),
   },
-  handler: async (ctx, {
-    fromDate,
-    toDate,
-    mdaIds
-  }) => {
-    const tickets = await ctx.db.query("tickets").filter(q => q.and(q.gte(q.field("createdAt"), fromDate), q.lte(q.field("createdAt"), toDate))).order("desc").collect();
-    const validTickets = tickets.filter(ticket => ticket.assignedMDA !== undefined && mdaIds.includes(ticket.assignedMDA));
+  handler: async (ctx, { fromDate, toDate, mdaIds }) => {
+    const tickets = await ctx.db
+      .query("tickets")
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("createdAt"), fromDate),
+          q.lte(q.field("createdAt"), toDate),
+        ),
+      )
+      .order("desc")
+      .collect();
+    const validTickets = tickets.filter(
+      (ticket) =>
+        ticket.assignedMDA !== undefined && mdaIds.includes(ticket.assignedMDA),
+    );
     const mdaMap: Record<string, string> = {};
-    for (const mdaId of new Set(validTickets.map(ticket => ticket.assignedMDA))) {
+    for (const mdaId of new Set(
+      validTickets.map((ticket) => ticket.assignedMDA),
+    )) {
       if (!mdaId) continue;
       const mda = await ctx.db.get(mdaId);
       if (mda && "name" in mda) {
         mdaMap[mdaId] = mda.name;
       }
     }
-    return validTickets.map(ticket => ({
+    return validTickets.map((ticket) => ({
       ...ticket,
-      assignedMDAName: ticket.assignedMDA ? mdaMap[ticket.assignedMDA] || "Unassigned" : "Unassigned",
+      assignedMDAName: ticket.assignedMDA
+        ? mdaMap[ticket.assignedMDA] || "Unassigned"
+        : "Unassigned",
       createdAt: new Date(ticket.createdAt).toLocaleString(),
-      updatedAt: ticket.updatedAt ? new Date(ticket.updatedAt).toLocaleString() : "Not Updated"
+      updatedAt: ticket.updatedAt
+        ? new Date(ticket.updatedAt).toLocaleString()
+        : "Not Updated",
     }));
-  }
+  },
 });
 
 export const getAllTicketUsers = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const currentUser = await getCurrentUserOrThrow(ctx);
-    const allowedRoles = ["admin", "staff", "president", "vice_president", "mda"];
+    const allowedRoles = [
+      "admin",
+      "staff",
+      "president",
+      "vice_president",
+      "mda",
+    ];
     if (!currentUser.role || !allowedRoles.includes(currentUser.role)) {
       throw new Error("Unauthorized");
     }
     const tickets = await ctx.db.query("tickets").collect();
-    const userIds = [...new Set(tickets.map(t => t.createdBy))];
-    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
-    return users.filter((u): u is Doc<"users"> => u !== null).map(u => ({
-      _id: u._id,
-      firstName: u.firstName || "",
-      lastName: u.lastName || "",
-      email: u.email || "",
-      businessName: u.businessName || "",
-      role: u.role || "user"
-    }));
-  }
+    const userIds = [...new Set(tickets.map((t) => t.createdBy))];
+    const users = await Promise.all(userIds.map((id) => ctx.db.get(id)));
+    return users
+      .filter((u): u is Doc<"users"> => u !== null)
+      .map((u) => ({
+        _id: u._id,
+        firstName: u.firstName || "",
+        lastName: u.lastName || "",
+        email: u.email || "",
+        businessName: u.businessName || "",
+        role: u.role || "user",
+      }));
+  },
 });
 
 export const getTicketsByUserId = query({
   args: {
-    userId: v.id("users")
+    userId: v.id("users"),
   },
-  handler: async (ctx, {
-    userId
-  }) => {
-    const tickets = await ctx.db.query("tickets").withIndex("byUser", q => q.eq("createdBy", userId)).order("desc").collect();
+  handler: async (ctx, { userId }) => {
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("byUser", (q) => q.eq("createdBy", userId))
+      .order("desc")
+      .collect();
     return tickets;
-  }
+  },
 });
 
 export const getFilteredTickets = query({
@@ -974,11 +1102,17 @@ export const getFilteredTickets = query({
     status: v.optional(v.string()),
     mdaName: v.optional(v.string()),
     fromDate: v.optional(v.number()),
-    toDate: v.optional(v.number())
+    toDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
-    const allowedRoles = ["admin", "staff", "president", "vice_president", "mda"];
+    const allowedRoles = [
+      "admin",
+      "staff",
+      "president",
+      "vice_president",
+      "mda",
+    ];
     if (!user.role || !allowedRoles.includes(user.role)) {
       throw new Error("Unauthorized");
     }
@@ -986,86 +1120,129 @@ export const getFilteredTickets = query({
     if (user.role === "admin") {
       tickets = await ctx.db.query("tickets").collect();
     } else if (user.role === "mda" && user.mdaId) {
-      tickets = await ctx.db.query("tickets").withIndex("byMDA", q => q.eq("assignedMDA", user.mdaId)).collect();
+      tickets = await ctx.db
+        .query("tickets")
+        .withIndex("byMDA", (q) => q.eq("assignedMDA", user.mdaId))
+        .collect();
     } else {
       tickets = await ctx.db.query("tickets").collect();
     }
     if (args.mdaName) {
-      const mda = await ctx.db.query("mdas").withIndex("byName", q => q.eq("name", args.mdaName!)).first();
+      const mda = await ctx.db
+        .query("mdas")
+        .withIndex("byName", (q) => q.eq("name", args.mdaName!))
+        .first();
       if (!mda) return [];
-      tickets = tickets.filter(ticket => ticket.assignedMDA === mda._id);
+      tickets = tickets.filter((ticket) => ticket.assignedMDA === mda._id);
     }
     if (args.userId) {
-      tickets = tickets.filter(ticket => ticket.createdBy === args.userId);
+      tickets = tickets.filter((ticket) => ticket.createdBy === args.userId);
     }
     if (args.businessName) {
-      const userIdsInTickets = [...new Set(tickets.map(t => t.createdBy))];
-      const users = await Promise.all(userIdsInTickets.map(id => ctx.db.get(id)));
-      const matchingUserIds = users.filter(u => u?.businessName?.toLowerCase() === args.businessName?.toLowerCase()).map(u => u!._id);
-      tickets = tickets.filter(ticket => matchingUserIds.includes(ticket.createdBy) || ticket.businessName?.toLowerCase() === args.businessName?.toLowerCase());
+      const userIdsInTickets = [...new Set(tickets.map((t) => t.createdBy))];
+      const users = await Promise.all(
+        userIdsInTickets.map((id) => ctx.db.get(id)),
+      );
+      const matchingUserIds = users
+        .filter(
+          (u) =>
+            u?.businessName?.toLowerCase() === args.businessName?.toLowerCase(),
+        )
+        .map((u) => u!._id);
+      tickets = tickets.filter(
+        (ticket) =>
+          matchingUserIds.includes(ticket.createdBy) ||
+          ticket.businessName?.toLowerCase() ===
+            args.businessName?.toLowerCase(),
+      );
     }
     if (args.status) {
-      tickets = tickets.filter(ticket => ticket.status === args.status);
+      tickets = tickets.filter((ticket) => ticket.status === args.status);
     }
     if (args.fromDate || args.toDate) {
-      tickets = tickets.filter(ticket => {
+      tickets = tickets.filter((ticket) => {
         const createdAt = ticket.createdAt ?? ticket._creationTime;
-        return (!args.fromDate || createdAt >= args.fromDate) && (!args.toDate || createdAt <= args.toDate);
+        return (
+          (!args.fromDate || createdAt >= args.fromDate) &&
+          (!args.toDate || createdAt <= args.toDate)
+        );
       });
     }
-    const mdaIds = [...new Set(tickets.map(t => t.assignedMDA).filter((id): id is Id<"mdas"> => !!id))];
-    const mdas = await Promise.all(mdaIds.map(id => ctx.db.get(id)));
+    const mdaIds = [
+      ...new Set(
+        tickets
+          .map((t) => t.assignedMDA)
+          .filter((id): id is Id<"mdas"> => !!id),
+      ),
+    ];
+    const mdas = await Promise.all(mdaIds.map((id) => ctx.db.get(id)));
     const mdaMap: Record<string, string> = {};
-    mdas.forEach(mda => {
+    mdas.forEach((mda) => {
       if (mda) mdaMap[mda._id] = mda.name;
     });
     getTicketById;
-    const creatorUserIds = [...new Set(tickets.map(t => t.createdBy))];
-    const creators = await Promise.all(creatorUserIds.map(id => ctx.db.get(id)));
-    const userMap: Record<string, {
-      businessName?: string;
-    }> = {};
-    creators.forEach(u => {
+    const creatorUserIds = [...new Set(tickets.map((t) => t.createdBy))];
+    const creators = await Promise.all(
+      creatorUserIds.map((id) => ctx.db.get(id)),
+    );
+    const userMap: Record<
+      string,
+      {
+        businessName?: string;
+      }
+    > = {};
+    creators.forEach((u) => {
       if (u) {
         userMap[u._id] = {
-          businessName: u.businessName ?? ""
+          businessName: u.businessName ?? "",
         };
       }
     });
-    const enhanced = tickets.map(ticket => ({
+    const enhanced = tickets.map((ticket) => ({
       ...ticket,
-      assignedMDAName: ticket.assignedMDA ? mdaMap[ticket.assignedMDA] || "Unassigned" : "Unassigned",
-      businessName: userMap[ticket.createdBy]?.businessName || ticket.businessName || ""
+      assignedMDAName: ticket.assignedMDA
+        ? mdaMap[ticket.assignedMDA] || "Unassigned"
+        : "Unassigned",
+      businessName:
+        userMap[ticket.createdBy]?.businessName || ticket.businessName || "",
     }));
     return enhanced;
-  }
+  },
 });
 
 export const getMdaMonthlySummaryStats = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "mda" || !user.mdaId) {
       throw new Error("Unauthorized: Only MDA users can view this data.");
     }
 
     const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const currentMonthStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+    ).getTime();
     const threeDays = 72 * 60 * 60 * 1000;
 
-    const tickets = await ctx.db.query("tickets")
-      .withIndex("byMDA", q => q.eq("assignedMDA", user.mdaId))
+    const tickets = await ctx.db
+      .query("tickets")
+      .withIndex("byMDA", (q) => q.eq("assignedMDA", user.mdaId))
       .collect();
 
-    const thisMonthTickets = tickets.filter(ticket => ticket.createdAt >= currentMonthStart);
+    const thisMonthTickets = tickets.filter(
+      (ticket) => ticket.createdAt >= currentMonthStart,
+    );
 
-    const resolvedIn72hrs = tickets.filter(ticket => {
-      const resolvedOrClosed = ticket.status === "resolved" || ticket.status === "closed";
+    const resolvedIn72hrs = tickets.filter((ticket) => {
+      const resolvedOrClosed =
+        ticket.status === "resolved" || ticket.status === "closed";
       const updated = ticket.updatedAt ?? ticket._creationTime;
-      
+
       // Use skipWeekendsHours to calculate time taken
       const hoursUsed = skipWeekendHoursCount(ticket.createdAt, updated);
-      
+
       return resolvedOrClosed && hoursUsed <= 72;
     }).length;
 
@@ -1076,85 +1253,106 @@ export const getMdaMonthlySummaryStats = query({
     return {
       ticketsThisMonth: thisMonthTickets.length,
       resolvedIn72hrs,
-      noTicketsMessage: thisMonthTickets.length === 0 ? `${mdaName} has not received any tickets for the month` : undefined
+      noTicketsMessage:
+        thisMonthTickets.length === 0
+          ? `${mdaName} has not received any tickets for the month`
+          : undefined,
     };
-  }
+  },
 });
 
 export const getAdminMonthlyStats = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     const allowedRoles = ["admin", "staff", "president", "vice_president"];
     if (!user.role || !allowedRoles.includes(user.role)) {
       throw new Error("Unauthorized");
     }
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const startOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+    ).getTime();
     const threeDaysMs = 72 * 60 * 60 * 1000;
     const tickets = await ctx.db.query("tickets").order("desc").collect();
-    const userMap: Record<string, {
-      firstName?: string;
-      lastName?: string;
-    }> = {};
+    const userMap: Record<
+      string,
+      {
+        firstName?: string;
+        lastName?: string;
+      }
+    > = {};
     const mdaMap: Record<string, string> = {};
-    const userIds = [...new Set(tickets.map(t => t.createdBy))];
-    const mdaIds = [...new Set(tickets.map(t => t.assignedMDA).filter(Boolean))];
-    const users = await Promise.all(userIds.map(id => ctx.db.get(id)));
-    users.forEach(u => {
-      if (u) userMap[u._id] = {
-        firstName: u.firstName,
-        lastName: u.lastName
-      };
+    const userIds = [...new Set(tickets.map((t) => t.createdBy))];
+    const mdaIds = [
+      ...new Set(tickets.map((t) => t.assignedMDA).filter(Boolean)),
+    ];
+    const users = await Promise.all(userIds.map((id) => ctx.db.get(id)));
+    users.forEach((u) => {
+      if (u)
+        userMap[u._id] = {
+          firstName: u.firstName,
+          lastName: u.lastName,
+        };
     });
-    const validMdaIds = mdaIds.filter((id): id is Id<"mdas"> => id !== undefined);
-    const mdas = await Promise.all(validMdaIds.map(id => ctx.db.get(id)));
-    mdas.forEach(m => {
+    const validMdaIds = mdaIds.filter(
+      (id): id is Id<"mdas"> => id !== undefined,
+    );
+    const mdas = await Promise.all(validMdaIds.map((id) => ctx.db.get(id)));
+    mdas.forEach((m) => {
       if (m) mdaMap[m._id] = m.name;
     });
-    const monthlyTickets = tickets.filter(t => t.createdAt >= startOfMonth);
-    const withStats = monthlyTickets.map(t => {
+    const monthlyTickets = tickets.filter((t) => t.createdAt >= startOfMonth);
+    const withStats = monthlyTickets.map((t) => {
       const updated = t.updatedAt ?? t.createdAt;
-      const resolvedWithin72h = t.status === "resolved" && skipWeekendHoursCount(t.createdAt, updated) <= 72;
-      const closedWithin72h = t.status === "closed" && skipWeekendHoursCount(t.createdAt, updated) <= 72;
+      const resolvedWithin72h =
+        t.status === "resolved" &&
+        skipWeekendHoursCount(t.createdAt, updated) <= 72;
+      const closedWithin72h =
+        t.status === "closed" &&
+        skipWeekendHoursCount(t.createdAt, updated) <= 72;
       return {
         ticketNumber: t.ticketNumber,
         title: t.title,
-        mdaName: t.assignedMDA ? mdaMap[t.assignedMDA] ?? "Unassigned" : "Unassigned",
+        mdaName: t.assignedMDA
+          ? (mdaMap[t.assignedMDA] ?? "Unassigned")
+          : "Unassigned",
         createdAt: t.createdAt,
         updatedAt: updated,
         resolvedWithin72h,
         closedWithin72h,
         userFirstName: userMap[t.createdBy]?.firstName ?? "",
-        userLastName: userMap[t.createdBy]?.lastName ?? ""
+        userLastName: userMap[t.createdBy]?.lastName ?? "",
       };
     });
     return {
       total: withStats.length,
-      resolvedWithin72h: withStats.filter(t => t.resolvedWithin72h).length,
-      closedWithin72h: withStats.filter(t => t.closedWithin72h).length,
-      tickets: withStats
+      resolvedWithin72h: withStats.filter((t) => t.resolvedWithin72h).length,
+      closedWithin72h: withStats.filter((t) => t.closedWithin72h).length,
+      tickets: withStats,
     };
-  }
+  },
 });
 
 export const saveUploadedFile = mutation({
   args: {
     storageId: v.id("_storage"),
-    fileName: v.string()
+    fileName: v.string(),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("uploaded_files", {
       storageId: args.storageId,
       fileName: args.fileName,
-      uploadedAt: Date.now()
+      uploadedAt: Date.now(),
     });
-  }
+  },
 });
 
 export const getAdminMonthlyTopResolved = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (!user) return null;
     const allowedRoles = ["admin", "staff", "president", "vice_president"];
@@ -1165,18 +1363,22 @@ export const getAdminMonthlyTopResolved = query({
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const twoDays = 48 * 60 * 60 * 1000;
     const tickets = await ctx.db.query("tickets").collect();
-    const thisMonth = tickets.filter(t => t.createdAt >= monthStart);
-    const resolvedQuickly = thisMonth.filter(t => ["resolved", "closed"].includes(t.status) && (t.updatedAt ?? t.createdAt) - t.createdAt <= twoDays);
+    const thisMonth = tickets.filter((t) => t.createdAt >= monthStart);
+    const resolvedQuickly = thisMonth.filter(
+      (t) =>
+        ["resolved", "closed"].includes(t.status) &&
+        (t.updatedAt ?? t.createdAt) - t.createdAt <= twoDays,
+    );
     return {
       reportsThisMonth: thisMonth.length,
-      resolvedWithin48h: resolvedQuickly.length
+      resolvedWithin48h: resolvedQuickly.length,
     };
-  }
+  },
 });
 
 export const getTopMdasByResolution = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     const allowedRoles = ["admin", "staff", "president", "vice_president"];
     if (!user.role || !allowedRoles.includes(user.role)) {
@@ -1185,31 +1387,39 @@ export const getTopMdasByResolution = query({
     const tickets = await ctx.db.query("tickets").collect();
     const mdaStats: Record<string, number> = {};
     for (const ticket of tickets) {
-      if (["resolved", "closed"].includes(ticket.status) && ticket.assignedMDA) {
+      if (
+        ["resolved", "closed"].includes(ticket.status) &&
+        ticket.assignedMDA
+      ) {
         mdaStats[ticket.assignedMDA] = (mdaStats[ticket.assignedMDA] || 0) + 1;
       }
     }
-    const results = await Promise.all(Object.entries(mdaStats).map(async ([mdaId, count]) => {
-      const mda = await ctx.db.get(mdaId as Id<"mdas">);
-      if (!mda) return null;
-      const usersInMDA = await ctx.db.query("users").withIndex("byMdaId", q => q.eq("mdaId", mdaId as Id<"mdas">)).collect();
-      if (usersInMDA.length === 0) return null;
-      return {
-        mdaName: mda.name,
-        count
-      };
-    }));
-    const filteredResults = results.filter(r => r !== null) as {
+    const results = await Promise.all(
+      Object.entries(mdaStats).map(async ([mdaId, count]) => {
+        const mda = await ctx.db.get(mdaId as Id<"mdas">);
+        if (!mda) return null;
+        const usersInMDA = await ctx.db
+          .query("users")
+          .withIndex("byMdaId", (q) => q.eq("mdaId", mdaId as Id<"mdas">))
+          .collect();
+        if (usersInMDA.length === 0) return null;
+        return {
+          mdaName: mda.name,
+          count,
+        };
+      }),
+    );
+    const filteredResults = results.filter((r) => r !== null) as {
       mdaName: string;
       count: number;
     }[];
     return filteredResults.sort((a, b) => b.count - a.count);
-  }
+  },
 });
 
 export const getMdaPerformanceInsights = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     const allowedRoles = ["admin", "staff", "president", "vice_president"];
     if (!user.role || !allowedRoles.includes(user.role)) {
@@ -1224,13 +1434,13 @@ export const getMdaPerformanceInsights = query({
         mostOverdueTickets: [],
         leastOverdueTickets: [],
         mostComplaints: [],
-        leastComplaints: []
+        leastComplaints: [],
       };
     }
 
     const mdas = await ctx.db.query("mdas").collect();
     const mdaNameMap: Record<string, string> = {};
-    mdas.forEach(mda => {
+    mdas.forEach((mda) => {
       mdaNameMap[mda._id] = mda.name;
     });
 
@@ -1254,7 +1464,7 @@ export const getMdaPerformanceInsights = query({
           totalResolved: 0,
           resolvedWithin72h: 0,
           overdueTickets: 0,
-          openTickets: 0
+          openTickets: 0,
         };
       }
       return stats[mdaId];
@@ -1289,15 +1499,19 @@ export const getMdaPerformanceInsights = query({
     const statsArray = Object.values(stats);
 
     const sortDesc = <K extends keyof MdaStat>(key: K) =>
-      [...statsArray].sort((a, b) => b[key] - a[key] || b.totalTickets - a.totalTickets);
+      [...statsArray].sort(
+        (a, b) => b[key] - a[key] || b.totalTickets - a.totalTickets,
+      );
     const sortAsc = <K extends keyof MdaStat>(key: K) =>
-      [...statsArray].sort((a, b) => a[key] - b[key] || a.totalTickets - b.totalTickets);
+      [...statsArray].sort(
+        (a, b) => a[key] - b[key] || a.totalTickets - b.totalTickets,
+      );
 
     const toResolvedEntry = (stat: MdaStat) => ({
       mdaId: stat.mdaId,
       mdaName: stat.mdaName,
       resolvedWithin72h: stat.resolvedWithin72h,
-      totalResolved: stat.totalResolved
+      totalResolved: stat.totalResolved,
     });
 
     const toOverdueEntry = (stat: MdaStat) => ({
@@ -1305,58 +1519,78 @@ export const getMdaPerformanceInsights = query({
       mdaName: stat.mdaName,
       overdueTickets: stat.overdueTickets,
       openTickets: stat.openTickets,
-      totalTickets: stat.totalTickets
+      totalTickets: stat.totalTickets,
     });
 
     const toComplaintEntry = (stat: MdaStat) => ({
       mdaId: stat.mdaId,
       mdaName: stat.mdaName,
-      totalTickets: stat.totalTickets
+      totalTickets: stat.totalTickets,
     });
 
     return {
-      topResolvedWithin72h: sortDesc("resolvedWithin72h").slice(0, 5).map(toResolvedEntry),
-      leastResolvedWithin72h: sortAsc("resolvedWithin72h").slice(0, 5).map(toResolvedEntry),
-      mostOverdueTickets: sortDesc("overdueTickets").slice(0, 5).map(toOverdueEntry),
-      leastOverdueTickets: sortAsc("overdueTickets").slice(0, 5).map(toOverdueEntry),
-      mostComplaints: sortDesc("totalTickets").slice(0, 5).map(toComplaintEntry),
-      leastComplaints: sortAsc("totalTickets").slice(0, 5).map(toComplaintEntry)
+      topResolvedWithin72h: sortDesc("resolvedWithin72h")
+        .slice(0, 5)
+        .map(toResolvedEntry),
+      leastResolvedWithin72h: sortAsc("resolvedWithin72h")
+        .slice(0, 5)
+        .map(toResolvedEntry),
+      mostOverdueTickets: sortDesc("overdueTickets")
+        .slice(0, 5)
+        .map(toOverdueEntry),
+      leastOverdueTickets: sortAsc("overdueTickets")
+        .slice(0, 5)
+        .map(toOverdueEntry),
+      mostComplaints: sortDesc("totalTickets")
+        .slice(0, 5)
+        .map(toComplaintEntry),
+      leastComplaints: sortAsc("totalTickets")
+        .slice(0, 5)
+        .map(toComplaintEntry),
     };
-  }
+  },
 });
 
 export const getAllMdas = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     return await ctx.db.query("mdas").collect();
-  }
+  },
 });
 
 export const getAllMdasAdmin = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "admin") throw new Error("Unauthorized");
     return await ctx.db.query("mdas").collect();
-  }
+  },
 });
 
 export const getTopAndBottomMdaPerformanceByMonth = query({
   args: {
     from: v.number(),
-    to: v.number()
+    to: v.number(),
   },
-  handler: async (ctx, {
-    from,
-    to
-  }) => {
-    const tickets = await ctx.db.query("tickets").filter(q => q.and(q.gte(q.field("createdAt"), from), q.lte(q.field("createdAt"), to))).collect();
-    const mdaMap: Record<string, {
-      name: string;
-      times: number[];
-      resolved: number;
-      total: number;
-    }> = {};
+  handler: async (ctx, { from, to }) => {
+    const tickets = await ctx.db
+      .query("tickets")
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("createdAt"), from),
+          q.lte(q.field("createdAt"), to),
+        ),
+      )
+      .collect();
+    const mdaMap: Record<
+      string,
+      {
+        name: string;
+        times: number[];
+        resolved: number;
+        total: number;
+      }
+    > = {};
     for (const ticket of tickets) {
       if (!ticket.assignedMDA) continue;
       if (!mdaMap[ticket.assignedMDA]) {
@@ -1366,82 +1600,104 @@ export const getTopAndBottomMdaPerformanceByMonth = query({
           name: mda.name,
           times: [],
           resolved: 0,
-          total: 0
+          total: 0,
         };
       }
       mdaMap[ticket.assignedMDA].total += 1;
-      if (ticket.status === "resolved" && ticket.createdAt && ticket.updatedAt) {
+      if (
+        ticket.status === "resolved" &&
+        ticket.createdAt &&
+        ticket.updatedAt
+      ) {
         const timeTaken = ticket.updatedAt - ticket.createdAt;
         mdaMap[ticket.assignedMDA].times.push(timeTaken);
         mdaMap[ticket.assignedMDA].resolved += 1;
       }
     }
-    const mdaStats = Object.values(mdaMap).map(entry => {
-      const avgTime = entry.times.length > 0 ? entry.times.reduce((a, b) => a + b, 0) / entry.times.length : 0;
+    const mdaStats = Object.values(mdaMap).map((entry) => {
+      const avgTime =
+        entry.times.length > 0
+          ? entry.times.reduce((a, b) => a + b, 0) / entry.times.length
+          : 0;
       return {
         name: entry.name,
         count: entry.resolved,
         total: entry.total,
-        avgTime
+        avgTime,
       };
     });
-    const top5 = [...mdaStats].filter(mda => mda.count > 0).sort((a, b) => b.count - a.count || a.avgTime - b.avgTime).slice(0, 5);
-    const bottom5 = [...mdaStats].sort((a, b) => a.count - b.count || b.avgTime - a.avgTime).slice(0, 5);
+    const top5 = [...mdaStats]
+      .filter((mda) => mda.count > 0)
+      .sort((a, b) => b.count - a.count || a.avgTime - b.avgTime)
+      .slice(0, 5);
+    const bottom5 = [...mdaStats]
+      .sort((a, b) => a.count - b.count || b.avgTime - a.avgTime)
+      .slice(0, 5);
     return {
       top5,
-      bottom5
+      bottom5,
     };
-  }
+  },
 });
 
 export const getOverallResponseTimes = query({
   args: {},
-  handler: async ctx => {
+  handler: async (ctx) => {
     const tickets = await ctx.db.query("tickets").collect();
-    return tickets.filter(t => t.status === "resolved" && typeof t.updatedAt === "number").map(t => {
-      const updated = t.updatedAt as number;
-      return (updated - t.createdAt) / 3600000;
-    });
-  }
+    return tickets
+      .filter((t) => t.status === "resolved" && typeof t.updatedAt === "number")
+      .map((t) => {
+        const updated = t.updatedAt as number;
+        return (updated - t.createdAt) / 3600000;
+      });
+  },
 });
 
 export const getPublicTicketByReference = query({
   args: {
     ticketNumber: v.string(),
     email: v.optional(v.string()),
-    phoneNumber: v.optional(v.string())
+    phoneNumber: v.optional(v.string()),
   },
-  handler: async (ctx, {
-    ticketNumber,
-    email,
-    phoneNumber
-  }) => {
+  handler: async (ctx, { ticketNumber, email, phoneNumber }) => {
     if (!email && !phoneNumber) {
       throw new Error("Email or phone number is required.");
     }
-    const ticket = await ctx.db.query("tickets").withIndex("byTicketNumber", q => q.eq("ticketNumber", ticketNumber)).first();
+    const ticket = await ctx.db
+      .query("tickets")
+      .withIndex("byTicketNumber", (q) => q.eq("ticketNumber", ticketNumber))
+      .first();
     if (!ticket) return null;
-    const isEmailMatch = email && ticket.email?.toLowerCase() === email.toLowerCase();
+    const isEmailMatch =
+      email && ticket.email?.toLowerCase() === email.toLowerCase();
     const isPhoneMatch = phoneNumber && ticket.phoneNumber === phoneNumber;
     if (isEmailMatch || isPhoneMatch) {
-      const mda = ticket.assignedMDA ? await ctx.db.get(ticket.assignedMDA) : null;
+      const mda = ticket.assignedMDA
+        ? await ctx.db.get(ticket.assignedMDA)
+        : null;
       return {
         ...ticket,
-        assignedMDAName: mda?.name || "Unassigned"
+        assignedMDAName: mda?.name || "Unassigned",
       };
     }
     return null;
-  }
+  },
 });
 
 export const getAllBusinessNames = query({
-  handler: async ctx => {
+  handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
     let tickets: Doc<"tickets">[] = [];
-    if (user.role && ["admin", "staff", "president", "vice_president"].includes(user.role)) {
+    if (
+      user.role &&
+      ["admin", "staff", "president", "vice_president"].includes(user.role)
+    ) {
       tickets = await ctx.db.query("tickets").collect();
     } else if (user.role === "mda" && user.mdaId) {
-      tickets = await ctx.db.query("tickets").withIndex("byMDA", q => q.eq("assignedMDA", user.mdaId)).collect();
+      tickets = await ctx.db
+        .query("tickets")
+        .withIndex("byMDA", (q) => q.eq("assignedMDA", user.mdaId))
+        .collect();
     } else {
       return [];
     }
@@ -1458,9 +1714,11 @@ export const getAllBusinessNames = query({
         }
       }
     }
-    const combined = Array.from(new Set([...businessNamesFromUsers, ...businessNamesFromTickets]));
-    return combined.filter(name => !!name);
-  }
+    const combined = Array.from(
+      new Set([...businessNamesFromUsers, ...businessNamesFromTickets]),
+    );
+    return combined.filter((name) => !!name);
+  },
 });
 
 // Helper to count non-weekend hours between two timestamps
@@ -1480,21 +1738,23 @@ export const getTicketStats = query({
   args: {
     fromDate: v.optional(v.number()),
     toDate: v.optional(v.number()),
-    mdaId: v.optional(v.id("mdas"))
+    mdaId: v.optional(v.id("mdas")),
   },
-  handler: async (ctx, {
-    fromDate,
-    toDate,
-    mdaId
-  }) => {
+  handler: async (ctx, { fromDate, toDate, mdaId }) => {
     const user = await getCurrentUserOrThrow(ctx);
-    const isAdmin = ["admin", "staff", "president", "vice_president"].includes(user.role || "");
+    const isAdmin = ["admin", "staff", "president", "vice_president"].includes(
+      user.role || "",
+    );
     let tickets = await ctx.db.query("tickets").collect();
     if (fromDate || toDate) {
-      tickets = tickets.filter(t => (!fromDate || t.createdAt >= fromDate) && (!toDate || t.createdAt <= toDate));
+      tickets = tickets.filter(
+        (t) =>
+          (!fromDate || t.createdAt >= fromDate) &&
+          (!toDate || t.createdAt <= toDate),
+      );
     }
     if (mdaId) {
-      tickets = tickets.filter(t => t.assignedMDA === mdaId);
+      tickets = tickets.filter((t) => t.assignedMDA === mdaId);
     }
     let resolved = 0,
       closed = 0,
@@ -1527,8 +1787,12 @@ export const getTicketStats = query({
         responseTimes.push(responseHrs);
       }
     }
-    const avgResolution = resolutionTimes.length ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length : 0;
-    const avgResponse = responseTimes.length ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length : 0;
+    const avgResolution = resolutionTimes.length
+      ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length
+      : 0;
+    const avgResponse = responseTimes.length
+      ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
+      : 0;
     return {
       totalTickets: tickets.length,
       resolved,
@@ -1538,87 +1802,144 @@ export const getTicketStats = query({
       closedWithin72h: closed72h,
       avgResolutionTime: Math.round(avgResolution * 100) / 100,
       avgResponseTime: Math.round(avgResponse * 100) / 100,
-      overdue
+      overdue,
     };
-  }
+  },
 });
 
 export const get72HourResolutionStats = query({
   args: {
     fromDate: v.optional(v.number()),
-    toDate: v.optional(v.number())
+    toDate: v.optional(v.number()),
   },
-  handler: async (ctx, {
-    fromDate,
-    toDate
-  }) => {
+  handler: async (ctx, { fromDate, toDate }) => {
     try {
       const user = await getCurrentUserOrThrow(ctx);
-      const isAdmin = ["admin", "staff", "president", "vice_president"].includes(user.role || "");
+      const isAdmin = [
+        "admin",
+        "staff",
+        "president",
+        "vice_president",
+      ].includes(user.role || "");
       if (!isAdmin) {
         throw new Error("Unauthorized: Only admins can access this data.");
       }
 
-    // Get all tickets
-    let tickets = await ctx.db.query("tickets").collect();
-    
-    // Filter by date range if provided
-    if (fromDate || toDate) {
-      tickets = tickets.filter(t => 
-        (!fromDate || t.createdAt >= fromDate) && 
-        (!toDate || t.createdAt <= toDate)
-      );
-    }
+      // Get all tickets
+      let tickets = await ctx.db.query("tickets").collect();
 
-    // Get all MDAs for name mapping
-    const mdas = await ctx.db.query("mdas").collect();
-    const mdaMap: Record<string, string> = {};
-    mdas.forEach(mda => {
-      mdaMap[mda._id as string] = mda.name;
-    });
-
-    // System-wide totals
-    let systemTotalResolved72h = 0;
-    let systemTotalResolved = 0;
-    let systemTotalClosed72h = 0;
-    let systemTotalClosed = 0;
-
-    // Per-MDA stats
-    const mdaStats: Record<string, {
-      mdaId: string;
-      mdaName: string;
-      totalResolved: number;
-      resolvedWithin72h: number;
-      totalClosed: number;
-      closedWithin72h: number;
-      totalTickets: number;
-    }> = {};
-
-    const now = Date.now();
-
-    for (const ticket of tickets) {
-      // Skip tickets with invalid dates
-      if (!ticket.createdAt || isNaN(ticket.createdAt)) {
-        continue;
+      // Filter by date range if provided
+      if (fromDate || toDate) {
+        tickets = tickets.filter(
+          (t) =>
+            (!fromDate || t.createdAt >= fromDate) &&
+            (!toDate || t.createdAt <= toDate),
+        );
       }
 
-      const startTime = ticket.reassignedAt ?? ticket.createdAt;
-      
-      // For resolved/closed tickets, we need updatedAt to calculate resolution time
-      // If updatedAt is missing, skip the 72h calculation but still count the ticket
-      const updated = ticket.updatedAt ?? ticket.createdAt;
-      
-      // Validate dates before calculating hours
-      if (isNaN(startTime) || isNaN(updated) || startTime > updated) {
-        // If dates are invalid, still count the ticket but skip 72h calculation
+      // Get all MDAs for name mapping
+      const mdas = await ctx.db.query("mdas").collect();
+      const mdaMap: Record<string, string> = {};
+      mdas.forEach((mda) => {
+        mdaMap[mda._id as string] = mda.name;
+      });
+
+      // System-wide totals
+      let systemTotalResolved72h = 0;
+      let systemTotalResolved = 0;
+      let systemTotalClosed72h = 0;
+      let systemTotalClosed = 0;
+
+      // Per-MDA stats
+      const mdaStats: Record<
+        string,
+        {
+          mdaId: string;
+          mdaName: string;
+          totalResolved: number;
+          resolvedWithin72h: number;
+          totalClosed: number;
+          closedWithin72h: number;
+          totalTickets: number;
+        }
+      > = {};
+
+      const now = Date.now();
+
+      for (const ticket of tickets) {
+        // Skip tickets with invalid dates
+        if (!ticket.createdAt || isNaN(ticket.createdAt)) {
+          continue;
+        }
+
+        const startTime = ticket.reassignedAt ?? ticket.createdAt;
+
+        // For resolved/closed tickets, we need updatedAt to calculate resolution time
+        // If updatedAt is missing, skip the 72h calculation but still count the ticket
+        const updated = ticket.updatedAt ?? ticket.createdAt;
+
+        // Validate dates before calculating hours
+        if (isNaN(startTime) || isNaN(updated) || startTime > updated) {
+          // If dates are invalid, still count the ticket but skip 72h calculation
+          if (ticket.status === "resolved") {
+            systemTotalResolved++;
+          }
+          if (ticket.status === "closed") {
+            systemTotalClosed++;
+          }
+
+          // Per-MDA counts (without 72h calculation)
+          if (ticket.assignedMDA) {
+            const mdaId = ticket.assignedMDA as string;
+            if (!mdaStats[mdaId]) {
+              mdaStats[mdaId] = {
+                mdaId,
+                mdaName: mdaMap[mdaId] || "Unknown MDA",
+                totalResolved: 0,
+                resolvedWithin72h: 0,
+                totalClosed: 0,
+                closedWithin72h: 0,
+                totalTickets: 0,
+              };
+            }
+            mdaStats[mdaId].totalTickets++;
+            if (ticket.status === "resolved") {
+              mdaStats[mdaId].totalResolved++;
+            }
+            if (ticket.status === "closed") {
+              mdaStats[mdaId].totalClosed++;
+            }
+          }
+          continue;
+        }
+
+        // Calculate hours only if dates are valid
+        let hours = 0;
+        try {
+          hours = skipWeekendHoursCount(startTime, updated);
+        } catch (error) {
+          // If calculation fails, skip 72h check but still count ticket
+          console.error(
+            `Error calculating hours for ticket ${ticket._id}:`,
+            error,
+          );
+        }
+
+        // System-wide counts
         if (ticket.status === "resolved") {
           systemTotalResolved++;
+          if (hours > 0 && hours <= 72) {
+            systemTotalResolved72h++;
+          }
         }
         if (ticket.status === "closed") {
           systemTotalClosed++;
+          if (hours > 0 && hours <= 72) {
+            systemTotalClosed72h++;
+          }
         }
 
-        // Per-MDA counts (without 72h calculation)
+        // Per-MDA counts
         if (ticket.assignedMDA) {
           const mdaId = ticket.assignedMDA as string;
           if (!mdaStats[mdaId]) {
@@ -1629,133 +1950,99 @@ export const get72HourResolutionStats = query({
               resolvedWithin72h: 0,
               totalClosed: 0,
               closedWithin72h: 0,
-              totalTickets: 0
+              totalTickets: 0,
             };
           }
+
           mdaStats[mdaId].totalTickets++;
+
           if (ticket.status === "resolved") {
             mdaStats[mdaId].totalResolved++;
+            if (hours > 0 && hours <= 72) {
+              mdaStats[mdaId].resolvedWithin72h++;
+            }
           }
           if (ticket.status === "closed") {
             mdaStats[mdaId].totalClosed++;
-          }
-        }
-        continue;
-      }
-
-      // Calculate hours only if dates are valid
-      let hours = 0;
-      try {
-        hours = skipWeekendHoursCount(startTime, updated);
-      } catch (error) {
-        // If calculation fails, skip 72h check but still count ticket
-        console.error(`Error calculating hours for ticket ${ticket._id}:`, error);
-      }
-
-      // System-wide counts
-      if (ticket.status === "resolved") {
-        systemTotalResolved++;
-        if (hours > 0 && hours <= 72) {
-          systemTotalResolved72h++;
-        }
-      }
-      if (ticket.status === "closed") {
-        systemTotalClosed++;
-        if (hours > 0 && hours <= 72) {
-          systemTotalClosed72h++;
-        }
-      }
-
-      // Per-MDA counts
-      if (ticket.assignedMDA) {
-        const mdaId = ticket.assignedMDA as string;
-        if (!mdaStats[mdaId]) {
-          mdaStats[mdaId] = {
-            mdaId,
-            mdaName: mdaMap[mdaId] || "Unknown MDA",
-            totalResolved: 0,
-            resolvedWithin72h: 0,
-            totalClosed: 0,
-            closedWithin72h: 0,
-            totalTickets: 0
-          };
-        }
-
-        mdaStats[mdaId].totalTickets++;
-
-        if (ticket.status === "resolved") {
-          mdaStats[mdaId].totalResolved++;
-          if (hours > 0 && hours <= 72) {
-            mdaStats[mdaId].resolvedWithin72h++;
-          }
-        }
-        if (ticket.status === "closed") {
-          mdaStats[mdaId].totalClosed++;
-          if (hours > 0 && hours <= 72) {
-            mdaStats[mdaId].closedWithin72h++;
+            if (hours > 0 && hours <= 72) {
+              mdaStats[mdaId].closedWithin72h++;
+            }
           }
         }
       }
-    }
 
-    // Convert to array and sort by resolvedWithin72h descending
-    const mdaStatsArray = Object.values(mdaStats).sort((a, b) => 
-      (b.resolvedWithin72h + b.closedWithin72h) - (a.resolvedWithin72h + a.closedWithin72h)
-    );
+      // Convert to array and sort by resolvedWithin72h descending
+      const mdaStatsArray = Object.values(mdaStats).sort(
+        (a, b) =>
+          b.resolvedWithin72h +
+          b.closedWithin72h -
+          (a.resolvedWithin72h + a.closedWithin72h),
+      );
 
-    return {
-      systemWide: {
-        totalResolved: systemTotalResolved,
-        resolvedWithin72h: systemTotalResolved72h,
-        totalClosed: systemTotalClosed,
-        closedWithin72h: systemTotalClosed72h,
-        totalResolvedWithin72h: systemTotalResolved72h + systemTotalClosed72h,
-        totalResolvedAndClosed: systemTotalResolved + systemTotalClosed
-      },
-      perMda: mdaStatsArray,
-      dateRange: {
-        from: fromDate ? new Date(fromDate).toISOString() : null,
-        to: toDate ? new Date(toDate).toISOString() : null
-      }
-    };
+      return {
+        systemWide: {
+          totalResolved: systemTotalResolved,
+          resolvedWithin72h: systemTotalResolved72h,
+          totalClosed: systemTotalClosed,
+          closedWithin72h: systemTotalClosed72h,
+          totalResolvedWithin72h: systemTotalResolved72h + systemTotalClosed72h,
+          totalResolvedAndClosed: systemTotalResolved + systemTotalClosed,
+        },
+        perMda: mdaStatsArray,
+        dateRange: {
+          from: fromDate ? new Date(fromDate).toISOString() : null,
+          to: toDate ? new Date(toDate).toISOString() : null,
+        },
+      };
     } catch (error) {
       console.error("Error in get72HourResolutionStats:", error);
-      throw new Error(`Failed to fetch 72-hour resolution stats: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to fetch 72-hour resolution stats: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
-  }
+  },
 });
 
 export const migrateIncidentDates = mutation({
   args: {},
   handler: async (ctx) => {
     const tickets = await ctx.db.query("tickets").collect();
-    
+
     for (const ticket of tickets) {
       // Check if incidentDate is a string or a floating point number
-      if (typeof ticket.incidentDate === 'string' || ticket.incidentDate % 1 !== 0) {
+      if (
+        typeof ticket.incidentDate === "string" ||
+        ticket.incidentDate % 1 !== 0
+      ) {
         try {
           // If it's a string, convert to number
-          const incidentDateNum = typeof ticket.incidentDate === 'string' 
-            ? new Date(ticket.incidentDate).getTime()
-            : Math.floor(ticket.incidentDate); // Convert float to integer
+          const incidentDateNum =
+            typeof ticket.incidentDate === "string"
+              ? new Date(ticket.incidentDate).getTime()
+              : Math.floor(ticket.incidentDate); // Convert float to integer
 
           await ctx.db.patch(ticket._id, {
-            incidentDate: incidentDateNum
+            incidentDate: incidentDateNum,
           });
-          
-          console.log(`✅ Migrated ticket ${ticket.ticketNumber}: ${ticket.incidentDate} -> ${incidentDateNum}`);
+
+          console.log(
+            `✅ Migrated ticket ${ticket.ticketNumber}: ${ticket.incidentDate} -> ${incidentDateNum}`,
+          );
         } catch (error) {
-          console.error(`❌ Failed to migrate ticket ${ticket.ticketNumber}:`, error);
+          console.error(
+            `❌ Failed to migrate ticket ${ticket.ticketNumber}:`,
+            error,
+          );
         }
       }
     }
-  }
+  },
 });
 
 // Send overdue reminder email to ticket creator (report gov agent)
 export const sendOverdueTicketReminderToCreator = mutation({
   args: {
-    ticketId: v.id("tickets")
+    ticketId: v.id("tickets"),
   },
   handler: async (ctx, { ticketId }) => {
     const ticket = await ctx.db.get(ticketId);
@@ -1766,7 +2053,9 @@ export const sendOverdueTicketReminderToCreator = mutation({
 
     // Only send reminders for open tickets
     if (ticket.status !== "open" && ticket.status !== "in_progress") {
-      console.log(`✅ Ticket ${ticket.ticketNumber} is ${ticket.status}. No reminder needed.`);
+      console.log(
+        `✅ Ticket ${ticket.ticketNumber} is ${ticket.status}. No reminder needed.`,
+      );
       return { success: false, reason: "Ticket is not open" };
     }
 
@@ -1774,16 +2063,20 @@ export const sendOverdueTicketReminderToCreator = mutation({
     const startTime = ticket.reassignedAt ?? ticket.createdAt;
     const now = Date.now();
     const hoursOpen = skipWeekendHoursCount(startTime, now);
-    
+
     if (hoursOpen <= 72) {
-      console.log(`✅ Ticket ${ticket.ticketNumber} is not overdue yet (${hoursOpen} hours)`);
+      console.log(
+        `✅ Ticket ${ticket.ticketNumber} is not overdue yet (${hoursOpen} hours)`,
+      );
       return { success: false, reason: "Ticket is not overdue" };
     }
 
     // Get ticket creator
     const creator = await ctx.db.get(ticket.createdBy);
     if (!creator || !creator.email) {
-      console.log(`❌ No creator email found for ticket ${ticket.ticketNumber}`);
+      console.log(
+        `❌ No creator email found for ticket ${ticket.ticketNumber}`,
+      );
       return { success: false, reason: "Creator email not found" };
     }
 
@@ -1800,7 +2093,9 @@ export const sendOverdueTicketReminderToCreator = mutation({
       }
     }
 
-    console.log(`📧 Sending overdue reminder to ${creator.email} for ticket ${ticket.ticketNumber}`);
+    console.log(
+      `📧 Sending overdue reminder to ${creator.email} for ticket ${ticket.ticketNumber}`,
+    );
 
     const emailTemplate = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
@@ -1809,7 +2104,7 @@ export const sendOverdueTicketReminderToCreator = mutation({
         </div>
         <div style="padding: 20px; color: #333;">
           <p style="font-size: 16px;">Dear <strong>${ticket.fullName || creator.firstName || "Valued User"}</strong>,</p>
-          <p>We wanted to inform you that your ticket <strong>#${ticket.ticketNumber}</strong> has been open for <strong>${hoursOverdue} hours</strong> (${daysOverdue > 0 ? `${daysOverdue} day${daysOverdue > 1 ? 's' : ''} ` : ''}overdue).</p>
+          <p>We wanted to inform you that your ticket <strong>#${ticket.ticketNumber}</strong> has been open for <strong>${hoursOverdue} hours</strong> (${daysOverdue > 0 ? `${daysOverdue} day${daysOverdue > 1 ? "s" : ""} ` : ""}overdue).</p>
           
           <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
             <p style="margin: 0;"><strong>Ticket Details:</strong></p>
@@ -1844,21 +2139,29 @@ export const sendOverdueTicketReminderToCreator = mutation({
       await ctx.scheduler.runAfter(0, api.email.sendEmail, {
         to: creator.email,
         subject: `Overdue Ticket Reminder: ${ticket.ticketNumber}`,
-        html: emailTemplate
+        html: emailTemplate,
       });
 
       // Update last reminder sent timestamp
       await ctx.db.patch(ticket._id, {
-        lastCreatorReminderSentAt: now
+        lastCreatorReminderSentAt: now,
       });
 
-      console.log(`✅ Overdue reminder sent successfully to ${creator.email} for ticket ${ticket.ticketNumber}`);
+      console.log(
+        `✅ Overdue reminder sent successfully to ${creator.email} for ticket ${ticket.ticketNumber}`,
+      );
       return { success: true };
     } catch (error) {
-      console.error(`❌ Failed to send overdue reminder for ticket ${ticket.ticketNumber}:`, error);
-      return { success: false, reason: error instanceof Error ? error.message : String(error) };
+      console.error(
+        `❌ Failed to send overdue reminder for ticket ${ticket.ticketNumber}:`,
+        error,
+      );
+      return {
+        success: false,
+        reason: error instanceof Error ? error.message : String(error),
+      };
     }
-  }
+  },
 });
 
 // Process all overdue tickets and send reminders to creators
@@ -1866,7 +2169,7 @@ export const processOverdueTicketReminders = mutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    const oneDayAgo = now - (24 * 60 * 60 * 1000); // 24 hours ago
+    const oneDayAgo = now - 24 * 60 * 60 * 1000; // 24 hours ago
 
     // Get all open tickets
     const openTickets = await ctx.db
@@ -1898,8 +2201,8 @@ export const processOverdueTicketReminders = mutation({
         // Only send reminder if:
         // 1. No reminder has been sent yet, OR
         // 2. Last reminder was sent more than 24 hours ago (to avoid spamming)
-        const shouldSendReminder = 
-          !ticket.lastCreatorReminderSentAt || 
+        const shouldSendReminder =
+          !ticket.lastCreatorReminderSentAt ||
           ticket.lastCreatorReminderSentAt < oneDayAgo;
 
         if (!shouldSendReminder) {
@@ -1908,25 +2211,34 @@ export const processOverdueTicketReminders = mutation({
         }
 
         // Send reminder
-        await ctx.scheduler.runAfter(0, api.tickets.sendOverdueTicketReminderToCreator, {
-          ticketId: ticket._id
-        });
+        await ctx.scheduler.runAfter(
+          0,
+          api.tickets.sendOverdueTicketReminderToCreator,
+          {
+            ticketId: ticket._id,
+          },
+        );
 
         reminderCount++;
         processedCount++;
       } catch (error) {
-        console.error(`❌ Failed to process ticket ${ticket.ticketNumber}:`, error);
+        console.error(
+          `❌ Failed to process ticket ${ticket.ticketNumber}:`,
+          error,
+        );
         processedCount++;
       }
     }
 
-    console.log(`✅ Processed ${processedCount} tickets. Sent ${reminderCount} reminders, skipped ${skippedCount} tickets.`);
+    console.log(
+      `✅ Processed ${processedCount} tickets. Sent ${reminderCount} reminders, skipped ${skippedCount} tickets.`,
+    );
     return {
       processed: processedCount,
       remindersSent: reminderCount,
-      skipped: skippedCount
+      skipped: skippedCount,
     };
-  }
+  },
 });
 
 // Internal mutation for cron job
@@ -1934,7 +2246,7 @@ export const processOverdueTicketRemindersInternal = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    const oneDayAgo = now - (24 * 60 * 60 * 1000);
+    const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
     const openTickets = await ctx.db
       .query("tickets")
@@ -1961,8 +2273,8 @@ export const processOverdueTicketRemindersInternal = internalMutation({
           continue;
         }
 
-        const shouldSendReminder = 
-          !ticket.lastCreatorReminderSentAt || 
+        const shouldSendReminder =
+          !ticket.lastCreatorReminderSentAt ||
           ticket.lastCreatorReminderSentAt < oneDayAgo;
 
         if (!shouldSendReminder) {
@@ -1970,23 +2282,32 @@ export const processOverdueTicketRemindersInternal = internalMutation({
           continue;
         }
 
-        await ctx.scheduler.runAfter(0, api.tickets.sendOverdueTicketReminderToCreator, {
-          ticketId: ticket._id
-        });
+        await ctx.scheduler.runAfter(
+          0,
+          api.tickets.sendOverdueTicketReminderToCreator,
+          {
+            ticketId: ticket._id,
+          },
+        );
 
         reminderCount++;
         processedCount++;
       } catch (error) {
-        console.error(`❌ Failed to process ticket ${ticket.ticketNumber}:`, error);
+        console.error(
+          `❌ Failed to process ticket ${ticket.ticketNumber}:`,
+          error,
+        );
         processedCount++;
       }
     }
 
-    console.log(`✅ [CRON] Processed ${processedCount} tickets. Sent ${reminderCount} reminders, skipped ${skippedCount} tickets.`);
+    console.log(
+      `✅ [CRON] Processed ${processedCount} tickets. Sent ${reminderCount} reminders, skipped ${skippedCount} tickets.`,
+    );
     return {
       processed: processedCount,
       remindersSent: reminderCount,
-      skipped: skippedCount
+      skipped: skippedCount,
     };
-  }
+  },
 });

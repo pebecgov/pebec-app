@@ -21,8 +21,10 @@ export function htmlToPlainText(html: string, maxLength?: number): string {
   return text;
 }
 
-export function buildLeaveAbsenceDescription(subject: string, bodyHtml?: string): string {
-  const prefix = `Approved leave request: ${subject.trim()}`;
-  const body = bodyHtml ? htmlToPlainText(bodyHtml, 320) : "";
-  return body ? `${prefix}. ${body}` : prefix;
+export function buildLeaveAbsenceDescription(
+  subject: string,
+  _bodyHtml?: string,
+): string {
+  // Keep absence notices concise: only the leave subject is propagated.
+  return `Approved leave request: ${subject.trim()}`;
 }
