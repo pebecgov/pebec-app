@@ -11,13 +11,29 @@ type Props = {
   pending: number;
   year: number;
   staffName?: string;
+  annualAllowance?: number;
 };
 
-export function LeaveBalanceAlert({ requestedDays, used, pending, year, staffName }: Props) {
+export function LeaveBalanceAlert({
+  requestedDays,
+  used,
+  pending,
+  year,
+  staffName,
+  annualAllowance = ANNUAL_LEAVE_WORKING_DAYS,
+}: Props) {
   if (requestedDays < 1) return null;
-  if (!wouldExceedLeaveAllowance(used, pending, requestedDays)) return null;
+  if (!wouldExceedLeaveAllowance(used, pending, requestedDays, annualAllowance)) {
+    return null;
+  }
 
-  const message = leaveAllowanceExceededMessage(requestedDays, used, pending, year);
+  const message = leaveAllowanceExceededMessage(
+    requestedDays,
+    used,
+    pending,
+    year,
+    annualAllowance,
+  );
 
   return (
     <Alert variant="destructive" className="border-red-300 bg-red-50">
@@ -26,7 +42,7 @@ export function LeaveBalanceAlert({ requestedDays, used, pending, year, staffNam
         {staffName ? `${staffName} cannot take this leave` : "Leave exceeds your annual allowance"}
       </AlertTitle>
       <AlertDescription>
-        {message} No one may exceed {ANNUAL_LEAVE_WORKING_DAYS} working days of leave per year.
+        {message} No one may exceed {annualAllowance} working days of leave per year.
       </AlertDescription>
     </Alert>
   );

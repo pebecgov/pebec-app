@@ -11,45 +11,64 @@ import {
   yearFromDate,
 } from "../lib/leaveWorkingDays";
 import { leaveAllowanceExceededMessage } from "../lib/leaveBalance";
+import { getAnnualLeaveAllowance } from "../lib/leaveAllowance";
 import { isAuthorizedTaskAdmin } from "../lib/authorizedTaskAdmins";
 import {
   LEAVE_APPROVER_DISPLAY_NAME,
   LEAVE_APPROVER_EMAIL,
+  LEAVE_APPROVER_EMAILS,
   LEAVE_APPROVER_ROLE_LABEL,
 } from "../lib/leaveApprover";
 import { auditDisplayName, logAuditEvent } from "./utils/auditLog";
 
 function assertCanReviewLeave(user: { email?: string; role?: string }) {
   if (!isAuthorizedTaskAdmin(user)) {
-    throw new Error("Only designated approvers can review or record staff leave.");
+    throw new Error(
+      "Only designated approvers can review or record staff leave.",
+    );
   }
 }
 
 async function getLeaveApproverUserId(ctx: { db: any }) {
-  const approver = await ctx.db
-    .query("users")
-    .withIndex("byEmail", (q: any) => q.eq("email", LEAVE_APPROVER_EMAIL))
-    .first();
-  if (!approver) {
-    throw new Error(
-      `Leave approver (${LEAVE_APPROVER_EMAIL}) was not found. Please ensure this user exists.`
-    );
+  for (const approverEmail of LEAVE_APPROVER_EMAILS) {
+    const approver = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q: any) => q.eq("email", approverEmail))
+      .first();
+    if (approver) {
+      return approver._id;
+    }
   }
-  return approver._id;
+  throw new Error(
+    `Leave approver not found. Tried: ${LEAVE_APPROVER_EMAILS.join(", ")}. Please ensure one exists.`,
+  );
 }
 
 function assertWithinAnnualAllowance(
   used: number,
   pending: number,
   requestedDays: number,
-  year: number
+  year: number,
+  annualAllowance: number,
 ) {
-  if (used + pending + requestedDays > ANNUAL_LEAVE_WORKING_DAYS) {
-    throw new Error(leaveAllowanceExceededMessage(requestedDays, used, pending, year));
+  if (used + pending + requestedDays > annualAllowance) {
+    throw new Error(
+      leaveAllowanceExceededMessage(
+        requestedDays,
+        used,
+        pending,
+        year,
+        annualAllowance,
+      ),
+    );
   }
 }
 
-function displayName(user: { firstName?: string; lastName?: string; email: string }) {
+function displayName(user: {
+  firstName?: string;
+  lastName?: string;
+  email: string;
+}) {
   return `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email;
 }
 
@@ -123,7 +142,7 @@ async function scheduleLeaveStatusEmail(
   decision: "approved" | "rejected",
   reviewedByName: string,
   reviewNote?: string,
-  options?: { recordedByAdmin?: boolean }
+  options?: { recordedByAdmin?: boolean },
 ) {
   if (!applicant.email) return;
 
@@ -155,11 +174,13 @@ async function sumWorkingDaysForYear(
   ctx: { db: any },
   applicantUserId: string,
   year: number,
-  statuses: ("approved" | "pending")[]
+  statuses: ("approved" | "pending")[],
 ) {
   const rows = await ctx.db
     .query("leaveRequests")
-    .withIndex("by_applicant", (q: any) => q.eq("applicantUserId", applicantUserId))
+    .withIndex("by_applicant", (q: any) =>
+      q.eq("applicantUserId", applicantUserId),
+    )
     .collect();
 
   return rows
@@ -170,16 +191,19 @@ async function sumWorkingDaysForYear(
 async function buildLeaveBalance(
   ctx: { db: any },
   userId: string,
-  year: number
+  year: number,
 ) {
+  const user = await ctx.db.get(userId);
+  if (!user) throw new Error("User not found");
+  const annualAllowance = getAnnualLeaveAllowance(user);
   const used = await sumWorkingDaysForYear(ctx, userId, year, ["approved"]);
   const pending = await sumWorkingDaysForYear(ctx, userId, year, ["pending"]);
   return {
     year,
-    annualAllowance: ANNUAL_LEAVE_WORKING_DAYS,
+    annualAllowance,
     used,
     pending,
-    remaining: ANNUAL_LEAVE_WORKING_DAYS - used - pending,
+    remaining: annualAllowance - used - pending,
   };
 }
 
@@ -270,15 +294,19 @@ export const getLeaveApproverDisplay = query({
   args: {},
   handler: async (ctx) => {
     await getCurrentUserOrThrow(ctx);
-    const approver = await ctx.db
-      .query("users")
-      .withIndex("byEmail", (q: any) => q.eq("email", LEAVE_APPROVER_EMAIL))
-      .first();
+    let approver = null;
+    for (const approverEmail of LEAVE_APPROVER_EMAILS) {
+      approver = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q: any) => q.eq("email", approverEmail))
+        .first();
+      if (approver) break;
+    }
 
     return {
       roleLabel: LEAVE_APPROVER_ROLE_LABEL,
       name: approver ? displayName(approver) : LEAVE_APPROVER_DISPLAY_NAME,
-      email: approver?.email ?? LEAVE_APPROVER_EMAIL,
+      email: approver?.email ?? LEAVE_APPROVER_EMAILS[0] ?? LEAVE_APPROVER_EMAIL,
     };
   },
 });
@@ -304,7 +332,7 @@ function groupLeaveRequestsByStaff(
     endDate: string;
     workingDays: number;
   }>,
-  emailByUserId: Map<string, string | undefined>
+  emailByUserId: Map<string, string | undefined>,
 ) {
   const map = new Map<
     string,
@@ -352,27 +380,27 @@ export const getAdminLeaveOverview = query({
     const today = new Date().toISOString().split("T")[0];
     const allRequests = await ctx.db.query("leaveRequests").collect();
     const staffUsers = (await ctx.db.query("users").collect()).filter(
-      (u) => u.role === "staff"
+      (u) => u.role === "staff",
     );
     const emailByUserId = new Map(
-      staffUsers.map((s) => [s._id, s.email] as const)
+      staffUsers.map((s) => [s._id, s.email] as const),
     );
 
     const approved = allRequests.filter((r) => r.status === "approved");
     const pending = allRequests.filter((r) => r.status === "pending");
 
     const onLeaveNowRequests = approved.filter(
-      (r) => r.startDate <= today && r.endDate >= today
+      (r) => r.startDate <= today && r.endDate >= today,
     );
     const upcomingLeaveRequests = approved.filter((r) => r.startDate > today);
 
     const onLeaveNowStaff = groupLeaveRequestsByStaff(
       onLeaveNowRequests,
-      emailByUserId
+      emailByUserId,
     );
     const upcomingStaff = groupLeaveRequestsByStaff(
       upcomingLeaveRequests,
-      emailByUserId
+      emailByUserId,
     );
     const pendingStaff = groupLeaveRequestsByStaff(pending, emailByUserId);
 
@@ -385,7 +413,7 @@ export const getAdminLeaveOverview = query({
     const notOnLeaveStaff = staffUsers
       .filter(
         (s) =>
-          !staffWithPending.has(s._id) && !staffOnLeaveOrUpcoming.has(s._id)
+          !staffWithPending.has(s._id) && !staffOnLeaveOrUpcoming.has(s._id),
       )
       .map((s) => ({
         userId: s._id,
@@ -412,7 +440,11 @@ export const getAdminLeaveOverview = query({
 export const listAllLeaveRequests = query({
   args: {
     status: v.optional(
-      v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"))
+      v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected"),
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -440,8 +472,12 @@ export const getLeaveRequest = query({
       throw new Error("Unauthorized");
     }
 
-    const toUsers = await Promise.all(row.toUserIds.map((id) => ctx.db.get(id)));
-    const ccUsers = await Promise.all(row.ccUserIds.map((id) => ctx.db.get(id)));
+    const toUsers = await Promise.all(
+      row.toUserIds.map((id) => ctx.db.get(id)),
+    );
+    const ccUsers = await Promise.all(
+      row.ccUserIds.map((id) => ctx.db.get(id)),
+    );
 
     const attachments = [];
     if (row.attachmentIds?.length) {
@@ -485,7 +521,7 @@ export const submitLeaveRequest = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (user.role !== "staff" && user.role !== "admin") {
-      throw new Error("Only staff can submit leave requests");
+      throw new Error("Only staff and admins can submit leave requests");
     }
 
     const subject = args.subject.trim();
@@ -506,10 +542,20 @@ export const submitLeaveRequest = mutation({
     }
 
     const leaveYear = yearFromDate(args.startDate);
-    const used = await sumWorkingDaysForYear(ctx, user._id, leaveYear, ["approved"]);
-    const pending = await sumWorkingDaysForYear(ctx, user._id, leaveYear, ["pending"]);
+    const used = await sumWorkingDaysForYear(ctx, user._id, leaveYear, [
+      "approved",
+    ]);
+    const pending = await sumWorkingDaysForYear(ctx, user._id, leaveYear, [
+      "pending",
+    ]);
 
-    assertWithinAnnualAllowance(used, pending, workingDays, leaveYear);
+    assertWithinAnnualAllowance(
+      used,
+      pending,
+      workingDays,
+      leaveYear,
+      getAnnualLeaveAllowance(user),
+    );
 
     const approverId = await getLeaveApproverUserId(ctx);
     const now = Date.now();
@@ -531,6 +577,92 @@ export const submitLeaveRequest = mutation({
       createdAt: now,
       updatedAt: now,
     });
+  },
+});
+
+export const updateMyPendingLeaveRequest = mutation({
+  args: {
+    leaveRequestId: v.id("leaveRequests"),
+    subject: v.string(),
+    bodyHtml: v.string(),
+    startDate: v.string(),
+    endDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const row = await ctx.db.get(args.leaveRequestId);
+    if (!row) throw new Error("Leave request not found");
+    if (row.applicantUserId !== user._id) {
+      throw new Error("Unauthorized");
+    }
+    if (row.status !== "pending") {
+      throw new Error("Only pending leave requests can be edited");
+    }
+
+    const subject = args.subject.trim();
+    if (!subject) throw new Error("Subject is required");
+    if (args.endDate < args.startDate) {
+      throw new Error("End date must be on or after start date");
+    }
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (args.startDate < todayStr) {
+      throw new Error("You cannot select a past start date");
+    }
+
+    const workingDays = countWorkingDays(args.startDate, args.endDate);
+    if (workingDays < 1) {
+      throw new Error("Leave must include at least one working day");
+    }
+
+    const leaveYear = yearFromDate(args.startDate);
+    const allRows = await ctx.db
+      .query("leaveRequests")
+      .withIndex("by_applicant", (q) => q.eq("applicantUserId", user._id))
+      .collect();
+    const used = allRows
+      .filter((r) => r._id !== row._id && r.leaveYear === leaveYear && r.status === "approved")
+      .reduce((sum, r) => sum + r.workingDays, 0);
+    const pending = allRows
+      .filter((r) => r._id !== row._id && r.leaveYear === leaveYear && r.status === "pending")
+      .reduce((sum, r) => sum + r.workingDays, 0);
+    assertWithinAnnualAllowance(
+      used,
+      pending,
+      workingDays,
+      leaveYear,
+      getAnnualLeaveAllowance(user),
+    );
+
+    await ctx.db.patch(row._id, {
+      subject,
+      bodyHtml: args.bodyHtml,
+      startDate: args.startDate,
+      endDate: args.endDate,
+      workingDays,
+      leaveYear,
+      updatedAt: Date.now(),
+    });
+
+    return row._id;
+  },
+});
+
+export const deleteMyPendingLeaveRequest = mutation({
+  args: {
+    leaveRequestId: v.id("leaveRequests"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    const row = await ctx.db.get(args.leaveRequestId);
+    if (!row) throw new Error("Leave request not found");
+    if (row.applicantUserId !== user._id) {
+      throw new Error("Unauthorized");
+    }
+    if (row.status !== "pending") {
+      throw new Error("Only pending leave requests can be deleted");
+    }
+    await ctx.db.delete(row._id);
+    return row._id;
   },
 });
 
@@ -567,9 +699,19 @@ export const adminRecordStaffLeave = mutation({
     }
 
     const leaveYear = yearFromDate(args.startDate);
-    const used = await sumWorkingDaysForYear(ctx, staff._id, leaveYear, ["approved"]);
-    const pending = await sumWorkingDaysForYear(ctx, staff._id, leaveYear, ["pending"]);
-    assertWithinAnnualAllowance(used, pending, workingDays, leaveYear);
+    const used = await sumWorkingDaysForYear(ctx, staff._id, leaveYear, [
+      "approved",
+    ]);
+    const pending = await sumWorkingDaysForYear(ctx, staff._id, leaveYear, [
+      "pending",
+    ]);
+    assertWithinAnnualAllowance(
+      used,
+      pending,
+      workingDays,
+      leaveYear,
+      getAnnualLeaveAllowance(staff),
+    );
 
     const bodyHtml = args.bodyHtml?.trim() || "<p>Leave recorded by admin.</p>";
 
@@ -583,7 +725,7 @@ export const adminRecordStaffLeave = mutation({
         performedBy: admin._id,
         performedByName: displayName(admin),
         performedByRole: admin.role,
-      }
+      },
     );
 
     const now = Date.now();
@@ -623,7 +765,7 @@ export const adminRecordStaffLeave = mutation({
       "approved",
       displayName(admin),
       args.reviewNote?.trim() || "Recorded by admin",
-      { recordedByAdmin: true }
+      { recordedByAdmin: true },
     );
 
     await logAuditEvent(ctx, {
@@ -673,9 +815,19 @@ export const reviewLeaveRequest = mutation({
         ctx,
         row.applicantUserId,
         row.leaveYear,
-        ["approved"]
+        ["approved"],
       );
-      assertWithinAnnualAllowance(used, 0, row.workingDays, row.leaveYear);
+      const applicantForAllowance = await ctx.db.get(row.applicantUserId);
+      const annualAllowance = applicantForAllowance
+        ? getAnnualLeaveAllowance(applicantForAllowance)
+        : ANNUAL_LEAVE_WORKING_DAYS;
+      assertWithinAnnualAllowance(
+        used,
+        0,
+        row.workingDays,
+        row.leaveYear,
+        annualAllowance,
+      );
 
       holidayAnnouncementId = await ctx.runMutation(
         internal.holidayAnnouncements.createFromApprovedLeaveRequest,
@@ -687,7 +839,7 @@ export const reviewLeaveRequest = mutation({
           performedBy: admin._id,
           performedByName: displayName(admin),
           performedByRole: admin.role,
-        }
+        },
       );
     }
 
@@ -714,11 +866,12 @@ export const reviewLeaveRequest = mutation({
         },
         args.decision,
         displayName(admin),
-        args.reviewNote?.trim()
+        args.reviewNote?.trim(),
       );
     }
 
-    const applicantName = row.applicantName || (applicant ? displayName(applicant) : "Unknown");
+    const applicantName =
+      row.applicantName || (applicant ? displayName(applicant) : "Unknown");
     await logAuditEvent(ctx, {
       action: "leave.reviewed",
       category: "leave",
