@@ -1146,11 +1146,11 @@ export default function StaffTasks() {
 
       {/* Completion Request Dialog */}
       <Dialog open={isCompletionDialogOpen} onOpenChange={setIsCompletionDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-4 pr-12">
             <DialogTitle>Submit for Approval: {currentTask?.title}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4 space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Completion Notes (Optional)
@@ -1249,7 +1249,7 @@ export default function StaffTasks() {
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
             <Button variant="outline" onClick={() => {
               setIsCompletionDialogOpen(false);
               setCompletionDocuments([]);
