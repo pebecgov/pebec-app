@@ -29,13 +29,20 @@ import { getCompletionDocumentsFromTask } from "@/lib/taskCompletionDocuments";
 
 type TaskParticipant = { type: "workstream" | "staff"; id: string; name: string };
 
-type TaskStatusFilter = "all" | "assigned_todo" | "in_progress" | "pending_approval" | "completed";
+type TaskStatusFilter =
+  | "all"
+  | "assigned_todo"
+  | "in_progress"
+  | "pending_approval"
+  | "not_requested_approval"
+  | "completed";
 
 const TASK_STATUS_TABS: { label: string; value: TaskStatusFilter }[] = [
   { label: "All", value: "all" },
   { label: "Assigned / To Do", value: "assigned_todo" },
   { label: "In Progress", value: "in_progress" },
   { label: "Pending Approval", value: "pending_approval" },
+  { label: "Not Requested Approval", value: "not_requested_approval" },
   { label: "Completed", value: "completed" }
 ];
 
@@ -824,7 +831,7 @@ export default function AdminTasks() {
                   </div>
                 </div>
 
-                <div className="w-full sm:w-48 h-12">
+                <div className="w-full sm:w-56 h-12">
                   <Select
                     value={statusFilter}
                     onValueChange={(value) => {
@@ -937,6 +944,7 @@ export default function AdminTasks() {
                     {statusFilter === "assigned_todo" && "Assigned / To Do Tasks"}
                     {statusFilter === "in_progress" && "In Progress Tasks"}
                     {statusFilter === "pending_approval" && "Pending Approval Tasks"}
+                    {statusFilter === "not_requested_approval" && "Not Requested Approval Tasks"}
                     {statusFilter === "all" && "Active Tasks"}
                     {statusFilter === "completed" && "Completed Tasks"}
                   </h2>
@@ -2038,6 +2046,9 @@ function taskMatchesStatusFilter(
   }
   if (filter === "in_progress") return task.status === "in_progress";
   if (filter === "pending_approval") return task.completionRequestStatus === "pending";
+  if (filter === "not_requested_approval") {
+    return task.status !== "done" && !task.completionRequestStatus;
+  }
   return true;
 }
 
