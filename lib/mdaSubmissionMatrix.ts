@@ -1,9 +1,13 @@
 import { mdasList } from "../components/mdaList";
+import { resolveReportPeriod } from "./reportPeriod";
 
 export type SubmittedReportForMatrix = {
   mdaName?: string | null;
   reportName?: string | null;
   submittedAt?: number | null;
+  reportPeriodMonth?: number | null;
+  reportPeriodYear?: number | null;
+  fileName?: string | null;
 };
 
 export type MdaSubmissionMatrix = {
@@ -146,10 +150,10 @@ export function computeMdaSubmissionMatrix(
       mdaName: r.mdaName ?? undefined,
       reportName: r.reportName ?? undefined,
       submittedAt: r.submittedAt ?? undefined,
-      parsedMonthIndex: parseMonthIndexFromReportName(r.reportName),
+      reportPeriod: resolveReportPeriod(r),
     }))
-    .filter((r) => r.mdaName && r.submittedAt && r.parsedMonthIndex !== null) as Array<
-    SubmittedReportForMatrix & { parsedMonthIndex: number }
+    .filter((r) => r.mdaName && r.submittedAt && r.reportPeriod !== null) as Array<
+    SubmittedReportForMatrix & { reportPeriod: { month: number; year: number } }
   >;
 
   const months: Array<{ year: number; monthIndex: number }> = [];
@@ -205,8 +209,8 @@ export function computeMdaSubmissionMatrix(
     if (!report.mdaName || report.submittedAt == null) continue;
     if (isMatrixExcludedReportMda(String(report.mdaName))) continue;
 
-    const year = new Date(report.submittedAt).getFullYear();
-    const reportMonthKey = `${year}-${String(report.parsedMonthIndex + 1).padStart(2, "0")}`;
+    const year = report.reportPeriod.year;
+    const reportMonthKey = `${year}-${String(report.reportPeriod.month + 1).padStart(2, "0")}`;
     const col = monthIndexMap.get(reportMonthKey);
     if (col === undefined) continue;
 

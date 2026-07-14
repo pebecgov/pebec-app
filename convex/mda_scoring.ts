@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
+import { resolveReportPeriod } from "../lib/reportPeriod";
 
 function normalizeMdaKey(name: string) {
   return String(name || "")
@@ -656,8 +657,14 @@ export const getRealMonthlyReports = query({
         }
       }
 
-      // Filter reports by date range
+      // Filter reports by reporting period within the scoring window
       filteredReports = allReports.filter(report => {
+        const period = resolveReportPeriod(report);
+        if (period) {
+          return monthsToCheck.some(
+            (m) => m.month === period.month && m.year === period.year
+          );
+        }
         const reportDate = report.submittedAt;
         return reportDate >= startDate && reportDate <= endDate;
       });
@@ -673,36 +680,8 @@ export const getRealMonthlyReports = query({
     // Track which reports have been assigned to a month by name (to avoid duplicates)
     const reportsAssignedByName = new Set<string>();
 
-    const monthNamesLong = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-    const monthNamesShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-
     const extractReportTargetMonthYear = (report: any): { month: number; year: number } | null => {
-      const reportName = String(report?.reportName || "");
-      const fileName = String(report?.fileName || "");
-      const combined = `${reportName} ${fileName}`.toLowerCase();
-
-      let detectedMonth = -1;
-      for (let i = 0; i < 12; i++) {
-        if (combined.includes(monthNamesLong[i]) || combined.includes(monthNamesShort[i])) {
-          detectedMonth = i;
-          break;
-        }
-      }
-      if (detectedMonth < 0) return null;
-
-      // Prefer explicit 4-digit year from report/file names when present.
-      const explicitYearMatch = combined.match(/\b(20\d{2})\b/);
-      if (explicitYearMatch) {
-        return { month: detectedMonth, year: Number(explicitYearMatch[1]) };
-      }
-
-      // If year is not in the name, infer reporting year from submission date.
-      // Example: submitted Jan 2026 with "December" => Dec 2025.
-      const submittedAt = new Date(report.submittedAt || 0);
-      const submittedYear = submittedAt.getFullYear();
-      const submittedMonth = submittedAt.getMonth();
-      const inferredYear = detectedMonth > submittedMonth ? submittedYear - 1 : submittedYear;
-      return { month: detectedMonth, year: inferredYear };
+      return resolveReportPeriod(report);
     };
 
     // Process each month in the scoring period
