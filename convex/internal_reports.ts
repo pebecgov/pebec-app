@@ -4,6 +4,11 @@ import { mutation, query, MutationCtx } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import {
+  formatBfaReportName,
+  isBfaReportName,
+  reportPeriodMatches,
+} from "../lib/reportPeriod";
 
 function buildReformChampionReportAckEmail({
   firstName,
@@ -139,16 +144,36 @@ export const submitReport = mutation({
     reportName: v.optional(v.string()),
     fileSize: v.optional(v.number()),
     templateId: v.optional(v.id("report_templates")),
-    submittedAt: v.number()
+    submittedAt: v.number(),
+    reportPeriodMonth: v.optional(v.number()),
+    reportPeriodYear: v.optional(v.number()),
+    replaceReportId: v.optional(v.id("submitted_reports")),
   },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.submittedBy);
     const mdaName = user?.mdaName ?? undefined;
     const submittedAt = Date.now();
+
+    if (args.replaceReportId) {
+      const existing = await ctx.db.get(args.replaceReportId);
+      if (!existing || existing.isDraft) {
+        throw new Error("Report to replace was not found.");
+      }
+      if (existing.submittedBy !== args.submittedBy) {
+        throw new Error("You can only replace your own reports.");
+      }
+      if (!isBfaReportName(existing.reportName)) {
+        throw new Error("Only BFA reports can be replaced.");
+      }
+      await ctx.db.delete(args.replaceReportId);
+    }
+
+    const { replaceReportId: _replace, ...insertArgs } = args;
+
     await ctx.db.insert("submitted_reports", {
-      ...args,
+      ...insertArgs,
       mdaName,
-      submittedAt
+      submittedAt,
     });
     await sendReformChampionReportAcknowledgement(ctx, {
       role: args.role,
@@ -158,6 +183,70 @@ export const submitReport = mutation({
     });
   }
 });
+
+export const getExistingBfaReportsForPeriod = query({
+  args: {
+    submittedBy: v.id("users"),
+    reportPeriodMonth: v.number(),
+    reportPeriodYear: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const reports = await ctx.db
+      .query("submitted_reports")
+      .withIndex("bySubmittedBy", (q) => q.eq("submittedBy", args.submittedBy))
+      .collect();
+
+    return reports
+      .filter((r) => r.isDraft !== true && isBfaReportName(r.reportName))
+      .filter((r) =>
+        reportPeriodMatches(r, args.reportPeriodMonth, args.reportPeriodYear)
+      )
+      .map((r) => ({
+        _id: r._id,
+        reportName: r.reportName,
+        fileName: r.fileName,
+        submittedAt: r.submittedAt,
+      }))
+      .sort((a, b) => b.submittedAt - a.submittedAt);
+  },
+});
+
+export const updateBfaReportPeriod = mutation({
+  args: {
+    reportId: v.id("submitted_reports"),
+    reportPeriodMonth: v.number(),
+    reportPeriodYear: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getCurrentUserOrThrow(ctx);
+    if (admin.role !== "admin") {
+      throw new Error("Unauthorized: Only admins can edit report periods.");
+    }
+
+    if (args.reportPeriodMonth < 0 || args.reportPeriodMonth > 11) {
+      throw new Error("Invalid report month.");
+    }
+
+    const report = await ctx.db.get(args.reportId);
+    if (!report || report.isDraft) {
+      throw new Error("Report not found.");
+    }
+    if (!isBfaReportName(report.reportName)) {
+      throw new Error("Only BFA report periods can be edited.");
+    }
+
+    const reportName = formatBfaReportName(args.reportPeriodMonth, args.reportPeriodYear);
+
+    await ctx.db.patch(args.reportId, {
+      reportPeriodMonth: args.reportPeriodMonth,
+      reportPeriodYear: args.reportPeriodYear,
+      reportName,
+    });
+
+    return { success: true, reportName };
+  },
+});
+
 export const getReportTemplates = query({
   args: {
     role: v.optional(v.union(

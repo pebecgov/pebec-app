@@ -491,7 +491,9 @@ export default defineSchema({
     fileSize: v.optional(v.number()),
     totalRows: v.optional(v.number()),
     isDraft: v.optional(v.boolean()),
-    updatedAt: v.optional(v.number())
+    updatedAt: v.optional(v.number()),
+    reportPeriodMonth: v.optional(v.number()),
+    reportPeriodYear: v.optional(v.number())
   }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]),
   tasks: defineTable({
     customTaskId: v.optional(v.string()), // Manual ID for the task

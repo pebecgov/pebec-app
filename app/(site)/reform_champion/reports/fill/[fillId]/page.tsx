@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Id } from "@/convex/_generated/dataModel";
 import { Save, FileText, Trash2, Upload } from "lucide-react";
 import * as XLSX from 'xlsx';
+import ReportSubmissionSuccessDialog from "@/components/ReformChampion/ReportSubmissionSuccessDialog";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -63,6 +64,8 @@ export default function FillReportPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(300);
   const [totalPages, setTotalPages] = useState(1);
+  const [showSubmissionSuccessDialog, setShowSubmissionSuccessDialog] = useState(false);
+  const [submissionSuccessTitle, setSubmissionSuccessTitle] = useState("Report submitted successfully");
 
 
   const convexUser = useQuery(api.users.getUserByClerkId, user?.id ? { clerkUserId: user.id } : "skip");
@@ -305,8 +308,8 @@ export default function FillReportPage() {
           totalRows: formData.length
         });
 
-        toast.success(`Large report submitted successfully as Excel file with ${formData.length.toLocaleString()} rows!`);
-        router.push("/reform_champion/reports");
+        setSubmissionSuccessTitle(`Large report submitted successfully (${formData.length.toLocaleString()} rows)`);
+        setShowSubmissionSuccessDialog(true);
         return;
       }
 
@@ -345,8 +348,8 @@ export default function FillReportPage() {
         });
       }
 
-      toast.success(`Report submitted successfully with ${formData.length.toLocaleString()} rows!`);
-      router.push("/reform_champion/reports");
+      setSubmissionSuccessTitle(`Report submitted successfully (${formData.length.toLocaleString()} rows)`);
+      setShowSubmissionSuccessDialog(true);
     } catch (error) {
       console.error("Failed to submit report:", error);
       toast.error("Failed to submit report. Please check your data.");
@@ -1363,6 +1366,13 @@ export default function FillReportPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ReportSubmissionSuccessDialog
+        open={showSubmissionSuccessDialog}
+        onOpenChange={setShowSubmissionSuccessDialog}
+        onConfirm={() => router.push("/reform_champion/reports")}
+        title={submissionSuccessTitle}
+      />
     </div>
   );
 }

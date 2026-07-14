@@ -15,6 +15,7 @@ import autoTable, { UserOptions } from "jspdf-autotable";
 import { toast } from "sonner";
 import UploadReports from "@/components/UploadInternalReports";
 import { Id } from "@/convex/_generated/dataModel";
+import { formatReportPeriodLabel, resolveReportPeriod } from "@/lib/reportPeriod";
 export default function ReportsPage() {
   const {
     user
@@ -334,6 +335,7 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedInternalRepor
             <TableRow className="bg-gray-100">
               <TableHead className="py-2 px-4">#</TableHead>
               <TableHead className="py-2 px-4">Report Name</TableHead>
+              <TableHead className="py-2 px-4">Reporting Period</TableHead>
               <TableHead className="py-2 px-4">Submitted On</TableHead>
               <TableHead className="py-2 px-4">Actions</TableHead>
             </TableRow>
@@ -342,6 +344,12 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedInternalRepor
             {paginatedReports.length > 0 ? paginatedReports.map((report, index) => <TableRow key={index}>
                   <TableCell className="py-2 px-4">{(currentPage - 1) * itemsPerPage + index + 1}</TableCell>
                   <TableCell className="py-2 px-4">{report.title}</TableCell>
+                  <TableCell className="py-2 px-4">
+                    {(() => {
+                      const period = resolveReportPeriod(report);
+                      return period ? formatReportPeriodLabel(period.month, period.year) : "—";
+                    })()}
+                  </TableCell>
                   <TableCell className="py-2 px-4">{new Date(report.submittedAt).toLocaleDateString()}</TableCell>
                   <TableCell className="flex gap-2">
   {report.fileId && fileUrls[report.fileId] ? <Button className="bg-blue-600 text-white px-2" onClick={async () => {
@@ -385,7 +393,7 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedInternalRepor
  
             </TableCell>
                 </TableRow>) : <TableRow>
-                <TableCell colSpan={4} className="text-center py-3 text-gray-500">
+                <TableCell colSpan={5} className="text-center py-3 text-gray-500">
                   No submitted reports found.
                 </TableCell>
               </TableRow>}
@@ -406,7 +414,6 @@ const submittedReports = useQuery(api.internal_reports.getSubmittedInternalRepor
   
       {}
       {isUploadModalOpen && <UploadReports onClose={() => setIsUploadModalOpen(false)} onUploadComplete={() => {
-      toast.success("Report uploaded successfully!");
       setIsUploadModalOpen(false);
     }} />}
 

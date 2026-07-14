@@ -14,12 +14,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, FileBarChart2, FileText, Trash2 } from "lucide-react";
+import { Download, FileBarChart2, FileText, Trash2, Pencil } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import classNames from "classnames";
 import { formatRole } from "@/lib/formatters";
 import Loader from "@/components/Loader";
 import SubmittedReportsMdaMatrixDialog from "@/components/Admin/SubmittedReportsMdaMatrixDialog";
+import {
+  MONTHS_LONG,
+  formatReportPeriodLabel,
+  getSelectableReportYears,
+  isBfaReportName,
+  resolveReportPeriod,
+} from "@/lib/reportPeriod";
 
 export default function SubmittedReportsPage() {
   const {
@@ -31,6 +38,7 @@ export default function SubmittedReportsPage() {
     role: "all"
   }) ?? [];
   const deleteReport = useMutation(api.internal_reports.deleteSubmittedReport);
+  const updateBfaReportPeriod = useMutation(api.internal_reports.updateBfaReportPeriod);
   const getFileUrl = useMutation(api.internal_reports.getStorageUrl);
   const [fileUrls, setFileUrls] = useState<Record<string, {
     url: string;
@@ -46,6 +54,11 @@ export default function SubmittedReportsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showMdaMatrixDialog, setShowMdaMatrixDialog] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [showEditPeriodDialog, setShowEditPeriodDialog] = useState(false);
+  const [editReportId, setEditReportId] = useState<Id<"submitted_reports"> | null>(null);
+  const [editMonth, setEditMonth] = useState("January");
+  const [editYear, setEditYear] = useState(String(new Date().getFullYear()));
+  const [savingPeriod, setSavingPeriod] = useState(false);
   const [activeQuickFilter, setActiveQuickFilter] = useState<string | null>(null);
   const itemsPerPage = 20;
   useEffect(() => {
@@ -170,6 +183,57 @@ export default function SubmittedReportsPage() {
     toast.success("Report deleted");
     setShowDeleteDialog(false);
   };
+
+  const openEditPeriodDialog = (report: {
+    _id: Id<"submitted_reports">;
+    reportName?: string;
+    fileName?: string;
+    submittedAt: number;
+    reportPeriodMonth?: number;
+    reportPeriodYear?: number;
+  }) => {
+    const period = resolveReportPeriod(report);
+    setEditReportId(report._id);
+    setEditMonth(period ? MONTHS_LONG[period.month] : MONTHS_LONG[new Date(report.submittedAt).getMonth()]);
+    setEditYear(String(period?.year ?? new Date(report.submittedAt).getFullYear()));
+    setShowEditPeriodDialog(true);
+  };
+
+  const handleSaveReportPeriod = async () => {
+    if (!editReportId) return;
+    const monthIndex = MONTHS_LONG.indexOf(editMonth);
+    if (monthIndex < 0) {
+      toast.error("Invalid month selected.");
+      return;
+    }
+    setSavingPeriod(true);
+    try {
+      const result = await updateBfaReportPeriod({
+        reportId: editReportId,
+        reportPeriodMonth: monthIndex,
+        reportPeriodYear: Number(editYear),
+      });
+      toast.success(`Reporting period updated to ${result.reportName}`);
+      setShowEditPeriodDialog(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update reporting period.");
+    } finally {
+      setSavingPeriod(false);
+    }
+  };
+
+  const getReportingPeriodLabel = (report: {
+    reportName?: string;
+    fileName?: string;
+    submittedAt: number;
+    reportPeriodMonth?: number;
+    reportPeriodYear?: number;
+  }) => {
+    const period = resolveReportPeriod(report);
+    if (period) return formatReportPeriodLabel(period.month, period.year);
+    return "—";
+  };
   const today = new Date().toISOString().split("T")[0];
   const firstDayOfWeek = new Date();
   firstDayOfWeek.setDate(firstDayOfWeek.getDate() - firstDayOfWeek.getDay());
@@ -287,7 +351,8 @@ export default function SubmittedReportsPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>MDA</TableHead>
                 <TableHead>Report</TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead>Reporting Period</TableHead>
+                <TableHead>Submitted On</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -310,9 +375,20 @@ export default function SubmittedReportsPage() {
                     <TableCell>{formatRole(r.role)}</TableCell>
                     <TableCell>{r.mdaName || "-"}</TableCell>
                     <TableCell>{r.reportName || template?.title || "—"}</TableCell>
+                    <TableCell>{getReportingPeriodLabel(r)}</TableCell>
                     <TableCell>{new Date(r.submittedAt).toLocaleDateString()}</TableCell>
                     <TableCell>
     <div className="flex gap-2 justify-center">
+      {isBfaReportName(r.reportName) && userRole !== "vice_president" && userRole !== "president" && (
+        <Button
+          onClick={() => openEditPeriodDialog(r)}
+          size="icon"
+          className="bg-amber-600 hover:bg-amber-700 text-white"
+          title="Edit reporting period"
+        >
+          <Pencil className="w-4 h-4" />
+        </Button>
+      )}
       {r.fileId && fileUrls[r.fileId] ? <Button size="icon" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={async () => {
                       const fileMeta = r.fileId ? fileUrls[r.fileId] : null;
                       if (!fileMeta) return;
@@ -373,6 +449,47 @@ export default function SubmittedReportsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDeleteReport}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEditPeriodDialog} onOpenChange={setShowEditPeriodDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit BFA Reporting Period</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            Change the month and year this BFA report covers. This does not change when the file was uploaded.
+          </p>
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
+              <Select value={editMonth} onValueChange={setEditMonth}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MONTHS_LONG.map((month) => (
+                    <SelectItem key={month} value={month}>{month}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+              <Select value={editYear} onValueChange={setEditYear}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {getSelectableReportYears().map((year) => (
+                    <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditPeriodDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveReportPeriod} disabled={savingPeriod}>
+              {savingPeriod ? "Saving..." : "Save Period"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
