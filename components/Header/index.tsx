@@ -220,6 +220,10 @@ const Header = () => {
                   path: "/reports",
                   icon: MdLibraryBooks
                 }, {
+                  title: "Score Tracker",
+                  path: "/scores",
+                  icon: MdAnalytics
+                }, {
                   title: "FAQ",
                   path: "/faq",
                   icon: MdContactMail

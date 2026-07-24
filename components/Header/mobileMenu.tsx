@@ -265,6 +265,7 @@ const MobileMenu = () => {
                   </button>
                   {dropdownOpen["resources"] && <ul className="ml-4 mt-2 space-y-2 bg-gray-50 p-3 rounded-lg">
                       <li><Link href="/reports">Reports</Link></li>
+                      <li><Link href="/scores">Score Tracker</Link></li>
                       <li><Link href="/faq">FAQ</Link></li>
                       <li><Link href="/frameworks">Frameworks</Link></li>
                       <li><Link href="/downloads">Downloads</Link></li>

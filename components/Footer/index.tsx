@@ -110,6 +110,7 @@ const Footer = () => {
         <h4 className="mb-4 text-green-700 font-medium text-lg">Resources</h4>
         <ul>
           <li><Link href="/reports" className="block mb-3 hover:text-green-700">Our Reports</Link></li>
+          <li><Link href="/scores" className="block mb-3 hover:text-green-700">Score Tracker</Link></li>
           <li><Link href="/portal" className="block mb-3 hover:text-green-700">E-Portal</Link></li>
           <li><Link href="/media" className="block mb-3 hover:text-green-700">Media</Link></li>
           <li><Link href="/faq" className="block mb-3 hover:text-green-700">FAQ</Link></li>

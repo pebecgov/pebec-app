@@ -26,12 +26,15 @@ export default clerkMiddleware(async (auth, req) => {
 
   // If not authenticated, redirect to home (except for public routes)
   if (!session) {
+    const pathname = req.nextUrl.pathname;
+    const isPublic =
+      pathname === "/" ||
+      pathname.startsWith("/sign-in") ||
+      pathname.startsWith("/sign-up") ||
+      pathname === "/scores" ||
+      pathname.startsWith("/scores/");
 
-    if (
-      req.nextUrl.pathname !== "/" &&
-      req.nextUrl.pathname !== "/sign-in" &&
-      req.nextUrl.pathname !== "/sign-up"
-    ) {
+    if (!isPublic) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }

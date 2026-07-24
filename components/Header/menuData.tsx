@@ -40,6 +40,11 @@ const menuData: Menu[] = [{
     newTab: false,
     path: "/auth/signin"
   }, {
+    id: 46,
+    title: "Score Tracker",
+    newTab: false,
+    path: "/scores"
+  }, {
     id: 45,
     title: "FAQ",
     newTab: false,
