@@ -16,7 +16,7 @@ import { formatRole, formatWorkstream, formatRoleAndWorkstream } from "@/lib/for
 
 const ROLES_WITH_STATE_SELECTION = ["deputies", "magistrates", "state_governor"];
 const ALLOWED_ROLES = ["admin", "staff", "mda", "reform_champion", "deputies", "magistrates", "state_governor"];
-const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor", "sub_national"];
+const staffStreams = ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor", "sub_national", "logistics"];
 
 export default function SubmitLetterForm({
   onClose

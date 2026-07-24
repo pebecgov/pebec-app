@@ -35,8 +35,8 @@ const CreatorInfo = ({ creator, showLabel = true }: {
 );
 
 const workstreams = [
-  "regulatory", "innovation", "judiciary", "communications", 
-  "investments", "receptionist", "account", "auditor", "sub_national"
+  "regulatory", "innovation", "judiciary", "communications",
+  "investments", "receptionist", "account", "auditor", "sub_national", "logistics"
 ];
 
 const commonTags = [

@@ -113,7 +113,8 @@ export default function Admin() {
               investments: ["/staff", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
               receptionist: ["/staff", "/staff/letters", "/staff/business-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
               account: ["/staff", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
-              auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"]
+              auditor: ["/staff/assinged-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+              logistics: ["/staff", "/staff/rooms", "/staff/tasks", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/meetings", "/staff/meeting-calendar", "/staff/profile"]
             };
             
             const baseStaffPermissions = permissionMap[user.staffStream] ?? [];
@@ -516,6 +517,7 @@ export default function Admin() {
                     <SelectItem value="receptionist" className="whitespace-normal break-words">Receptionist - Front Officer</SelectItem>
                     <SelectItem value="account" className="whitespace-normal break-words">Account</SelectItem>
                     <SelectItem value="auditor" className="whitespace-normal break-words">Auditor</SelectItem>
+                    <SelectItem value="logistics" className="whitespace-normal break-words">Logistics</SelectItem>
                     </SelectContent>
                   </Select>}
 

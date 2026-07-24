@@ -20,7 +20,7 @@ import { formatDistanceToNow } from "date-fns";
 
 const workstreams = [
   "regulatory", "innovation", "judiciary", "communications",
-  "investments", "receptionist", "account", "auditor", "sub_national"
+  "investments", "receptionist", "account", "auditor", "sub_national", "logistics"
 ];
 
 const formatWorkstream = (workstream: string | undefined) => {

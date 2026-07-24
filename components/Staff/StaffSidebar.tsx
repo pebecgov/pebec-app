@@ -62,7 +62,59 @@ export default function Sidebar({
       }));
     }
   };
-  const menuItems: MenuItem[] = [{
+  const lettersAndLeaveMenu: MenuItem[] = [
+    {
+      name: "Letters",
+      icon: <EnvelopeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+      children: [{
+        name: "Assigned Letters",
+        path: "/staff/assigned-letters"
+      }, {
+        name: "Received Letters",
+        path: "/staff/received-letters"
+      }, {
+        name: "Send Letter",
+        path: "/staff/send-letters"
+      }]
+    },
+    {
+      name: "Leave and Calendar",
+      icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+      children: [
+        { name: "Leave requests", path: "/staff/leave-requests" },
+        { name: "Absence Notice", path: "/staff/holiday-whereabout" },
+        { name: "Event Calendar", path: "/staff/meeting-calendar" },
+        { name: "Meetings", path: "/staff/meetings" },
+      ],
+    },
+    {
+      name: "Profile",
+      icon: <UserCircleIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+      path: "/staff/profile"
+    }
+  ];
+
+  // Logistics has a restricted nav: Dashboard, Meeting Rooms, My Tasks, Letters, Leave and Calendar, Profile
+  const logisticsMenuItems: MenuItem[] = [
+    {
+      name: "Dashboard",
+      icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+      path: "/staff"
+    },
+    {
+      name: "Meeting Rooms",
+      icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+      path: "/staff/rooms"
+    },
+    {
+      name: "My Tasks",
+      icon: <ClipboardDocumentIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
+      path: "/staff/tasks"
+    },
+    ...lettersAndLeaveMenu,
+  ];
+
+  const menuItems: MenuItem[] = staffStream === "logistics" ? logisticsMenuItems : [{
     name: "Dashboard",
     icon: <HomeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff"
@@ -166,38 +218,13 @@ export default function Sidebar({
     icon: <EnvelopeOpenIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
     path: "/staff/messages"
   }] : []),
-  {
-    name: "Letters",
-    icon: <EnvelopeIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    children: [{
-      name: "Assigned Letters",
-      path: "/staff/assigned-letters"
-    }, {
-      name: "Received Letters",
-      path: "/staff/received-letters"
-    }, {
-      name: "Send Letter",
-      path: "/staff/send-letters"
-    }]
-  },
+  ...lettersAndLeaveMenu,
+  ];
 
-  {
-    name: "Leave and Calendar",
-    icon: <CalendarDaysIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    children: [
-      { name: "Leave requests", path: "/staff/leave-requests" },
-      { name: "Absence Notice", path: "/staff/holiday-whereabout" },
-      { name: "Event Calendar", path: "/staff/meeting-calendar" },
-      { name: "Meetings", path: "/staff/meetings" },
-    ],
-  }, {
-    name: "Profile",
-    icon: <UserCircleIcon className="min-w-[20px] min-h-[20px] w-5 h-5" />,
-    path: "/staff/profile"
-  }];
-
-  // Add admin features if user has admin permissions
-  const adminPermissions = allowed.filter(permission => permission.startsWith('/admin'));
+  // Add admin features if user has admin permissions (not for logistics — restricted nav only)
+  const adminPermissions = staffStream === "logistics"
+    ? []
+    : allowed.filter(permission => permission.startsWith('/admin'));
   if (adminPermissions.length > 0) {
     // Add admin features section before profile
     const adminMenuItems: MenuItem[] = [];
