@@ -675,7 +675,8 @@ export const updateUserRoleInConvex = mutation({
         investments: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
         receptionist: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/letters", "/staff/business-letters", "/staff/messages", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
         account: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
-        auditor: ["/staff/tasks", "/staff/projects", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"]
+        auditor: ["/staff/tasks", "/staff/projects", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+        logistics: ["/staff", "/staff/rooms", "/staff/tasks", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/meetings", "/staff/meeting-calendar", "/staff/profile"]
       };
 
       // Get base staff permissions
@@ -1386,7 +1387,7 @@ export const getStaffUsageMetrics = query({
         }>;
       }> = {};
 
-      const staffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
+      const staffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor", "logistics"];
 
       for (const stream of staffStreams) {
         const streamUsers = filteredStaffUsers.filter(user => user.staffStream === stream);
@@ -1594,7 +1595,8 @@ export const refreshStaffPermissions = mutation({
       investments: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/projects", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
       receptionist: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/letters", "/staff/business-letters", "/staff/messages", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
       account: ["/staff", "/staff/tasks", "/staff/kanban", "/staff/rooms", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
-      auditor: ["/staff/tasks", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"]
+      auditor: ["/staff/tasks", "/staff/assigned-letters", "/staff/send-letters", "/staff/received-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/profile"],
+      logistics: ["/staff", "/staff/rooms", "/staff/tasks", "/staff/assigned-letters", "/staff/received-letters", "/staff/send-letters", "/staff/holiday-whereabout", "/staff/leave-requests", "/staff/meetings", "/staff/meeting-calendar", "/staff/profile"]
     };
 
     let count = 0;

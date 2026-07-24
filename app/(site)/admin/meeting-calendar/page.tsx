@@ -67,7 +67,8 @@ export default function AdminMeetingCalendarPage() {
         "innovation",
         "judiciary",
         "regulatory",
-        "sub_national"
+        "sub_national",
+        "logistics"
     ];
 
     // Get meetings for selected date

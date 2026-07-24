@@ -108,6 +108,7 @@ export default function AdminTasks() {
     { value: "receptionist", label: "Receptionist" },
     { value: "account", label: "Account" },
     { value: "auditor", label: "Auditor" },
+    { value: "logistics", label: "Logistics" },
     { value: "admin", label: "Admin" }
   ];
 

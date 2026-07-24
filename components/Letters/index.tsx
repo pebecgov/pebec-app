@@ -40,7 +40,7 @@ export default function SubmitLetterForm({
   const [selectedUser, setSelectedUser] = useState<Id<"users"> | null>(null);
   const [showAttachmentUpload, setShowAttachmentUpload] = useState(false);
 
-  const allStaffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"];
+  const allStaffStreams = ["regulatory", "sub_national", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor", "logistics"];
   // Filter staff streams based on available recipients (for role-based restrictions)
   const availableStreams = [...new Set(availableRecipients.map(r => r.staffStream))];
   const staffStreams = availableStreams.length > 0 ? allStaffStreams.filter(stream => availableStreams.includes(stream)) : allStaffStreams;

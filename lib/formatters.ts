@@ -48,7 +48,8 @@ export function formatWorkstream(workstream: string): string {
     "judiciary": "Legislative & Judicial",
     "communications": "Strategic Communications",
     "sub-national": "Sub-National",
-
+    "sub_national": "Sub-National",
+    "logistics": "Logistics",
   };
 
   // Check if we have a special mapping

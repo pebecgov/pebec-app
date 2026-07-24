@@ -67,7 +67,7 @@ export default function BusinessLettersAdmin() {
         streams.add(user.staffStream);
       }
     });
-    ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor"].forEach(stream => streams.add(stream));
+    ["regulatory", "innovation", "judiciary", "communications", "investments", "receptionist", "account", "auditor", "logistics"].forEach(stream => streams.add(stream));
     return Array.from(streams);
   }, [users]);
   const handleShowFiles = async (letter: typeof letters[number]) => {
