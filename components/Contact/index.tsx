@@ -325,12 +325,11 @@ import Image from "next/image";
 import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
 import SendLetterModal from "../BusinessLetters/SubmitLetter";
-import { useMutation, useAction } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { toast, Toaster } from "sonner";
+import { toast } from "sonner";
 
 export const Contact = () => {
-  const createContactMessage = useMutation(api.contact_messages.createContactMessage);
   const subscribeToNewsletter = useMutation(api.newsletters.subscribeToNewsletter);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [openModal, setOpenModal] = useState(false);
@@ -370,13 +369,29 @@ export const Contact = () => {
     }
 
     try {
-      await createContactMessage({
-        name,
-        email,
-        subject,
-        phone: phone || undefined,
-        message
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          subject,
+          phone: phone || undefined,
+          message,
+        }),
       });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        toast.error(
+          data.error ||
+            (response.status === 429
+              ? "You have already sent a contact message today. Please try again tomorrow."
+              : "Failed to send message.")
+        );
+        return;
+      }
 
       toast.success("Message sent successfully!");
       setFormData({
@@ -384,7 +399,7 @@ export const Contact = () => {
         email: "",
         subject: "",
         phone: "",
-        message: ""
+        message: "",
       });
     } catch (err) {
       console.error(err);
