@@ -741,10 +741,15 @@ export default defineSchema({
     phone: v.optional(v.string()),
     message: v.string(),
     createdAt: v.number(),
+    ipAddress: v.optional(v.string()),
     assignedTo: v.optional(v.array(v.id("users"))),
     assignedToName: v.optional(v.array(v.string())),
     status: v.optional(v.union(v.literal("pending"), v.literal("viewed"), v.literal("replied"), v.literal("acknowledged"), v.literal("in_progress"), v.literal("resolved")))
-  }).index("byEmail", ["email"]).index("byStatus", ["status"]).index("byCreatedAt", ["createdAt"]),
+  })
+    .index("byEmail", ["email"])
+    .index("byStatus", ["status"])
+    .index("byCreatedAt", ["createdAt"])
+    .index("byIp", ["ipAddress"]),
   newsletter_subscribers: defineTable({
     email: v.string(),
     name: v.optional(v.string()),
