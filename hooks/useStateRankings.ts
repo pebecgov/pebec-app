@@ -62,9 +62,10 @@ function applyDeductions(
     }));
 }
 
-export function useStateRankings(indicator?: string) {
-  const baseRankings = useQuery(api.state_scores.getStateRankings, undefined);
-  const stateScores = useQuery(api.saveStateScore.getStateScores, {});
+export function useStateRankings(indicator?: string, year?: number) {
+  const currentYear = year || new Date().getFullYear();
+  const baseRankings = useQuery(api.state_scores.getStateRankings, { year: currentYear });
+  const stateScores = useQuery(api.saveStateScore.getStateScores, { year: currentYear });
 
   const data = useMemo(() => {
     if (indicator) {

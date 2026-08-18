@@ -20,15 +20,27 @@ const overallMaxScore = Object.values(indicatorMaxScores).reduce((sum, value) =>
 export const getStateRankings = query({
   args: {
     indicator: v.optional(v.string()),
+    year: v.optional(v.number()),
   },
-  handler: async (ctx, { indicator }) => {
-    // Fetch documents from state_scores table, optionally filtered by indicator
-    const allScores = indicator
-      ? await ctx.db
-          .query("state_scores")
-          .withIndex("byIndicator", (q) => q.eq("indicator", indicator))
-          .collect()
-      : await ctx.db.query("state_scores").collect();
+  handler: async (ctx, { indicator, year }) => {
+    const currentYear = year || new Date().getFullYear();
+    
+    // Fetch documents from state_scores table, filtered by year and optionally by indicator
+    let allScores;
+    
+    if (indicator) {
+      // Filter by both year and indicator
+      allScores = await ctx.db
+        .query("state_scores")
+        .withIndex("byYearAndIndicator", (q) => q.eq("year", currentYear).eq("indicator", indicator))
+        .collect();
+    } else {
+      // Filter by year only
+      allScores = await ctx.db
+        .query("state_scores")
+        .withIndex("byYear", (q) => q.eq("year", currentYear))
+        .collect();
+    }
 
     if (allScores.length === 0) {
       return [];

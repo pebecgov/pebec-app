@@ -36,9 +36,15 @@ export const getPublicStateIndicators = query({
 export const getPublicStateRankings = query({
   args: {
     limit: v.optional(v.number()),
+    year: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const stateScores = await ctx.db.query("state_scores").collect();
+    const currentYear = args.year || new Date().getFullYear();
+    
+    const stateScores = await ctx.db
+      .query("state_scores")
+      .withIndex("byYear", (q) => q.eq("year", currentYear))
+      .collect();
     
     if (!stateScores.length) {
       return {

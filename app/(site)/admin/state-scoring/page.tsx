@@ -688,8 +688,9 @@ const INDICATOR_ALL_VALUE = "all";
 
 const RankingsTable = () => {
   const [selectedIndicator, setSelectedIndicator] = useState<string>(INDICATOR_ALL_VALUE);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const indicatorKey = selectedIndicator === INDICATOR_ALL_VALUE ? undefined : selectedIndicator;
-  const { rankings, isLoading, isEmpty } = useStateRankings(indicatorKey);
+  const { rankings, isLoading, isEmpty } = useStateRankings(indicatorKey, selectedYear);
 
   const indicatorOptions = useMemo(() => {
     return [
@@ -797,6 +798,18 @@ const RankingsTable = () => {
                 {indicatorOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Select year" />
+              </SelectTrigger>
+              <SelectContent>
+                {[2026, 2025, 2024, 2023, 2022].map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
                   </SelectItem>
                 ))}
               </SelectContent>

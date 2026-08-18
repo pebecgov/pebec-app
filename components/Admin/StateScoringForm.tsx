@@ -584,13 +584,14 @@ StateForm.displayName = "StateForm";
 export default function StateScoringForm() {
   const [selectedIndicator, setSelectedIndicator] = useState("");
   const [selectedState, setSelectedState] = useState("");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [stateScores, setStateScores] = useState<Record<string, StateScoreData>>({});
   const [stateLinks, setStateLinks] = useState<Record<string, StateLinkData>>({});
   
   // Load existing scores
   const existingScores = useQuery(api.saveStateScore.getStateScores, 
     selectedIndicator && selectedState 
-      ? { state: selectedState, indicator: selectedIndicator }
+      ? { state: selectedState, indicator: selectedIndicator, year: selectedYear }
       : "skip"
   );
 
@@ -732,20 +733,38 @@ export default function StateScoringForm() {
         {/* Left Panel - Indicators & State List */}
         <div className="w-1/3 border-r bg-gray-50 flex flex-col">
           {/* Indicator Selection */}
-          <div className="p-4 border-b bg-white">
-            <Label className="text-sm font-medium">Select Indicator</Label>
-            <Select value={selectedIndicator} onValueChange={setSelectedIndicator}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Choose an indicator" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(indicators).map(([id, config]) => (
-                  <SelectItem key={id} value={id}>
-                    {config.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="p-4 border-b bg-white space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Select Indicator</Label>
+              <Select value={selectedIndicator} onValueChange={setSelectedIndicator}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Choose an indicator" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(indicators).map(([id, config]) => (
+                    <SelectItem key={id} value={id}>
+                      {config.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label className="text-sm font-medium">Assessment Year</Label>
+              <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Choose year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2026, 2025, 2024, 2023, 2022].map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* State List */}

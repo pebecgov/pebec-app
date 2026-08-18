@@ -142,27 +142,29 @@ export const saveStateScoreLink = mutation({
 export const getStateScores = query({
   args: {
     state: v.optional(v.string()),
-    indicator: v.optional(v.string())
+    indicator: v.optional(v.string()),
+    year: v.optional(v.number())
   },
-  handler: async (ctx, { state, indicator }) => {
-    let query = ctx.db.query("state_scores");
+  handler: async (ctx, { state, indicator, year }) => {
+    const currentYear = year || new Date().getFullYear();
     const normalizedState = state ? normalizeStateName(state) : undefined;
     
-    if (normalizedState && indicator) {
-      return await query
-        .withIndex("byStateAndIndicator", (q) => q.eq("state", normalizedState).eq("indicator", indicator))
-        .collect();
-    } else if (normalizedState) {
-      return await query
-        .withIndex("byState", (q) => q.eq("state", normalizedState))
-        .collect();
-    } else if (indicator) {
-      return await query
-        .withIndex("byIndicator", (q) => q.eq("indicator", indicator))
-        .collect();
-    } else {
-      return await query.collect();
+    // Start with year-based filtering
+    let results = await ctx.db
+      .query("state_scores")
+      .withIndex("byYear", (q) => q.eq("year", currentYear))
+      .collect();
+    
+    // Apply additional filters in memory
+    if (normalizedState) {
+      results = results.filter(score => score.state === normalizedState);
     }
+    
+    if (indicator) {
+      results = results.filter(score => score.indicator === indicator);
+    }
+    
+    return results;
   }
 });
 
