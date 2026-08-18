@@ -14,6 +14,26 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Search, TrendingUp, MapPin, Building2, Calendar, Trophy, Download, FileText, FileSpreadsheet, Eye } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
+// Type definitions for the data structures
+interface StateRankingData {
+  state: string;
+  totalScore: number;
+  percentage: number;
+  grade: string;
+  scores: Record<string, number>;
+  lastUpdated: number;
+  rank: number;
+}
+
+interface MdaScoreData {
+  mdaName: string;
+  finalScore: number;
+  maxPossibleScore: number;
+  percentage: number;
+  grade: string;
+  scoringPeriod: string;
+}
+
 export default function PublicScoresPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "states";
@@ -42,14 +62,14 @@ export default function PublicScoresPage() {
   // Filter data
   const filteredStates = useMemo(() => {
     if (!stateData?.states) return [];
-    return stateData.states.filter(state =>
+    return (stateData.states as StateRankingData[]).filter(state =>
       state.state.toLowerCase().includes(stateSearch.toLowerCase())
     );
   }, [stateData, stateSearch]);
 
   const filteredMdas = useMemo(() => {
     if (!mdaData?.mdas) return [];
-    return mdaData.mdas.filter(mda =>
+    return (mdaData.mdas as MdaScoreData[]).filter(mda =>
       mda.mdaName.toLowerCase().includes(mdaSearch.toLowerCase())
     );
   }, [mdaData, mdaSearch]);
@@ -206,19 +226,14 @@ Assessment Year: ${mdaYear}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Search, Year Filter and Download */}
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      placeholder="Search states..."
-                      value={stateSearch}
-                      onChange={(e) => setStateSearch(e.target.value)}
-                      className="pl-10"
-                    />
+                {/* Year Filter - Always Visible */}
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-gray-600" />
+                    <span className="font-medium text-gray-700">Assessment Year:</span>
                   </div>
                   <Select value={stateYear.toString()} onValueChange={(value) => setStateYear(parseInt(value))}>
-                    <SelectTrigger className="w-full sm:w-40">
+                    <SelectTrigger className="w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -229,6 +244,19 @@ Assessment Year: ${mdaYear}
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Search and Download */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search states..."
+                      value={stateSearch}
+                      onChange={(e) => setStateSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="flex items-center gap-2">
@@ -293,7 +321,7 @@ Assessment Year: ${mdaYear}
                           <td className="p-4">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-lg">
-                                #{(state as any).rank}
+                                #{state.rank}
                               </span>
                             </div>
                           </td>
@@ -333,8 +361,15 @@ Assessment Year: ${mdaYear}
                 </div>
 
                 {filteredStates.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    {stateSearch ? "No states found matching your search." : "No state data available."}
+                  <div className="text-center py-12 text-gray-500 space-y-2">
+                    <div className="text-lg font-medium">
+                      {stateSearch ? "No states found matching your search." : `No state data available for ${stateYear}.`}
+                    </div>
+                    {!stateSearch && (
+                      <div className="text-sm">
+                        Try selecting a different year above. Data may be available for {stateYear === 2025 ? "2024 or earlier years" : "2025"}.
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -354,19 +389,14 @@ Assessment Year: ${mdaYear}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Filters and Download */}
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      placeholder="Search MDAs..."
-                      value={mdaSearch}
-                      onChange={(e) => setMdaSearch(e.target.value)}
-                      className="pl-10"
-                    />
+                {/* Year Filter - Always Visible */}
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-gray-600" />
+                    <span className="font-medium text-gray-700">Assessment Year:</span>
                   </div>
                   <Select value={mdaYear.toString()} onValueChange={(value) => setMdaYear(parseInt(value))}>
-                    <SelectTrigger className="w-full sm:w-40">
+                    <SelectTrigger className="w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -377,6 +407,19 @@ Assessment Year: ${mdaYear}
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Search and Download */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search MDAs..."
+                      value={mdaSearch}
+                      onChange={(e) => setMdaSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="flex items-center gap-2">
@@ -487,8 +530,15 @@ Assessment Year: ${mdaYear}
                 </div>
 
                 {filteredMdas.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    {mdaSearch ? "No MDAs found matching your search." : `No MDA data available for ${year}.`}
+                  <div className="text-center py-12 text-gray-500 space-y-2">
+                    <div className="text-lg font-medium">
+                      {mdaSearch ? "No MDAs found matching your search." : `No MDA data available for ${mdaYear}.`}
+                    </div>
+                    {!mdaSearch && (
+                      <div className="text-sm">
+                        Try selecting a different year above. Data may be available for {mdaYear === 2026 ? "2025 or earlier years" : "2026"}.
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
