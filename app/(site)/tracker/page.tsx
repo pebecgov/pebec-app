@@ -8,9 +8,11 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 export default function TrackerPage() {
+  const currentYear = new Date().getFullYear();
+  
   // Get some live data to show in the cards
-  const stateData = useQuery(api.public_scores.getPublicStateRankings, { limit: 3 });
-  const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: new Date().getFullYear(), limit: 3 });
+  const stateData = useQuery(api.public_scores.getPublicStateRankings, { limit: 3, year: currentYear });
+  const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: currentYear, limit: 3 });
 
   const topStates = stateData?.states?.slice(0, 3) || [];
   const topMdas = mdaData?.mdas?.slice(0, 3) || [];

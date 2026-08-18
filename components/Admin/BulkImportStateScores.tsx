@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -25,6 +26,7 @@ export default function BulkImportStateScores() {
   const [parsedData, setParsedData] = useState<ScoreRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [importResults, setImportResults] = useState<{
     imported: number;
     errors: number;
@@ -138,7 +140,7 @@ export default function BulkImportStateScores() {
       for (let i = 0; i < parsedData.length; i += batchSize) {
         const batch = parsedData.slice(i, i + batchSize);
         try {
-          const result = await bulkImport({ scores: batch });
+          const result = await bulkImport({ scores: batch, year: selectedYear });
           totalImported += result.imported;
           totalErrors += result.errors;
           allErrorMessages.push(...result.errorMessages);
@@ -181,18 +183,36 @@ export default function BulkImportStateScores() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="excel-file">Excel File (.xlsx, .xls, .csv)</Label>
-          <Input
-            id="excel-file"
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleFileSelect}
-            disabled={isProcessing || isImporting}
-          />
-          <p className="text-xs text-muted-foreground">
-            Columns: State | Indicator Key | SubIndicator Key | Value | Link to Source (optional)
-          </p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="excel-file">Excel File (.xlsx, .xls, .csv)</Label>
+            <Input
+              id="excel-file"
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileSelect}
+              disabled={isProcessing || isImporting}
+            />
+            <p className="text-xs text-muted-foreground">
+              Columns: State | Indicator Key | SubIndicator Key | Value | Link to Source (optional)
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="assessment-year">Assessment Year</Label>
+            <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Select year" />
+              </SelectTrigger>
+              <SelectContent>
+                {[2026, 2025, 2024, 2023, 2022].map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {isProcessing && (

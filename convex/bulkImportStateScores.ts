@@ -22,8 +22,9 @@ export const bulkImportStateScores = mutation({
         linkToSource: v.optional(v.string()),
       })
     ),
+    year: v.optional(v.number()),
   },
-  handler: async (ctx, { scores }) => {
+  handler: async (ctx, { scores, year }) => {
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
@@ -37,6 +38,7 @@ export const bulkImportStateScores = mutation({
           subIndicator: scoreData.subIndicator,
           value: scoreData.value,
           linkToSource: scoreData.linkToSource,
+          year: year || new Date().getFullYear(),
         });
         successCount++;
       } catch (error) {

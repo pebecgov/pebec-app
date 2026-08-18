@@ -11,14 +11,16 @@ export const saveStateScore = mutation({
     indicator: v.string(),
     subIndicator: v.string(),
     value: v.string(),
-    linkToSource: v.optional(v.string())
+    linkToSource: v.optional(v.string()),
+    year: v.optional(v.number())
   },
-  handler: async (ctx, { state, indicator, subIndicator, value, linkToSource }) => {
+  handler: async (ctx, { state, indicator, subIndicator, value, linkToSource, year }) => {
     const actor = await getCurrentUserOrThrow(ctx);
     if (actor.role !== "admin" && actor.role !== "staff") {
       throw new Error("Unauthorized");
     }
 
+    const assessmentYear = year || new Date().getFullYear();
     const normalizedState = normalizeStateName(state);
     let score = 0;
 
@@ -80,6 +82,7 @@ export const saveStateScore = mutation({
         value,
         score,
         linkToSource,
+        year: assessmentYear,
         createdAt: Date.now()
       });
 
@@ -106,9 +109,12 @@ export const saveStateScoreLink = mutation({
     state: v.string(),
     indicator: v.string(),
     subIndicator: v.string(),
-    linkToSource: v.string()
+    linkToSource: v.string(),
+    year: v.optional(v.number())
   },
-  handler: async (ctx, { state, indicator, subIndicator, linkToSource }) => {
+  handler: async (ctx, { state, indicator, subIndicator, linkToSource, year }) => {
+    const assessmentYear = year || new Date().getFullYear();
+    
     // Check if a record already exists for this combination
     const existingRecord = await ctx.db
       .query("state_scores")
@@ -132,6 +138,7 @@ export const saveStateScoreLink = mutation({
         value: "",
         score: 0,
         linkToSource,
+        year: assessmentYear,
         createdAt: Date.now()
       });
       return scoreId;
@@ -142,27 +149,29 @@ export const saveStateScoreLink = mutation({
 export const getStateScores = query({
   args: {
     state: v.optional(v.string()),
-    indicator: v.optional(v.string())
+    indicator: v.optional(v.string()),
+    year: v.optional(v.number())
   },
-  handler: async (ctx, { state, indicator }) => {
-    let query = ctx.db.query("state_scores");
+  handler: async (ctx, { state, indicator, year }) => {
+    const currentYear = year || new Date().getFullYear();
     const normalizedState = state ? normalizeStateName(state) : undefined;
     
-    if (normalizedState && indicator) {
-      return await query
-        .withIndex("byStateAndIndicator", (q) => q.eq("state", normalizedState).eq("indicator", indicator))
-        .collect();
-    } else if (normalizedState) {
-      return await query
-        .withIndex("byState", (q) => q.eq("state", normalizedState))
-        .collect();
-    } else if (indicator) {
-      return await query
-        .withIndex("byIndicator", (q) => q.eq("indicator", indicator))
-        .collect();
-    } else {
-      return await query.collect();
+    // Start with year-based filtering using indexes for better performance
+    let results = await ctx.db
+      .query("state_scores")
+      .withIndex("byYear", (q) => q.eq("year", currentYear))
+      .collect();
+    
+    // Apply additional filters in memory
+    if (normalizedState) {
+      results = results.filter(score => score.state === normalizedState);
     }
+    
+    if (indicator) {
+      results = results.filter(score => score.indicator === indicator);
+    }
+    
+    return results;
   }
 });
 
@@ -198,3 +207,4 @@ export const getStateRankings = query({
       .sort((a, b) => b.percentageScore - a.percentageScore);
   }
 });
+

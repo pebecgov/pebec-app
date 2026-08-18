@@ -21,14 +21,15 @@ export default function PublicScoresPage() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [stateSearch, setStateSearch] = useState("");
   const [mdaSearch, setMdaSearch] = useState("");
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [stateYear, setStateYear] = useState(new Date().getFullYear());
+  const [mdaYear, setMdaYear] = useState(new Date().getFullYear());
   const [selectedState, setSelectedState] = useState<any>(null);
   const [selectedMda, setSelectedMda] = useState<any>(null);
 
   // Fetch data
   const indicators = useQuery(api.public_scores.getPublicStateIndicators);
-  const stateData = useQuery(api.public_scores.getPublicStateRankings, {});
-  const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year });
+  const stateData = useQuery(api.public_scores.getPublicStateRankings, { year: stateYear });
+  const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: mdaYear });
 
   // Update tab based on URL parameter
   useEffect(() => {
@@ -77,9 +78,10 @@ export default function PublicScoresPage() {
   // Download functions
   const downloadStatesPDF = () => {
     const content = `
-PEBEC State Business Climate Rankings
+PEBEC State Business Climate Rankings (${stateYear})
 
 Generated on: ${new Date().toLocaleDateString()}
+Assessment Year: ${stateYear}
 
 ${filteredStates.map((state, index) => `
 ${index + 1}. ${state.state}
@@ -96,29 +98,29 @@ Grade A States: ${filteredStates.filter(s => s.grade.startsWith("A")).length}
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `state-rankings-${new Date().toISOString().split('T')[0]}.txt`;
+    a.download = `state-rankings-${stateYear}-${new Date().toISOString().split('T')[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const downloadStatesExcel = () => {
-    const headers = 'Rank,State,Total Score,Percentage,Grade\n';
+    const headers = 'Rank,State,Total Score,Percentage,Grade,Year\n';
     const csvContent = headers + filteredStates.map((state, index) => 
-      `${index + 1},"${state.state}",${state.totalScore.toFixed(1)},${state.percentage.toFixed(1)},${state.grade}`
+      `${index + 1},"${state.state}",${state.totalScore.toFixed(1)},${state.percentage.toFixed(1)},${state.grade},${stateYear}`
     ).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `state-rankings-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `state-rankings-${stateYear}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const downloadMdaPDF = () => {
     const content = `
-PEBEC BFA Scoring - Federal MDAs (${year})
+PEBEC BFA Scoring - Federal MDAs (${mdaYear})
 
 Generated on: ${new Date().toLocaleDateString()}
 
@@ -132,29 +134,29 @@ ${index + 1}. ${mda.mdaName}
 
 Total MDAs: ${filteredMdas.length}
 Grade A MDAs: ${filteredMdas.filter(m => m.grade.startsWith("A")).length}
-Assessment Year: ${year}
+Assessment Year: ${mdaYear}
     `;
     
     const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mda-rankings-${year}-${new Date().toISOString().split('T')[0]}.txt`;
+    a.download = `mda-rankings-${mdaYear}-${new Date().toISOString().split('T')[0]}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const downloadMdaExcel = () => {
-    const headers = 'Rank,MDA,Score,Max Score,Percentage,Grade,Period\n';
+    const headers = 'Rank,MDA,Score,Max Score,Percentage,Grade,Period,Year\n';
     const csvContent = headers + filteredMdas.map((mda, index) => 
-      `${index + 1},"${mda.mdaName}",${mda.finalScore.toFixed(1)},${mda.maxPossibleScore},${mda.percentage.toFixed(1)},${mda.grade},"${mda.scoringPeriod}"`
+      `${index + 1},"${mda.mdaName}",${mda.finalScore.toFixed(1)},${mda.maxPossibleScore},${mda.percentage.toFixed(1)},${mda.grade},"${mda.scoringPeriod}",${mdaYear}`
     ).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mda-rankings-${year}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `mda-rankings-${mdaYear}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -204,7 +206,7 @@ Assessment Year: ${year}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Search and Download */}
+                {/* Search, Year Filter and Download */}
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -215,6 +217,18 @@ Assessment Year: ${year}
                       className="pl-10"
                     />
                   </div>
+                  <Select value={stateYear.toString()} onValueChange={(value) => setStateYear(parseInt(value))}>
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[2026, 2025, 2024, 2023].map((y) => (
+                        <SelectItem key={y} value={y.toString()}>
+                          {y}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" className="flex items-center gap-2">
@@ -245,9 +259,9 @@ Assessment Year: ${year}
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg">
                     <div className="text-2xl font-bold text-green-600">
-                      {indicators?.length || 0}
+                      {stateYear}
                     </div>
-                    <div className="text-sm text-green-600">Indicators</div>
+                    <div className="text-sm text-green-600">Assessment Year</div>
                   </div>
                   <div className="bg-purple-50 p-4 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600">
@@ -351,7 +365,7 @@ Assessment Year: ${year}
                       className="pl-10"
                     />
                   </div>
-                  <Select value={year.toString()} onValueChange={(value) => setYear(parseInt(value))}>
+                  <Select value={mdaYear.toString()} onValueChange={(value) => setMdaYear(parseInt(value))}>
                     <SelectTrigger className="w-full sm:w-40">
                       <SelectValue />
                     </SelectTrigger>
@@ -393,7 +407,7 @@ Assessment Year: ${year}
                   </div>
                   <div className="bg-green-50 p-4 rounded-lg">
                     <div className="text-2xl font-bold text-green-600">
-                      {year}
+                      {mdaYear}
                     </div>
                     <div className="text-sm text-green-600">Assessment Year</div>
                   </div>
