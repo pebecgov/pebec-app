@@ -444,6 +444,7 @@ const StateForm = memo(({
   stateData, 
   linkData,
   savedScores,
+  year,
   onUpdate,
   onLinkUpdate,
   onSaveComplete
@@ -453,6 +454,7 @@ const StateForm = memo(({
   stateData: StateScoreData;
   linkData: StateLinkData;
   savedScores?: Array<{ subIndicator: string; value: string; linkToSource?: string }>;
+  year: number;
   onUpdate: (subIndicator: string, value: string) => void;
   onLinkUpdate: (subIndicator: string, link: string) => void;
   onSaveComplete?: () => void;
@@ -476,7 +478,8 @@ const StateForm = memo(({
             indicator,
             subIndicator,
             value,
-            linkToSource: link
+            linkToSource: link,
+            year
           });
         }
       }
@@ -488,7 +491,8 @@ const StateForm = memo(({
             state,
             indicator,
             subIndicator,
-            linkToSource: link
+            linkToSource: link,
+            year
           });
         }
       }
@@ -502,7 +506,7 @@ const StateForm = memo(({
     } finally {
       setIsSaving(false);
     }
-  }, [state, indicator, stateData, linkData, saveStateScore, saveStateScoreLink, onSaveComplete]);
+  }, [state, indicator, stateData, linkData, saveStateScore, saveStateScoreLink, year, onSaveComplete]);
 
   const indicatorConfig = indicators[indicator as keyof typeof indicators];
   if (!indicatorConfig) return null;
@@ -804,12 +808,13 @@ export default function StateScoringForm() {
               <div className="p-6">
                 <Card>
                   <CardContent className="p-6">
-                    <StateForm
+                    <StateForm 
                       state={selectedState}
                       indicator={selectedIndicator}
                       stateData={getCurrentStateData(selectedState)}
                       linkData={getCurrentLinkData(selectedState)}
                       savedScores={existingScores}
+                      year={selectedYear}
                       onUpdate={(subIndicator, value) => updateStateData(selectedState, subIndicator, value)}
                       onLinkUpdate={(subIndicator, link) => updateLinkData(selectedState, subIndicator, link)}
                       onSaveComplete={handleSaveComplete}
