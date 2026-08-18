@@ -26,7 +26,7 @@ export default function BulkImportStateScores() {
   const [parsedData, setParsedData] = useState<ScoreRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(2025); // Default to 2025 where data exists
   const [importResults, setImportResults] = useState<{
     imported: number;
     errors: number;

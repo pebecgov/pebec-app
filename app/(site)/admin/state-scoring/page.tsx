@@ -688,7 +688,7 @@ const INDICATOR_ALL_VALUE = "all";
 
 const RankingsTable = () => {
   const [selectedIndicator, setSelectedIndicator] = useState<string>(INDICATOR_ALL_VALUE);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState<number>(2025); // Default to 2025 where data exists
   const indicatorKey = selectedIndicator === INDICATOR_ALL_VALUE ? undefined : selectedIndicator;
   const { rankings, isLoading, isEmpty } = useStateRankings(indicatorKey, selectedYear);
 

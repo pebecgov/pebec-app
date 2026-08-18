@@ -21,7 +21,7 @@ export default function PublicScoresPage() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [stateSearch, setStateSearch] = useState("");
   const [mdaSearch, setMdaSearch] = useState("");
-  const [stateYear, setStateYear] = useState(new Date().getFullYear());
+  const [stateYear, setStateYear] = useState(2025); // Default to 2025 where data exists
   const [mdaYear, setMdaYear] = useState(new Date().getFullYear());
   const [selectedState, setSelectedState] = useState<any>(null);
   const [selectedMda, setSelectedMda] = useState<any>(null);

@@ -588,7 +588,7 @@ StateForm.displayName = "StateForm";
 export default function StateScoringForm() {
   const [selectedIndicator, setSelectedIndicator] = useState("");
   const [selectedState, setSelectedState] = useState("");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(2025); // Default to 2025 where data exists
   const [stateScores, setStateScores] = useState<Record<string, StateScoreData>>({});
   const [stateLinks, setStateLinks] = useState<Record<string, StateLinkData>>({});
   
