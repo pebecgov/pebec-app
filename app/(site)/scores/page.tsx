@@ -14,6 +14,26 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Search, TrendingUp, MapPin, Building2, Calendar, Trophy, Download, FileText, FileSpreadsheet, Eye } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
+// Type definitions for the data structures
+interface StateRankingData {
+  state: string;
+  totalScore: number;
+  percentage: number;
+  grade: string;
+  scores: Record<string, number>;
+  lastUpdated: number;
+  rank: number;
+}
+
+interface MdaScoreData {
+  mdaName: string;
+  finalScore: number;
+  maxPossibleScore: number;
+  percentage: number;
+  grade: string;
+  scoringPeriod: string;
+}
+
 export default function PublicScoresPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "states";
@@ -42,14 +62,14 @@ export default function PublicScoresPage() {
   // Filter data
   const filteredStates = useMemo(() => {
     if (!stateData?.states) return [];
-    return stateData.states.filter(state =>
+    return (stateData.states as StateRankingData[]).filter(state =>
       state.state.toLowerCase().includes(stateSearch.toLowerCase())
     );
   }, [stateData, stateSearch]);
 
   const filteredMdas = useMemo(() => {
     if (!mdaData?.mdas) return [];
-    return mdaData.mdas.filter(mda =>
+    return (mdaData.mdas as MdaScoreData[]).filter(mda =>
       mda.mdaName.toLowerCase().includes(mdaSearch.toLowerCase())
     );
   }, [mdaData, mdaSearch]);
@@ -301,7 +321,7 @@ Assessment Year: ${mdaYear}
                           <td className="p-4">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-lg">
-                                #{(state as any).rank}
+                                #{state.rank}
                               </span>
                             </div>
                           </td>
