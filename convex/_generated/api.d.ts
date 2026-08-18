@@ -61,6 +61,7 @@ import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
 import type * as plainText from "../plainText.js";
 import type * as posts from "../posts.js";
+import type * as public_scores from "../public_scores.js";
 import type * as reforms from "../reforms.js";
 import type * as reports from "../reports.js";
 import type * as saber from "../saber.js";
@@ -144,6 +145,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   plainText: typeof plainText;
   posts: typeof posts;
+  public_scores: typeof public_scores;
   reforms: typeof reforms;
   reports: typeof reports;
   saber: typeof saber;

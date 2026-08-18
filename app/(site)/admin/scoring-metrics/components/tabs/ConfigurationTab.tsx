@@ -85,23 +85,27 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
             {/* Configuration Tabs - Only show for 2026+ */}
             {selectedYear >= 2026 && (
                 <Tabs defaultValue="efficiency" className="w-full">
-                    <TabsList className="grid w-full grid-cols-5">
-                        <TabsTrigger value="efficiency">Efficiency</TabsTrigger>
-                        <TabsTrigger value="mystery">Mystery Shopping</TabsTrigger>
-                        <TabsTrigger value="penalties">Penalties</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-4">
+                        <TabsTrigger value="efficiency">Efficiency Bundle</TabsTrigger>
                         <TabsTrigger value="others">Others</TabsTrigger>
+                        <TabsTrigger value="penalties">Penalties</TabsTrigger>
                         <TabsTrigger value="exclusions">Exclude MDA</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="efficiency">
-                        <EfficiencyConfiguration year={selectedYear} config={configurations?.efficiencyPeriod} />
-                    </TabsContent>
-
-                    <TabsContent value="mystery">
-                        <MysteryShoppingConfiguration
-                            year={selectedYear}
-                            mysteryShoppingTypes={configurations?.mysteryShoppingTypes || []}
-                        />
+                        <div className="space-y-6">
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                                <h3 className="font-semibold text-blue-900">Efficiency Bundle (Total: 70 points)</h3>
+                                <p className="text-sm text-blue-800 mt-1">
+                                    This category includes all efficiency-related metrics: Core Metrics (30 points: SLA, Report Submission, Report Governance, Timeliness) + Mystery Shopping (40 points)
+                                </p>
+                            </div>
+                            <EfficiencyConfiguration year={selectedYear} config={configurations?.efficiencyPeriod} />
+                            <MysteryShoppingConfiguration
+                                year={selectedYear}
+                                mysteryShoppingTypes={configurations?.mysteryShoppingTypes || []}
+                            />
+                        </div>
                     </TabsContent>
 
                     <TabsContent value="penalties">
@@ -335,10 +339,10 @@ function EfficiencyConfiguration({ year, config }: any) {
     const [startYear, setStartYear] = useState(config?.startYear || year - 1);
     const [endMonth, setEndMonth] = useState(config?.endMonth || "December");
     const [endYear, setEndYear] = useState(config?.endYear || year);
-    const [slaPoints, setSlaPoints] = useState(config?.slaPoints || 30);
-    const [reportSubmissionPoints, setReportSubmissionPoints] = useState(config?.reportSubmissionPoints || 3);
-    const [reportGovPoints, setReportGovPoints] = useState(config?.reportGovPoints || 15);
-    const [timelinessPoints, setTimelinessPoints] = useState(config?.timelinessPoints || 2);
+    const [slaPoints, setSlaPoints] = useState(config?.slaPoints || 5);
+    const [reportSubmissionPoints, setReportSubmissionPoints] = useState(config?.reportSubmissionPoints || 2);
+    const [reportGovPoints, setReportGovPoints] = useState(config?.reportGovPoints || 20);
+    const [timelinessPoints, setTimelinessPoints] = useState(config?.timelinessPoints || 3);
     const [isSaving, setIsSaving] = useState(false);
 
     const saveEfficiencyPeriod = useMutation(api.scoring_config.saveEfficiencyPeriod);
@@ -387,9 +391,9 @@ function EfficiencyConfiguration({ year, config }: any) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Efficiency Period Configuration</CardTitle>
+                <CardTitle>Core Efficiency Metrics (30 points)</CardTitle>
                 <CardDescription>
-                    Set the month range for SLA, Timeliness, and Report Submission calculations
+                    Configure SLA, Report Governance, Report Submission, and Timeliness metrics. Set the month range for calculations.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -447,10 +451,13 @@ function EfficiencyConfiguration({ year, config }: any) {
                         <strong>Period:</strong> {startMonth} {startYear} to {endMonth} {endYear}
                     </p>
                     <p className="text-sm text-blue-900 mt-1">
-                        <strong>Total Months:</strong> {totalMonths} months (same for all 3 metrics)
+                        <strong>Total Months:</strong> {totalMonths} months (for SLA, Report Submission, Timeliness)
                     </p>
                     <p className="text-sm text-blue-900 mt-1">
-                        <strong>Total Efficiency Points:</strong> {totalEfficiencyPoints} points
+                        <strong>Core Efficiency Points:</strong> {totalEfficiencyPoints} points
+                    </p>
+                    <p className="text-sm text-blue-900 mt-1">
+                        <strong>Total Efficiency Bundle:</strong> {totalEfficiencyPoints} + 40 (Mystery Shopping) = {totalEfficiencyPoints + 40} points
                     </p>
                 </div>
 
@@ -536,20 +543,64 @@ function EfficiencyConfiguration({ year, config }: any) {
 // ============================================
 
 function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
-    const [totalMysteryPoints, setTotalMysteryPoints] = useState(20); // Fixed total for ALL types
+    const [totalMysteryPoints, setTotalMysteryPoints] = useState(40); // Fixed total for ALL types
     const [types, setTypes] = useState(mysteryShoppingTypes?.length > 0 ? mysteryShoppingTypes : [
         {
             typeId: '1',
-            typeName: 'Physical Visit',
+            typeName: 'Phone Call Mystery Shopping',
             order: 0,
             questions: [
-                { questionId: '1-1', questionText: '', weight: 5, answerType: 'yes_no', order: 0 }
+                { questionId: '1-1', questionText: 'Call Response Quality (0=No Response, 1=Poor, 2=Fair, 3=Average, 4=Good, 5=Excellent)', weight: 8, answerType: 'scale_1_10', order: 0 },
+                { questionId: '1-2', questionText: 'Information Accuracy Provided', weight: 4, answerType: 'scale_1_10', order: 1 },
+                { questionId: '1-3', questionText: 'Professional Courtesy and Helpfulness', weight: 3, answerType: 'scale_1_10', order: 2 }
+            ]
+        },
+        {
+            typeId: '2',
+            typeName: 'Email Response Mystery Shopping',
+            order: 1,
+            questions: [
+                { questionId: '2-1', questionText: 'Email Response Received Within 48 Hours', weight: 3, answerType: 'yes_no', order: 0 },
+                { questionId: '2-2', questionText: 'Email Response Quality (0=No Response, 1=Poor, 2=Fair, 3=Average, 4=Good, 5=Excellent)', weight: 4, answerType: 'scale_1_10', order: 1 },
+                { questionId: '2-3', questionText: 'Information Completeness - All Questions Addressed', weight: 3, answerType: 'yes_no', order: 2 }
+            ]
+        },
+        {
+            typeId: '3',
+            typeName: 'Website Functionality Assessment',
+            order: 2,
+            questions: [
+                { questionId: '3-1', questionText: 'Functional Website', weight: 2, answerType: 'yes_no', order: 0 },
+                { questionId: '3-2', questionText: 'Customer Services Contact Info Listed (Email & Phone)', weight: 2, answerType: 'yes_no', order: 1 },
+                { questionId: '3-3', questionText: 'FAQ Available', weight: 2, answerType: 'yes_no', order: 2 },
+                { questionId: '3-4', questionText: 'Requirements/Eligibility for Services Clearly Outlined', weight: 3, answerType: 'yes_no', order: 3 },
+                { questionId: '3-5', questionText: 'Costs for Each Service Clearly Indicated with No Hidden Charges', weight: 3, answerType: 'yes_no', order: 4 },
+                { questionId: '3-6', questionText: 'Availability of Online Application/Process', weight: 3, answerType: 'yes_no', order: 5 }
             ]
         }
     ]);
     const [isSaving, setIsSaving] = useState(false);
+    const [isEqualDistribution, setIsEqualDistribution] = useState(false); // Toggle between equal vs manual point distribution
 
     const saveMysteryShoppingConfiguration = useMutation(api.scoring_config.saveMysteryShoppingConfiguration);
+
+    // Auto-update equal distribution when total points change
+    React.useEffect(() => {
+        if (isEqualDistribution) {
+            const updated = [...types];
+            updated.forEach((type, typeIndex) => {
+                const questionsCount = type.questions?.length || 0;
+                if (questionsCount > 0) {
+                    const equalWeight = totalMysteryPoints / questionsCount;
+                    type.questions = type.questions.map((q: any) => ({
+                        ...q,
+                        weight: equalWeight
+                    }));
+                }
+            });
+            setTypes(updated);
+        }
+    }, [totalMysteryPoints, isEqualDistribution]);
 
     // Type Management
     const addType = () => {
@@ -576,19 +627,45 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
         const updated = [...types];
         const type = updated[typeIndex];
         type.questions = type.questions || [];
+        
+        const newWeight = isEqualDistribution ? 
+            totalMysteryPoints / (type.questions.length + 1) : 
+            5; // Default weight for manual mode
+        
         type.questions.push({
             questionId: `${type.typeId}-${Date.now()}`,
             questionText: '',
-            weight: 5,
+            weight: newWeight,
             answerType: 'yes_no',
             order: type.questions.length
         });
+
+        // If in equal distribution mode, update all question weights
+        if (isEqualDistribution) {
+            const equalWeight = totalMysteryPoints / type.questions.length;
+            type.questions = type.questions.map((q: any) => ({
+                ...q,
+                weight: equalWeight
+            }));
+        }
+        
         setTypes(updated);
     };
 
     const removeQuestion = (typeIndex: number, questionIndex: number) => {
         const updated = [...types];
-        updated[typeIndex].questions = updated[typeIndex].questions.filter((_: any, i: number) => i !== questionIndex);
+        const type = updated[typeIndex];
+        type.questions = type.questions.filter((_: any, i: number) => i !== questionIndex);
+        
+        // If in equal distribution mode and there are remaining questions, redistribute points
+        if (isEqualDistribution && type.questions.length > 0) {
+            const equalWeight = totalMysteryPoints / type.questions.length;
+            type.questions = type.questions.map((q: any) => ({
+                ...q,
+                weight: equalWeight
+            }));
+        }
+        
         setTypes(updated);
     };
 
@@ -633,23 +710,56 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
         return (type.questions || []).reduce((sum: number, q: any) => sum + (q.weight || 0), 0);
     };
 
+    // Toggle equal distribution for a specific type
+    const toggleEqualDistribution = (typeIndex: number) => {
+        const updated = [...types];
+        const type = updated[typeIndex];
+        const questionsCount = type.questions?.length || 0;
+        
+        if (questionsCount === 0) {
+            toast.error("Add questions first to distribute points.");
+            return;
+        }
+
+        if (isEqualDistribution) {
+            // Switch to manual mode - keep current weights but allow editing
+            setIsEqualDistribution(false);
+            toast.success("Switched to manual point setting mode. You can now set individual question weights.");
+        } else {
+            // Switch to equal distribution mode - divide points equally
+            const equalWeight = totalMysteryPoints / questionsCount;
+            updated[typeIndex].questions = type.questions.map((q: any) => ({
+                ...q,
+                weight: equalWeight
+            }));
+            setTypes(updated);
+            setIsEqualDistribution(true);
+            toast.success(`Equal distribution enabled. Each of ${questionsCount} questions has ${equalWeight} points.`);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Mystery Shopping Configuration</CardTitle>
+                <CardTitle>Mystery Shopping - Efficiency Component (40 points)</CardTitle>
                 <CardDescription>
-                    Create types (e.g., Physical Visit, Phone Call) and add questions under each type. All types share the same total point budget.
+                    Create mystery shopping types (e.g., Physical Visit, Phone Call) with questions. This is part of the Efficiency Bundle and contributes 40 points to the total efficiency score.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 {/* Fixed Total Points */}
-                <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-md">
+                <div className="p-4 bg-green-50 border-2 border-green-200 rounded-md">
                     <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                            <Label className="text-sm font-semibold">Total Mystery Shopping Points (Fixed)</Label>
+                            <Label className="text-sm font-semibold">Mystery Shopping Points (Part of Efficiency Bundle)</Label>
                             <p className="text-xs text-gray-600">
-                                All types will share this same point total. Each type's questions should divide these points.
+                                This contributes to the total 70-point Efficiency Bundle. All mystery shopping types share this point total.
                             </p>
+                            {isEqualDistribution && (
+                                <div className="mt-2 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
+                                    ⚡ Equal Distribution Mode Active - Points automatically divided among all questions
+                                </div>
+                            )}
                         </div>
                         <Input
                             type="number"
@@ -711,27 +821,16 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                                         </div>
 
                                         <Button
-                                            variant="secondary"
+                                            variant={isEqualDistribution ? "default" : "secondary"}
                                             size="sm"
-                                            onClick={() => {
-                                                const updated = [...types];
-                                                const questionsCount = type.questions.length;
-                                                if (questionsCount === 0) {
-                                                    toast.error("Add questions first to distribute points.");
-                                                    return;
-                                                }
-                                                const equalWeight = totalMysteryPoints / questionsCount;
-
-                                                updated[typeIndex].questions = type.questions.map((q: any) => ({
-                                                    ...q,
-                                                    weight: equalWeight
-                                                }));
-                                                setTypes(updated);
-                                                toast.success(`Each of ${questionsCount} questions now has ${equalWeight} points`);
-                                            }}
+                                            onClick={() => toggleEqualDistribution(typeIndex)}
                                             className="w-full"
                                         >
-                                            ⚡ Divide {totalMysteryPoints} Points Equally
+                                            {isEqualDistribution ? (
+                                                <>🔓 Switch to Manual Point Setting</>
+                                            ) : (
+                                                <>⚡ Divide {totalMysteryPoints} Points Equally</>
+                                            )}
                                         </Button>
                                     </div>
                                 )}
@@ -767,10 +866,14 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                                                             placeholder="Weight"
                                                             value={question.weight}
                                                             onChange={(e) => {
-                                                                const val = parseInt(e.target.value);
-                                                                updateQuestion(typeIndex, questionIndex, 'weight', isNaN(val) ? 0 : val);
+                                                                if (!isEqualDistribution) {
+                                                                    const val = parseInt(e.target.value);
+                                                                    updateQuestion(typeIndex, questionIndex, 'weight', isNaN(val) ? 0 : val);
+                                                                }
                                                             }}
-                                                            className="w-24"
+                                                            disabled={isEqualDistribution}
+                                                            className={`w-24 ${isEqualDistribution ? 'bg-gray-100' : ''}`}
+                                                            title={isEqualDistribution ? 'Points are automatically distributed equally. Switch to manual mode to edit individual weights.' : 'Set individual question weight'}
                                                         />
                                                     </div>
                                                 </div>
@@ -809,10 +912,59 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                     })}
                 </div>
 
-                <Button variant="outline" onClick={addType} className="w-full">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Mystery Shopping Type
-                </Button>
+                <div className="flex gap-3">
+                    <Button variant="outline" onClick={addType} className="flex-1">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Mystery Shopping Type
+                    </Button>
+                    
+                    <Button 
+                        variant="secondary" 
+                        onClick={() => {
+                            const realWorldExamples = [
+                                {
+                                    typeId: '1',
+                                    typeName: 'Phone Call Mystery Shopping',
+                                    order: 0,
+                                    questions: [
+                                        { questionId: '1-1', questionText: 'Call Response Quality (0=No Response, 1=Poor, 2=Fair, 3=Average, 4=Good, 5=Excellent)', weight: 8, answerType: 'scale_1_10', order: 0 },
+                                        { questionId: '1-2', questionText: 'Information Accuracy Provided', weight: 4, answerType: 'scale_1_10', order: 1 },
+                                        { questionId: '1-3', questionText: 'Professional Courtesy and Helpfulness', weight: 3, answerType: 'scale_1_10', order: 2 }
+                                    ]
+                                },
+                                {
+                                    typeId: '2',
+                                    typeName: 'Email Response Mystery Shopping',
+                                    order: 1,
+                                    questions: [
+                                        { questionId: '2-1', questionText: 'Email Response Received Within 48 Hours', weight: 3, answerType: 'yes_no', order: 0 },
+                                        { questionId: '2-2', questionText: 'Email Response Quality (0=No Response, 1=Poor, 2=Fair, 3=Average, 4=Good, 5=Excellent)', weight: 4, answerType: 'scale_1_10', order: 1 },
+                                        { questionId: '2-3', questionText: 'Information Completeness - All Questions Addressed', weight: 3, answerType: 'yes_no', order: 2 }
+                                    ]
+                                },
+                                {
+                                    typeId: '3',
+                                    typeName: 'Website Functionality Assessment',
+                                    order: 2,
+                                    questions: [
+                                        { questionId: '3-1', questionText: 'Functional Website', weight: 2, answerType: 'yes_no', order: 0 },
+                                        { questionId: '3-2', questionText: 'Customer Services Contact Info Listed (Email & Phone)', weight: 2, answerType: 'yes_no', order: 1 },
+                                        { questionId: '3-3', questionText: 'FAQ Available', weight: 2, answerType: 'yes_no', order: 2 },
+                                        { questionId: '3-4', questionText: 'Requirements/Eligibility for Services Clearly Outlined', weight: 3, answerType: 'yes_no', order: 3 },
+                                        { questionId: '3-5', questionText: 'Costs for Each Service Clearly Indicated with No Hidden Charges', weight: 3, answerType: 'yes_no', order: 4 },
+                                        { questionId: '3-6', questionText: 'Availability of Online Application/Process', weight: 3, answerType: 'yes_no', order: 5 }
+                                    ]
+                                }
+                            ];
+                            setTypes(realWorldExamples);
+                            toast.success("Loaded real-world mystery shopping examples from BFA data!");
+                        }}
+                        className="px-4"
+                        title="Load examples based on actual BFA mystery shopping data"
+                    >
+                        📋 Load BFA Examples
+                    </Button>
+                </div>
 
                 <Button onClick={handleSave} className="w-full" disabled={isSaving}>
                     {isSaving ? (
@@ -976,10 +1128,24 @@ function OthersConfiguration({ year, othersItems }: any) {
         return [
             {
                 itemId: '1',
-                itemName: 'Service Level Agreement Publishing',
+                itemName: 'Transparency',
                 weight: 5,
                 answerType: 'yes_no',
                 order: 0
+            },
+            {
+                itemId: '2',
+                itemName: 'Stakeholder Engagement',
+                weight: 5,
+                answerType: 'yes_no',
+                order: 1
+            },
+            {
+                itemId: '3',
+                itemName: 'BEEPA',
+                weight: 10,
+                answerType: 'yes_no',
+                order: 2
             }
         ];
     });
@@ -996,10 +1162,24 @@ function OthersConfiguration({ year, othersItems }: any) {
             setItems([
                 {
                     itemId: '1',
-                    itemName: 'Service Level Agreement Publishing',
+                    itemName: 'Transparency',
                     weight: 5,
                     answerType: 'yes_no',
                     order: 0
+                },
+                {
+                    itemId: '2',
+                    itemName: 'Stakeholder Engagement',
+                    weight: 5,
+                    answerType: 'yes_no',
+                    order: 1
+                },
+                {
+                    itemId: '3',
+                    itemName: 'BEEPA',
+                    weight: 10,
+                    answerType: 'yes_no',
+                    order: 2
                 }
             ]);
         }

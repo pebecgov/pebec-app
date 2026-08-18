@@ -269,6 +269,7 @@ const MobileMenu = () => {
                       <li><Link href="/frameworks">Frameworks</Link></li>
                       <li><Link href="/downloads">Downloads</Link></li>
                       <li><Link href="/media">Gallery</Link></li>
+                      <li><Link href="/tracker">Tracker</Link></li>
 
                     </ul>}
                 </li>

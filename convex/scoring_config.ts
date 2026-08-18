@@ -600,18 +600,18 @@ export const debugConfigWeights = query({
             .filter(q => q.eq(q.field("isActive"), true))
             .collect();
 
-        const efficiencyTotal = (efficiencyConfig?.slaPoints || 30) +
-            (efficiencyConfig?.reportSubmissionPoints || 3) +
-            (efficiencyConfig?.reportGovPoints || 15) +
-            (efficiencyConfig?.timelinessPoints || 2);
+        const efficiencyTotal = (efficiencyConfig?.slaPoints || 5) +
+            (efficiencyConfig?.reportSubmissionPoints || 2) +
+            (efficiencyConfig?.reportGovPoints || 20) +
+            (efficiencyConfig?.timelinessPoints || 3);
 
-        const mysteryTotal = mysteryQuestions.reduce((sum, q) => sum + (q.weight || 0), 0) || 20;
+        const mysteryTotal = mysteryQuestions.reduce((sum, q) => sum + (q.weight || 0), 0) || 40;
 
         const transparencySum = transparencyItems.reduce((sum, i) => sum + (i.weight || 0), 0);
         const innovationStakeholderSum = innovationStakeholderItems.reduce((sum, i) => sum + (i.weight || 0), 0);
 
         // The fallback logic in mda_scoring
-        const othersTotal = (transparencySum + innovationStakeholderSum) || 25;
+        const othersTotal = (transparencySum + innovationStakeholderSum) || 20;
 
         return {
             efficiencyTotal,

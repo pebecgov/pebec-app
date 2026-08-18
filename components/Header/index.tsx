@@ -235,6 +235,10 @@ const Header = () => {
                   title: "Gallery",
                   path: "/media",
                   icon: FaCameraRetro
+                }, {
+                  title: "Tracker",
+                  path: "/tracker",
+                  icon: MdAnalytics
                 }].map((item, key) => <Link key={key} href={item.path} className="flex items-center gap-3 p-3 rounded-md hover:bg-gray-100">
                   <item.icon className="text-[#2D8B10] text-lg" />
                   <div>
