@@ -19,8 +19,7 @@ interface StateRankingData {
   state: string;
   totalScore: number;
   percentage: number;
-  grade: string;
-  scores: Record<string, number>;
+  maxScore: number;
   lastUpdated: number;
   rank: number;
 }
@@ -107,7 +106,6 @@ ${filteredStates.map((state, index) => `
 ${index + 1}. ${state.state}
    Score: ${state.totalScore.toFixed(1)}
    Percentage: ${state.percentage.toFixed(1)}%
-   Grade: ${state.grade}
 `).join('\n')}
 
 Total States: ${filteredStates.length}
@@ -124,9 +122,9 @@ Grade A States: ${filteredStates.filter(s => s.grade.startsWith("A")).length}
   };
 
   const downloadStatesExcel = () => {
-    const headers = 'Rank,State,Total Score,Percentage,Grade,Year\n';
-    const csvContent = headers + filteredStates.map((state, index) => 
-      `${index + 1},"${state.state}",${state.totalScore.toFixed(1)},${state.percentage.toFixed(1)},${state.grade},${stateYear}`
+    const headers = 'Rank,State,Total Score,Percentage,Year\n';
+    const csvContent = headers + filteredStates.map((state, index) =>
+      `${index + 1},"${state.state}",${state.totalScore.toFixed(1)},${state.percentage.toFixed(1)},${stateYear}`
     ).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -308,7 +306,6 @@ Assessment Year: ${mdaYear}
                         <th className="text-left p-4 font-semibold">State</th>
                         <th className="text-left p-4 font-semibold">Total Score</th>
                         <th className="text-left p-4 font-semibold">Percentage</th>
-                        <th className="text-left p-4 font-semibold">Grade</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -348,11 +345,6 @@ Assessment Year: ${mdaYear}
                                 {state.percentage.toFixed(1)}%
                               </span>
                             </div>
-                          </td>
-                          <td className="p-4">
-                            <Badge className={getGradeBadgeColor(state.grade)}>
-                              {state.grade}
-                            </Badge>
                           </td>
                         </tr>
                       ))}
