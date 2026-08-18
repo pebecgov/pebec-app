@@ -58,8 +58,22 @@ export const getPublicStateRankings = query({
     // Group by state and sum scores (same method as admin)
     const stateTotals = new Map<string, number>();
 
+    // Valid Nigerian states (filter out invalid entries like "Data Sources")
+    const validStateKeywords = ['Lagos', 'Kano', 'Rivers', 'Kaduna', 'Oyo', 'Edo', 'Delta', 'Imo', 'Enugu', 'Plateau', 'Cross River', 'Akwa Ibom', 'Ondo', 'Osun', 'Ogun', 'Kwara', 'Benue', 'Anambra', 'Borno', 'Niger', 'Abia', 'Taraba', 'Adamawa', 'Sokoto', 'Kebbi', 'Katsina', 'Jigawa', 'Yobe', 'Bauchi', 'Gombe', 'Zamfara', 'Nasarawa', 'Kogi', 'Ekiti', 'Ebonyi', 'Bayelsa', 'Federal Capital Territory', 'FCT'];
+
     for (const score of allScores) {
       const stateName = score.state;
+      
+      // Filter out invalid entries like "Data Sources", "Data Sourc", etc.
+      const isValidState = validStateKeywords.some(validState => 
+        stateName.toLowerCase().includes(validState.toLowerCase()) || 
+        validState.toLowerCase().includes(stateName.toLowerCase())
+      );
+      
+      if (!isValidState || stateName.toLowerCase().includes('data') || stateName.toLowerCase().includes('source')) {
+        continue; // Skip invalid entries
+      }
+      
       const currentTotal = stateTotals.get(stateName) || 0;
       stateTotals.set(stateName, currentTotal + score.score);
     }

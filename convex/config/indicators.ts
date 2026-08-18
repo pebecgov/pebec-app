@@ -1,80 +1,109 @@
-// Centralized indicators configuration
+// Centralized indicators configuration - Updated to match PEBEC Framework Document
 // Each indicator has subIndicators, and each subIndicator has options with scores
 
 export const indicators = {
-  "access_to_electricity": {
-    name: "Access to Electricity",
+  "electricity": {
+    name: "Electricity (16%)",
     subIndicators: {
-      "band_a_shares": {
-        label: "Band A Share of Feeders",
+      "state_electricity_law": {
+        label: "State Electricity Law",
         options: [
-          { value: "70-100", label: "70-100% (4)", score: 4 },
-          { value: "50-69", label: "50-69% (3)", score: 3 },
-          { value: "30-49", label: "30-49% (2)", score: 2 },
-          { value: "10-29", label: "10-29% (1)", score: 1 },
-          { value: "0-10", label: "0-10% (0)", score: 0 }
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 }
         ]
       },
-      "state_owned_electricity_regulator": {
-        label: "State Owned Electricity Regulation",
+      "electricity_regulatory_commission": {
+        label: "Establishment of State Electricity Regulatory Commission",
         options: [
-          { value: "yes", label: "Yes (6)", score: 6 },
-          { value: "transition", label: "Transition (3)", score: 3 },
+          { value: "yes", label: "Yes (2)", score: 2 },
           { value: "no", label: "No (0)", score: 0 }
+        ]
+      },
+      "nerc_transfer_request": {
+        label: "Request for Transfer from NERC",
+        options: [
+          { value: "yes", label: "Yes (1)", score: 1 },
+          { value: "no", label: "No (0)", score: 0 }
+        ]
+      },
+      "electricity_license": {
+        label: "License",
+        options: [
+          { value: "yes", label: "Yes (1)", score: 1 },
+          { value: "no", label: "No (0)", score: 0 }
+        ]
+      },
+      "electricity_generation": {
+        label: "Electricity Generation (Bonus)",
+        options: [
+          { value: "excellent", label: "Excellent (4)", score: 4 },
+          { value: "good", label: "Good (3)", score: 3 },
+          { value: "fair", label: "Fair (2)", score: 2 },
+          { value: "poor", label: "Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 }
+        ]
+      },
+      "electricity_transmission_distribution": {
+        label: "Electricity Transmission and Distribution",
+        options: [
+          { value: "excellent", label: "Excellent (5)", score: 5 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (3)", score: 3 },
+          { value: "poor", label: "Poor (2)", score: 2 },
+          { value: "very_poor", label: "Very Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 }
         ]
       }
     }
   },
   "infrastructure": {
-    name: "Infrastructure",
+    name: "Infrastructure (8%)",
     subIndicators: {
-      "renewable_energy_evs_cng": {
-        label: "Renewable Energy (Launch of State's EVs and CNG Transport Solutions)",
+      "roads_within_state_capital": {
+        label: "Roads within State Capital",
         options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
+          { value: "excellent", label: "Excellent (8)", score: 8 },
+          { value: "very_good", label: "Very Good (6)", score: 6 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (2)", score: 2 },
+          { value: "poor", label: "Poor (0)", score: 0 }
         ]
       },
-      "airport_cargo_functional": {
-        label: "Airport/Cargo Airport (Functional)",
+      "industrial_zones": {
+        label: "Industrial Zones",
         options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "railway": {
-        label: "Rail Line (Functional)",
-        options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
+          { value: "excellent", label: "Excellent (8)", score: 8 },
+          { value: "very_good", label: "Very Good (6)", score: 6 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (2)", score: 2 },
+          { value: "poor", label: "Poor (0)", score: 0 }
         ]
       }
     }
   },
   "digital_connectivity": {
-    name: "Digital Connectivity",
+    name: "Digital Connectivity (10%)",
     subIndicators: {
-      "right_of_way": {
-        label: "Right of Way (RoW) fees",
+      "right_of_way_policy": {
+        label: "Right of Way Policy",
         options: [
-          { value: "free", label: "Free", score: 2 },
-          { value: "reduced-price", label: "Reduced Price", score: 1 },
-          { value: "full-price", label: "Full Price", score: 0 }
+          { value: "excellent", label: "Excellent (5)", score: 5 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (3)", score: 3 },
+          { value: "poor", label: "Poor (2)", score: 2 },
+          { value: "very_poor", label: "Very Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 }
         ]
       },
-      "gov_services_online": {
-        label: "Availability of government services online",
+      "coverage_5g_network_reliability": {
+        label: "5G Coverage & Network Reliability",
         options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "partially", label: "Partially", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "coverage_5g": {
-        label: "5G coverage",
-        options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
+          { value: "excellent", label: "Excellent (5)", score: 5 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (3)", score: 3 },
+          { value: "poor", label: "Poor (2)", score: 2 },
+          { value: "very_poor", label: "Very Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 }
         ]
       }
     }
@@ -228,20 +257,42 @@ export const indicators = {
     }
   },
   "getting_credit": {
-    name: "Getting Credit",
+    name: "Getting Credit (12%)",
     subIndicators: {
-      "boi_collaboration": {
-        label: "Does the state collaborate with BOI or any federal Agency to create access to credit?",
+      "state_microfinance_banks": {
+        label: "State Microfinance Banks",
         options: [
-          { value: "yes", label: "Yes", score: 3 },
-          { value: "no", label: "No", score: 0 }
+          { value: "excellent", label: "Excellent (6)", score: 6 },
+          { value: "good", label: "Good (5)", score: 5 },
+          { value: "fair", label: "Fair (4)", score: 4 },
+          { value: "poor", label: "Poor (3)", score: 3 },
+          { value: "very_poor", label: "Very Poor (2)", score: 2 },
+          { value: "none", label: "None (0)", score: 0 }
         ]
       },
-      "microfinance_banks": {
-        label: "Have owned microfinance banks or cooperatives?",
+      "access_federal_financial_institutions": {
+        label: "Access to Federal Financial Institutions",
         options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
+          { value: "excellent", label: "Excellent (6)", score: 6 },
+          { value: "good", label: "Good (5)", score: 5 },
+          { value: "fair", label: "Fair (4)", score: 4 },
+          { value: "poor", label: "Poor (3)", score: 3 },
+          { value: "very_poor", label: "Very Poor (2)", score: 2 },
+          { value: "none", label: "None (0)", score: 0 }
+        ]
+      }
+    }
+  },
+  "digitalizing_land": {
+    name: "Digitalizing Land",
+    subIndicators: {
+      "gis": {
+        label: "GIS (3%)",
+        options: [
+          { value: "excellent", label: "Excellent (3)", score: 3 },
+          { value: "good", label: "Good (2)", score: 2 },
+          { value: "fair", label: "Fair (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 }
         ]
       }
     }
