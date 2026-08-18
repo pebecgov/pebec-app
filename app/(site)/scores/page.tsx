@@ -109,7 +109,7 @@ ${index + 1}. ${state.state}
 `).join('\n')}
 
 Total States: ${filteredStates.length}
-Grade A States: ${filteredStates.filter(s => s.grade.startsWith("A")).length}
+Average Score: ${Math.round((filteredStates.reduce((sum, s) => sum + s.percentage, 0) / filteredStates.length) || 0)}%
     `;
     
     const blob = new Blob([content], { type: 'text/plain' });
@@ -291,9 +291,9 @@ Assessment Year: ${mdaYear}
                   </div>
                   <div className="bg-purple-50 p-4 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600">
-                      {filteredStates.filter(s => s.grade.startsWith("A")).length}
+                      {Math.round((filteredStates.reduce((sum, s) => sum + s.percentage, 0) / filteredStates.length) || 0)}%
                     </div>
-                    <div className="text-sm text-purple-600">Grade A States</div>
+                    <div className="text-sm text-purple-600">Average Score</div>
                   </div>
                 </div>
 
@@ -334,17 +334,9 @@ Assessment Year: ${mdaYear}
                             </span>
                           </td>
                           <td className="p-4">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-blue-500 h-2 rounded-full"
-                                  style={{ width: `${Math.min(state.percentage, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-medium">
-                                {state.percentage.toFixed(1)}%
-                              </span>
-                            </div>
+                            <span className="font-medium">
+                              {state.percentage.toFixed(1)}%
+                            </span>
                           </td>
                         </tr>
                       ))}
