@@ -2153,9 +2153,9 @@ export const getAllMdaSavedDataForDashboard = query({
       ...innovationStakeholderItems
     ].map(item => [item.itemId, item])).values()];
 
-    // Mystery Shopping: User confirmed it should be 20 points max, even if config has more (multiple types)
+    // Mystery Shopping: User confirmed it should be 40 points max, even if config has more (multiple types)
     const rawMysterySum = uniqueMysteryQuestions.reduce((sum, q) => sum + (q.weight || 0), 0);
-    const mysteryTotal = rawMysterySum > 0 ? 20 : 20;
+    const mysteryTotal = rawMysterySum > 0 ? 40 : 40;
 
     // Others: Transparency (10) + Innovation (5) + Stakeholder (10) = 25
     const othersTotal = uniqueTransparencyItems.reduce((sum, i) => sum + (i.weight || 0), 0) +
@@ -2311,7 +2311,7 @@ export const getAllMdaSavedDataForDashboard = query({
       const totalMonthsWithData = allMonthKeys.size || dataList.reduce((sum, d) => sum + (d.monthsWithData || 0), 0);
       const sumTotalScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0);
       const maxPossibleRawScore = totalMonthsWithData * 5;
-      const slaMaxPoints = efficiencyConfig?.slaPoints ?? 30;
+      const slaMaxPoints = efficiencyConfig?.slaPoints ?? 5;
       const slaTotalMonths = efficiencyConfig?.totalMonths ?? 12;
       const pointsPerMonth = slaMaxPoints / slaTotalMonths;
       const maxPossibleScoreForMonths = totalMonthsWithData * pointsPerMonth;
@@ -2588,7 +2588,7 @@ export const getAllMdaSavedDataForDashboard = query({
       let monthsWithData = 0;
       let score = 0;
 
-      const mrMaxPoints = efficiencyConfig?.reportSubmissionPoints ?? 3;
+      const mrMaxPoints = efficiencyConfig?.reportSubmissionPoints ?? 2;
       const mrTotalMonths = efficiencyConfig?.totalMonths ?? 12;
 
       if (hasManual) {
@@ -2637,7 +2637,7 @@ export const getAllMdaSavedDataForDashboard = query({
       let monthsWithData = 0;
       let score = 0;
 
-      const tMaxPoints = efficiencyConfig?.timelinessPoints ?? 2;
+      const tMaxPoints = efficiencyConfig?.timelinessPoints ?? 3;
       const tTotalMonths = efficiencyConfig?.totalMonths ?? 12;
 
       if (hasManual) {
@@ -2772,17 +2772,17 @@ export const getAllMdaSavedDataForDashboard = query({
       const totalScore = totalGrossScore + effectivePenaltiesScore + effectiveControversialScore + effectiveToutingScore;
 
       // Base max points should reflect active metric model even when no data exists.
-      // Legacy model in this dashboard currently uses: SLA(30) + Mystery(20) + Innovation(5) +
-      // Transparency(5) + ReportGov(15) + ReportSubmission(3) + Timeliness(2) = 80.
+      // Current model: Efficiency Bundle: SLA(5) + Mystery(40) + ReportGov(20) + ReportSubmission(2) + Timeliness(3) = 70.
+      // Others: Transparency(5) + Stakeholder Engagement(5) + BEEPA(10) = 20. Total = 90 before penalties.
       let maxPossiblePoints = year >= 2026 ? 100 : 80;
       if (year >= 2026 && efficiencyConfig) {
         // Calculate dynamic total
-        const efficiencyTotal = (efficiencyConfig.slaPoints || 30) +
-          (efficiencyConfig.reportSubmissionPoints || 3) +
-          (efficiencyConfig.reportGovPoints || 15) +
-          (efficiencyConfig.timelinessPoints || 2);
+        const efficiencyTotal = (efficiencyConfig.slaPoints || 5) +
+          (efficiencyConfig.reportSubmissionPoints || 2) +
+          (efficiencyConfig.reportGovPoints || 20) +
+          (efficiencyConfig.timelinessPoints || 3);
 
-        // Others is fixed at 45 (Mystery 20 + Innovation 5 + Stakeholder 10 + Transparency 10)
+        // Others is fixed at 20 (Transparency 5 + Stakeholder Engagement 5 + BEEPA 10). Mystery Shopping (40) is part of Efficiency Bundle.
         maxPossiblePoints = efficiencyTotal + mysteryTotal + othersTotal;
 
         if (mda.transparency?.isSkipped) {
@@ -2791,12 +2791,12 @@ export const getAllMdaSavedDataForDashboard = query({
           maxPossiblePoints -= transparencyWeight;
         }
         if (mda.reportGovResolution?.isSkipped) {
-          maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 15);
+          maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 20);
         }
-        if (isExcluded("sla")) maxPossiblePoints -= (efficiencyConfig.slaPoints || 30);
-        if (isExcluded("reportSubmission")) maxPossiblePoints -= (efficiencyConfig.reportSubmissionPoints || 3);
-        if (isExcluded("timeliness")) maxPossiblePoints -= (efficiencyConfig.timelinessPoints || 2);
-        if (isExcluded("reportGov")) maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 15);
+        if (isExcluded("sla")) maxPossiblePoints -= (efficiencyConfig.slaPoints || 5);
+        if (isExcluded("reportSubmission")) maxPossiblePoints -= (efficiencyConfig.reportSubmissionPoints || 2);
+        if (isExcluded("timeliness")) maxPossiblePoints -= (efficiencyConfig.timelinessPoints || 3);
+        if (isExcluded("reportGov")) maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 20);
         if (isExcluded("mystery")) maxPossiblePoints -= mysteryTotal;
         if (isExcluded("others")) {
           maxPossiblePoints -= othersTotal;
@@ -2815,11 +2815,11 @@ export const getAllMdaSavedDataForDashboard = query({
         if (mda.reportGovResolution?.isSkipped) {
           maxPossiblePoints -= 15;
         }
-        if (isExcluded("sla")) maxPossiblePoints -= 30;
-        if (isExcluded("mystery")) maxPossiblePoints -= 20;
-        if (isExcluded("reportGov")) maxPossiblePoints -= 15;
-        if (isExcluded("reportSubmission")) maxPossiblePoints -= 3;
-        if (isExcluded("timeliness")) maxPossiblePoints -= 2;
+        if (isExcluded("sla")) maxPossiblePoints -= 5;
+        if (isExcluded("mystery")) maxPossiblePoints -= 40;
+        if (isExcluded("reportGov")) maxPossiblePoints -= 20;
+        if (isExcluded("reportSubmission")) maxPossiblePoints -= 2;
+        if (isExcluded("timeliness")) maxPossiblePoints -= 3;
         if (isExcluded("transparency")) maxPossiblePoints -= 5;
         if (isExcluded("innovation")) maxPossiblePoints -= 5;
       }
@@ -2835,20 +2835,20 @@ export const getAllMdaSavedDataForDashboard = query({
         maxPossiblePoints,
         excludedMetrics: Array.from(excludedMetrics),
         // Override nested maxPossibleScores if dynamic config exists
-        sla: mda.sla ? { ...mda.sla, maxPossibleScore: efficiencyConfig?.slaPoints || 30 } : null,
+        sla: mda.sla ? { ...mda.sla, maxPossibleScore: efficiencyConfig?.slaPoints || 5 } : null,
         monthlyReport: mda.monthlyReport ? {
           ...mda.monthlyReport,
-          maxPossibleScore: efficiencyConfig?.reportSubmissionPoints || 3,
+          maxPossibleScore: efficiencyConfig?.reportSubmissionPoints || 2,
           totalMonths: efficiencyConfig?.totalMonths || 12
         } : null,
         timeliness: mda.timeliness ? {
           ...mda.timeliness,
-          maxPossibleScore: efficiencyConfig?.timelinessPoints || 2,
+          maxPossibleScore: efficiencyConfig?.timelinessPoints || 3,
           totalMonths: efficiencyConfig?.totalMonths || 12
         } : null,
         reportGovResolution: mda.reportGovResolution ? {
           ...mda.reportGovResolution,
-          maxPossibleScore: efficiencyConfig?.reportGovPoints || 15
+          maxPossibleScore: efficiencyConfig?.reportGovPoints || 20
         } : null,
       };
     });

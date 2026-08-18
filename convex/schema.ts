@@ -1243,10 +1243,10 @@ export default defineSchema({
     endMonth: v.string(), // "October"
     endYear: v.number(), // 2026
     totalMonths: v.number(), // calculated
-    slaPoints: v.number(), // e.g., 30
-    reportSubmissionPoints: v.number(), // e.g., 3
-    reportGovPoints: v.optional(v.number()), // e.g., 15 (Report Governance Resolution)
-    timelinessPoints: v.number(), // e.g., 2
+    slaPoints: v.number(), // e.g., 5
+    reportSubmissionPoints: v.number(), // e.g., 2
+    reportGovPoints: v.optional(v.number()), // e.g., 20 (Report Governance Resolution)
+    timelinessPoints: v.number(), // e.g., 3
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),

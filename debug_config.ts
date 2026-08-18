@@ -13,10 +13,10 @@ async function checkConfig() {
     const efficiencyConfig = await client.query(api.scoring_config.getEfficiencyPeriod, { year });
     console.log("Efficiency Config:", efficiencyConfig);
 
-    const efficiencyTotal = (efficiencyConfig?.slaPoints || 30) +
-        (efficiencyConfig?.reportSubmissionPoints || 3) +
-        (efficiencyConfig?.reportGovPoints || 15) +
-        (efficiencyConfig?.timelinessPoints || 2);
+    const efficiencyTotal = (efficiencyConfig?.slaPoints || 5) +
+        (efficiencyConfig?.reportSubmissionPoints || 2) +
+        (efficiencyConfig?.reportGovPoints || 20) +
+        (efficiencyConfig?.timelinessPoints || 3);
     console.log("Efficiency Total:", efficiencyTotal);
 
     const mysteryQuestions = await client.query(api.scoring_config.getMysteryShoppingTypesWithQuestions, { year });
