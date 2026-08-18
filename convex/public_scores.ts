@@ -41,12 +41,13 @@ export const getPublicStateRankings = query({
   handler: async (ctx, args) => {
     const currentYear = args.year || new Date().getFullYear();
     
-    const stateScores = await ctx.db
+    // Use the same calculation method as admin rankings (state_scores.ts)
+    const allScores = await ctx.db
       .query("state_scores")
       .withIndex("byYear", (q) => q.eq("year", currentYear))
       .collect();
-    
-    if (!stateScores.length) {
+
+    if (allScores.length === 0) {
       return {
         states: [],
         totalStates: 0,
@@ -54,53 +55,35 @@ export const getPublicStateRankings = query({
       };
     }
 
-    // Group by state and get latest scores
-    const stateMap = new Map();
-    
-    for (const score of stateScores) {
-      const stateKey = score.state;
-      if (!stateMap.has(stateKey)) {
-        stateMap.set(stateKey, {
-          state: score.state,
-          scores: {},
-          totalScore: 0,
-          lastUpdated: score._creationTime,
-        });
-      }
-      
-      const stateData = stateMap.get(stateKey);
-      
-      // Use the most recent score for this indicator
-      if (!stateData.scores[score.indicator] || score._creationTime > stateData.lastUpdated) {
-        stateData.scores[score.indicator] = score.score;
-        if (score._creationTime > stateData.lastUpdated) {
-          stateData.lastUpdated = score._creationTime;
-        }
-      }
+    // Group by state and sum scores (same method as admin)
+    const stateTotals = new Map<string, number>();
+
+    for (const score of allScores) {
+      const stateName = score.state;
+      const currentTotal = stateTotals.get(stateName) || 0;
+      stateTotals.set(stateName, currentTotal + score.score);
     }
 
-    // Calculate rankings
-    const states = Array.from(stateMap.values()).map(state => {
-      const totalScore = Object.values(state.scores).reduce((sum: number, score: any) => sum + (score || 0), 0);
-      const percentage = (totalScore / overallMaxScore) * 100;
-      
-      return {
-        state: state.state,
-        totalScore,
-        percentage: Math.round(percentage * 100) / 100,
-        grade: gradeFromPercentage(percentage),
-        scores: state.scores,
-        lastUpdated: state.lastUpdated,
-      };
-    });
+    const denominator = overallMaxScore;
 
-    // Sort by total score (descending)
-    states.sort((a, b) => b.totalScore - a.totalScore);
-
-    // Add ranking
-    states.forEach((state, index) => {
-      (state as any).rank = index + 1;
-    });
+    // Convert to array and sort by percentage score (same as admin method)
+    const states = Array.from(stateTotals.entries())
+      .map(([state, totalScore]) => {
+        const percentage = denominator > 0 ? (totalScore / denominator) * 100 : 0;
+        return {
+          state,
+          totalScore,
+          maxScore: denominator,
+          percentage: Math.round(percentage * 100) / 100,
+          grade: gradeFromPercentage(percentage),
+          lastUpdated: Date.now(),
+        };
+      })
+      .sort((a, b) => b.percentage - a.percentage)
+      .map((state, index) => ({
+        ...state,
+        rank: index + 1,
+      }));
 
     const limitedStates = args.limit ? states.slice(0, args.limit) : states;
 
