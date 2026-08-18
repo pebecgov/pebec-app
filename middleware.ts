@@ -33,7 +33,9 @@ export default clerkMiddleware(async (auth, req) => {
       pathname.startsWith("/sign-up") ||
       pathname.startsWith("/api/contact") ||
       pathname === "/scores" ||
-      pathname.startsWith("/scores/");
+      pathname.startsWith("/scores/") ||
+      pathname === "/tracker" ||
+      pathname.startsWith("/tracker/");
 
     if (!isPublic) {
       return NextResponse.redirect(new URL("/", req.url));
