@@ -38,6 +38,7 @@ export default function Admin() {
   const updateUserRoleInConvex = useMutation(api.users.updateUserRoleInConvex);
   const removeUserFromMDA = useMutation(api.users.removeUserFromMDA);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 20;
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -65,13 +66,21 @@ export default function Admin() {
       role: selectedRoleFilter === "all" ? undefined : selectedRoleFilter,
       staffStream: selectedStreamFilter === "all" ? undefined : selectedStreamFilter,
       mdaName: selectedMdaFilter === "all" ? undefined : selectedMdaFilter,
+      search: debouncedSearch.trim() || undefined,
     },
     { initialNumItems: 60 }
   );
 
   useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 2000);
+    return () => clearTimeout(handle);
+  }, [searchTerm]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [selectedRoleFilter, selectedStreamFilter, selectedMdaFilter, searchTerm]);
+  }, [selectedRoleFilter, selectedStreamFilter, selectedMdaFilter, debouncedSearch]);
 
   useEffect(() => {
     const needed = currentPage * recordsPerPage;
@@ -222,14 +231,9 @@ export default function Admin() {
         role: selectedRoleFilter === "all" ? undefined : selectedRoleFilter,
         staffStream: selectedStreamFilter === "all" ? undefined : selectedStreamFilter,
         mdaName: selectedMdaFilter === "all" ? undefined : selectedMdaFilter,
+        search: debouncedSearch.trim() || undefined,
       });
       const data = exportUsers
-        .filter((user) => {
-          const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some((field) =>
-            field?.toLowerCase().includes(searchTerm.toLowerCase())
-          );
-          return !searchTerm || matchesSearch;
-        })
         .map((user) => {
       const history = user.roleApprovalHistory ?? [];
       const latestApproval = history.length ? history[history.length - 1] : undefined;
@@ -257,14 +261,8 @@ export default function Admin() {
       toast.error("Failed to export users.");
     }
   };
-  const filteredUsers =
-    users
-      .filter(user => {
-        const matchesSearch = [user.firstName, user.lastName, user.email, user.phoneNumber].some(field =>
-          field?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        return !searchTerm || matchesSearch;
-      });
+  const filteredUsers = users;
+  const isSearchPending = searchTerm.trim() !== debouncedSearch.trim();
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / recordsPerPage));
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage);
   const canGoNext = currentPage < totalPages || status === "CanLoadMore";
@@ -282,6 +280,9 @@ export default function Admin() {
         Search users
       </label>
       <Input placeholder="Search by name, email or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full border-gray-300" />
+      {isSearchPending && (
+        <p className="mt-1 text-xs text-gray-500">Searching after you finish typing...</p>
+      )}
     </div>
 
     {}
@@ -350,6 +351,8 @@ export default function Admin() {
         setSelectedStreamFilter("all");
         setCurrentPage(1);
         setMdaSearch("");
+        setSearchTerm("");
+        setDebouncedSearch("");
       }}
     >
       {/* You can use an icon here if you want */}

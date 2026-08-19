@@ -31,6 +31,22 @@ function applyUserListFilters(
   });
 }
 
+function userMatchesSearch(user: any, search?: string) {
+  const term = search?.trim().toLowerCase();
+  if (!term) return true;
+  const haystack = [
+    user.firstName,
+    user.lastName,
+    `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+    user.email,
+    user.phoneNumber,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(term);
+}
+
 export const getUsers = query({
   args: {},
   handler: async ctx => {
@@ -45,8 +61,10 @@ export const listUsers = query({
     role: v.optional(v.string()),
     staffStream: v.optional(v.string()),
     mdaName: v.optional(v.string()),
+    search: v.optional(v.string()),
   },
-  handler: async (ctx, { paginationOpts, role, staffStream, mdaName }) => {
+  handler: async (ctx, { paginationOpts, role, staffStream, mdaName, search }) => {
+    const searchTerm = search?.trim();
     let usersQuery =
       role && role !== "all"
         ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
@@ -57,6 +75,20 @@ export const listUsers = query({
     }
     if (mdaName && mdaName !== "all") {
       usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
+    }
+
+    if (searchTerm) {
+      const users = await usersQuery.order("desc").take(MAX_USERS_RETURN);
+      const filtered = applyUserListFilters(users, staffStream, mdaName).filter((user) =>
+        userMatchesSearch(user, searchTerm)
+      );
+      const start = paginationOpts.cursor ? Number.parseInt(paginationOpts.cursor, 10) || 0 : 0;
+      const end = start + paginationOpts.numItems;
+      return {
+        page: filtered.slice(start, end),
+        isDone: end >= filtered.length,
+        continueCursor: String(end),
+      };
     }
 
     const page = await usersQuery.order("desc").paginate(paginationOpts);
@@ -73,8 +105,9 @@ export const exportUsers = query({
     role: v.optional(v.string()),
     staffStream: v.optional(v.string()),
     mdaName: v.optional(v.string()),
+    search: v.optional(v.string()),
   },
-  handler: async (ctx, { role, staffStream, mdaName }) => {
+  handler: async (ctx, { role, staffStream, mdaName, search }) => {
     let usersQuery =
       role && role !== "all"
         ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
@@ -88,7 +121,9 @@ export const exportUsers = query({
     }
 
     const users = await usersQuery.order("desc").take(MAX_USERS_RETURN);
-    return applyUserListFilters(users, staffStream, mdaName);
+    return applyUserListFilters(users, staffStream, mdaName).filter((user) =>
+      userMatchesSearch(user, search)
+    );
   },
 });
 
