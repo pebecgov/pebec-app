@@ -147,7 +147,7 @@ export const getPublicStateRankings = query({
   },
 });
 
-// Public MDA scoring query that uses the same data source as admin
+// Public MDA scoring query that uses the exact same data source as the Live Dashboard
 export const getPublicMdaScores = query({
   args: {
     year: v.optional(v.number()),
@@ -157,22 +157,14 @@ export const getPublicMdaScores = query({
     const requestedYear = args.year || new Date().getFullYear();
     
     try {
-      // Check if we have any MDA data for the requested year by checking SLA data
-      const [firstHalf, secondHalf, fullYear] = await Promise.all([
-        ctx.db.query("mda_sla_data")
-          .withIndex("byPeriod", q => q.eq("scoringPeriod", `1st Half ${requestedYear}`))
-          .first(),
-        ctx.db.query("mda_sla_data")
-          .withIndex("byPeriod", q => q.eq("scoringPeriod", `2nd Half ${requestedYear}`))
-          .first(),
-        ctx.db.query("mda_sla_data")
-          .withIndex("byPeriod", q => q.eq("scoringPeriod", String(requestedYear)))
-          .first()
-      ]);
-
-      const hasData = firstHalf || secondHalf || fullYear;
-
-      if (!hasData) {
+      // Use the exact same dashboard query as the admin Live Dashboard
+      const dashboardResult = await ctx.runQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, { 
+        year: requestedYear 
+      }) as any;
+      
+      const dashboardData = dashboardResult?.data || [];
+      
+      if (!dashboardData || !dashboardData.length) {
         return {
           mdas: [],
           totalMdas: 0,
@@ -183,22 +175,24 @@ export const getPublicMdaScores = query({
         };
       }
 
-      // Use the same admin query to get MDA rankings
-      const adminRankings = await ctx.runQuery(api.mda_scoring.getAllMDAsLatestScores, { 
-        year: requestedYear 
-      }) as any[];
-      
-      // Filter to only show MDAs that have been scored (not "Not Scored")
-      const scoredMdas = (adminRankings || [])
-        .filter((mda: any) => mda && mda.currentScore > 0 && mda.status !== "Not Scored")
-        .map((mda: any) => ({
+      // Process dashboard data exactly like the admin - only show MDAs with scores > 0
+      const scoredMdas = dashboardData
+        .filter((mda: any) => mda && mda.mdaName && mda.totalScore > 0)
+        .map((mda: any, index: number) => ({
           mdaName: mda.mdaName,
-          finalScore: Math.round((mda.currentScore || 0) * 100) / 100,
-          maxPossibleScore: mda.maxPossiblePoints || 100,
-          percentage: Math.round((mda.currentScore || 0) * 100) / 100,
+          finalScore: Math.round((mda.totalScore || 0) * 100) / 100,
+          maxPossibleScore: mda.maxPossibleScore || 100,
+          percentage: Math.round((mda.totalPercentage || 0) * 100) / 100,
+          slaScore: Math.round((mda.slaScore || 0) * 100) / 100,
+          mysteryShoppingScore: Math.round((mda.mysteryShoppingScore || 0) * 100) / 100,
+          transparencyScore: Math.round((mda.transparencyScore || 0) * 100) / 100,
+          stakeholderEngagementScore: Math.round((mda.stakeholderEngagementScore || 0) * 100) / 100,
+          reportGovScore: Math.round((mda.reportGovernanceResolutionScore || 0) * 100) / 100,
+          timelinessScore: Math.round((mda.timelinessInSubmittingScore || 0) * 100) / 100,
+          monthlyReportScore: Math.round((mda.monthlyReportSubmissionScore || 0) * 100) / 100,
           grade: mda.grade || "N/A",
           scoringPeriod: mda.scoringPeriod || String(requestedYear),
-          lastUpdated: mda.lastScoredAt || Date.now(),
+          lastUpdated: mda.lastUpdated || Date.now(),
         }))
         .sort((a: any, b: any) => b.finalScore - a.finalScore)
         .map((mda: any, index: number) => ({ ...mda, rank: index + 1 }));
