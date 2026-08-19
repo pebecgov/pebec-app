@@ -26,6 +26,12 @@ function gradeFromPercentage(percentage: number): string {
   return "F";
 }
 
+export const getPublicStateIndicators = query({
+  handler: async (ctx) => {
+    return Object.keys(indicatorMaxScores);
+  },
+});
+
 export const getPublicStateRankings = query({
   args: {
     limit: v.optional(v.number()),
