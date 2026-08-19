@@ -87,26 +87,6 @@ export default function PublicScoresPage() {
     );
   }, [mdaData, mdaSearch]);
 
-  const getGradeBadgeColor = (grade: string) => {
-    switch (grade) {
-      case "A+":
-      case "A":
-        return "bg-green-100 text-green-800";
-      case "B+":
-      case "B":
-        return "bg-blue-100 text-blue-800";
-      case "C+":
-      case "C":
-        return "bg-yellow-100 text-yellow-800";
-      case "D+":
-      case "D":
-        return "bg-orange-100 text-orange-800";
-      case "F":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
 
   // Download functions
   const downloadStatesPDF = () => {
@@ -123,7 +103,7 @@ ${index + 1}. ${state.state}
 `).join('\n')}
 
 Total States: ${filteredStates.length}
-Average Score: ${Math.round((filteredStates.reduce((sum, s) => sum + s.percentage, 0) / filteredStates.length) || 0)}%
+Average Score: ${Math.round((filteredStates.reduce((sum, s) => sum + s.totalScore, 0) / filteredStates.length) || 0)}
     `;
     
     const blob = new Blob([content], { type: 'text/plain' });
@@ -136,9 +116,9 @@ Average Score: ${Math.round((filteredStates.reduce((sum, s) => sum + s.percentag
   };
 
   const downloadStatesExcel = () => {
-    const headers = 'Rank,State,Total Score,Percentage,Year\n';
+    const headers = 'Rank,State,Total Score,Year\n';
     const csvContent = headers + filteredStates.map((state, index) =>
-      `${index + 1},"${state.state}",${state.totalScore.toFixed(1)},${state.percentage.toFixed(1)},${stateYear}`
+      `${index + 1},"${state.state}",${state.totalScore.toFixed(1)},${stateYear}`
     ).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -159,13 +139,9 @@ Generated on: ${new Date().toLocaleDateString()}
 ${filteredMdas.map((mda, index) => `
 ${index + 1}. ${mda.mdaName}
    Score: ${mda.finalScore.toFixed(1)}/${mda.maxPossibleScore}
-   Percentage: ${mda.percentage.toFixed(1)}%
-   Grade: ${mda.grade}
-   Period: ${mda.scoringPeriod}
 `).join('\n')}
 
 Total MDAs: ${filteredMdas.length}
-Grade A MDAs: ${filteredMdas.filter(m => m.grade.startsWith("A")).length}
 Assessment Year: ${mdaYear}
     `;
     
@@ -179,9 +155,9 @@ Assessment Year: ${mdaYear}
   };
 
   const downloadMdaExcel = () => {
-    const headers = 'Rank,MDA,Score,Max Score,Percentage,Grade,Period,Year\n';
+    const headers = 'Rank,MDA,Score,Max Score,Year\n';
     const csvContent = headers + filteredMdas.map((mda, index) => 
-      `${index + 1},"${mda.mdaName}",${mda.finalScore.toFixed(1)},${mda.maxPossibleScore},${mda.percentage.toFixed(1)},${mda.grade},"${mda.scoringPeriod}",${mdaYear}`
+      `${index + 1},"${mda.mdaName}",${mda.finalScore.toFixed(1)},${mda.maxPossibleScore},${mdaYear}`
     ).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -305,7 +281,7 @@ Assessment Year: ${mdaYear}
                   </div>
                   <div className="bg-purple-50 p-4 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600">
-                      {Math.round((filteredStates.reduce((sum, s) => sum + s.percentage, 0) / filteredStates.length) || 0)}%
+                      {Math.round((filteredStates.reduce((sum, s) => sum + s.totalScore, 0) / filteredStates.length) || 0)}
                     </div>
                     <div className="text-sm text-purple-600">Average Score</div>
                   </div>
@@ -319,7 +295,6 @@ Assessment Year: ${mdaYear}
                         <th className="text-left p-4 font-semibold">Rank</th>
                         <th className="text-left p-4 font-semibold">State</th>
                         <th className="text-left p-4 font-semibold">Total Score</th>
-                        <th className="text-left p-4 font-semibold">Percentage</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -345,11 +320,6 @@ Assessment Year: ${mdaYear}
                           <td className="p-4">
                             <span className="font-mono text-sm">
                               {state.totalScore.toFixed(1)}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-medium">
-                              {state.percentage.toFixed(1)}%
                             </span>
                           </td>
                         </tr>
@@ -468,9 +438,6 @@ Assessment Year: ${mdaYear}
                         <th className="text-left p-4 font-semibold">Rank</th>
                         <th className="text-left p-4 font-semibold">MDA</th>
                         <th className="text-left p-4 font-semibold">Score</th>
-                        <th className="text-left p-4 font-semibold">Percentage</th>
-                        <th className="text-left p-4 font-semibold">Grade</th>
-                        <th className="text-left p-4 font-semibold">Period</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -496,29 +463,6 @@ Assessment Year: ${mdaYear}
                           <td className="p-4">
                             <span className="font-mono text-sm">
                               {mda.finalScore}/{mda.maxPossibleScore}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-green-500 h-2 rounded-full"
-                                  style={{ width: `${Math.min(mda.percentage, 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-sm font-medium">
-                                {mda.percentage.toFixed(1)}%
-                              </span>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <Badge className={getGradeBadgeColor(mda.grade)}>
-                              {mda.grade}
-                            </Badge>
-                          </td>
-                          <td className="p-4">
-                            <span className="text-sm text-gray-600">
-                              {mda.scoringPeriod}
                             </span>
                           </td>
                         </tr>
@@ -553,9 +497,9 @@ Assessment Year: ${mdaYear}
 
         {/* State Breakdown Dialog */}
         <Dialog open={!!selectedState} onOpenChange={() => setSelectedState(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+            <DialogHeader className="pb-4">
+              <DialogTitle className="flex items-center gap-2 text-lg">
                 <MapPin className="w-5 h-5 text-blue-500" />
                 {selectedState?.state} - Score Breakdown
               </DialogTitle>
@@ -565,74 +509,117 @@ Assessment Year: ${mdaYear}
             </DialogHeader>
             
             {selectedState && (
-              <div className="space-y-6">
+              <div className="overflow-y-auto max-h-[70vh] pr-2">
                 {/* Overall Score */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold">Overall Performance</span>
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg mb-6">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-blue-800">Overall Performance</span>
                     <div className="text-right">
-                      <div className="font-mono text-lg font-bold">
-                        {selectedState.totalScore.toFixed(1)}/{selectedState.maxScore}
+                      <div className="font-mono text-xl font-bold text-blue-900">
+                        {selectedState.totalScore.toFixed(1)} / {selectedState.maxScore}
                       </div>
-                      <div className="text-sm text-blue-600">
-                        {selectedState.percentage.toFixed(1)}%
+                      <div className="text-sm text-blue-600 font-medium">
+                        Rank #{selectedState.rank} of {stateData?.totalStates || 0}
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Indicator Breakdown */}
-                <div>
-                  <h3 className="font-semibold mb-4">Business Climate Indicators Breakdown</h3>
-                  <div className="space-y-4">
-                    {selectedState.indicators && Object.entries(selectedState.indicators).map(([indicatorKey, indicatorData]) => (
-                      <div key={indicatorKey} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium capitalize text-gray-900">
-                            {indicatorKey.replace(/_/g, ' ')}
-                          </h4>
-                          <div className="text-right">
-                            <div className="font-mono text-sm font-bold">
-                              {indicatorData.score.toFixed(1)}/{indicatorData.maxScore}
+                <div className="space-y-4">
+                  {selectedState.indicators && Object.entries(selectedState.indicators).map(([indicatorKey, indicatorData], index) => {
+                    const percentage = indicatorData.maxScore > 0 ? (indicatorData.score / indicatorData.maxScore) * 100 : 0;
+                    const getColorScheme = (index: number) => {
+                      const colors = [
+                        { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', accent: 'bg-emerald-500' },
+                        { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', accent: 'bg-blue-500' },
+                        { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-800', accent: 'bg-purple-500' },
+                        { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-800', accent: 'bg-orange-500' },
+                        { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-800', accent: 'bg-teal-500' },
+                      ];
+                      return colors[index % colors.length];
+                    };
+                    const colorScheme = getColorScheme(index);
+                    
+                    return (
+                      <div key={indicatorKey} className={`${colorScheme.bg} ${colorScheme.border} border-l-4 rounded-lg p-4`}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h4 className={`font-semibold text-base ${colorScheme.text} capitalize mb-1`}>
+                              {indicatorKey.replace(/_/g, ' ')}
+                            </h4>
+                            {/* Progress bar */}
+                            <div className="w-full bg-white rounded-full h-2 mb-2">
+                              <div 
+                                className={`${colorScheme.accent} h-2 rounded-full transition-all duration-300`}
+                                style={{ width: `${Math.min(percentage, 100)}%` }}
+                              />
                             </div>
-                            <div className="text-xs text-gray-500">
-                              {indicatorData.maxScore > 0 ? ((indicatorData.score / indicatorData.maxScore) * 100).toFixed(1) : 0}%
+                          </div>
+                          <div className="text-right ml-4 flex-shrink-0">
+                            <div className={`font-mono text-lg font-bold ${colorScheme.text}`}>
+                              {indicatorData.score.toFixed(1)}
+                            </div>
+                            <div className={`text-xs ${colorScheme.text} opacity-75`}>
+                              / {indicatorData.maxScore}
                             </div>
                           </div>
                         </div>
                         
                         {/* Sub-indicators */}
                         {Object.keys(indicatorData.subIndicators).length > 0 && (
-                          <div className="pl-4 border-l-2 border-gray-100 space-y-2">
+                          <div className="grid gap-2 mt-4">
                             {Object.entries(indicatorData.subIndicators).map(([subKey, subScore]) => (
-                              <div key={subKey} className="flex items-center justify-between text-sm">
-                                <span className="text-gray-600 capitalize">
-                                  {subKey.replace(/_/g, ' ')}
-                                </span>
-                                <span className="font-mono">
-                                  {(subScore as number).toFixed(1)}
-                                </span>
+                              <div key={subKey} className="bg-white bg-opacity-60 rounded-md p-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-gray-700 capitalize text-sm font-medium">
+                                    {subKey.replace(/_/g, ' ')}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-sm font-semibold">
+                                      {(subScore as number).toFixed(1)}
+                                    </span>
+                                    {/* Score indicator dot */}
+                                    <div 
+                                      className={`w-2 h-2 rounded-full ${
+                                        (subScore as number) >= 2.5 ? 'bg-green-500' : 
+                                        (subScore as number) >= 1.5 ? 'bg-yellow-500' : 'bg-red-500'
+                                      }`}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
-                    ))}
-                    
-                    {/* Show message if no indicators data */}
-                    {(!selectedState.indicators || Object.keys(selectedState.indicators).length === 0) && (
-                      <div className="text-center py-8 text-gray-500">
-                        <p>No detailed indicator breakdown available for this state.</p>
-                        <p className="text-sm mt-1">This state may not have been scored yet or data is being updated.</p>
+                    );
+                  })}
+                  
+                  {/* Show message if no indicators data */}
+                  {(!selectedState.indicators || Object.keys(selectedState.indicators).length === 0) && (
+                    <div className="text-center py-12 bg-gray-50 rounded-lg">
+                      <div className="w-16 h-16 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
+                        <MapPin className="w-6 h-6 text-gray-400" />
                       </div>
-                    )}
-                  </div>
+                      <p className="text-gray-600 font-medium">No detailed indicator breakdown available</p>
+                      <p className="text-sm text-gray-500 mt-1">This state may not have been scored yet or data is being updated.</p>
+                    </div>
+                  )}
                 </div>
 
-                {/* Metadata */}
-                <div className="pt-4 border-t border-gray-200 text-sm text-gray-500">
-                  <div>Rank: #{selectedState.rank} out of {stateData?.totalStates || 0}</div>
-                  <div>Last updated: {new Date(selectedState.lastUpdated).toLocaleDateString()}</div>
+                {/* Metadata Footer */}
+                <div className="mt-8 pt-4 border-t border-gray-200 bg-gray-50 rounded-lg p-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span>Assessment Year: {stateYear}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Last Updated: {new Date(selectedState.lastUpdated).toLocaleDateString()}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -658,22 +645,10 @@ Assessment Year: ${mdaYear}
                 <div className="bg-green-50 p-4 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-semibold">Overall Performance</span>
-                    <Badge className={getGradeBadgeColor(selectedMda.grade)}>
-                      {selectedMda.grade}
-                    </Badge>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="text-center">
                     <div className="text-2xl font-bold text-green-600">
                       {selectedMda.finalScore.toFixed(1)}/{selectedMda.maxPossibleScore}
-                    </div>
-                    <div className="flex-1 bg-green-200 rounded-full h-3">
-                      <div
-                        className="bg-green-500 h-3 rounded-full"
-                        style={{ width: `${Math.min(selectedMda.percentage, 100)}%` }}
-                      />
-                    </div>
-                    <div className="text-sm font-medium">
-                      {selectedMda.percentage.toFixed(1)}%
                     </div>
                   </div>
                 </div>
@@ -690,22 +665,10 @@ Assessment Year: ${mdaYear}
                 {/* Performance Metrics */}
                 <div>
                   <h3 className="font-semibold mb-4">Assessment Details</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="text-sm text-gray-600">Scoring Period</div>
-                      <div className="font-medium">{selectedMda.scoringPeriod}</div>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="text-sm text-gray-600">Performance Grade</div>
-                      <div className="font-medium">{selectedMda.grade}</div>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="bg-gray-50 p-3 rounded-lg text-center">
                       <div className="text-sm text-gray-600">Score Range</div>
                       <div className="font-medium">0 - {selectedMda.maxPossibleScore}</div>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                      <div className="text-sm text-gray-600">Achievement</div>
-                      <div className="font-medium">{selectedMda.percentage.toFixed(1)}%</div>
                     </div>
                   </div>
                 </div>
