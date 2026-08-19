@@ -55,8 +55,12 @@ export const getPublicStateRankings = query({
       };
     }
 
-    // Group by state and sum scores (same method as admin)
-    const stateTotals = new Map<string, number>();
+    // Group by state and collect detailed breakdown
+    const stateDetails = new Map<string, {
+      totalScore: number;
+      indicators: Record<string, { score: number; maxScore: number; subIndicators: Record<string, number> }>;
+      lastUpdated: number;
+    }>();
 
     // Valid Nigerian states (filter out invalid entries like "Data Sources")
     const validStateKeywords = ['Lagos', 'Kano', 'Rivers', 'Kaduna', 'Oyo', 'Edo', 'Delta', 'Imo', 'Enugu', 'Plateau', 'Cross River', 'Akwa Ibom', 'Ondo', 'Osun', 'Ogun', 'Kwara', 'Benue', 'Anambra', 'Borno', 'Niger', 'Abia', 'Taraba', 'Adamawa', 'Sokoto', 'Kebbi', 'Katsina', 'Jigawa', 'Yobe', 'Bauchi', 'Gombe', 'Zamfara', 'Nasarawa', 'Kogi', 'Ekiti', 'Ebonyi', 'Bayelsa', 'Federal Capital Territory', 'FCT'];
@@ -74,23 +78,54 @@ export const getPublicStateRankings = query({
         continue; // Skip invalid entries
       }
       
-      const currentTotal = stateTotals.get(stateName) || 0;
-      stateTotals.set(stateName, currentTotal + score.score);
+      // Initialize state if not exists
+      if (!stateDetails.has(stateName)) {
+        stateDetails.set(stateName, {
+          totalScore: 0,
+          indicators: {},
+          lastUpdated: score.createdAt || Date.now(),
+        });
+      }
+      
+      const stateData = stateDetails.get(stateName)!;
+      
+      // Add to total score
+      stateData.totalScore += score.score;
+      
+      // Update last updated time
+      if (score.createdAt > stateData.lastUpdated) {
+        stateData.lastUpdated = score.createdAt;
+      }
+      
+      // Initialize indicator if not exists
+      if (!stateData.indicators[score.indicator]) {
+        const indicatorConfig = (indicatorMaxScores as Record<string, number>)[score.indicator];
+        stateData.indicators[score.indicator] = {
+          score: 0,
+          maxScore: indicatorConfig || 0,
+          subIndicators: {},
+        };
+      }
+      
+      // Add sub-indicator score
+      stateData.indicators[score.indicator].score += score.score;
+      stateData.indicators[score.indicator].subIndicators[score.subIndicator] = score.score;
     }
 
     const denominator = overallMaxScore;
 
     // Convert to array and sort by percentage score (same as admin method)
-    const states = Array.from(stateTotals.entries())
-      .map(([state, totalScore]) => {
-        const percentage = denominator > 0 ? (totalScore / denominator) * 100 : 0;
+    const states = Array.from(stateDetails.entries())
+      .map(([stateName, data]) => {
+        const percentage = denominator > 0 ? (data.totalScore / denominator) * 100 : 0;
         return {
-          state,
-          totalScore,
+          state: stateName,
+          totalScore: data.totalScore,
           maxScore: denominator,
           percentage: Math.round(percentage * 100) / 100,
           grade: gradeFromPercentage(percentage),
-          lastUpdated: Date.now(),
+          lastUpdated: data.lastUpdated,
+          indicators: data.indicators, // Include detailed breakdown
         };
       })
       .sort((a, b) => b.percentage - a.percentage)
@@ -115,7 +150,7 @@ export const getPublicMdaScores = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const currentYear = args.year || new Date().getFullYear();
+    const requestedYear = args.year;
     
     // Get all MDA scoring history
     const scoringHistory = await ctx.db.query("mda_scoring_history").collect();
@@ -124,21 +159,29 @@ export const getPublicMdaScores = query({
       return {
         mdas: [],
         totalMdas: 0,
-        year: currentYear,
+        year: requestedYear,
+        availableYears: [],
       };
     }
 
-    // Filter by year if specified (extract year from scoringPeriod or scoredAt)
-    const filteredHistory = currentYear ? scoringHistory.filter(record => {
-      // Try to extract year from scoringPeriod (e.g., "Q1 2025", "2025")
-      const yearMatch = record.scoringPeriod.match(/\b(20\d{2})\b/);
-      if (yearMatch) {
-        return parseInt(yearMatch[0]) === currentYear;
-      }
-      // Fallback to scoredAt timestamp
-      const recordYear = new Date(record.scoredAt).getFullYear();
-      return recordYear === currentYear;
-    }) : scoringHistory;
+    // Get available years from the data (using scoredAt like admin does)
+    const availableYears = new Set<number>();
+    scoringHistory.forEach(record => {
+      const scoredYear = new Date(record.scoredAt).getFullYear();
+      availableYears.add(scoredYear);
+    });
+
+    // If no year specified or year not available, use the most recent available year
+    const sortedYears = Array.from(availableYears).sort((a, b) => b - a);
+    const actualYear = requestedYear && availableYears.has(requestedYear) 
+      ? requestedYear 
+      : sortedYears[0] || new Date().getFullYear();
+
+    // Filter by the actual year we're using (same logic as admin)
+    const filteredHistory = scoringHistory.filter(record => {
+      const scoreYear = new Date(record.scoredAt).getFullYear();
+      return scoreYear === actualYear;
+    });
 
     // Group by MDA and get the latest score for each
     const mdaMap = new Map();
@@ -180,7 +223,10 @@ export const getPublicMdaScores = query({
     return {
       mdas: limitedMdas,
       totalMdas: mdaScores.length,
-      year: currentYear,
+      year: actualYear,
+      requestedYear: requestedYear,
+      availableYears: sortedYears,
+      hasDataForRequestedYear: requestedYear ? availableYears.has(requestedYear) : true,
     };
   },
 });
