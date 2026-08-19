@@ -45,6 +45,7 @@ interface MdaScoreResponse {
   requestedYear?: number;
   availableYears?: number[];
   hasDataForRequestedYear?: boolean;
+  message?: string;
 }
 
 export default function PublicScoresPage() {
@@ -472,13 +473,30 @@ Assessment Year: ${mdaYear}
                 </div>
 
                 {filteredMdas.length === 0 && (
-                  <div className="text-center py-12 text-gray-500 space-y-2">
+                  <div className="text-center py-12 text-gray-500 space-y-4">
                     <div className="text-lg font-medium">
-                      {mdaSearch ? "No MDAs found matching your search." : `No MDA data available for ${mdaYear}.`}
+                      {mdaSearch ? "No MDAs found matching your search." : 
+                       mdaData?.message ? "No BFA Scoring Data Available" : 
+                       `No MDA data available for ${mdaYear}.`}
                     </div>
-                    {!mdaSearch && mdaData && (
-                      <div className="text-sm space-y-1">
-                        {mdaData.availableYears && mdaData.availableYears.length > 0 ? (
+                    {!mdaSearch && (
+                      <div className="text-sm space-y-2">
+                        {mdaData?.message ? (
+                          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg max-w-lg mx-auto">
+                            <div className="flex items-start gap-3">
+                              <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <Building2 className="w-3 h-3 text-blue-600" />
+                              </div>
+                              <div className="text-left text-blue-800">
+                                <div className="font-medium mb-1">Assessment Pending</div>
+                                <div className="text-sm">
+                                  Federal MDAs are currently being prepared for BFA (Business Facilitation Assessment). 
+                                  Scoring data will be available once the assessment period begins.
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : mdaData && mdaData.availableYears && mdaData.availableYears.length > 0 ? (
                           <>
                             <div>Available data for years: {mdaData.availableYears.join(", ")}</div>
                             <div>Try selecting one of these years above.</div>
