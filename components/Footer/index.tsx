@@ -113,7 +113,7 @@ const Footer = () => {
           <li><Link href="/portal" className="block mb-3 hover:text-green-700">E-Portal</Link></li>
           <li><Link href="/media" className="block mb-3 hover:text-green-700">Media</Link></li>
           <li><Link href="/faq" className="block mb-3 hover:text-green-700">FAQ</Link></li>
-          <li><Link href="/tracker" className="block mb-3 hover:text-green-700">Tracker</Link></li>
+          {/* <li><Link href="/tracker" className="block mb-3 hover:text-green-700">Tracker</Link></li> */}
         </ul>
       </motion.div>
 
