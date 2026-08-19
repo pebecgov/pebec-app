@@ -22,6 +22,11 @@ interface StateRankingData {
   maxScore: number;
   lastUpdated: number;
   rank: number;
+  indicators?: Record<string, { 
+    score: number; 
+    maxScore: number; 
+    subIndicators: Record<string, number> 
+  }>;
 }
 
 interface MdaScoreData {
@@ -31,6 +36,15 @@ interface MdaScoreData {
   percentage: number;
   grade: string;
   scoringPeriod: string;
+}
+
+interface MdaScoreResponse {
+  mdas: MdaScoreData[];
+  totalMdas: number;
+  year: number;
+  requestedYear?: number;
+  availableYears?: number[];
+  hasDataForRequestedYear?: boolean;
 }
 
 export default function PublicScoresPage() {
@@ -48,7 +62,7 @@ export default function PublicScoresPage() {
   // Fetch data
   const indicators = useQuery(api.public_scores.getPublicStateIndicators);
   const stateData = useQuery(api.public_scores.getPublicStateRankings, { year: stateYear });
-  const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: mdaYear });
+  const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: mdaYear }) as MdaScoreResponse | undefined;
 
   // Update tab based on URL parameter
   useEffect(() => {
@@ -518,9 +532,16 @@ Assessment Year: ${mdaYear}
                     <div className="text-lg font-medium">
                       {mdaSearch ? "No MDAs found matching your search." : `No MDA data available for ${mdaYear}.`}
                     </div>
-                    {!mdaSearch && (
-                      <div className="text-sm">
-                        Try selecting a different year above. Data may be available for {mdaYear === 2026 ? "2025 or earlier years" : "2026"}.
+                    {!mdaSearch && mdaData && (
+                      <div className="text-sm space-y-1">
+                        {mdaData.availableYears && mdaData.availableYears.length > 0 ? (
+                          <>
+                            <div>Available data for years: {mdaData.availableYears.join(", ")}</div>
+                            <div>Try selecting one of these years above.</div>
+                          </>
+                        ) : (
+                          <div>No MDA scoring data has been recorded yet.</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -549,49 +570,68 @@ Assessment Year: ${mdaYear}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-semibold">Overall Performance</span>
-                    <Badge className={getGradeBadgeColor(selectedState.grade)}>
-                      {selectedState.grade}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {selectedState.totalScore.toFixed(1)}
-                    </div>
-                    <div className="flex-1 bg-blue-200 rounded-full h-3">
-                      <div
-                        className="bg-blue-500 h-3 rounded-full"
-                        style={{ width: `${Math.min(selectedState.percentage, 100)}%` }}
-                      />
-                    </div>
-                    <div className="text-sm font-medium">
-                      {selectedState.percentage.toFixed(1)}%
+                    <div className="text-right">
+                      <div className="font-mono text-lg font-bold">
+                        {selectedState.totalScore.toFixed(1)}/{selectedState.maxScore}
+                      </div>
+                      <div className="text-sm text-blue-600">
+                        {selectedState.percentage.toFixed(1)}%
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Indicator Breakdown */}
                 <div>
-                  <h3 className="font-semibold mb-4">Business Climate Indicators</h3>
-                  <div className="space-y-3">
-                    {Object.entries(selectedState.scores || {}).map(([indicator, score]) => (
-                      <div key={indicator} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="font-medium capitalize">
-                          {indicator.replace(/_/g, ' ')}
-                        </div>
-                        <div className="text-right">
-                          <div className="font-mono text-sm">{score as number}/100</div>
-                          <div className="text-xs text-gray-500">
-                            {((score as number / 100) * 100).toFixed(1)}%
+                  <h3 className="font-semibold mb-4">Business Climate Indicators Breakdown</h3>
+                  <div className="space-y-4">
+                    {selectedState.indicators && Object.entries(selectedState.indicators).map(([indicatorKey, indicatorData]) => (
+                      <div key={indicatorKey} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium capitalize text-gray-900">
+                            {indicatorKey.replace(/_/g, ' ')}
+                          </h4>
+                          <div className="text-right">
+                            <div className="font-mono text-sm font-bold">
+                              {indicatorData.score.toFixed(1)}/{indicatorData.maxScore}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {indicatorData.maxScore > 0 ? ((indicatorData.score / indicatorData.maxScore) * 100).toFixed(1) : 0}%
+                            </div>
                           </div>
                         </div>
+                        
+                        {/* Sub-indicators */}
+                        {Object.keys(indicatorData.subIndicators).length > 0 && (
+                          <div className="pl-4 border-l-2 border-gray-100 space-y-2">
+                            {Object.entries(indicatorData.subIndicators).map(([subKey, subScore]) => (
+                              <div key={subKey} className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600 capitalize">
+                                  {subKey.replace(/_/g, ' ')}
+                                </span>
+                                <span className="font-mono">
+                                  {(subScore as number).toFixed(1)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
+                    
+                    {/* Show message if no indicators data */}
+                    {(!selectedState.indicators || Object.keys(selectedState.indicators).length === 0) && (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No detailed indicator breakdown available for this state.</p>
+                        <p className="text-sm mt-1">This state may not have been scored yet or data is being updated.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Metadata */}
                 <div className="pt-4 border-t border-gray-200 text-sm text-gray-500">
-                  <div>Rank: #{(selectedState as any).rank} out of {stateData?.totalStates || 0}</div>
+                  <div>Rank: #{selectedState.rank} out of {stateData?.totalStates || 0}</div>
                   <div>Last updated: {new Date(selectedState.lastUpdated).toLocaleDateString()}</div>
                 </div>
               </div>
