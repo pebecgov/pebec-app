@@ -8,6 +8,7 @@ const EXTENDED_LEAVE_EMAILS = new Set([
   "ifeanyi.icheke@pebec.gov.ng",
   "oluwaseun.obafemi@pebec.gov.ng",
   "oluwaseun.winsala@pebec.gov.ng",
+  "beckyukpevo123@gmail.com"
 ]);
 
 export function getAnnualLeaveAllowance(user: {
