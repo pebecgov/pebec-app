@@ -144,6 +144,35 @@ export const getPublicStateRankings = query({
   },
 });
 
+// Debug function to check MDA data
+export const checkMdaData = query({
+  handler: async (ctx) => {
+    const allRecords = await ctx.db.query("mda_scoring_history").collect();
+    
+    // Get years available
+    const years = [...new Set(allRecords.map(r => new Date(r.scoredAt).getFullYear()))].sort();
+    
+    // Get sample records for each year
+    const samplesByYear: Record<number, any[]> = {};
+    years.forEach(year => {
+      const yearRecords = allRecords.filter(r => new Date(r.scoredAt).getFullYear() === year);
+      samplesByYear[year] = yearRecords.slice(0, 3).map(r => ({
+        mdaName: r.mdaName,
+        scoringPeriod: r.scoringPeriod,
+        totalScore: r.totalScore,
+        totalPercentage: r.totalPercentage,
+        scoredAt: new Date(r.scoredAt).toISOString(),
+      }));
+    });
+    
+    return {
+      totalRecords: allRecords.length,
+      availableYears: years,
+      samplesByYear,
+    };
+  },
+});
+
 export const getPublicMdaScores = query({
   args: {
     year: v.optional(v.number()),
