@@ -154,7 +154,7 @@ Assessment Year: ${mdaYear}
       <div className="bg-gray-100 pt-20 pb-12">
         <div className="container mx-auto px-4">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">PEBEC Performance Tracker</h1>
+            <h1 className="text-4xl font-bold text-gray-900 my-12">PEBEC Performance Tracker</h1>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Track the performance of Nigerian states and federal MDAs in business climate reforms and service delivery
             </p>
