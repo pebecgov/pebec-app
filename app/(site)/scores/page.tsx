@@ -164,7 +164,7 @@ Assessment Year: ${mdaYear}
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        <div className="pt-16">
+        <div className="pt-24">
           <Tabs defaultValue="states" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8">
               <TabsTrigger value="states" className="flex items-center gap-2">
