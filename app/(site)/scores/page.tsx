@@ -150,12 +150,12 @@ Assessment Year: ${mdaYear}
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white">
-        <div className="container mx-auto px-4 py-16">
+      {/* Header Section */}
+      <div className="bg-gray-100 pt-20 pb-12">
+        <div className="container mx-auto px-4">
           <div className="text-center">
-            <h1 className="text-4xl font-bold mb-4">PEBEC Performance Tracker</h1>
-            <p className="text-xl text-blue-100 max-w-3xl mx-auto">
+            <h1 className="text-4xl font-bold text-gray-900 my-12">PEBEC Performance Tracker</h1>
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Track the performance of Nigerian states and federal MDAs in business climate reforms and service delivery
             </p>
           </div>
@@ -164,14 +164,14 @@ Assessment Year: ${mdaYear}
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        <div className="pt-16">
+        <div>
           <Tabs defaultValue="states" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="states" className="flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-2 mb-8 h-12 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <TabsTrigger value="states" className="flex items-center gap-2 h-10 text-sm font-medium">
                 <MapPin className="w-4 h-4" />
                 State Rankings
               </TabsTrigger>
-              <TabsTrigger value="mdas" className="flex items-center gap-2">
+              <TabsTrigger value="mdas" className="flex items-center gap-2 h-10 text-sm font-medium">
                 <Building2 className="w-4 h-4" />
                 MDA Performance
               </TabsTrigger>
