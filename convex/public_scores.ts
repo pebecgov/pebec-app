@@ -2,17 +2,12 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { api } from "./_generated/api";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
-
-// Max scores for each indicator based on the PEBEC framework
-const indicatorMaxScores = {
-  "electricity": 8,
-  "infrastructure": 6,
-  "digital_connectivity": 3,
-  "getting_credit": 5,
-  "digitalizing_land": 3,
-  "grievance_redress_mechanisms": 3,
-  "access_to_skilled_labour": 3,
-} as const;
+import {
+  indicators,
+  indicatorMaxScores,
+  overallIndicatorMaxScore,
+  type IndicatorKey,
+} from "./config/indicators";
 
 // Helper function for grade calculation
 function gradeFromPercentage(percentage: number): string {
@@ -28,8 +23,9 @@ function gradeFromPercentage(percentage: number): string {
 }
 
 export const getPublicStateIndicators = query({
-  handler: async (ctx) => {
-    return Object.keys(indicatorMaxScores);
+  args: {},
+  handler: async (_ctx) => {
+    return Object.keys(indicators);
   },
 });
 
@@ -60,17 +56,19 @@ export const getPublicStateRankings = query({
       return {
         states: [],
         totalStates: 0,
-        indicators: Object.keys(indicatorMaxScores),
+        indicators: Object.keys(indicators),
       };
     }
-
-    // Calculate total max score across all indicators
-    const overallMaxScore = Object.values(indicatorMaxScores).reduce((sum: number, score: number) => sum + score, 0);
 
     // Group by state and collect detailed breakdown
     const stateDetails = new Map<string, {
       totalScore: number;
-      indicators: Record<string, { score: number; maxScore: number; subIndicators: Record<string, number> }>;
+      indicators: Record<string, {
+        name: string;
+        score: number;
+        maxScore: number;
+        subIndicators: Record<string, number>;
+      }>;
       lastUpdated: number;
     }>();
 
@@ -87,6 +85,11 @@ export const getPublicStateRankings = query({
       
       if (!isValidState) {
         continue; // Skip invalid state entries
+      }
+
+      const indicatorKey = score.indicator as IndicatorKey;
+      if (!(indicatorKey in indicatorMaxScores)) {
+        continue;
       }
 
       if (!stateDetails.has(stateName)) {
@@ -106,10 +109,10 @@ export const getPublicStateRankings = query({
 
       // Initialize indicator if not exists
       if (!stateData.indicators[score.indicator]) {
-        const indicatorConfig = (indicatorMaxScores as Record<string, number>)[score.indicator];
         stateData.indicators[score.indicator] = {
+          name: indicators[indicatorKey].name,
           score: 0,
-          maxScore: indicatorConfig || 0,
+          maxScore: indicatorMaxScores[indicatorKey],
           subIndicators: {},
         };
       }
@@ -119,7 +122,7 @@ export const getPublicStateRankings = query({
     }
 
     // Convert to final format
-    const denominator: number = overallMaxScore;
+    const denominator: number = overallIndicatorMaxScore;
     const states = Array.from(stateDetails.entries())
       .map(([stateName, data]) => {
         const percentage = denominator > 0 ? (data.totalScore / denominator) * 100 : 0;
@@ -143,7 +146,7 @@ export const getPublicStateRankings = query({
     return {
       states: limitedStates,
       totalStates: states.length,
-      indicators: Object.keys(indicatorMaxScores),
+      indicators: Object.keys(indicators),
     };
   },
 });
