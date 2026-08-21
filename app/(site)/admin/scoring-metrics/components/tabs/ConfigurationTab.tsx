@@ -85,7 +85,7 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
             {/* Configuration Tabs - Only show for 2026+ */}
             {selectedYear >= 2026 && (
                 <Tabs defaultValue="efficiency" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
                         <TabsTrigger value="efficiency">Efficiency Bundle</TabsTrigger>
                         <TabsTrigger value="others">Others</TabsTrigger>
                         <TabsTrigger value="penalties">Penalties</TabsTrigger>
