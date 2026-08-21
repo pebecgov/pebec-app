@@ -236,6 +236,7 @@ export const calculateAndSaveMDAScore = mutation({
     timelinessInSubmittingScore: v.number(),
     othersScore: v.optional(v.number()),
     penaltiesScore: v.optional(v.number()),
+    bonusesScore: v.optional(v.number()),
     // Performance data
     totalTickets: v.number(),
     resolvedTickets: v.number(),
@@ -286,6 +287,7 @@ export const calculateAndSaveMDAScore = mutation({
     const effectiveTimelinessScore = isExcluded("timeliness") ? 0 : args.timelinessInSubmittingScore;
     const effectiveOthersScore = isExcluded("others") ? 0 : (args.othersScore || 0);
     const effectivePenaltiesScore = isExcluded("penalties") ? 0 : (args.penaltiesScore || 0);
+    const effectiveBonusesScore = isExcluded("bonuses") ? 0 : (args.bonusesScore || 0);
 
     // Calculate total score and percentage
     const totalScore =
@@ -299,7 +301,8 @@ export const calculateAndSaveMDAScore = mutation({
       effectiveMonthlyReportScore +
       effectiveTimelinessScore +
       effectiveOthersScore +
-      effectivePenaltiesScore;
+      effectivePenaltiesScore +
+      effectiveBonusesScore;
 
     // Use provided maxPossiblePoints or default to 100
     const maxPossiblePoints = args.maxPossiblePoints || 100;
@@ -333,6 +336,7 @@ export const calculateAndSaveMDAScore = mutation({
       timelinessInSubmittingScore: effectiveTimelinessScore,
       othersScore: effectiveOthersScore,
       penaltiesScore: effectivePenaltiesScore,
+      bonusesScore: effectiveBonusesScore,
       totalScore,
       totalPercentage,
       maxPossiblePoints: maxPossiblePoints,
@@ -2270,6 +2274,14 @@ export const getAllMdaSavedDataForDashboard = query({
     ]);
     const penaltiesData = [...penaltiesFirstHalf, ...penaltiesSecondHalf, ...penaltiesFullYear];
 
+    // Dynamic Bonuses Data (2026+)
+    const [bonusesFirstHalf, bonusesSecondHalf, bonusesFullYear] = await Promise.all([
+      ctx.db.query("saved_bonuses_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
+      ctx.db.query("saved_bonuses_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
+      ctx.db.query("saved_bonuses_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
+    ]);
+    const bonusesData = [...bonusesFirstHalf, ...bonusesSecondHalf, ...bonusesFullYear];
+
     // Group data by MDA name
     const mdaDataMap: { [key: string]: any } = {};
 
@@ -2288,7 +2300,8 @@ export const getAllMdaSavedDataForDashboard = query({
         monthlyReport: null,
         timeliness: null,
         others: null,
-        penalties: null
+        penalties: null,
+        bonuses: null
       };
     });
 
@@ -2303,7 +2316,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(slaByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       // Count unique months across both halves
@@ -2347,7 +2360,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(mysteryByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / dataList.length;
@@ -2371,7 +2384,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(controversialByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2393,7 +2406,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(toutingRentseekingByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2415,7 +2428,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(innovationByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2437,7 +2450,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(stakeholderByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       const avgScore = dataList.reduce((sum, d) => sum + (d.score || 0), 0) / dataList.length;
@@ -2505,7 +2518,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(reportGovResByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       // Sum total tickets and resolved tickets (add both halves)
@@ -2599,7 +2612,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(monthlyReportByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       // If manual mode, count months from manualMonthlyReports
@@ -2649,7 +2662,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(timelinessByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       // If manual mode, count months from manualTimeliness
@@ -2699,7 +2712,7 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(othersByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       // For 2026+, we expect one record per year usually, but if multiple (e.g. legacy halves?), average them.
@@ -2724,13 +2737,35 @@ export const getAllMdaSavedDataForDashboard = query({
     Object.entries(penaltiesByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
-        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
       // saved_penalties_data has totalPenalty (negative).
       const avgScore = dataList.reduce((sum, d) => sum + (d.totalPenalty || 0), 0) / dataList.length;
 
       mdaDataMap[mdaName].penalties = {
+        score: avgScore,
+        values: dataList[0]?.values || {}
+      };
+    });
+
+    // Process Bonuses (Dynamic for 2026+)
+    const bonusesByMda: { [key: string]: any[] } = {};
+    bonusesData.forEach(data => {
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!bonusesByMda[key]) bonusesByMda[key] = [];
+      bonusesByMda[key].push(data);
+    });
+
+    Object.entries(bonusesByMda).forEach(([rawMdaName, dataList]) => {
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
+      if (!mdaDataMap[mdaName]) {
+        mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
+      }
+
+      const avgScore = dataList.reduce((sum, d) => sum + (d.totalBonus || 0), 0) / dataList.length;
+
+      mdaDataMap[mdaName].bonuses = {
         score: avgScore,
         values: dataList[0]?.values || {}
       };
@@ -2760,6 +2795,7 @@ export const getAllMdaSavedDataForDashboard = query({
       // Dynamic metrics (2026+)
       const othersScore = mda.others?.score || 0;
       const penaltiesScore = mda.penalties?.score || 0;
+      const bonusesScore = mda.bonuses?.score || 0;
 
       const reportGovResScore = mda.reportGovResolution?.score || 0;
       const monthlyReportScore = mda.monthlyReport?.score || 0;
@@ -2786,12 +2822,13 @@ export const getAllMdaSavedDataForDashboard = query({
       const effectiveControversialScore = isExcluded("controversial") ? 0 : controversialScore;
       const effectiveToutingScore = isExcluded("toutingRentseeking") ? 0 : toutingRentseekingScore;
       const effectivePenaltiesScore = isExcluded("penalties") ? 0 : penaltiesScore;
+      const effectiveBonusesScore = isExcluded("bonuses") ? 0 : bonusesScore;
 
       const totalGrossScore = effectiveSlaScore + effectiveMysteryScore +
         (year < 2026 ? (effectiveInnovationScore + effectiveStakeholderScore + effectiveTransparencyScore) : 0) +
         effectiveReportGovScore + effectiveMonthlyReportScore + effectiveTimelinessScore + effectiveOthersScore;
 
-      const totalScore = totalGrossScore + effectivePenaltiesScore + effectiveControversialScore + effectiveToutingScore;
+      const totalScore = totalGrossScore + effectivePenaltiesScore + effectiveBonusesScore + effectiveControversialScore + effectiveToutingScore;
 
       // Base max points should reflect active metric model even when no data exists.
       // Current model: Efficiency Bundle: SLA(5) + Mystery(40) + ReportGov(20) + ReportSubmission(2) + Timeliness(3) = 70.
@@ -2966,6 +3003,12 @@ export const getMdaDetailedScoringData = query({
       ctx.db.query("saved_penalties_data").withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", fullYearPeriod)).first()
     ]);
 
+    const [bonusesFirstHalf, bonusesSecondHalf, bonusesFullYear] = await Promise.all([
+      ctx.db.query("saved_bonuses_data").withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", firstHalfPeriod)).first(),
+      ctx.db.query("saved_bonuses_data").withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", secondHalfPeriod)).first(),
+      ctx.db.query("saved_bonuses_data").withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", fullYearPeriod)).first()
+    ]);
+
     return {
       mdaName,
       year,
@@ -3028,6 +3071,11 @@ export const getMdaDetailedScoringData = query({
         firstHalf: penaltiesFirstHalf,
         secondHalf: penaltiesSecondHalf,
         fullYear: penaltiesFullYear
+      },
+      bonuses: {
+        firstHalf: bonusesFirstHalf,
+        secondHalf: bonusesSecondHalf,
+        fullYear: bonusesFullYear
       }
     };
   }
@@ -3480,6 +3528,54 @@ export const getPenaltiesData = query({
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
     return await ctx.db.query("saved_penalties_data")
+      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+  }
+});
+
+// Save Bonuses Data
+export const saveBonusesData = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(),
+    totalBonus: v.number()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod, values, totalBonus }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+
+    const existingData = await ctx.db.query("saved_bonuses_data")
+      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+      .first();
+
+    if (existingData) {
+      await ctx.db.patch(existingData._id, {
+        values,
+        totalBonus,
+        updatedAt: Date.now()
+      });
+    } else {
+      await ctx.db.insert("saved_bonuses_data", {
+        mdaName,
+        scoringPeriod,
+        values,
+        totalBonus,
+        updatedAt: Date.now()
+      });
+    }
+
+    return { success: true, message: "Bonuses saved successfully" };
+  }
+});
+
+// Get Bonuses Data
+export const getBonusesData = query({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string()
+  },
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    return await ctx.db.query("saved_bonuses_data")
       .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
       .first();
   }

@@ -85,6 +85,7 @@ export default defineSchema({
     timelinessInSubmittingScore: v.number(),
     othersScore: v.optional(v.number()),
     penaltiesScore: v.optional(v.number()),
+    bonusesScore: v.optional(v.number()),
     // Total scores
     totalScore: v.number(),
     totalPercentage: v.number(),
@@ -134,6 +135,15 @@ export default defineSchema({
     scoringPeriod: v.string(),
     values: v.any(), // Record<penaltyId, boolean>
     totalPenalty: v.number(),
+    updatedAt: v.number()
+  }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
+    .index("byPeriod", ["scoringPeriod"]),
+
+  saved_bonuses_data: defineTable({
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    values: v.any(), // Record<bonusId, boolean>
+    totalBonus: v.number(),
     updatedAt: v.number()
   }).index("byMdaPeriod", ["mdaName", "scoringPeriod"])
     .index("byPeriod", ["scoringPeriod"]),
@@ -1315,6 +1325,20 @@ export default defineSchema({
     penaltyId: v.string(),
     penaltyName: v.string(),
     penaltyValue: v.number(), // negative points
+    isActive: v.boolean(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    createdBy: v.id("users")
+  }).index("byYear", ["year"])
+    .index("byYearAndActive", ["year", "isActive"]),
+
+  // Bonus items configuration
+  bonus_items: defineTable({
+    year: v.number(),
+    bonusId: v.string(),
+    bonusName: v.string(),
+    bonusValue: v.number(), // positive points
     isActive: v.boolean(),
     order: v.number(),
     createdAt: v.number(),

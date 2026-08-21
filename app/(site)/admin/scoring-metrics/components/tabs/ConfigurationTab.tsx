@@ -85,10 +85,11 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
             {/* Configuration Tabs - Only show for 2026+ */}
             {selectedYear >= 2026 && (
                 <Tabs defaultValue="efficiency" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
                         <TabsTrigger value="efficiency">Efficiency Bundle</TabsTrigger>
                         <TabsTrigger value="others">Others</TabsTrigger>
                         <TabsTrigger value="penalties">Penalties</TabsTrigger>
+                        <TabsTrigger value="bonuses">Bonuses</TabsTrigger>
                         <TabsTrigger value="exclusions">Exclude MDA</TabsTrigger>
                     </TabsList>
 
@@ -112,6 +113,13 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
                         <PenaltyConfiguration
                             year={selectedYear}
                             items={configurations?.penaltyItems || []}
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="bonuses">
+                        <BonusConfiguration
+                            year={selectedYear}
+                            items={configurations?.bonusItems || []}
                         />
                     </TabsContent>
 
@@ -1098,6 +1106,132 @@ function PenaltyConfiguration({ year, items }: any) {
                         <>
                             <Save className="mr-2 h-4 w-4" />
                             Save Penalty Configuration
+                        </>
+                    )}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+
+
+// ============================================
+// BONUS CONFIGURATION
+// ============================================
+
+function BonusConfiguration({ year, items }: any) {
+    const [itemList, setItemList] = useState(items.length > 0 ? items : []);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const saveBonusItems = useMutation(api.scoring_config.saveBonusItems);
+
+    React.useEffect(() => {
+        setItemList(items.length > 0 ? items : []);
+    }, [items, year]);
+
+    const addItem = () => {
+        setItemList([...itemList, {
+            bonusId: Date.now().toString(),
+            bonusName: '',
+            bonusValue: 5,
+            order: itemList.length
+        }]);
+    };
+
+    const removeItem = (index: number) => {
+        setItemList(itemList.filter((_: any, i: number) => i !== index));
+    };
+
+    const updateItem = (index: number, field: string, value: any) => {
+        const updated = [...itemList];
+        updated[index] = { ...updated[index], [field]: value };
+        setItemList(updated);
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const cleanedItems = itemList.map((item: any) => ({
+                bonusId: item.bonusId,
+                bonusName: item.bonusName,
+                bonusValue: Math.abs(item.bonusValue),
+                order: item.order
+            }));
+
+            await saveBonusItems({ year, items: cleanedItems });
+            toast.success("Bonus items saved!");
+        } catch (error) {
+            toast.error("Failed to save bonuses");
+            console.error(error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Bonus Configuration</CardTitle>
+                <CardDescription>
+                    Configure bonus items and their extra point values. Bonuses add to the MDA total and do not change the framework maximum.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-3">
+                    {itemList.map((item: any, index: number) => (
+                        <div key={item.bonusId} className="flex gap-2 items-start p-3 border rounded-md">
+                            <GripVertical className="h-5 w-5 text-gray-400 mt-2" />
+
+                            <div className="flex-1 space-y-2">
+                                <Input
+                                    placeholder="Bonus name"
+                                    value={item.bonusName}
+                                    onChange={(e) => updateItem(index, 'bonusName', e.target.value)}
+                                />
+
+                                <Input
+                                    type="number"
+                                    placeholder="Points (positive)"
+                                    value={item.bonusValue}
+                                    onChange={(e) => {
+                                        const val = parseInt(e.target.value);
+                                        updateItem(index, 'bonusValue', isNaN(val) ? 0 : Math.abs(val));
+                                    }}
+                                    className="w-32"
+                                />
+                            </div>
+
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(index)}
+                                className="text-red-500"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                    {itemList.length === 0 && (
+                        <p className="text-sm text-gray-500">No bonus items yet. Add extras the MDA can earn on top of efficiency and others.</p>
+                    )}
+                </div>
+
+                <Button variant="outline" onClick={addItem} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Bonus
+                </Button>
+
+                <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Bonus Configuration
                         </>
                     )}
                 </Button>

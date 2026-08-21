@@ -288,41 +288,161 @@ function isMetricExcluded(excluded: string[] | undefined, key: string): boolean 
   return false;
 }
 
+type AdjustmentItem = {
+  id: string;
+  name: string;
+  value: number;
+};
+
+type ScoringYearConfig = {
+  efficiencyPeriod?: {
+    slaPoints?: number;
+    reportGovPoints?: number;
+    reportSubmissionPoints?: number;
+    timelinessPoints?: number;
+  } | null;
+  mysteryShoppingTypes?: Array<{ questions?: Array<{ weight?: number }> }>;
+  othersItems?: Array<{ weight?: number }>;
+  innovationItems?: Array<{ weight?: number }>;
+  stakeholderItems?: Array<{ weight?: number }>;
+  penaltyItems?: Array<{ penaltyId: string; penaltyName: string; penaltyValue: number }>;
+  bonusItems?: Array<{ bonusId: string; bonusName: string; bonusValue: number }>;
+};
+
+type PublicMdaRow = {
+  mdaName: string;
+  finalScore: number;
+  maxPossibleScore: number;
+  percentage: number;
+  metricScores: Record<string, { score: number; max: number }>;
+  excludedMetrics: string[];
+  applicableMetricCount: number;
+  penaltyScore: number;
+  bonusScore: number;
+  penaltyValues: Record<string, boolean>;
+  bonusValues: Record<string, boolean>;
+  lastUpdated: number;
+  rank: number;
+};
+
+type PublicMdaScoresResult = {
+  mdas: PublicMdaRow[];
+  totalMdas: number;
+  year: number;
+  requestedYear?: number;
+  availableYears: number[];
+  hasDataForRequestedYear: boolean;
+  frameworkMetrics: FrameworkMetric[];
+  adjustments: {
+    penalties: AdjustmentItem[];
+    bonuses: AdjustmentItem[];
+  };
+  message?: string;
+};
+
+const publicMdaScoresReturns = v.object({
+  mdas: v.array(
+    v.object({
+      mdaName: v.string(),
+      finalScore: v.number(),
+      maxPossibleScore: v.number(),
+      percentage: v.number(),
+      metricScores: v.record(v.string(), v.object({ score: v.number(), max: v.number() })),
+      excludedMetrics: v.array(v.string()),
+      applicableMetricCount: v.number(),
+      penaltyScore: v.number(),
+      bonusScore: v.number(),
+      penaltyValues: v.record(v.string(), v.boolean()),
+      bonusValues: v.record(v.string(), v.boolean()),
+      lastUpdated: v.number(),
+      rank: v.number(),
+    })
+  ),
+  totalMdas: v.number(),
+  year: v.number(),
+  requestedYear: v.optional(v.number()),
+  availableYears: v.array(v.number()),
+  hasDataForRequestedYear: v.boolean(),
+  frameworkMetrics: v.array(
+    v.object({
+      key: v.string(),
+      label: v.string(),
+      max: v.number(),
+    })
+  ),
+  adjustments: v.object({
+    penalties: v.array(v.object({ id: v.string(), name: v.string(), value: v.number() })),
+    bonuses: v.array(v.object({ id: v.string(), name: v.string(), value: v.number() })),
+  }),
+  message: v.optional(v.string()),
+});
+
+function emptyPublicMdaScores(
+  year: number,
+  message: string,
+  frameworkMetrics: FrameworkMetric[] = []
+): PublicMdaScoresResult {
+  return {
+    mdas: [],
+    totalMdas: 0,
+    year,
+    availableYears: [],
+    hasDataForRequestedYear: false,
+    frameworkMetrics,
+    adjustments: { penalties: [], bonuses: [] },
+    message,
+  };
+}
+
 // Public MDA scoring query that uses the exact same data source as the Live Dashboard
 export const getPublicMdaScores = query({
   args: {
     year: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  returns: publicMdaScoresReturns,
+  handler: async (ctx, args): Promise<PublicMdaScoresResult> => {
     const requestedYear = args.year || new Date().getFullYear();
 
     try {
-      const [dashboardResult, yearConfig] = await Promise.all([
+      const [dashboardResult, rawYearConfig] = await Promise.all([
         ctx.runQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, {
           year: requestedYear,
-        }) as Promise<{ data?: Array<Record<string, unknown>>; efficiencyConfig?: unknown }>,
+        }),
         ctx.runQuery(api.scoring_config.getAllConfigurationsForYear, {
           year: requestedYear,
         }),
       ]);
 
+      const yearConfig = (rawYearConfig ?? null) as ScoringYearConfig | null;
       const frameworkMetrics = buildBfaFrameworkMetrics(requestedYear, yearConfig);
-      const dashboardData = dashboardResult?.data || [];
+      const adjustments = {
+        penalties: (yearConfig?.penaltyItems || []).map((item) => ({
+          id: item.penaltyId,
+          name: item.penaltyName,
+          value: item.penaltyValue,
+        })),
+        bonuses: (yearConfig?.bonusItems || []).map((item) => ({
+          id: item.bonusId,
+          name: item.bonusName,
+          value: item.bonusValue,
+        })),
+      };
+      const dashboardData = ((dashboardResult as { data?: Array<Record<string, unknown>> } | null)?.data ||
+        []) as Array<Record<string, unknown>>;
 
       if (!dashboardData.length) {
         return {
-          mdas: [],
-          totalMdas: 0,
-          year: requestedYear,
-          availableYears: [],
-          hasDataForRequestedYear: false,
-          frameworkMetrics,
-          message: `No MDA scoring data available for ${requestedYear}. Federal MDAs have not been scored for this assessment period.`,
+          ...emptyPublicMdaScores(
+            requestedYear,
+            `No MDA scoring data available for ${requestedYear}. Federal MDAs have not been scored for this assessment period.`,
+            frameworkMetrics
+          ),
+          adjustments,
         };
       }
 
-      const scoredMdas = dashboardData
+      const scoredMdas: PublicMdaRow[] = dashboardData
         .filter((mda) => mda && typeof mda.mdaName === "string" && Number(mda.totalScore) > 0)
         .map((mda) => {
           const excludedMetrics = Array.isArray(mda.excludedMetrics)
@@ -332,6 +452,9 @@ export const getPublicMdaScores = query({
           for (const metric of frameworkMetrics) {
             metricScores[metric.key] = metricScoreFromDashboard(mda, metric.key, metric.max);
           }
+
+          const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
+          const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
 
           return {
             mdaName: canonicalizeMdaName(String(mda.mdaName)),
@@ -343,7 +466,12 @@ export const getPublicMdaScores = query({
             applicableMetricCount: frameworkMetrics.filter(
               (metric) => !isMetricExcluded(excludedMetrics, metric.key)
             ).length,
+            penaltyScore: roundScore(Math.abs(penalties?.score || 0)),
+            bonusScore: roundScore(Math.abs(bonuses?.score || 0)),
+            penaltyValues: penalties?.values || {},
+            bonusValues: bonuses?.values || {},
             lastUpdated: Number(mda.lastUpdated) || Date.now(),
+            rank: 0,
           };
         })
         .sort((a, b) => b.finalScore - a.finalScore)
@@ -359,18 +487,14 @@ export const getPublicMdaScores = query({
         availableYears: scoredMdas.length > 0 ? [requestedYear] : [],
         hasDataForRequestedYear: scoredMdas.length > 0,
         frameworkMetrics,
+        adjustments,
       };
     } catch (error) {
       console.error("Error fetching public MDA scores:", error);
-      return {
-        mdas: [],
-        totalMdas: 0,
-        year: requestedYear,
-        availableYears: [],
-        hasDataForRequestedYear: false,
-        frameworkMetrics: [],
-        message: "Error loading MDA scoring data. Please try again later.",
-      };
+      return emptyPublicMdaScores(
+        requestedYear,
+        "Error loading MDA scoring data. Please try again later."
+      );
     }
   },
 });

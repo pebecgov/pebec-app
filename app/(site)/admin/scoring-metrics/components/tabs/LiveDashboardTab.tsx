@@ -13,6 +13,7 @@ interface LiveDashboardTabProps {
     efficiencyConfig: any;
     othersConfig: any;
     penaltyConfig: any;
+    bonusConfig: any;
     mysteryConfig: any;
 
     // Filters & Selection
@@ -49,6 +50,7 @@ export default function LiveDashboardTab({
     efficiencyConfig,
     othersConfig,
     penaltyConfig,
+    bonusConfig,
     mysteryConfig,
     selectedMetric,
     setSelectedMetric,
@@ -99,6 +101,7 @@ export default function LiveDashboardTab({
                     efficiencyConfig={liveDashboardData?.efficiencyConfig || efficiencyConfig}
                     othersConfig={othersConfig}
                     penaltyConfig={penaltyConfig}
+                    bonusConfig={bonusConfig}
                     mysteryConfig={mysteryConfig}
                     processDashboardMdaData={processDashboardMdaData}
                     mdaFilter={mdaFilter}

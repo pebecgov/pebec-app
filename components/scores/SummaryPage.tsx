@@ -183,3 +183,68 @@ export function MetricBreakdown({
     </main>
   );
 }
+
+export function ScoreAdjustments({
+  bonuses,
+  penalties,
+  bonusTotal,
+  penaltyTotal,
+}: {
+  bonuses: { name: string; applied: boolean; value: number }[];
+  penalties: { name: string; applied: boolean; value: number }[];
+  bonusTotal: number;
+  penaltyTotal: number;
+}) {
+  if (bonuses.length === 0 && penalties.length === 0) return null;
+
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Bonuses & Penalties</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Extra points and deductions from the 2026 BFA configuration. These are not counted in the metrics total.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-emerald-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-emerald-800">Bonuses</h3>
+            <span className="text-sm font-bold text-emerald-700">+{formatPoints(bonusTotal)}</span>
+          </div>
+          {bonuses.length === 0 ? (
+            <p className="text-sm text-gray-500">No bonus items configured for this year.</p>
+          ) : (
+            <ul className="space-y-2">
+              {bonuses.map((item) => (
+                <li key={item.name} className="flex items-center justify-between text-sm">
+                  <span className={item.applied ? "text-gray-900" : "text-gray-500"}>{item.name}</span>
+                  <span className={item.applied ? "font-semibold text-emerald-700" : "text-gray-400"}>
+                    {item.applied ? `+${formatPoints(item.value)}` : "0"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="bg-white rounded-xl border border-rose-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-rose-800">Penalties</h3>
+            <span className="text-sm font-bold text-rose-700">-{formatPoints(penaltyTotal)}</span>
+          </div>
+          {penalties.length === 0 ? (
+            <p className="text-sm text-gray-500">No penalty items configured for this year.</p>
+          ) : (
+            <ul className="space-y-2">
+              {penalties.map((item) => (
+                <li key={item.name} className="flex items-center justify-between text-sm">
+                  <span className={item.applied ? "text-gray-900" : "text-gray-500"}>{item.name}</span>
+                  <span className={item.applied ? "font-semibold text-rose-700" : "text-gray-400"}>
+                    {item.applied ? `-${formatPoints(Math.abs(item.value))}` : "0"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
