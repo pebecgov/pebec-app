@@ -1,4 +1,5 @@
 import { mdasList } from "@/components/mdaList";
+import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
 import { stateRegions } from "@/lib/stateRegions";
 import {
     STATE_ALIAS_MAP,
@@ -80,8 +81,9 @@ export const normalizeMdaName = (mdaName: string): string => {
 export const findMatchingMdaName = (backendMdaName: string): string | null => {
     if (!backendMdaName) return null;
 
-    const normalizedBackend = normalizeMdaName(backendMdaName);
-    const strippedBackend = normalizeMdaName(stripAbbreviation(backendMdaName));
+    const canonicalBackend = canonicalizeMdaName(backendMdaName);
+    const normalizedBackend = normalizeMdaName(canonicalBackend);
+    const strippedBackend = normalizeMdaName(stripAbbreviation(canonicalBackend));
 
     // Try to find exact match first
     for (const mda of mdasList) {

@@ -87,7 +87,7 @@ export default function TaxCalculator() {
 
       {}
       <p className="mt-4 text-xs text-gray-500 text-center">
-        Please note: This calculator provides an estimate. For precise figures, consult the Federal Inland Revenue Service (FIRS) or a tax professional.
+        Please note: This calculator provides an estimate. For precise figures, consult the Nigeria Revenue Service (NRS) or a tax professional.
       </p>
     </div>;
 }

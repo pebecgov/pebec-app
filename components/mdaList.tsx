@@ -33,8 +33,8 @@ export const mdasList = [{
   name: "Federal Competition and Consumer Protection Commission",
   abbreviation: "FCCPC"
 }, {
-  name: "Federal Inland Revenue Service",
-  abbreviation: "FIRS"
+  name: "Nigeria Revenue Service",
+  abbreviation: "NRS"
 }, {
   name: "Federal Ministry of Aviation and Aerospace Development",
   abbreviation: "FMA"
@@ -78,8 +78,8 @@ export const mdasList = [{
   name: "Industrial Training Fund",
   abbreviation: "ITF"
 }, {
-  name: "Joint Tax Board",
-  abbreviation: "JTB"
+  name: "Joint Revenue Board",
+  abbreviation: "JRB"
 }, {
   name: "Ministry of Budget and Economic Planning",
   abbreviation: "BNP"

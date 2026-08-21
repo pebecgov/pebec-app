@@ -134,7 +134,7 @@ const UsefulLinks = () => {
     url: 'https://www.cac.gov.ng/',
     description: 'Registers companies and regulates corporate affairs.'
   }, {
-    name: 'Federal Inland Revenue Service (FIRS)',
+    name: 'Nigeria Revenue Service (NRS)',
     url: 'https://www.firs.gov.ng/',
     description: 'Administers tax laws and collects federal taxes.'
   }, {
