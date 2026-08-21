@@ -7,22 +7,17 @@ import { MapPin, Building2, ArrowRight, Trophy, Target } from "lucide-react";
 
 export default function ScoresLandingPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header Section */}
-      <div className="bg-gray-100 pt-20 pb-12">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="flex-1 flex flex-col justify-center pt-52 pb-16">
         <div className="container mx-auto px-4">
-          <div className="text-center">
+          <div className="text-center mb-10">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">PEBEC Performance Tracker</h1>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Track the performance of Nigerian states and federal MDAs in business climate reforms and service delivery
             </p>
           </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           
           {/* State Rankings Card */}
           <Card className="group hover:shadow-lg transition-shadow duration-300 cursor-pointer">
@@ -102,6 +97,7 @@ export default function ScoresLandingPage() {
             </Link>
           </Card>
 
+          </div>
         </div>
       </div>
     </div>

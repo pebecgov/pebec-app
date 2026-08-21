@@ -34,7 +34,7 @@ export default function TrackerPage() {
       <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
         
         {/* State Rankings Card */}
-        <Link href="/scores?tab=states" className="group">
+        <Link href="/scores/states" className="group">
           <Card className="h-full hover:shadow-lg transition-all duration-300 border-2 hover:border-blue-500 cursor-pointer">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
@@ -109,7 +109,7 @@ export default function TrackerPage() {
         </Link>
 
         {/* BFA/MDA Scoring Card */}
-        <Link href="/scores?tab=mdas" className="group">
+        <Link href="/scores/mdas" className="group">
           <Card className="h-full hover:shadow-lg transition-all duration-300 border-2 hover:border-green-500 cursor-pointer">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
