@@ -9,49 +9,23 @@ import {
   getMdaAbbreviation,
   scoreSlug,
   type RankingRow,
+  type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
 
 interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
-  slaScore: number;
-  slaMax: number;
-  mysteryShoppingScore: number;
-  mysteryShoppingMax: number;
-  transparencyScore: number;
-  transparencyMax: number;
-  stakeholderEngagementScore: number;
-  stakeholderEngagementMax: number;
-  innovationScore: number;
-  innovationMax: number;
-  reportGovScore: number;
-  reportGovMax: number;
-  timelinessScore: number;
-  timelinessMax: number;
-  monthlyReportScore: number;
-  monthlyReportMax: number;
+  applicableMetricCount?: number;
   rank: number;
-}
-
-function metricCount(mda: MdaScoreData): number {
-  return [
-    mda.slaMax,
-    mda.mysteryShoppingMax,
-    mda.reportGovMax,
-    mda.timelinessMax,
-    mda.monthlyReportMax,
-    mda.transparencyMax,
-    mda.stakeholderEngagementMax,
-    mda.innovationMax,
-  ].filter((max) => max > 0).length;
 }
 
 export default function MdaScoresPage() {
   const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: SCORE_YEAR });
+  const frameworkMetrics = (mdaData?.frameworkMetrics || []) as BfaFrameworkMetric[];
 
   const rows = useMemo<RankingRow[] | undefined>(() => {
-    if (!mdaData?.mdas) return undefined;
+    if (!mdaData) return undefined;
     return (mdaData.mdas as MdaScoreData[]).map((mda) => ({
       id: mda.mdaName,
       rank: mda.rank,
@@ -59,10 +33,10 @@ export default function MdaScoresPage() {
       abbreviation: getMdaAbbreviation(mda.mdaName),
       score: mda.finalScore,
       maxScore: mda.maxPossibleScore,
-      extra: metricCount(mda),
+      extra: mda.applicableMetricCount ?? frameworkMetrics.length,
       href: `/scores/mdas/${scoreSlug(mda.mdaName)}`,
     }));
-  }, [mdaData]);
+  }, [mdaData, frameworkMetrics.length]);
 
   return (
     <RankingDashboard
@@ -72,7 +46,7 @@ export default function MdaScoresPage() {
       extraColumnHeader="Metrics"
       extraCardLabel="metrics"
       entityLabel="MDA"
-      metricCount={8}
+      metricCount={frameworkMetrics.length}
       metricLabel="Metrics"
       rows={rows}
       emptyMessage="No MDA scoring data is available for 2026 yet."
