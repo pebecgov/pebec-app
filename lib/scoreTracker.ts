@@ -30,6 +30,12 @@ export interface RankingRow {
   href: string;
 }
 
+export interface BfaFrameworkMetric {
+  key: string;
+  label: string;
+  max: number;
+}
+
 /** Status bands aligned with the BEEPA tracker. */
 export function getScoreStatus(score: number, maxScore: number): ScoreStatus {
   const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;

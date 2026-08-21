@@ -151,6 +151,143 @@ export const getPublicStateRankings = query({
   },
 });
 
+function roundScore(value: number): number {
+  return Math.round((value || 0) * 100) / 100;
+}
+
+type FrameworkMetric = {
+  key: string;
+  label: string;
+  max: number;
+};
+
+function buildBfaFrameworkMetrics(
+  year: number,
+  config: {
+    efficiencyPeriod?: {
+      slaPoints?: number;
+      reportGovPoints?: number;
+      reportSubmissionPoints?: number;
+      timelinessPoints?: number;
+    } | null;
+    mysteryShoppingTypes?: Array<{ questions?: Array<{ weight?: number }> }>;
+    othersItems?: Array<{ weight?: number }>;
+    innovationItems?: Array<{ weight?: number }>;
+    stakeholderItems?: Array<{ weight?: number }>;
+  } | null
+): FrameworkMetric[] {
+  if (year < 2026) {
+    return [
+      { key: "sla", label: "SLA Compliance", max: 5 },
+      { key: "mystery", label: "Mystery Shopping", max: 40 },
+      { key: "reportGov", label: "Report Gov Resolution", max: 20 },
+      { key: "reportSubmission", label: "Monthly Report Submission", max: 2 },
+      { key: "timeliness", label: "Timeliness in Submission", max: 3 },
+      { key: "transparency", label: "Transparency", max: 5 },
+      { key: "stakeholder", label: "Stakeholder Engagement", max: 5 },
+      { key: "innovation", label: "Innovation", max: 5 },
+    ];
+  }
+
+  const efficiency = config?.efficiencyPeriod;
+  const metrics: FrameworkMetric[] = [];
+
+  const slaMax = efficiency?.slaPoints ?? 0;
+  if (slaMax > 0) {
+    metrics.push({ key: "sla", label: "SLA Compliance", max: slaMax });
+  }
+
+  const mysteryTypes = config?.mysteryShoppingTypes || [];
+  const mysteryWeight = mysteryTypes.reduce((sum, type) => {
+    return sum + (type.questions || []).reduce((inner, question) => inner + (question.weight || 0), 0);
+  }, 0);
+  if (mysteryTypes.length > 0) {
+    metrics.push({
+      key: "mystery",
+      label: "Mystery Shopping",
+      max: mysteryWeight > 0 ? mysteryWeight : 40,
+    });
+  }
+
+  const reportGovMax = efficiency?.reportGovPoints ?? 0;
+  if (reportGovMax > 0) {
+    metrics.push({ key: "reportGov", label: "Report Gov Resolution", max: reportGovMax });
+  }
+
+  const reportSubmissionMax = efficiency?.reportSubmissionPoints ?? 0;
+  if (reportSubmissionMax > 0) {
+    metrics.push({ key: "reportSubmission", label: "Monthly Report Submission", max: reportSubmissionMax });
+  }
+
+  const timelinessMax = efficiency?.timelinessPoints ?? 0;
+  if (timelinessMax > 0) {
+    metrics.push({ key: "timeliness", label: "Timeliness in Submission", max: timelinessMax });
+  }
+
+  const othersMax =
+    (config?.othersItems || []).reduce((sum, item) => sum + (item.weight || 0), 0) +
+    (config?.innovationItems || []).reduce((sum, item) => sum + (item.weight || 0), 0) +
+    (config?.stakeholderItems || []).reduce((sum, item) => sum + (item.weight || 0), 0);
+  if (othersMax > 0) {
+    metrics.push({ key: "others", label: "Others", max: othersMax });
+  }
+
+  return metrics;
+}
+
+function metricScoreFromDashboard(
+  mda: Record<string, unknown>,
+  key: string,
+  frameworkMax: number
+): { score: number; max: number } {
+  const nested = (field: string, fallbackMax: number) => {
+    const bucket = mda[field] as { score?: number; maxPossibleScore?: number } | null | undefined;
+    return {
+      score: roundScore(bucket?.score || 0),
+      max: bucket?.maxPossibleScore || fallbackMax,
+    };
+  };
+
+  switch (key) {
+    case "sla":
+      return nested("sla", frameworkMax);
+    case "mystery":
+      return nested("mysteryShopping", frameworkMax);
+    case "reportGov":
+      return nested("reportGovResolution", frameworkMax);
+    case "reportSubmission":
+      return nested("monthlyReport", frameworkMax);
+    case "timeliness":
+      return nested("timeliness", frameworkMax);
+    case "others": {
+      const others = mda.others as { score?: number } | null | undefined;
+      if (others && typeof others.score === "number") {
+        return { score: roundScore(others.score), max: frameworkMax };
+      }
+      const transparency = nested("transparency", 0).score;
+      const stakeholder = nested("stakeholder", 0).score;
+      const innovation = nested("innovation", 0).score;
+      return { score: roundScore(transparency + stakeholder + innovation), max: frameworkMax };
+    }
+    case "transparency":
+      return nested("transparency", frameworkMax);
+    case "stakeholder":
+      return nested("stakeholder", frameworkMax);
+    case "innovation":
+      return nested("innovation", frameworkMax);
+    default:
+      return { score: 0, max: frameworkMax };
+  }
+}
+
+function isMetricExcluded(excluded: string[] | undefined, key: string): boolean {
+  if (!excluded || excluded.length === 0) return false;
+  if (excluded.includes(key)) return true;
+  if (key === "mystery" && excluded.includes("mysteryShopping")) return true;
+  if (key === "others" && excluded.some((item) => item.startsWith("others"))) return true;
+  return false;
+}
+
 // Public MDA scoring query that uses the exact same data source as the Live Dashboard
 export const getPublicMdaScores = query({
   args: {
@@ -159,56 +296,58 @@ export const getPublicMdaScores = query({
   },
   handler: async (ctx, args) => {
     const requestedYear = args.year || new Date().getFullYear();
-    
+
     try {
-      // Use the exact same dashboard query as the admin Live Dashboard
-      const dashboardResult = await ctx.runQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, { 
-        year: requestedYear 
-      }) as any;
-      
+      const [dashboardResult, yearConfig] = await Promise.all([
+        ctx.runQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, {
+          year: requestedYear,
+        }) as Promise<{ data?: Array<Record<string, unknown>>; efficiencyConfig?: unknown }>,
+        ctx.runQuery(api.scoring_config.getAllConfigurationsForYear, {
+          year: requestedYear,
+        }),
+      ]);
+
+      const frameworkMetrics = buildBfaFrameworkMetrics(requestedYear, yearConfig);
       const dashboardData = dashboardResult?.data || [];
-      
-      if (!dashboardData || !dashboardData.length) {
+
+      if (!dashboardData.length) {
         return {
           mdas: [],
           totalMdas: 0,
           year: requestedYear,
           availableYears: [],
           hasDataForRequestedYear: false,
+          frameworkMetrics,
           message: `No MDA scoring data available for ${requestedYear}. Federal MDAs have not been scored for this assessment period.`,
         };
       }
 
-      // Process dashboard data exactly like the admin - only show MDAs with scores > 0
       const scoredMdas = dashboardData
-        .filter((mda: any) => mda && mda.mdaName && mda.totalScore > 0)
-        .map((mda: any, index: number) => ({
-          mdaName: canonicalizeMdaName(mda.mdaName),
-          finalScore: Math.round((mda.totalScore || 0) * 100) / 100,
-          maxPossibleScore: mda.maxPossiblePoints || 100,
-          percentage: Math.round((mda.totalPercentage || 0) * 100) / 100,
-          slaScore: Math.round((mda.sla?.score || 0) * 100) / 100,
-          slaMax: mda.sla?.maxPossibleScore || 5,
-          mysteryShoppingScore: Math.round((mda.mysteryShopping?.score || 0) * 100) / 100,
-          mysteryShoppingMax: mda.mysteryShopping?.maxPossibleScore || 40,
-          transparencyScore: Math.round((mda.transparency?.score || 0) * 100) / 100,
-          transparencyMax: mda.transparency?.maxPossibleScore || 5,
-          stakeholderEngagementScore: Math.round((mda.stakeholder?.score || 0) * 100) / 100,
-          stakeholderEngagementMax: mda.stakeholder?.maxPossibleScore || 5,
-          innovationScore: Math.round((mda.innovation?.score || 0) * 100) / 100,
-          innovationMax: mda.innovation?.maxPossibleScore || 5,
-          reportGovScore: Math.round((mda.reportGovResolution?.score || 0) * 100) / 100,
-          reportGovMax: mda.reportGovResolution?.maxPossibleScore || 20,
-          timelinessScore: Math.round((mda.timeliness?.score || 0) * 100) / 100,
-          timelinessMax: mda.timeliness?.maxPossibleScore || 3,
-          monthlyReportScore: Math.round((mda.monthlyReport?.score || 0) * 100) / 100,
-          monthlyReportMax: mda.monthlyReport?.maxPossibleScore || 2,
-          grade: mda.grade || "N/A",
-          scoringPeriod: mda.scoringPeriod || String(requestedYear),
-          lastUpdated: mda.lastUpdated || Date.now(),
-        }))
-        .sort((a: any, b: any) => b.finalScore - a.finalScore)
-        .map((mda: any, index: number) => ({ ...mda, rank: index + 1 }));
+        .filter((mda) => mda && typeof mda.mdaName === "string" && Number(mda.totalScore) > 0)
+        .map((mda) => {
+          const excludedMetrics = Array.isArray(mda.excludedMetrics)
+            ? (mda.excludedMetrics as string[])
+            : [];
+          const metricScores: Record<string, { score: number; max: number }> = {};
+          for (const metric of frameworkMetrics) {
+            metricScores[metric.key] = metricScoreFromDashboard(mda, metric.key, metric.max);
+          }
+
+          return {
+            mdaName: canonicalizeMdaName(String(mda.mdaName)),
+            finalScore: roundScore(Number(mda.totalScore) || 0),
+            maxPossibleScore: Number(mda.maxPossiblePoints) || 100,
+            percentage: roundScore(Number(mda.totalPercentage) || 0),
+            metricScores,
+            excludedMetrics,
+            applicableMetricCount: frameworkMetrics.filter(
+              (metric) => !isMetricExcluded(excludedMetrics, metric.key)
+            ).length,
+            lastUpdated: Number(mda.lastUpdated) || Date.now(),
+          };
+        })
+        .sort((a, b) => b.finalScore - a.finalScore)
+        .map((mda, index) => ({ ...mda, rank: index + 1 }));
 
       const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
 
@@ -219,8 +358,8 @@ export const getPublicMdaScores = query({
         requestedYear: args.year,
         availableYears: scoredMdas.length > 0 ? [requestedYear] : [],
         hasDataForRequestedYear: scoredMdas.length > 0,
+        frameworkMetrics,
       };
-
     } catch (error) {
       console.error("Error fetching public MDA scores:", error);
       return {
@@ -229,6 +368,7 @@ export const getPublicMdaScores = query({
         year: requestedYear,
         availableYears: [],
         hasDataForRequestedYear: false,
+        frameworkMetrics: [],
         message: "Error loading MDA scoring data. Please try again later.",
       };
     }

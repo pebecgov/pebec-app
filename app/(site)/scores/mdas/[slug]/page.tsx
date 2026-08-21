@@ -12,28 +12,15 @@ import {
   getMdaAbbreviation,
   getScoreStatus,
   scoreSlug,
+  type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
 
 interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
-  slaScore: number;
-  slaMax: number;
-  mysteryShoppingScore: number;
-  mysteryShoppingMax: number;
-  transparencyScore: number;
-  transparencyMax: number;
-  stakeholderEngagementScore: number;
-  stakeholderEngagementMax: number;
-  innovationScore: number;
-  innovationMax: number;
-  reportGovScore: number;
-  reportGovMax: number;
-  timelinessScore: number;
-  timelinessMax: number;
-  monthlyReportScore: number;
-  monthlyReportMax: number;
+  metricScores?: Record<string, { score: number; max: number }>;
+  excludedMetrics?: string[];
   rank: number;
 }
 
@@ -41,13 +28,14 @@ export default function MdaSummaryPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
   const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: SCORE_YEAR });
+  const frameworkMetrics = (mdaData?.frameworkMetrics || []) as BfaFrameworkMetric[];
 
   const selected = useMemo(() => {
     if (!mdaData?.mdas) return undefined;
     return (mdaData.mdas as MdaScoreData[]).find((mda) => scoreSlug(mda.mdaName) === slug) ?? null;
   }, [mdaData, slug]);
 
-  if (selected === undefined) {
+  if (selected === undefined || mdaData === undefined) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Skeleton className="h-8 w-64 mb-4" />
@@ -77,24 +65,21 @@ export default function MdaSummaryPage() {
 
   const status = getScoreStatus(selected.finalScore, selected.maxPossibleScore);
   const abbreviation = getMdaAbbreviation(selected.mdaName);
-  const metrics = [
-    { name: "SLA Compliance", score: selected.slaScore, maxScore: selected.slaMax },
-    { name: "Mystery Shopping", score: selected.mysteryShoppingScore, maxScore: selected.mysteryShoppingMax },
-    { name: "Report Gov Resolution", score: selected.reportGovScore, maxScore: selected.reportGovMax },
-    { name: "Timeliness in Submission", score: selected.timelinessScore, maxScore: selected.timelinessMax },
-    { name: "Monthly Report Submission", score: selected.monthlyReportScore, maxScore: selected.monthlyReportMax },
-    { name: "Transparency", score: selected.transparencyScore, maxScore: selected.transparencyMax },
-    { name: "Stakeholder Engagement", score: selected.stakeholderEngagementScore, maxScore: selected.stakeholderEngagementMax },
-    { name: "Innovation", score: selected.innovationScore, maxScore: selected.innovationMax },
-  ]
-    .filter((metric) => metric.score > 0 || metric.maxScore > 0)
-    .map((metric) => ({
-      ...metric,
-      details: [
-        { label: "Score awarded", score: metric.score },
-        { label: "Maximum possible", score: metric.maxScore },
-      ],
-    }));
+  const excluded = selected.excludedMetrics || [];
+  const metrics = frameworkMetrics
+    .filter((metric) => !excluded.includes(metric.key))
+    .map((metric) => {
+      const scored = selected.metricScores?.[metric.key];
+      return {
+        name: metric.label,
+        score: scored?.score ?? 0,
+        maxScore: scored?.max ?? metric.max,
+        details: [
+          { label: "Score awarded", score: scored?.score ?? 0 },
+          { label: "Maximum possible", score: scored?.max ?? metric.max },
+        ],
+      };
+    });
 
   return (
     <div>
@@ -111,7 +96,7 @@ export default function MdaSummaryPage() {
       />
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Click a metric to view awarded vs maximum points"
+        hint="Metrics follow the 2026 BFA configuration used in admin scoring"
         metrics={metrics}
       />
     </div>
