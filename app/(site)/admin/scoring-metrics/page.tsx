@@ -549,7 +549,7 @@ export default function ScoringMetricsPage() {
               onChange={(e) => setScoringYear(Number(e.target.value))}
               className="min-w-[120px]"
             >
-              {Array.from({ length: 3 }, (_, i) => currentYear - 2 + i).map(year => (
+              {[2025, 2026].map(year => (
                 <MenuItem key={year} value={year}>{year}</MenuItem>
               ))}
             </Select>

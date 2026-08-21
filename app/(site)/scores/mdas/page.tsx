@@ -129,7 +129,6 @@ Assessment Year: ${mdaYear}
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2024">2024</SelectItem>
                   <SelectItem value="2025">2025</SelectItem>
                   <SelectItem value="2026">2026</SelectItem>
                 </SelectContent>
@@ -224,7 +223,7 @@ Assessment Year: ${mdaYear}
                 </div>
                 {!mdaSearch && (
                   <div className="text-sm">
-                    Try selecting a different year above. Data may be available for {mdaYear === 2025 ? "2024 or earlier years" : "2025"}.
+                    Try selecting a different year above. Data may be available for {mdaYear === 2025 ? "2026" : "2025"}.
                   </div>
                 )}
               </div>
