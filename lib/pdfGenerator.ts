@@ -779,7 +779,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   });
 
   // Check if this is FIRS, NPA, FRSC, NAMA, CAC, SEC, NDLEA, or CBN (need this before table generation)
-  const isFIRS = data.mdaName.toLowerCase().includes('federal inland revenue service');
+  const isFIRS = data.mdaName.toLowerCase().includes('federal inland revenue service') ||
+    data.mdaName.toLowerCase().includes('nigeria revenue service') ||
+    data.mdaName.toLowerCase().includes('nrs');
   const isNPA = data.mdaName.toLowerCase().includes('nigerian ports authority');
   const isFRSC = data.mdaName.toLowerCase().includes('federal road safety');
   const isNAMA = data.mdaName.toLowerCase().includes('nigerian airspace management');

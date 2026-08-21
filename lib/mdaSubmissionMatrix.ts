@@ -55,6 +55,7 @@ const MATRIX_EXCLUDED_MDA_NAMES = new Set(
     "Federal Ministry of Transportation",
     "Federal Ministry of Works",
     "Joint Tax Board",
+    "Joint Revenue Board",
     "Ministry of Budget and Economic Planning",
     "Nigeria Gas Company",
     "Nigeria Police Force",

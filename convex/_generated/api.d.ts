@@ -46,6 +46,7 @@ import type * as migrations_cleanupInfrastructure from "../migrations/cleanupInf
 import type * as migrations_cleanupInvalidStates from "../migrations/cleanupInvalidStates.js";
 import type * as migrations_mergeFCTEntries from "../migrations/mergeFCTEntries.js";
 import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
+import type * as migrations_renameMdaAgencies from "../migrations/renameMdaAgencies.js";
 import type * as migrations_resetAccessToSkilledLabour from "../migrations/resetAccessToSkilledLabour.js";
 import type * as migrations_resetDigitalConnectivity from "../migrations/resetDigitalConnectivity.js";
 import type * as migrations_resetInfrastructure from "../migrations/resetInfrastructure.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/cleanupInvalidStates": typeof migrations_cleanupInvalidStates;
   "migrations/mergeFCTEntries": typeof migrations_mergeFCTEntries;
   "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
+  "migrations/renameMdaAgencies": typeof migrations_renameMdaAgencies;
   "migrations/resetAccessToSkilledLabour": typeof migrations_resetAccessToSkilledLabour;
   "migrations/resetDigitalConnectivity": typeof migrations_resetDigitalConnectivity;
   "migrations/resetInfrastructure": typeof migrations_resetInfrastructure;

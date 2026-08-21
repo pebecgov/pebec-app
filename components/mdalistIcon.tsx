@@ -39,8 +39,8 @@ export const mdalistIcon = [{
     abbreviation: "FCCPC",
     icon: "🛒" // Icon representing shopping or consumer goods
   }, {
-    name: "Federal Inland Revenue Service",
-    abbreviation: "FIRS",
+    name: "Nigeria Revenue Service",
+    abbreviation: "NRS",
     icon: "🧾" // Icon representing a receipt or a bill
   }, {
     name: "Federal Ministry of Aviation",
@@ -99,8 +99,8 @@ export const mdalistIcon = [{
     abbreviation: "ITF",
     icon: "👨‍🏫" // Icon representing a teacher or training
   }, {
-    name: "Joint Tax Board",
-    abbreviation: "JTB",
+    name: "Joint Revenue Board",
+    abbreviation: "JRB",
     icon: "📈" // Icon representing a chart or taxes
   }, {
     name: "Ministry of Budget and National Planning",

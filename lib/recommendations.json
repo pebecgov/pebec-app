@@ -42,12 +42,12 @@
     ]
   },
   {
-    "agency": "Joint Tax Board",
+    "agency": "Joint Revenue Board",
     "recommendations": [
-      "JTB should establish and enforce a formal SLA and monthly reporting process, requiring all SLA data to be completed and uploaded on the last Friday of every month, with clear ownership and accountability mechanisms to ensure compliance.",
-      "JTB should restore functional public communication by ensuring all official phone lines and email addresses are properly staffed, actively monitored, and responsive to public enquiries.",
-      "JTB should align actual service delivery with published service timelines by reviewing, correcting, and enforcing realistic processing timelines, particularly for TIN issuance, and monitoring adherence through the SLA framework.",
-      "JTB should enhance service transparency by clearly publishing service requirements, processing timelines, and official fees for all services on its website, supported by clear and accessible user guidance."
+      "JRB should establish and enforce a formal SLA and monthly reporting process, requiring all SLA data to be completed and uploaded on the last Friday of every month, with clear ownership and accountability mechanisms to ensure compliance.",
+      "JRB should restore functional public communication by ensuring all official phone lines and email addresses are properly staffed, actively monitored, and responsive to public enquiries.",
+      "JRB should align actual service delivery with published service timelines by reviewing, correcting, and enforcing realistic processing timelines, particularly for TIN issuance, and monitoring adherence through the SLA framework.",
+      "JRB should enhance service transparency by clearly publishing service requirements, processing timelines, and official fees for all services on its website, supported by clear and accessible user guidance."
     ]
   },
   {
@@ -133,7 +133,7 @@
     ]
   },
   {
-    "agency": "Federal Inland Revenue Service",
+    "agency": "Nigeria Revenue Service",
     "recommendations": [
       "NRS should ensure consistent SLA performance by enforcing uniform service standards and a fixed monthly reporting process, requiring all SLA data and performance reports to be completed and uploaded on the last Friday of every month, with clear accountability to prevent performance volatility, late submissions, and data gaps.",
       "NRS should establish and maintain functional customer service communication channels, including dedicated and actively monitored email addresses and responsive phone lines, to ensure timely acknowledgement and resolution of public enquiries.",

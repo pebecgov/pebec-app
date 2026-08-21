@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { api } from "./_generated/api";
+import { canonicalizeMdaName } from "../lib/mdaNameAliases";
 
 // Max scores for each indicator based on the PEBEC framework
 const indicatorMaxScores = {
@@ -179,7 +180,7 @@ export const getPublicMdaScores = query({
       const scoredMdas = dashboardData
         .filter((mda: any) => mda && mda.mdaName && mda.totalScore > 0)
         .map((mda: any, index: number) => ({
-          mdaName: mda.mdaName,
+          mdaName: canonicalizeMdaName(mda.mdaName),
           finalScore: Math.round((mda.totalScore || 0) * 100) / 100,
           maxPossibleScore: mda.maxPossiblePoints || 100,
           percentage: Math.round((mda.totalPercentage || 0) * 100) / 100,

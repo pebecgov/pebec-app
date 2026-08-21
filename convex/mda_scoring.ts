@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import { resolveReportPeriod } from "../lib/reportPeriod";
+import { canonicalizeMdaName } from "../lib/mdaNameAliases";
 
 function normalizeMdaKey(name: string) {
   return String(name || "")
@@ -28,8 +29,10 @@ function buildExclusionLookup(entries: Array<{ mdaName: string; excludedMetrics:
     const raw = entry.mdaName || "";
     const normalized = normalizeMdaKey(raw);
     const parts = splitMdaNameForMatch(raw);
+    const canonical = normalizeMdaKey(canonicalizeMdaName(raw));
 
     map.set(normalized, excluded);
+    map.set(canonical, excluded);
     if (parts.fullName) map.set(parts.fullName, excluded);
     if (parts.abbr) map.set(parts.abbr, excluded);
   }
@@ -38,19 +41,26 @@ function buildExclusionLookup(entries: Array<{ mdaName: string; excludedMetrics:
 
 // Helper function to find MDA by flexible name matching
 async function findMdaByName(ctx: any, mdaName: string) {
-  // First try exact match
+  const canonical = canonicalizeMdaName(mdaName);
+
   let mda = await ctx.db.query("mdas")
     .withIndex("byName", (q: any) => q.eq("name", mdaName))
     .first();
 
   if (mda) return mda;
 
-  // If not found, try to find by partial matching
-  const allMdas = await ctx.db.query("mdas").collect();
+  if (canonical !== mdaName) {
+    mda = await ctx.db.query("mdas")
+      .withIndex("byName", (q: any) => q.eq("name", canonical))
+      .first();
+    if (mda) return mda;
+  }
 
-  // Try to find by abbreviation prefix (e.g., "BPP - Bureau for Public Procurement" matches "Bureau for Public Procurement")
+  const allMdas = await ctx.db.query("mdas").collect();
+  mda = allMdas.find((m: any) => canonicalizeMdaName(m.name) === canonical);
+  if (mda) return mda;
+
   mda = allMdas.find((m: any) => {
-    // Remove abbreviation prefix and compare
     const nameWithoutPrefix = m.name.replace(/^[^-]+ - /, '');
     return nameWithoutPrefix === mdaName || m.name.includes(mdaName) || mdaName.includes(nameWithoutPrefix);
   });
@@ -2166,10 +2176,10 @@ export const getAllMdaSavedDataForDashboard = query({
     // Get all MDAs from database and from scoring history to get complete list
     const allMdas = await ctx.db.query("mdas").collect();
     const allScoringHistory = await ctx.db.query("mda_scoring_history").collect();
-    const uniqueMdaNamesFromHistory = [...new Set(allScoringHistory.map(s => s.mdaName))];
+    const uniqueMdaNamesFromHistory = [...new Set(allScoringHistory.map(s => canonicalizeMdaName(s.mdaName)))];
 
     // Combine and deduplicate
-    const allMdaNames = [...new Set([...allMdas.map(m => m.name.trim()), ...uniqueMdaNamesFromHistory.map(n => n.trim())])];
+    const allMdaNames = [...new Set([...allMdas.map(m => canonicalizeMdaName(m.name.trim())), ...uniqueMdaNamesFromHistory])];
     const uniqueMdaNames = [...new Set(allMdaNames)];
     const exclusionMap = buildExclusionLookup(metricExclusions as Array<{ mdaName: string; excludedMetrics: string[] }>);
 
@@ -2285,12 +2295,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process SLA data (month-based, sum and scale by 30/12)
     const slaByMda: { [key: string]: any[] } = {};
     slaData.forEach(data => {
-      if (!slaByMda[data.mdaName]) slaByMda[data.mdaName] = [];
-      slaByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!slaByMda[key]) slaByMda[key] = [];
+      slaByMda[key].push(data);
     });
 
     Object.entries(slaByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2328,12 +2339,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Mystery Shopping (average across both halves)
     const mysteryByMda: { [key: string]: any[] } = {};
     mysteryData.forEach(data => {
-      if (!mysteryByMda[data.mdaName]) mysteryByMda[data.mdaName] = [];
-      mysteryByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!mysteryByMda[key]) mysteryByMda[key] = [];
+      mysteryByMda[key].push(data);
     });
 
     Object.entries(mysteryByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2351,12 +2363,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Controversial (average across both halves)
     const controversialByMda: { [key: string]: any[] } = {};
     controversialData.forEach(data => {
-      if (!controversialByMda[data.mdaName]) controversialByMda[data.mdaName] = [];
-      controversialByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!controversialByMda[key]) controversialByMda[key] = [];
+      controversialByMda[key].push(data);
     });
 
     Object.entries(controversialByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2372,12 +2385,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Touting & Rentseeking (average across both halves)
     const toutingRentseekingByMda: { [key: string]: any[] } = {};
     toutingRentseekingData.forEach(data => {
-      if (!toutingRentseekingByMda[data.mdaName]) toutingRentseekingByMda[data.mdaName] = [];
-      toutingRentseekingByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!toutingRentseekingByMda[key]) toutingRentseekingByMda[key] = [];
+      toutingRentseekingByMda[key].push(data);
     });
 
     Object.entries(toutingRentseekingByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, toutingRentseeking: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2393,12 +2407,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Innovation (average across both halves)
     const innovationByMda: { [key: string]: any[] } = {};
     innovationData.forEach(data => {
-      if (!innovationByMda[data.mdaName]) innovationByMda[data.mdaName] = [];
-      innovationByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!innovationByMda[key]) innovationByMda[key] = [];
+      innovationByMda[key].push(data);
     });
 
     Object.entries(innovationByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2414,12 +2429,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Stakeholder (average across both halves)
     const stakeholderByMda: { [key: string]: any[] } = {};
     stakeholderData.forEach(data => {
-      if (!stakeholderByMda[data.mdaName]) stakeholderByMda[data.mdaName] = [];
-      stakeholderByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!stakeholderByMda[key]) stakeholderByMda[key] = [];
+      stakeholderByMda[key].push(data);
     });
 
     Object.entries(stakeholderByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2435,12 +2451,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Transparency (average across both halves, optional metric)
     const transparencyByMda: { [key: string]: any[] } = {};
     transparencyData.forEach(data => {
-      if (!transparencyByMda[data.mdaName]) transparencyByMda[data.mdaName] = [];
-      transparencyByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!transparencyByMda[key]) transparencyByMda[key] = [];
+      transparencyByMda[key].push(data);
     });
 
     Object.entries(transparencyByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = {
           mdaName,
@@ -2480,12 +2497,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Report Gov Resolution (average across both halves)
     const reportGovResByMda: { [key: string]: any[] } = {};
     reportGovResolutionData.forEach(data => {
-      if (!reportGovResByMda[data.mdaName]) reportGovResByMda[data.mdaName] = [];
-      reportGovResByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!reportGovResByMda[key]) reportGovResByMda[key] = [];
+      reportGovResByMda[key].push(data);
     });
 
     Object.entries(reportGovResByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2573,12 +2591,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Monthly Report (month-based, similar to SLA)
     const monthlyReportByMda: { [key: string]: any[] } = {};
     monthlyReportData.forEach(data => {
-      if (!monthlyReportByMda[data.mdaName]) monthlyReportByMda[data.mdaName] = [];
-      monthlyReportByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!monthlyReportByMda[key]) monthlyReportByMda[key] = [];
+      monthlyReportByMda[key].push(data);
     });
 
     Object.entries(monthlyReportByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2622,12 +2641,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Timeliness (month-based, similar to SLA)
     const timelinessByMda: { [key: string]: any[] } = {};
     timelinessData.forEach(data => {
-      if (!timelinessByMda[data.mdaName]) timelinessByMda[data.mdaName] = [];
-      timelinessByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!timelinessByMda[key]) timelinessByMda[key] = [];
+      timelinessByMda[key].push(data);
     });
 
     Object.entries(timelinessByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2671,12 +2691,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Others (Dynamic for 2026+)
     const othersByMda: { [key: string]: any[] } = {};
     othersData.forEach(data => {
-      if (!othersByMda[data.mdaName]) othersByMda[data.mdaName] = [];
-      othersByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!othersByMda[key]) othersByMda[key] = [];
+      othersByMda[key].push(data);
     });
 
     Object.entries(othersByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
@@ -2695,12 +2716,13 @@ export const getAllMdaSavedDataForDashboard = query({
     // Process Penalties (Dynamic for 2026+)
     const penaltiesByMda: { [key: string]: any[] } = {};
     penaltiesData.forEach(data => {
-      if (!penaltiesByMda[data.mdaName]) penaltiesByMda[data.mdaName] = [];
-      penaltiesByMda[data.mdaName].push(data);
+      const key = canonicalizeMdaName(data.mdaName);
+      if (!penaltiesByMda[key]) penaltiesByMda[key] = [];
+      penaltiesByMda[key].push(data);
     });
 
     Object.entries(penaltiesByMda).forEach(([rawMdaName, dataList]) => {
-      const mdaName = rawMdaName.trim();
+      const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null };
       }
