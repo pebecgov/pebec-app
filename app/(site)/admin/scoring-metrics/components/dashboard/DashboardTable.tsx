@@ -10,6 +10,7 @@ interface DashboardTableProps {
     efficiencyConfig: any;
     othersConfig: any;
     penaltyConfig: any;
+    bonusConfig: any;
     mysteryConfig: any;
     processDashboardMdaData: (filter: 'all' | 'withData', ministryFilter: 'all' | 'ministries-only' | 'without-ministries') => any[];
     mdaFilter: 'all' | 'withData';
@@ -27,6 +28,7 @@ export default function DashboardTable({
     efficiencyConfig,
     othersConfig,
     penaltyConfig,
+    bonusConfig,
     mysteryConfig,
     processDashboardMdaData,
     mdaFilter,
@@ -62,6 +64,7 @@ export default function DashboardTable({
                                     metric === 'transparency' ? 'Transparency' :
                                         metric === 'others' ? 'Others (Dynamic)' :
                                             metric === 'penalties' ? 'Penalties' :
+                                                metric === 'bonuses' ? 'Bonuses' :
                                                 metric === 'reportGovResolution' ? 'Report Gov Resolution' :
                                                     metric === 'monthlyReport' ? 'Monthly Report Submission' :
                                                         metric === 'timeliness' ? 'Timeliness' : 'Score';
@@ -79,6 +82,7 @@ export default function DashboardTable({
         if (metric === "monthlyReport") return isExcluded(mda, "reportSubmission") ? 0 : (mda.monthlyReport?.score || 0);
         if (metric === "timeliness") return isExcluded(mda, "timeliness") ? 0 : (mda.timeliness?.score || 0);
         if (metric === "penalties") return isExcluded(mda, "penalties") ? 0 : (mda.penalties?.score || 0);
+        if (metric === "bonuses") return isExcluded(mda, "bonuses") ? 0 : (mda.bonuses?.score || 0);
         if (metric === "efficiency") {
             const slaScore = isExcluded(mda, "sla") ? 0 : (mda.sla?.score || 0);
             const reportScore = isExcluded(mda, "reportSubmission") ? 0 : (mda.monthlyReport?.score || 0);
@@ -108,6 +112,7 @@ export default function DashboardTable({
         if (metric === "monthlyReport") return isExcluded(mda, "reportSubmission");
         if (metric === "timeliness") return isExcluded(mda, "timeliness");
         if (metric === "penalties") return isExcluded(mda, "penalties");
+        if (metric === "bonuses") return isExcluded(mda, "bonuses");
         if (metric.startsWith("others:")) return isOthersItemExcluded(mda, metric.replace("others:", ""));
         if (metric === "others") return isExcluded(mda, "others");
         return false;
@@ -169,6 +174,11 @@ export default function DashboardTable({
                                             {penaltyConfig?.map((item: any) => (
                                                 <th key={item.penaltyId} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     {item.penaltyName}
+                                                </th>
+                                            ))}
+                                            {bonusConfig?.map((item: any) => (
+                                                <th key={item.bonusId} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    {item.bonusName}
                                                 </th>
                                             ))}
                                         </>
@@ -276,6 +286,9 @@ export default function DashboardTable({
                                 } else if (selectedMetric === 'penalties') {
                                     score = isExcluded(mda, "penalties") ? 0 : (mda.penalties?.score || 0);
                                     overallPercentage = score; // Usually negative or points
+                                } else if (selectedMetric === 'bonuses') {
+                                    score = isExcluded(mda, "bonuses") ? 0 : (mda.bonuses?.score || 0);
+                                    overallPercentage = score;
                                 } else if (selectedMetric === 'timeliness') {
                                     score = isExcluded(mda, "timeliness") ? 0 : (mda.timeliness?.score || 0);
                                     maxScore = 2;
@@ -479,6 +492,20 @@ export default function DashboardTable({
                                                                     ) : (
                                                                         <span className={`font-semibold ${hasPenalty ? 'text-red-600' : 'text-gray-500'}`}>
                                                                             {hasPenalty ? `${item.penaltyValue}` : "0.0"}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        {bonusConfig?.map((item: any) => {
+                                                            const hasBonus = mda.bonuses?.values?.[item.bonusId] === true;
+                                                            return (
+                                                                <td key={item.bonusId} className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                                    {isExcluded(mda, "bonuses") ? (
+                                                                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Excluded</span>
+                                                                    ) : (
+                                                                        <span className={`font-semibold ${hasBonus ? 'text-emerald-600' : 'text-gray-500'}`}>
+                                                                            {hasBonus ? `+${item.bonusValue}` : "0.0"}
                                                                         </span>
                                                                     )}
                                                                 </td>

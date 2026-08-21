@@ -21,6 +21,7 @@ import TimelinessCard from './TimelinessCard';
 import FinalScoreButton from './FinalScoreButton';
 import DynamicOthersCard from './DynamicOthersCard';
 import DynamicPenaltiesCard from './DynamicPenaltiesCard';
+import DynamicBonusesCard from './DynamicBonusesCard';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -113,6 +114,7 @@ export default function ScoringTab({
     // Dynamic State for 2026+ (Others & Penalties)
     const [othersValues, setOthersValues] = useState<Record<string, boolean | number>>({});
     const [penaltyValues, setPenaltyValues] = useState<Record<string, boolean>>({});
+    const [bonusValues, setBonusValues] = useState<Record<string, boolean>>({});
 
     // Modal Visibility
     const [showSlaModal, setShowSlaModal] = useState(false);
@@ -127,6 +129,7 @@ export default function ScoringTab({
     // Dynamic Mutations
     const saveOthersItems = useMutation(api.mda_scoring.saveOthersData);
     const savePenaltiesItems = useMutation(api.mda_scoring.savePenaltiesData);
+    const saveBonusesItems = useMutation(api.mda_scoring.saveBonusesData);
 
     // --- Year Detection & Configuration (2026+) ---
     const getScoringYear = (period: string): number => {
@@ -151,6 +154,10 @@ export default function ScoringTab({
     );
     const penaltyConfig = useQuery(
         api.scoring_config.getPenaltyItems,
+        useDynamicConfig ? { year: scoringYear } : "skip"
+    );
+    const bonusConfig = useQuery(
+        api.scoring_config.getBonusItems,
         useDynamicConfig ? { year: scoringYear } : "skip"
     );
     const mdaMetricExclusions = useQuery(
@@ -272,6 +279,10 @@ export default function ScoringTab({
         api.mda_scoring.getPenaltiesData,
         selectedMda && useDynamicConfig ? { mdaName: selectedMda, scoringPeriod } : "skip"
     );
+    const savedBonusesData = useQuery(
+        api.mda_scoring.getBonusesData,
+        selectedMda && useDynamicConfig ? { mdaName: selectedMda, scoringPeriod } : "skip"
+    );
 
     // --- Loading States ---
     const isLoadingSLAData = !!selectedMda && savedSLAData === undefined;
@@ -286,6 +297,7 @@ export default function ScoringTab({
     const isLoadingTimelinessData = !!selectedMda && savedTimelinessData === undefined;
     const isLoadingOthersData = !!selectedMda && useDynamicConfig && savedOthersData === undefined;
     const isLoadingPenaltiesData = !!selectedMda && useDynamicConfig && savedPenaltiesData === undefined;
+    const isLoadingBonusesData = !!selectedMda && useDynamicConfig && savedBonusesData === undefined;
 
     // Leaderboard Queries for Ranking Modals
     const mysteryRankings = useQuery(api.mda_scoring.getMysteryShoppingRankings, { scoringPeriod });
@@ -524,6 +536,12 @@ export default function ScoringTab({
         }
     }, [savedPenaltiesData, selectedMda, scoringPeriod, isLoadingPenaltiesData, useDynamicConfig]);
 
+    // Load saved Bonuses data (2026+)
+    useEffect(() => {
+        if (isLoadingBonusesData || !selectedMda || !useDynamicConfig) return;
+        setBonusValues(savedBonusesData?.values || {});
+    }, [savedBonusesData, selectedMda, scoringPeriod, isLoadingBonusesData, useDynamicConfig]);
+
     // --- Calculators ---
     const calculateMonthlySlaScore = () => {
         const months = periodMonths;
@@ -637,6 +655,7 @@ export default function ScoringTab({
         let transparency = 0;
         let othersScore = 0;
         let penaltyScore = 0;
+        let bonusScore = 0;
 
         // Keep max points aligned with dashboard model.
         let currentMaxPoints = useDynamicConfig ? 100 : 80;
@@ -663,6 +682,15 @@ export default function ScoringTab({
                     if (penaltyValues[item.penaltyId]) {
                         // Assuming penaltyValue is positive in DB (e.g. 5), so we subtract it
                         penaltyScore -= item.penaltyValue;
+                    }
+                });
+            }
+
+            // Bonuses ( Extra points )
+            if (!isMetricExcluded("bonuses") && bonusConfig) {
+                bonusConfig.forEach((item: any) => {
+                    if (bonusValues[item.bonusId]) {
+                        bonusScore += Math.abs(item.bonusValue);
                     }
                 });
             }
@@ -713,7 +741,7 @@ export default function ScoringTab({
         // Total
         let totalScore = 0;
         if (useDynamicConfig) {
-            totalScore = sla + mystery + reportGov + monthlyReport + timeliness + othersScore + penaltyScore;
+            totalScore = sla + mystery + reportGov + monthlyReport + timeliness + othersScore + penaltyScore + bonusScore;
         } else {
             totalScore = sla + mystery + innovation + stakeholder + transparency + reportGov + monthlyReport + timeliness + controversial + touting;
         }
@@ -736,7 +764,8 @@ export default function ScoringTab({
                 monthlyReportSubmission: monthlyReport,
                 timelinessInSubmitting: timeliness,
                 others: othersScore,
-                penalties: penaltyScore
+                penalties: penaltyScore,
+                bonuses: bonusScore
             }
         };
     };
@@ -900,6 +929,29 @@ export default function ScoringTab({
         }
     };
 
+    const handleSaveBonuses = async () => {
+        if (!selectedMda || !bonusConfig) return;
+        try {
+            let totalBonus = 0;
+            bonusConfig.forEach((item: any) => {
+                if (bonusValues[item.bonusId]) {
+                    totalBonus += Math.abs(item.bonusValue);
+                }
+            });
+
+            await saveBonusesItems({
+                mdaName: selectedMda,
+                scoringPeriod,
+                values: bonusValues,
+                totalBonus
+            });
+            toast.success("Result saved");
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to save");
+        }
+    };
+
     const handleSaveTransparency = async () => {
         if (!selectedMda) return;
         try {
@@ -998,6 +1050,7 @@ export default function ScoringTab({
                 timelinessInSubmittingScore: finalScores.scores.timelinessInSubmitting,
                 othersScore: finalScores.scores.others,
                 penaltiesScore: finalScores.scores.penalties,
+                bonusesScore: finalScores.scores.bonuses,
 
                 // Performance Data
                 ...performanceData,
@@ -1164,6 +1217,17 @@ export default function ScoringTab({
                                         onSave={handleSavePenalties}
                                         isLoading={isLoadingPenaltiesData}
                                         isSaved={!!savedPenaltiesData}
+                                        selectedMda={selectedMda}
+                                    />
+                                )}
+                                {bonusConfig && bonusConfig.length > 0 && (
+                                    <DynamicBonusesCard
+                                        bonusConfig={bonusConfig}
+                                        bonusValues={bonusValues}
+                                        onValueChange={(id, val) => setBonusValues(prev => ({ ...prev, [id]: val }))}
+                                        onSave={handleSaveBonuses}
+                                        isLoading={isLoadingBonusesData}
+                                        isSaved={!!savedBonusesData}
                                         selectedMda={selectedMda}
                                     />
                                 )}

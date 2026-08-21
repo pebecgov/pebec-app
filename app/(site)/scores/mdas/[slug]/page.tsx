@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { MetricBreakdown, SummaryHeader } from "@/components/scores/SummaryPage";
+import { MetricBreakdown, ScoreAdjustments, SummaryHeader } from "@/components/scores/SummaryPage";
 import { Skeleton } from "@/components/scores/primitives";
 import {
   SCORE_YEAR,
@@ -15,12 +15,22 @@ import {
   type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
 
+interface AdjustmentItem {
+  id: string;
+  name: string;
+  value: number;
+}
+
 interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
   metricScores?: Record<string, { score: number; max: number }>;
   excludedMetrics?: string[];
+  penaltyScore?: number;
+  bonusScore?: number;
+  penaltyValues?: Record<string, boolean>;
+  bonusValues?: Record<string, boolean>;
   rank: number;
 }
 
@@ -96,8 +106,22 @@ export default function MdaSummaryPage() {
       />
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Metrics follow the 2026 BFA configuration used in admin scoring"
+        hint="Efficiency bundle and Others from the 2026 BFA configuration"
         metrics={metrics}
+      />
+      <ScoreAdjustments
+        bonuses={((mdaData.adjustments?.bonuses || []) as AdjustmentItem[]).map((item) => ({
+          name: item.name,
+          applied: selected.bonusValues?.[item.id] === true,
+          value: item.value,
+        }))}
+        penalties={((mdaData.adjustments?.penalties || []) as AdjustmentItem[]).map((item) => ({
+          name: item.name,
+          applied: selected.penaltyValues?.[item.id] === true,
+          value: item.value,
+        }))}
+        bonusTotal={selected.bonusScore ?? 0}
+        penaltyTotal={selected.penaltyScore ?? 0}
       />
     </div>
   );

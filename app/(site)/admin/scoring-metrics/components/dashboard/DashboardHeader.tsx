@@ -71,7 +71,8 @@ export default function DashboardHeader({
                                             </SelectItem>
                                         ))
                                         : []),
-                                    <SelectItem key="penalties" value="penalties">Penalties (Dynamic)</SelectItem>
+                                    <SelectItem key="penalties" value="penalties">Penalties (Dynamic)</SelectItem>,
+                                    <SelectItem key="bonuses" value="bonuses">Bonuses (Dynamic)</SelectItem>
                                 ]}
 
                                 <SelectItem value="reportGovResolution">Report Gov Resolution</SelectItem>

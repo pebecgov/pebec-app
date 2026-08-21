@@ -75,6 +75,7 @@ export default function ScoringMetricsPage() {
   // Extract specific configs from allConfigs for clarity
   const efficiencyConfig = allConfigs?.efficiencyPeriod;
   const penaltyConfig = allConfigs?.penaltyItems;
+  const bonusConfig = allConfigs?.bonusItems;
   const mysteryConfig = allConfigs?.mysteryShoppingTypes;
   const transparencyItems = allConfigs?.othersItems;
   const innovationItems = allConfigs?.innovationItems;
@@ -249,6 +250,7 @@ export default function ScoringMetricsPage() {
         timeliness: null,
         others: null,
         penalties: null,
+        bonuses: null,
         totalScore: 0,
         totalPercentage: 0,
         maxPossiblePoints: baseMaxPoints,
@@ -280,6 +282,7 @@ export default function ScoringMetricsPage() {
             transparency: mda.transparency != null ? mda.transparency : existing.transparency,
             others: mda.others != null ? mda.others : existing.others,
             penalties: mda.penalties != null ? mda.penalties : existing.penalties,
+            bonuses: mda.bonuses != null ? mda.bonuses : existing.bonuses,
             reportGovResolution: mda.reportGovResolution != null ? {
               ...mda.reportGovResolution,
               // Preserve all fields including hasFirstHalf, hasSecondHalf, firstHalfScore, secondHalfScore
@@ -406,7 +409,11 @@ export default function ScoringMetricsPage() {
         penaltyValue = isExcluded("penalties") ? 0 : Math.abs(mda.penalties?.score || 0);
       }
 
-      const totalScore = baseTotalScore - penaltyValue;
+      const bonusValue = dashboardYear >= 2026 && !isExcluded("bonuses")
+        ? Math.abs(mda.bonuses?.score || 0)
+        : 0;
+
+      const totalScore = baseTotalScore - penaltyValue + bonusValue;
 
       // Check if optional metrics are skipped
       const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
@@ -719,6 +726,7 @@ export default function ScoringMetricsPage() {
             efficiencyConfig={efficiencyConfig}
             othersConfig={othersConfig}
             penaltyConfig={penaltyConfig}
+            bonusConfig={bonusConfig}
             mysteryConfig={mysteryConfig}
             selectedMetric={selectedMetric}
             setSelectedMetric={setSelectedMetric}

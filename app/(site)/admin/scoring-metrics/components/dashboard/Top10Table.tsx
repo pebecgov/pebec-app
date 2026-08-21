@@ -28,7 +28,8 @@ function getMetricLabel(selectedMetric: string): string {
         timeliness: 'Timeliness',
         totalScore: 'Total Score',
         others: 'Others (Dynamic)',
-        penalties: 'Penalties'
+        penalties: 'Penalties',
+        bonuses: 'Bonuses'
     };
     return labels[selectedMetric] || 'Score';
 }
@@ -56,6 +57,7 @@ function getMetricValue(mda: any, metric: string): number {
         return mda.others?.scores?.[itemId] || 0;
     }
     if (metric === 'penalties') return mda.penalties?.score || 0;
+    if (metric === 'bonuses') return mda.bonuses?.score || 0;
     return 0;
 }
 
@@ -79,8 +81,8 @@ function calculatePercentage(mda: any, metric: string): number {
     };
 
     const maxScore = maxScores[metric] || 100;
-    if (metric === 'controversial' || metric === 'toutingRentseeking' || metric === 'penalties') {
-        return score; // Display raw penalty value
+    if (metric === 'controversial' || metric === 'toutingRentseeking' || metric === 'penalties' || metric === 'bonuses') {
+        return score; // Display raw adjustment value
     }
     return maxScore > 0 ? (score / maxScore) * 100 : 0;
 }

@@ -354,6 +354,57 @@ export const savePenaltyItems = mutation({
 });
 
 // ============================================
+// BONUS ITEMS
+// ============================================
+
+export const getBonusItems = query({
+    args: { year: v.number() },
+    handler: async (ctx, { year }) => {
+        const items = await ctx.db.query("bonus_items")
+            .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
+            .collect();
+
+        return items.sort((a, b) => a.order - b.order);
+    }
+});
+
+export const saveBonusItems = mutation({
+    args: {
+        year: v.number(),
+        items: v.array(v.object({
+            bonusId: v.string(),
+            bonusName: v.string(),
+            bonusValue: v.number(),
+            order: v.number()
+        }))
+    },
+    handler: async (ctx, { year, items }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+
+        const existingItems = await ctx.db.query("bonus_items")
+            .withIndex("byYear", q => q.eq("year", year))
+            .collect();
+
+        for (const existing of existingItems) {
+            await ctx.db.patch(existing._id, { isActive: false });
+        }
+
+        for (const item of items) {
+            await ctx.db.insert("bonus_items", {
+                year,
+                ...item,
+                isActive: true,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                createdBy: user._id
+            });
+        }
+
+        return { success: true };
+    }
+});
+
+// ============================================
 // INNOVATION & STAKEHOLDER ITEMS
 // ============================================
 
@@ -511,6 +562,7 @@ export const getAllConfigurationsForYear = query({
             mysteryShoppingData,
             transparencyItems,
             penaltyItems,
+            bonusItems,
             innovationItems,
             stakeholderItems,
             metricExclusions
@@ -550,6 +602,9 @@ export const getAllConfigurationsForYear = query({
             ctx.db.query("penalty_items")
                 .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
                 .collect(),
+            ctx.db.query("bonus_items")
+                .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
+                .collect(),
             ctx.db.query("innovation_stakeholder_items")
                 .withIndex("byYearTypeAndActive", q =>
                     q.eq("year", year).eq("itemType", "innovation").eq("isActive", true)
@@ -571,6 +626,7 @@ export const getAllConfigurationsForYear = query({
             mysteryShoppingTypes: mysteryShoppingData,
             othersItems: transparencyItems.sort((a, b) => a.order - b.order),
             penaltyItems: penaltyItems.sort((a, b) => a.order - b.order),
+            bonusItems: bonusItems.sort((a, b) => a.order - b.order),
             innovationItems: innovationItems.sort((a, b) => a.order - b.order),
             stakeholderItems: stakeholderItems.sort((a, b) => a.order - b.order),
             metricExclusions

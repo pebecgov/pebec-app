@@ -31,6 +31,7 @@ export default function ViewDetailsModal({
     const allConfigs = useQuery(api.scoring_config.getAllConfigurationsForYear, { year: dashboardYear });
     const othersItems = allConfigs?.othersItems || [];
     const penaltyItems = allConfigs?.penaltyItems || [];
+    const bonusItems = allConfigs?.bonusItems || [];
 
     const formatScore = (value: unknown, digits = 1) =>
         typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "N/A";
@@ -161,6 +162,7 @@ export default function ViewDetailsModal({
                                 const touting = pickTotal(viewDetailsData.toutingRentseeking);
                                 const others = pickTotal(viewDetailsData.others);
                                 const penalties = pickTotal(viewDetailsData.penalties);
+                                const bonuses = pickTotal(viewDetailsData.bonuses);
                                 const efficiencyConfig = (allConfigs?.efficiencyPeriod ?? null) as
                                     | {
                                         slaPoints?: number;
@@ -383,6 +385,45 @@ export default function ViewDetailsModal({
                                     </div>
                                 )}
 
+                                {dashboardYear >= 2026 && !isExcluded("bonuses") && (
+                                    <div className={`${cardClass} lg:col-span-2`}>
+                                        <div className="flex items-start justify-between mb-3">
+                                            <h3 className="font-semibold text-gray-900">Bonuses</h3>
+                                            <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                Extra Points
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {bonusItems.map((item: any) => {
+                                                const active = bonuses?.values?.[item.bonusId] === true;
+                                                return (
+                                                    <div key={item.bonusId} className="rounded-xl border border-slate-200 p-3 bg-gradient-to-b from-white to-emerald-50/40 shadow-sm">
+                                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                                            <p className="text-sm font-semibold text-gray-900">{item.bonusName}</p>
+                                                            <span className={`text-[11px] font-medium px-2 py-1 rounded-full border ${active ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                                                                {active ? "Applied" : "Not Applied"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                                                            <p className="text-[11px] uppercase tracking-wide text-slate-500">Bonus Value</p>
+                                                            <p className={`text-sm font-semibold ${active ? "text-emerald-700" : "text-slate-900"}`}>
+                                                                {active ? `+${formatText(item.bonusValue)}` : "0"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {bonusItems.length === 0 && (
+                                                <p className="text-sm text-gray-500">No bonus items configured.</p>
+                                            )}
+                                        </div>
+                                        <div className="mt-3 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                                            <p className="text-[11px] uppercase tracking-wide text-slate-500">Total Bonus</p>
+                                            <p className="text-base font-semibold text-emerald-700">{formatNumericOrZero(dashboardRow?.bonuses?.score ?? bonuses?.totalBonus)}</p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className={`${cardClass} lg:col-span-2`}>
                                     <div className="flex items-start justify-between mb-3">
                                         <h3 className="font-semibold text-gray-900">Score Summary</h3>
@@ -394,6 +435,7 @@ export default function ViewDetailsModal({
                                         let grossScore = 0;
                                         let maxPossiblePoints = 0;
                                         let penaltyDeduction = 0;
+                                        let bonusAddition = 0;
 
                                         if (dashboardYear >= 2026) {
                                             const slaPoints = safeNumber(efficiencyConfig?.slaPoints) || 30;
@@ -434,6 +476,9 @@ export default function ViewDetailsModal({
                                             penaltyDeduction = isExcluded("penalties")
                                                 ? 0
                                                 : Math.abs(safeNumber(penalties?.totalPenalty));
+                                            bonusAddition = isExcluded("bonuses")
+                                                ? 0
+                                                : Math.abs(safeNumber(bonuses?.totalBonus));
                                         } else {
                                             if (!isExcluded("sla")) {
                                                 grossScore += safeNumber(sla?.totalScore);
@@ -477,7 +522,7 @@ export default function ViewDetailsModal({
                                             penaltyDeduction = controversialPenalty + toutingPenalty;
                                         }
 
-                                        const finalScore = grossScore - penaltyDeduction;
+                                        const finalScore = grossScore + bonusAddition - penaltyDeduction;
                                         const percentage = maxPossiblePoints > 0 ? (finalScore / maxPossiblePoints) * 100 : 0;
 
                                         const tableGross = safeNumber(dashboardRow?.totalGrossScore);
@@ -488,20 +533,29 @@ export default function ViewDetailsModal({
                                         const afterPenalty = dashboardRow ? tableFinal : finalScore;
                                         const maxPointsDisplay = dashboardRow ? tableMax : maxPossiblePoints;
                                         const percentDisplay = dashboardRow ? tablePct : percentage;
-                                        const penaltyDisplay = dashboardRow ? Math.max(0, beforePenalty - afterPenalty) : penaltyDeduction;
+                                        const penaltyDisplay = dashboardRow
+                                            ? Math.abs(safeNumber(dashboardRow?.penalties?.score))
+                                            : penaltyDeduction;
+                                        const bonusDisplay = dashboardRow
+                                            ? Math.abs(safeNumber(dashboardRow?.bonuses?.score))
+                                            : bonusAddition;
 
                                         return (
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Before Penalty</p>
+                                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Metrics Total</p>
                                                     <p className="text-base font-semibold text-slate-900">{formatNumericOrZero(beforePenalty)}</p>
+                                                </div>
+                                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Bonus</p>
+                                                    <p className="text-base font-semibold text-emerald-700">+{formatNumericOrZero(bonusDisplay)}</p>
                                                 </div>
                                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                                                     <p className="text-[11px] uppercase tracking-wide text-slate-500">Penalty</p>
                                                     <p className="text-base font-semibold text-rose-700">-{formatNumericOrZero(penaltyDisplay)}</p>
                                                 </div>
                                                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">After Penalty</p>
+                                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Final Score</p>
                                                     <p className="text-base font-semibold text-slate-900">
                                                         {formatNumericOrZero(afterPenalty)} / {formatNumericOrZero(maxPointsDisplay)}
                                                     </p>
@@ -526,6 +580,7 @@ export default function ViewDetailsModal({
                                 !isExcluded("timeliness") ? pickTotal(viewDetailsData.timeliness) : null,
                                 !isExcluded("others") ? pickTotal(viewDetailsData.others) : null,
                                 !isExcluded("penalties") ? pickTotal(viewDetailsData.penalties) : null,
+                                !isExcluded("bonuses") ? pickTotal(viewDetailsData.bonuses) : null,
                                 dashboardYear === 2025 && !isExcluded("innovation") ? pickTotal(viewDetailsData.innovation) : null,
                                 dashboardYear === 2025 && !isExcluded("stakeholder") ? pickTotal(viewDetailsData.stakeholder) : null,
                                 dashboardYear === 2025 && !isExcluded("transparency") ? pickTotal(viewDetailsData.transparency) : null,
