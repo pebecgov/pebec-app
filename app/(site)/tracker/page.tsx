@@ -8,7 +8,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
 export default function TrackerPage() {
-  const currentYear = 2025; // Use 2025 where state data exists
+  const currentYear = 2026;
   
   // Get some live data to show in the cards
   const stateData = useQuery(api.public_scores.getPublicStateRankings, { limit: 3, year: currentYear });

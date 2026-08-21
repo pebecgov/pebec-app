@@ -26,7 +26,7 @@ export default function BulkImportStateScores() {
   const [parsedData, setParsedData] = useState<ScoreRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(2025); // Default to 2025 where data exists
+  const [selectedYear, setSelectedYear] = useState(2026);
   const [importResults, setImportResults] = useState<{
     imported: number;
     errors: number;
@@ -275,10 +275,11 @@ export default function BulkImportStateScores() {
         <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
           <p className="font-medium">Example Indicator Keys:</p>
           <ul className="list-disc list-inside space-y-0.5">
-            <li>access_to_electricity</li>
+            <li>electricity</li>
             <li>infrastructure</li>
-            <li>digital_connectivity</li>
-            <li>land_registration</li>
+            <li>getting_credit</li>
+            <li>digitalizing_land_registration</li>
+            <li>access_to_justice</li>
             <li>... (see indicators config for full list)</li>
           </ul>
         </div>

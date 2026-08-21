@@ -1,411 +1,397 @@
-// Centralized indicators configuration - Updated to match PEBEC Framework Document
-// Each indicator has subIndicators, and each subIndicator has options with scores
+// PEBEC Sub-National Ease of Doing Business Ranking Framework
+// Source: PEBEC Subnational Justification Matrix (current official version)
 
 export const indicators = {
-  "electricity": {
+  electricity: {
     name: "Electricity (16%)",
     subIndicators: {
-      "state_electricity_law": {
-        label: "State Electricity Law",
+      state_electricity_law: {
+        label: "State Electricity Law (2%)",
         options: [
           { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 }
-        ]
+          { value: "no", label: "No (0)", score: 0 },
+        ],
       },
-      "electricity_regulatory_commission": {
-        label: "Establishment of State Electricity Regulatory Commission",
+      electricity_regulatory_commission: {
+        label: "Establishment of State Electricity Regulatory Commission (2%)",
         options: [
           { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 }
-        ]
+          { value: "no", label: "No (0)", score: 0 },
+        ],
       },
-      "nerc_transfer_request": {
-        label: "Request for Transfer from NERC",
+      nerc_transfer_request: {
+        label: "Request for Transfer from NERC (2%)",
+        options: [
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      electricity_license: {
+        label: "License (1%)",
         options: [
           { value: "yes", label: "Yes (1)", score: 1 },
-          { value: "no", label: "No (0)", score: 0 }
-        ]
+          { value: "no", label: "No (0)", score: 0 },
+        ],
       },
-      "electricity_license": {
-        label: "License",
-        options: [
-          { value: "yes", label: "Yes (1)", score: 1 },
-          { value: "no", label: "No (0)", score: 0 }
-        ]
-      },
-      "electricity_generation": {
-        label: "Electricity Generation (Bonus)",
+      electricity_generation: {
+        label: "Electricity Generation (4% Bonus)",
         options: [
           { value: "excellent", label: "Excellent (4)", score: 4 },
           { value: "good", label: "Good (3)", score: 3 },
           { value: "fair", label: "Fair (2)", score: 2 },
           { value: "poor", label: "Poor (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 }
-        ]
+          { value: "none", label: "None (0)", score: 0 },
+        ],
       },
-      "electricity_transmission_distribution": {
-        label: "Electricity Transmission and Distribution",
+      electricity_transmission_distribution: {
+        label: "Electricity Transmission and Distribution (5%)",
         options: [
           { value: "excellent", label: "Excellent (5)", score: 5 },
           { value: "good", label: "Good (4)", score: 4 },
           { value: "fair", label: "Fair (3)", score: 3 },
           { value: "poor", label: "Poor (2)", score: 2 },
           { value: "very_poor", label: "Very Poor (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 }
-        ]
-      }
-    }
+          { value: "none", label: "None (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "infrastructure": {
+  infrastructure: {
     name: "Infrastructure (8%)",
     subIndicators: {
-      "roads_within_state_capital": {
-        label: "Roads within State Capital",
+      roads_within_state_capital: {
+        label: "Roads within State Capital (4%)",
         options: [
-          { value: "excellent", label: "Excellent (8)", score: 8 },
-          { value: "very_good", label: "Very Good (6)", score: 6 },
-          { value: "good", label: "Good (4)", score: 4 },
-          { value: "fair", label: "Fair (2)", score: 2 },
-          { value: "poor", label: "Poor (0)", score: 0 }
-        ]
+          { value: "excellent", label: "Excellent (4)", score: 4 },
+          { value: "very_good", label: "Very Good (3)", score: 3 },
+          { value: "good", label: "Good (2)", score: 2 },
+          { value: "fair", label: "Fair (1)", score: 1 },
+          { value: "poor", label: "Poor (0)", score: 0 },
+        ],
       },
-      "industrial_zones": {
-        label: "Industrial Zones",
+      industrial_zones: {
+        label: "Industrial Zones (4%)",
         options: [
-          { value: "excellent", label: "Excellent (8)", score: 8 },
-          { value: "very_good", label: "Very Good (6)", score: 6 },
-          { value: "good", label: "Good (4)", score: 4 },
-          { value: "fair", label: "Fair (2)", score: 2 },
-          { value: "poor", label: "Poor (0)", score: 0 }
-        ]
-      }
-    }
+          { value: "excellent", label: "Excellent (4)", score: 4 },
+          { value: "very_good", label: "Very Good (3)", score: 3 },
+          { value: "good", label: "Good (2)", score: 2 },
+          { value: "fair", label: "Fair (1)", score: 1 },
+          { value: "poor", label: "Poor (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "digital_connectivity": {
-    name: "Digital Connectivity (10%)",
-    subIndicators: {
-      "right_of_way_policy": {
-        label: "Right of Way Policy",
-        options: [
-          { value: "excellent", label: "Excellent (5)", score: 5 },
-          { value: "good", label: "Good (4)", score: 4 },
-          { value: "fair", label: "Fair (3)", score: 3 },
-          { value: "poor", label: "Poor (2)", score: 2 },
-          { value: "very_poor", label: "Very Poor (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 }
-        ]
-      },
-      "coverage_5g_network_reliability": {
-        label: "5G Coverage & Network Reliability",
-        options: [
-          { value: "excellent", label: "Excellent (5)", score: 5 },
-          { value: "good", label: "Good (4)", score: 4 },
-          { value: "fair", label: "Fair (3)", score: 3 },
-          { value: "poor", label: "Poor (2)", score: 2 },
-          { value: "very_poor", label: "Very Poor (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 }
-        ]
-      }
-    }
-  },
-  "land_registration": {
-    name: "Land Registration",
-    subIndicators: {
-      "process_automation": {
-        label: "Process type",
-        options: [
-          { value: "automated", label: "Automated", score: 2 },
-          { value: "hybrid", label: "Hybrid", score: 1 },
-          { value: "manual", label: "Manual", score: 0 }
-        ]
-      },
-      "certificate_time": {
-        label: "Days for CofO",
-        options: [
-          { value: "0-30-days", label: "0–30 days", score: 1 },
-          { value: "0-60-days", label: "0–60 days", score: 0.5 },
-          { value: "over-60-days", label: ">60 days", score: 0 },
-          { value: "not-available", label: "Not Available", score: 0 }
-        ]
-      },
-      "procedures_availability": {
-        label: "Procedure/fees publicly available",
-        options: [
-          { value: "publicly-available-online", label: "Procedure/Fees", score: 1 },
-          { value: "either-fees-or-procedures", label: "Procedure only", score: 0.5 },
-          { value: "not-publicly-available", label: "None", score: 0 }
-        ]
-      },
-      "gis_functionality": {
-        label: "Availability of GIS",
-        options: [
-          { value: "functional-gis-available", label: "GIS available", score: 2 },
-          { value: "no-functional-gis", label: "No GIS", score: 0 }
-        ]
-      }
-    }
-  },
-  "small_claims_courts": {
-    name: "Small Claims Courts",
-    subIndicators: {
-      "number_of_courts": {
-        label: "Number of SCCs established and actively sitting in main city",
-        options: [
-          { value: "1-5", label: "1-5", score: 1 },
-          { value: "6-10", label: "6-10", score: 1.5 },
-          { value: "11-14", label: "11-14", score: 2 },
-          { value: "15-and-above", label: "15 and above", score: 3 }
-        ]
-      },
-      "compliance_reporting": {
-        label: "Compliance with publishing report",
-        options: [
-          { value: "up-to-date", label: "Up to date", score: 2 },
-          { value: "6-months-old", label: "More than 6 months", score: 1.5 },
-          { value: "3-months-old", label: "More than 3 months", score: 1 },
-          { value: "not-published", label: "Not published", score: 0 }
-        ]
-      }
-    }
-  },
-  "investor_aftercare_service": {
-    name: "Investor Aftercare Service",
-    subIndicators: {
-      "designated_desk": {
-        label: "Does the state have a designated investor aftercare desk/department?",
-        options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      }
-    }
-  },
-  "workforce_development": {
-    name: "Workforce Development and Social Infrastructure",
-    subIndicators: {
-      "social_security_systems": {
-        label: "Does the state operate social security systems for vulnerable populations?",
-        options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "gender_inclusivity": {
-        label: "Does the state meet the gender inclusivity benchmark?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      }
-    }
-  },
-  "crisis_resilience": {
-    name: "Crisis Resilience and Business Continuity",
-    subIndicators: {
-      "emergency_agency": {
-        label: "Does the state have a functional emergency management agency?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "sema_funding": {
-        label: "Is the SEMA or equivalent agency visibly funded in the current state budget?",
-        options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      }
-    }
-  },
-  "contract_enforcement": {
-    name: "Contract Enforcement and Commercial Dispute Resolution",
-    subIndicators: {
-      "commercial_court": {
-        label: "Does the state have a commercial court?",
-        options: [
-          { value: "yes-commercial-court", label: "Yes", score: 2.5 },
-          { value: "no-commercial-court", label: "No", score: 0 }
-        ]
-      },
-      "alternative_dispute_resolution": {
-        label: "Does the state have ADR?",
-        options: [
-          { value: "yes-adr", label: "Yes", score: 2.5 },
-          { value: "no-adr", label: "No", score: 0 }
-        ]
-      }
-    }
-  },
-  "market_access": {
-    name: "Market Access and Competition",
-    subIndicators: {
-      "one_stop_shop": {
-        label: "Does the State have a one stop shop?",
-        options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      },
-      "public_incentives": {
-        label: "Does the state have public incentives?",
-        options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      }
-    }
-  },
-  "getting_credit": {
+  getting_credit: {
     name: "Getting Credit (12%)",
     subIndicators: {
-      "state_microfinance_banks": {
-        label: "State Microfinance Banks",
+      state_microfinance_banks: {
+        label: "State Microfinance Banks (6%)",
         options: [
           { value: "excellent", label: "Excellent (6)", score: 6 },
           { value: "good", label: "Good (5)", score: 5 },
           { value: "fair", label: "Fair (4)", score: 4 },
           { value: "poor", label: "Poor (3)", score: 3 },
           { value: "very_poor", label: "Very Poor (2)", score: 2 },
-          { value: "none", label: "None (0)", score: 0 }
-        ]
+          { value: "none", label: "None (0)", score: 0 },
+        ],
       },
-      "access_federal_financial_institutions": {
-        label: "Access to Federal Financial Institutions",
+      access_federal_financial_institutions: {
+        label: "Access to Federal Financial Institutions (6%)",
         options: [
           { value: "excellent", label: "Excellent (6)", score: 6 },
           { value: "good", label: "Good (5)", score: 5 },
           { value: "fair", label: "Fair (4)", score: 4 },
           { value: "poor", label: "Poor (3)", score: 3 },
           { value: "very_poor", label: "Very Poor (2)", score: 2 },
-          { value: "none", label: "None (0)", score: 0 }
-        ]
-      }
-    }
+          { value: "none", label: "None (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "digitalizing_land": {
-    name: "Digitalizing Land",
+  digital_connectivity: {
+    name: "Digital Connectivity (10%)",
     subIndicators: {
-      "gis": {
+      right_of_way_policy: {
+        label: "Right of Way Policy (5%)",
+        options: [
+          { value: "excellent", label: "Excellent (5)", score: 5 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (3)", score: 3 },
+          { value: "poor", label: "Poor (2)", score: 2 },
+          { value: "very_poor", label: "Very Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 },
+        ],
+      },
+      coverage_5g_network_reliability: {
+        label: "5G Coverage & Network Reliability (5%)",
+        options: [
+          { value: "excellent", label: "Excellent (5)", score: 5 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (3)", score: 3 },
+          { value: "poor", label: "Poor (2)", score: 2 },
+          { value: "very_poor", label: "Very Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 },
+        ],
+      },
+    },
+  },
+  digitalizing_land_registration: {
+    name: "Digitalizing Land Registration (10%)",
+    subIndicators: {
+      gis: {
         label: "GIS (3%)",
         options: [
           { value: "excellent", label: "Excellent (3)", score: 3 },
           { value: "good", label: "Good (2)", score: 2 },
           { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 }
-        ]
-      }
-    }
+          { value: "none", label: "None (0)", score: 0 },
+        ],
+      },
+      automated: {
+        label: "Automated (7%)",
+        options: [
+          { value: "fully-automated", label: "Fully automated (7)", score: 7 },
+          { value: "hybrid", label: "Hybrid (4)", score: 4 },
+          { value: "manual", label: "Manual (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "export_import_facilitation": {
-    name: "Export-Import Facilitation",
+  access_to_skilled_labour: {
+    name: "Access to Skilled Labor (5%)",
     subIndicators: {
-      "totalExporters_perState": {
-        label: "Total number of exporters per state",
+      technical_vocational_training_centers: {
+        label: "Technical & Vocational Training Centers (2.5%)",
         options: [
-          { value: ">=1000", label: "≥ 1000", score: 3 },
-          { value: "500-999", label: "500-999", score: 2 },
-          { value: "100-499", label: "100-499", score: 1 },
-          { value: "0-99", label: "0-99", score: 0 }
-        ]
+          { value: "seven-plus", label: "7 or more centres (2.5)", score: 2.5 },
+          { value: "four-to-six", label: "4 to 6 centres (1.75)", score: 1.75 },
+          { value: "one-to-three", label: "1 to 3 centres (1)", score: 1 },
+          { value: "zero", label: "None (0)", score: 0 },
+        ],
       },
-      "StateChamberOfCommerce": {
-        label: "Have state chamber of commerce",
+      tertiary_institutions: {
+        label: "Total number of tertiary institutions (2.5%)",
         options: [
-          { value: "yes", label: "Yes", score: 1 },
-          { value: "no", label: "No", score: 0 }
-        ]
-      }
-    }
+          { value: "seven-plus", label: "7 or more institutions (2.5)", score: 2.5 },
+          { value: "three-to-six", label: "3 to 6 institutions (1.75)", score: 1.75 },
+          { value: "one-to-two", label: "1 or 2 institutions (1)", score: 1 },
+          { value: "zero", label: "None (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "interstate_trade": {
-    name: "Interstate Trade",
+  access_to_justice: {
+    name: "Access to Justice (8%)",
     subIndicators: {
-      "haulage_fees": {
-        label: "Elimination of haulage fees via law/executive order and enforcement",
+      small_claims_court: {
+        label: "Small Claims Court (2%)",
         options: [
-          { value: "yes", label: "Yes", score: 2 },
-          { value: "no", label: "No", score: 0 }
-        ]
+          { value: "15-and-above", label: "15 and above (2)", score: 2 },
+          { value: "11-14", label: "11-14 (1.5)", score: 1.5 },
+          { value: "6-10", label: "6-10 (1)", score: 1 },
+          { value: "1-5", label: "1-5 (0.5)", score: 0.5 },
+          { value: "none", label: "None (0)", score: 0 },
+        ],
       },
-      "state_owned_transport_assets": {
-        label: "Presence of state owned airports, air carriers, rail, seaport and dry port (0, 1.5, 3 points)",
+      compliance_reporting: {
+        label: "Compliance Reporting (2%)",
         options: [
-          { value: "0", label: "No state owned transport assets", score: 0 },
-          { value: "1.5", label: "Some presence (equivalent to 1.5 points)", score: 1.5 },
-          { value: "3", label: "Comprehensive presence (equivalent to 3 points)", score: 3 }
-        ]
-      }
-    }
+          { value: "up-to-date", label: "Up to date (2)", score: 2 },
+          { value: "6-months-old", label: "More than 6 months (1.5)", score: 1.5 },
+          { value: "3-months-old", label: "More than 3 months (1)", score: 1 },
+          { value: "not-published", label: "Not published (0)", score: 0 },
+        ],
+      },
+      multi_door_courthouse: {
+        label: "Multi-Door Courthouse (2%)",
+        options: [
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      commercial_court: {
+        label: "Commercial Court (2%)",
+        options: [
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "paying_taxes": {
-    name: "Paying Taxes",
+  harmonized_taxes: {
+    name: "Harmonized Taxes, Levies & Fees (10%)",
     subIndicators: {
-      "tax_payment_transparency": {
-        label: "How does the state facilitate tax payment collection and provide transaction transparency to taxpayers?",
+      harmonization_law: {
+        label: "Harmonization Law (3%)",
         options: [
-          { value: "digital-hybrid-e-payment", label: "Digital/hybrid with e-payment and automatic receipts", score: 2 },
-          { value: "manual-cash-limited-transparency", label: "Manual/cash-based with limited transparency", score: 0 }
-        ]
+          { value: "yes", label: "Yes (3)", score: 3 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
       },
-      "tax_filing_burden": {
-        label: "How burdensome is the tax filing process for taxpayers in the state?",
+      digitized_tax_payment: {
+        label: "Digitized Tax Payment (4%)",
         options: [
-          { value: "automated-consolidated", label: "Automated or consolidated filing that reduces compliance effort", score: 1 },
-          { value: "manual-repetitive-high-burden", label: "Manual, repetitive filing with high administrative burden", score: 0 }
-        ]
+          { value: "digital", label: "Digital / e-payment with automatic receipts (4)", score: 4 },
+          { value: "hybrid", label: "Partial / hybrid digitization (2)", score: 2 },
+          { value: "manual", label: "Manual / cash-based (0)", score: 0 },
+        ],
       },
-      "tax_incentive_transparency": {
-        label: "How transparent and accessible is the state's tax incentive and exemption framework?",
+      publication_of_fees_procedures: {
+        label: "Publication of Fees & Procedures (2%)",
         options: [
-          { value: "transparent-accessible-programs", label: "Transparent, publicly accessible tax incentive programs", score: 1 },
-          { value: "unclear-opaque-framework", label: "Unclear or opaque tax incentive framework", score: 0 }
-        ]
-      }
-    }
+          { value: "publicly-available", label: "Fees and procedures publicly available (2)", score: 2 },
+          { value: "partial", label: "Either fees or procedures published (1)", score: 1 },
+          { value: "not-published", label: "Not published (0)", score: 0 },
+        ],
+      },
+      tax_incentives: {
+        label: "Tax Incentives (1% Bonus)",
+        options: [
+          { value: "yes", label: "Yes (1)", score: 1 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "grievance_redress_mechanisms": {
-    name: "Grievance Redress Mechanisms",
+  investor_lifecycle: {
+    name: "Investor Lifecycle (5%)",
     subIndicators: {
-      "centralized_grm": {
-        label: "Does the state have a centralized Grievance Redress Mechanism?",
+      digital_one_stop_shop: {
+        label: "Digital One Stop Shop",
         options: [
-          { value: "centralized-grm-available", label: "Centralized GRM available", score: 2 },
-          { value: "no-centralized-grm", label: "No centralized GRM", score: 0 }
-        ]
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
       },
-      "accessibility_and_channels": {
-        label: "How accessible is the state's Grievance Redress Mechanism?",
+      digitization_of_processes: {
+        label: "Digitization of Processes",
         options: [
-          { value: "easily-accessible-multiple-channels", label: "Easily accessible via multiple channels", score: 1 },
-          { value: "difficult-to-find-access", label: "Difficult to find or access", score: 0 }
-        ]
-      }
-    }
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      investor_aftercare: {
+        label: "Investor Aftercare / Retention Support",
+        options: [
+          { value: "yes", label: "Yes (1)", score: 1 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+    },
   },
-  "access_to_skilled_labour": {
-    name: "Access to Skilled Labour",
+  grievance_redress_mechanisms: {
+    name: "Grievance Redress Mechanism (3%)",
     subIndicators: {
-      "education_investment": {
-        label: "Post-secondary graduates relative to population",
+      availability_of_grm: {
+        label: "Availability of GRM (1%)",
         options: [
-          { value: "highest-tier", label: "≫ average (733,120+)", score: 1.5 },
-          { value: "second-tier", label: "Above average (549,840-733,119)", score: 1.25 },
-          { value: "mid-tier", label: "Within average (366,560-549,839)", score: 0.75 },
-          { value: "lowest-tier", label: "Minimum average (219,936-366,559)", score: 0.5 },
-          { value: "below-average", label: "Below average (<219,936)", score: 0 }
-        ]
+          { value: "yes", label: "Available (1)", score: 1 },
+          { value: "no", label: "Not available (0)", score: 0 },
+        ],
       },
-      "accredited_institutions": {
-        label: "How many accredited tertiary and technical institutions are available in the state?",
+      centralized_grm: {
+        label: "Centralized GRM (1%)",
         options: [
-          { value: "seven-plus", label: "7 or more universities", score: 1.5 },
-          { value: "three-to-six", label: "3 to 6 universities", score: 1 },
-          { value: "one-to-two", label: "1 or 2 universities", score: 0.5 },
-          { value: "zero", label: "No universities", score: 0 }
-        ]
+          { value: "yes", label: "Centralized GRM available (1)", score: 1 },
+          { value: "no", label: "No centralized GRM (0)", score: 0 },
+        ],
       },
-    }
-  }
+      multiple_channels_functionality: {
+        label: "Multiple Channels & Functionality (1%)",
+        options: [
+          { value: "yes", label: "Easily accessible via multiple channels (1)", score: 1 },
+          { value: "no", label: "Difficult to find or access (0)", score: 0 },
+        ],
+      },
+    },
+  },
+  export_facilitation: {
+    name: "Export Facilitation (2%)",
+    subIndicators: {
+      formalization_of_informal_businesses: {
+        label: "Formalization of Informal Businesses",
+        options: [
+          { value: "yes", label: "Yes (0.5)", score: 0.5 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      nepc_certificate_facilitation: {
+        label: "NEPC Certificate Facilitation",
+        options: [
+          { value: "yes", label: "Yes (1)", score: 1 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      export_strategy_document: {
+        label: "Export Strategy Document",
+        options: [
+          { value: "yes", label: "Yes (0.5)", score: 0.5 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+    },
+  },
+  social_infrastructure: {
+    name: "Social Infrastructure (3%)",
+    subIndicators: {
+      social_security_system: {
+        label: "Social Security System",
+        options: [
+          { value: "yes", label: "Yes (1.5)", score: 1.5 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      primary_healthcare_free_education: {
+        label: "Primary Health-Care Centres / Free Education",
+        options: [
+          { value: "yes", label: "Yes (1.5)", score: 1.5 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+    },
+  },
+  crisis_resilience: {
+    name: "Crisis Resilience (2%)",
+    subIndicators: {
+      disaster_emergency_preparedness: {
+        label: "Disaster & Emergency Preparedness",
+        options: [
+          { value: "yes", label: "Yes (1)", score: 1 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      emergency_response_channels: {
+        label: "Emergency Response Channels",
+        options: [
+          { value: "yes", label: "Yes (1)", score: 1 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+    },
+  },
 } as const;
 
+export type IndicatorKey = keyof typeof indicators;
+
+function maxOptionScore(options: ReadonlyArray<{ score: number }>): number {
+  return options.reduce((max, option) => Math.max(max, option.score), 0);
+}
+
+export function getIndicatorMaxScore(indicatorKey: IndicatorKey): number {
+  const config = indicators[indicatorKey];
+  return Object.values(config.subIndicators).reduce(
+    (sum, subIndicator) => sum + maxOptionScore(subIndicator.options),
+    0
+  );
+}
+
+export const indicatorMaxScores = Object.fromEntries(
+  (Object.keys(indicators) as IndicatorKey[]).map((key) => [key, getIndicatorMaxScore(key)])
+) as Record<IndicatorKey, number>;
+
+export const overallIndicatorMaxScore = (Object.values(indicatorMaxScores) as number[]).reduce(
+  (sum, value) => sum + value,
+  0
+);
+
+export const INDICATOR_COUNT = Object.keys(indicators).length;
