@@ -87,6 +87,9 @@ import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
 import type * as utils_appResult from "../utils/appResult.js";
 import type * as utils_auditLog from "../utils/auditLog.js";
+import type * as whatsapp_constants from "../whatsapp/constants.js";
+import type * as whatsapp_handler from "../whatsapp/handler.js";
+import type * as whatsapp_twilio from "../whatsapp/twilio.js";
 import type * as workshop from "../workshop.js";
 
 /**
@@ -172,6 +175,9 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   "utils/appResult": typeof utils_appResult;
   "utils/auditLog": typeof utils_auditLog;
+  "whatsapp/constants": typeof whatsapp_constants;
+  "whatsapp/handler": typeof whatsapp_handler;
+  "whatsapp/twilio": typeof whatsapp_twilio;
   workshop: typeof workshop;
 }>;
 export declare const api: FilterApi<
