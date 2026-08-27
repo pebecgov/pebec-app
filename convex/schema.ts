@@ -588,7 +588,9 @@ export default defineSchema({
       v.array(
         v.object({
           storageId: v.id("_storage"),
-          fileName: v.string()
+          fileName: v.string(),
+          uploadedBy: v.optional(v.id("users")),
+          uploadedByName: v.optional(v.string())
         })
       )
     ),

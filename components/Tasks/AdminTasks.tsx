@@ -26,6 +26,7 @@ import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/auth
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
 import { fuelCarLabel } from "@/lib/fuelCars";
 import { getCompletionDocumentsFromTask } from "@/lib/taskCompletionDocuments";
+import { TaskCompletionDocumentsPanel } from "@/components/Tasks/TaskCompletionDocumentsPanel";
 
 type TaskParticipant = { type: "workstream" | "staff"; id: string; name: string };
 
@@ -1978,49 +1979,25 @@ function AdminTaskCompletionDocuments({
   task,
   getCompletionDocumentUrl
 }: {
-  task: { _id: Id<"tasks">; completionDocuments?: { storageId: Id<"_storage">; fileName: string }[]; completionDocumentId?: Id<"_storage">; completionDocumentName?: string };
+  task: {
+    _id: Id<"tasks">;
+    completionDocuments?: {
+      storageId: Id<"_storage">;
+      fileName: string;
+      uploadedBy?: Id<"users">;
+      uploadedByName?: string;
+    }[];
+    completionDocumentId?: Id<"_storage">;
+    completionDocumentName?: string;
+  };
   getCompletionDocumentUrl: (args: { storageId: Id<"_storage">; taskId: Id<"tasks"> }) => Promise<string | null>;
 }) {
-  const documents = getCompletionDocumentsFromTask(task);
-  if (documents.length === 0) return null;
-
   return (
-    <div className="mt-3 mb-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
-      <p className="text-sm font-medium text-purple-900 mb-2">
-        Supporting Document{documents.length > 1 ? "s" : ""}:
-      </p>
-      <div className="space-y-2">
-        {documents.map((doc) => (
-          <div key={doc.storageId} className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-600 shrink-0" />
-            <span className="text-sm text-purple-800 flex-1 truncate">{doc.fileName}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const url = await getCompletionDocumentUrl({
-                    storageId: doc.storageId,
-                    taskId: task._id
-                  });
-                  if (url) {
-                    window.open(url, "_blank");
-                  } else {
-                    toast.error("Could not retrieve document");
-                  }
-                } catch (error: any) {
-                  toast.error(error.message || "Failed to open document");
-                }
-              }}
-              className="text-purple-600 hover:text-purple-700 shrink-0"
-            >
-              <Download className="w-4 h-4 mr-1" />
-              Download
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
+    <TaskCompletionDocumentsPanel
+      documents={getCompletionDocumentsFromTask(task)}
+      taskId={task._id}
+      getCompletionDocumentUrl={getCompletionDocumentUrl}
+    />
   );
 }
 

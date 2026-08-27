@@ -3,6 +3,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 export type TaskCompletionDocument = {
   storageId: Id<"_storage">;
   fileName: string;
+  uploadedBy?: Id<"users">;
+  uploadedByName?: string;
 };
 
 export function getCompletionDocumentsFromTask(task: {
@@ -10,7 +12,7 @@ export function getCompletionDocumentsFromTask(task: {
   completionDocumentId?: Id<"_storage">;
   completionDocumentName?: string;
 }): TaskCompletionDocument[] {
-  if (task.completionDocuments && task.completionDocuments.length > 0) {
+  if (task.completionDocuments) {
     return task.completionDocuments;
   }
   if (task.completionDocumentId && task.completionDocumentName) {
@@ -19,11 +21,32 @@ export function getCompletionDocumentsFromTask(task: {
   return [];
 }
 
-export function completionDocumentSetsMatch(
-  existing: TaskCompletionDocument[],
-  incoming: TaskCompletionDocument[]
+export function isOwnTaskCompletionDocument(
+  doc: TaskCompletionDocument,
+  currentUserId?: Id<"users">,
+  completionRequestedBy?: Id<"users">
 ): boolean {
-  if (existing.length !== incoming.length) return false;
-  const existingIds = new Set(existing.map((doc) => String(doc.storageId)));
-  return incoming.every((doc) => existingIds.has(String(doc.storageId)));
+  if (!currentUserId) return false;
+  if (doc.uploadedBy) {
+    return String(doc.uploadedBy) === String(currentUserId);
+  }
+  if (completionRequestedBy) {
+    return String(completionRequestedBy) === String(currentUserId);
+  }
+  return false;
+}
+
+export function moveTaskCompletionDocument(
+  documents: TaskCompletionDocument[],
+  storageId: Id<"_storage">,
+  direction: "up" | "down"
+): TaskCompletionDocument[] {
+  const index = documents.findIndex((doc) => String(doc.storageId) === String(storageId));
+  if (index < 0) return documents;
+  const target = direction === "up" ? index - 1 : index + 1;
+  if (target < 0 || target >= documents.length) return documents;
+  const next = [...documents];
+  const [item] = next.splice(index, 1);
+  next.splice(target, 0, item);
+  return next;
 }
