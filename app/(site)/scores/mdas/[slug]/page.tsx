@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { MetricBreakdown, ScoreAdjustments, SummaryHeader } from "@/components/scores/SummaryPage";
+import { MonthlyReportsPanel } from "@/components/scores/MonthlyReportsPanel";
 import { Skeleton } from "@/components/scores/primitives";
 import {
   SCORE_YEAR,
@@ -14,6 +15,7 @@ import {
   scoreSlug,
   type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
+import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
 
 interface AdjustmentItem {
   id: string;
@@ -37,7 +39,12 @@ interface MdaScoreData {
 export default function MdaSummaryPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
+  const asOf = useMemo(() => Date.now(), []);
   const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: SCORE_YEAR });
+  const reportData = useQuery(api.public_mda_reports.getPublicMdaReportCompliance, {
+    year: SCORE_YEAR,
+    asOf,
+  });
   const frameworkMetrics = (mdaData?.frameworkMetrics || []) as BfaFrameworkMetric[];
 
   const selected = useMemo(() => {
@@ -76,6 +83,9 @@ export default function MdaSummaryPage() {
   const status = getScoreStatus(selected.finalScore, selected.maxPossibleScore);
   const abbreviation = getMdaAbbreviation(selected.mdaName);
   const excluded = selected.excludedMetrics || [];
+  const reports = (reportData?.mdas || []).find(
+    (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
+  );
   const metrics = frameworkMetrics
     .filter((metric) => !excluded.includes(metric.key))
     .map((metric) => {
@@ -109,6 +119,15 @@ export default function MdaSummaryPage() {
         hint="Efficiency bundle and Others from the 2026 BFA configuration"
         metrics={metrics}
       />
+      {reports && (
+        <MonthlyReportsPanel
+          submitted={reports.submitted}
+          due={reports.due}
+          outstanding={reports.outstanding}
+          months={reports.months}
+          lastClosedAt={reportData?.lastClosedAt ?? null}
+        />
+      )}
       <ScoreAdjustments
         bonuses={((mdaData.adjustments?.bonuses || []) as AdjustmentItem[]).map((item) => ({
           name: item.name,

@@ -173,6 +173,28 @@ export default defineSchema({
     status: v.union(v.literal("pending"), v.literal("submitted"), v.literal("late"), v.literal("overdue")),
     notes: v.optional(v.string())
   }).index("byMda", ["mdaId"]).index("byMonth", ["month", "year"]).index("byStatus", ["status"]),
+
+  // Public tracker snapshot of monthly BFA report compliance (refreshed on the 30th)
+  mda_report_compliance_snapshots: defineTable({
+    year: v.number(),
+    refreshedAt: v.number(),
+    mdaName: v.string(),
+    submitted: v.number(),
+    due: v.number(),
+    outstanding: v.number(),
+    months: v.array(v.object({
+      month: v.number(),
+      year: v.number(),
+      monthName: v.string(),
+      status: v.union(
+        v.literal("submitted"),
+        v.literal("outstanding"),
+        v.literal("upcoming")
+      ),
+      submitted: v.boolean(),
+      onTime: v.optional(v.boolean())
+    }))
+  }).index("byYear", ["year"]).index("byYearMda", ["year", "mdaName"]),
   tickets: defineTable({
     title: v.string(),
     description: v.string(),
@@ -203,8 +225,40 @@ export default defineSchema({
     aiStatus: v.optional(v.string()),
     explanation: v.optional(v.string()),
     nextSteps: v.optional(v.string()),
-    processedAt: v.optional(v.number())
-  }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]),
+    processedAt: v.optional(v.number()),
+    source: v.optional(v.union(v.literal("web"), v.literal("whatsapp"))),
+    whatsappPhone: v.optional(v.string())
+  }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]).index("byWhatsappPhone", ["whatsappPhone"]),
+  whatsapp_sessions: defineTable({
+    phone: v.string(),
+    step: v.union(
+      v.literal("idle"),
+      v.literal("collect_name"),
+      v.literal("collect_state"),
+      v.literal("collect_mda"),
+      v.literal("confirm_mda"),
+      v.literal("collect_title"),
+      v.literal("collect_description")
+    ),
+    draft: v.object({
+      fullName: v.optional(v.string()),
+      state: v.optional(v.string()),
+      assignedMDA: v.optional(v.string()),
+      mdaMatches: v.optional(v.array(v.string())),
+      title: v.optional(v.string())
+    }),
+    activeTicketId: v.optional(v.id("tickets")),
+    lastInboundAt: v.number(),
+    updatedAt: v.number()
+  }).index("byPhone", ["phone"]),
+
+  whatsapp_inbound_messages: defineTable({
+    messageSid: v.string(),
+    phone: v.string(),
+    reply: v.string(),
+    createdAt: v.number()
+  }).index("byMessageSid", ["messageSid"]),
+
   ticket_comments: defineTable({
     content: v.string(),
     ticketId: v.id("tickets"),
@@ -534,7 +588,9 @@ export default defineSchema({
       v.array(
         v.object({
           storageId: v.id("_storage"),
-          fileName: v.string()
+          fileName: v.string(),
+          uploadedBy: v.optional(v.id("users")),
+          uploadedByName: v.optional(v.string())
         })
       )
     ),

@@ -12,15 +12,28 @@ import { auditDisplayName, logAuditEvent } from "./utils/auditLog";
 
 const completionDocumentValidator = v.object({
     storageId: v.id("_storage"),
-    fileName: v.string()
+    fileName: v.string(),
+    uploadedBy: v.optional(v.id("users")),
+    uploadedByName: v.optional(v.string())
 });
 
+type CompletionDocument = {
+    storageId: Id<"_storage">;
+    fileName: string;
+    uploadedBy?: Id<"users">;
+    uploadedByName?: string;
+};
+
+function staffDisplayName(user: { firstName?: string; lastName?: string; email?: string }) {
+    return `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Staff";
+}
+
 function getTaskCompletionDocuments(task: {
-    completionDocuments?: { storageId: Id<"_storage">; fileName: string }[];
+    completionDocuments?: CompletionDocument[];
     completionDocumentId?: Id<"_storage">;
     completionDocumentName?: string;
-}) {
-    if (task.completionDocuments && task.completionDocuments.length > 0) {
+}): CompletionDocument[] {
+    if (task.completionDocuments) {
         return task.completionDocuments;
     }
     if (task.completionDocumentId && task.completionDocumentName) {
@@ -29,13 +42,79 @@ function getTaskCompletionDocuments(task: {
     return [];
 }
 
-function completionDocumentSetsMatch(
-    existing: { storageId: Id<"_storage">; fileName: string }[],
-    incoming: { storageId: Id<"_storage">; fileName: string }[]
+function isOwnCompletionDocument(
+    doc: CompletionDocument,
+    userId: Id<"users">,
+    fallbackOwnerId?: Id<"users">
 ) {
-    if (existing.length !== incoming.length) return false;
-    const existingIds = new Set(existing.map((doc) => String(doc.storageId)));
-    return incoming.every((doc) => existingIds.has(String(doc.storageId)));
+    if (doc.uploadedBy) {
+        return String(doc.uploadedBy) === String(userId);
+    }
+    if (fallbackOwnerId) {
+        return String(fallbackOwnerId) === String(userId);
+    }
+    return false;
+}
+
+function stampCompletionDocument(
+    doc: { storageId: Id<"_storage">; fileName: string },
+    user: { _id: Id<"users">; firstName?: string; lastName?: string; email?: string }
+): CompletionDocument {
+    return {
+        storageId: doc.storageId,
+        fileName: doc.fileName,
+        uploadedBy: user._id,
+        uploadedByName: staffDisplayName(user)
+    };
+}
+
+function mergeCompletionDocuments(args: {
+    existing: CompletionDocument[];
+    incoming: CompletionDocument[];
+    user: { _id: Id<"users">; firstName?: string; lastName?: string; email?: string };
+    fallbackOwnerId?: Id<"users">;
+}): CompletionDocument[] {
+    const { existing, incoming, user, fallbackOwnerId } = args;
+    const existingById = new Map(existing.map((doc) => [String(doc.storageId), doc]));
+    const placedOtherIds = new Set<string>();
+    const merged: CompletionDocument[] = [];
+
+    for (const item of incoming) {
+        const existingDoc = existingById.get(String(item.storageId));
+        if (existingDoc) {
+            merged.push(existingDoc);
+            if (!isOwnCompletionDocument(existingDoc, user._id, fallbackOwnerId)) {
+                placedOtherIds.add(String(existingDoc.storageId));
+            }
+            continue;
+        }
+        merged.push(stampCompletionDocument(item, user));
+    }
+
+    for (const doc of existing) {
+        if (isOwnCompletionDocument(doc, user._id, fallbackOwnerId)) continue;
+        if (placedOtherIds.has(String(doc.storageId))) continue;
+        merged.push(doc);
+    }
+
+    return merged;
+}
+
+function completionDocumentsPatch(docs: CompletionDocument[]) {
+    return {
+        completionDocuments: docs,
+        completionDocumentId: docs[0]?.storageId,
+        completionDocumentName: docs[0]?.fileName
+    };
+}
+
+function assertTaskDocumentsEditable(task: {
+    status?: string;
+    completionRequestStatus?: string;
+}) {
+    if (task.status === "done" || task.completionRequestStatus === "approved") {
+        throw new Error("Documents cannot be changed after this task is completed");
+    }
 }
 
 function escapeHtml(text: string): string {
@@ -1018,17 +1097,8 @@ export const requestTaskCompletion = mutation({
             completionDocuments ??
             (completionDocumentId && completionDocumentName
                 ? [{ storageId: completionDocumentId, fileName: completionDocumentName }]
-                : []);
+                : undefined);
 
-        // Lock supporting documents while consensus/admin review is ongoing.
-        if (
-            existingDocs.length > 0 &&
-            (task.completionRequestStatus === "awaiting_consensus" || task.completionRequestStatus === "pending") &&
-            incomingDocs.length > 0 &&
-            !completionDocumentSetsMatch(existingDocs, incomingDocs)
-        ) {
-            throw new Error("Supporting documents are locked until this request is rejected");
-        }
         if (
             task.completionNotes &&
             (task.completionRequestStatus === "awaiting_consensus" || task.completionRequestStatus === "pending") &&
@@ -1055,11 +1125,16 @@ export const requestTaskCompletion = mutation({
             updatedAt: now
         };
 
-        // Add documents if provided
-        if (incomingDocs.length > 0) {
-            updateData.completionDocuments = incomingDocs;
-            updateData.completionDocumentId = incomingDocs[0].storageId;
-            updateData.completionDocumentName = incomingDocs[0].fileName;
+        if (incomingDocs !== undefined) {
+            const mergedDocs = mergeCompletionDocuments({
+                existing: existingDocs,
+                incoming: incomingDocs,
+                user,
+                fallbackOwnerId: task.completionRequestedBy
+            });
+            Object.assign(updateData, completionDocumentsPatch(mergedDocs));
+        } else if (existingDocs.length > 0) {
+            Object.assign(updateData, completionDocumentsPatch(existingDocs));
         }
 
         if (!consensusRequired) {
@@ -1152,6 +1227,185 @@ export const requestTaskCompletion = mutation({
             approvedCount: participantIds.length > 1 ? participantIds.length : 1,
             totalParticipants: participantIds.length > 0 ? participantIds.length : 1
         };
+    }
+});
+
+async function requireEditableTaskDocuments(
+    ctx: any,
+    taskId: Id<"tasks">,
+    user: { _id: Id<"users">; staffStream?: string; firstName?: string; lastName?: string; email?: string }
+) {
+    const task = await ctx.db.get(taskId);
+    if (!task) {
+        throw new Error("Task not found");
+    }
+    const canEdit = await isUserTaskParticipant(ctx, task, user);
+    if (!canEdit) {
+        throw new Error("You can only update documents on tasks assigned to you or your workstream");
+    }
+    assertTaskDocumentsEditable(task);
+    return task;
+}
+
+export const addTaskCompletionDocuments = mutation({
+    args: {
+        taskId: v.id("tasks"),
+        documents: v.array(v.object({
+            storageId: v.id("_storage"),
+            fileName: v.string()
+        }))
+    },
+    returns: v.object({
+        documents: v.array(completionDocumentValidator)
+    }),
+    handler: async (ctx, { taskId, documents }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        const task = await requireEditableTaskDocuments(ctx, taskId, user);
+        if (documents.length === 0) {
+            throw new Error("Please choose at least one document to upload");
+        }
+
+        const existingDocs = getTaskCompletionDocuments(task);
+        const nextDocs = [
+            ...existingDocs,
+            ...documents.map((doc) => stampCompletionDocument(doc, user))
+        ];
+
+        await ctx.db.patch(taskId, {
+            ...completionDocumentsPatch(nextDocs),
+            updatedAt: Date.now()
+        });
+
+        return { documents: nextDocs };
+    }
+});
+
+export const deleteTaskCompletionDocument = mutation({
+    args: {
+        taskId: v.id("tasks"),
+        storageId: v.id("_storage")
+    },
+    returns: v.object({
+        documents: v.array(completionDocumentValidator)
+    }),
+    handler: async (ctx, { taskId, storageId }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        const task = await requireEditableTaskDocuments(ctx, taskId, user);
+        const existingDocs = getTaskCompletionDocuments(task);
+        const target = existingDocs.find((doc) => String(doc.storageId) === String(storageId));
+        if (!target) {
+            throw new Error("Document not found on this task");
+        }
+        if (!isOwnCompletionDocument(target, user._id, task.completionRequestedBy)) {
+            throw new Error("You can only delete documents you uploaded");
+        }
+
+        const nextDocs = existingDocs.filter((doc) => String(doc.storageId) !== String(storageId));
+        await ctx.db.patch(taskId, {
+            ...completionDocumentsPatch(nextDocs),
+            updatedAt: Date.now()
+        });
+
+        try {
+            await ctx.storage.delete(storageId);
+        } catch (error) {
+            console.error("Failed to delete stored file after document removal", error);
+        }
+
+        return { documents: nextDocs };
+    }
+});
+
+export const replaceTaskCompletionDocument = mutation({
+    args: {
+        taskId: v.id("tasks"),
+        existingStorageId: v.id("_storage"),
+        newStorageId: v.id("_storage"),
+        newFileName: v.string()
+    },
+    returns: v.object({
+        documents: v.array(completionDocumentValidator)
+    }),
+    handler: async (ctx, { taskId, existingStorageId, newStorageId, newFileName }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        const task = await requireEditableTaskDocuments(ctx, taskId, user);
+        const existingDocs = getTaskCompletionDocuments(task);
+        const targetIndex = existingDocs.findIndex(
+            (doc) => String(doc.storageId) === String(existingStorageId)
+        );
+        if (targetIndex < 0) {
+            throw new Error("Document not found on this task");
+        }
+        const target = existingDocs[targetIndex];
+        if (!isOwnCompletionDocument(target, user._id, task.completionRequestedBy)) {
+            throw new Error("You can only replace documents you uploaded");
+        }
+
+        const nextDocs = existingDocs.map((doc, index) =>
+            index === targetIndex
+                ? stampCompletionDocument({ storageId: newStorageId, fileName: newFileName }, user)
+                : doc
+        );
+
+        await ctx.db.patch(taskId, {
+            ...completionDocumentsPatch(nextDocs),
+            updatedAt: Date.now()
+        });
+
+        if (String(existingStorageId) !== String(newStorageId)) {
+            try {
+                await ctx.storage.delete(existingStorageId);
+            } catch (error) {
+                console.error("Failed to delete replaced stored file", error);
+            }
+        }
+
+        return { documents: nextDocs };
+    }
+});
+
+export const reorderTaskCompletionDocuments = mutation({
+    args: {
+        taskId: v.id("tasks"),
+        orderedStorageIds: v.array(v.id("_storage"))
+    },
+    returns: v.object({
+        documents: v.array(completionDocumentValidator)
+    }),
+    handler: async (ctx, { taskId, orderedStorageIds }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        const task = await requireEditableTaskDocuments(ctx, taskId, user);
+        const existingDocs = getTaskCompletionDocuments(task);
+        if (existingDocs.length === 0) {
+            throw new Error("This task has no documents to reorder");
+        }
+        if (orderedStorageIds.length !== existingDocs.length) {
+            throw new Error("Document sequence must include every uploaded file");
+        }
+
+        const existingById = new Map(existingDocs.map((doc) => [String(doc.storageId), doc]));
+        const seen = new Set<string>();
+        const nextDocs: CompletionDocument[] = [];
+
+        for (const storageId of orderedStorageIds) {
+            const key = String(storageId);
+            if (seen.has(key)) {
+                throw new Error("Document sequence contains duplicates");
+            }
+            const existingDoc = existingById.get(key);
+            if (!existingDoc) {
+                throw new Error("Document sequence includes a file that is not on this task");
+            }
+            seen.add(key);
+            nextDocs.push(existingDoc);
+        }
+
+        await ctx.db.patch(taskId, {
+            ...completionDocumentsPatch(nextDocs),
+            updatedAt: Date.now()
+        });
+
+        return { documents: nextDocs };
     }
 });
 

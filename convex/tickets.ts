@@ -35,8 +35,15 @@ export const createTicket = mutation({
     address: v.optional(v.string()),
     supportingDocuments: v.optional(v.array(v.id("_storage"))),
     businessName: v.optional(v.string()),
+    source: v.optional(v.union(v.literal("web"), v.literal("whatsapp"))),
+    whatsappPhone: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    return await createTicketRecord(ctx, args);
+  },
+});
+
+export async function createTicketRecord(ctx, args) {
     const user = await getCurrentUserOrNull(ctx);
     const mdaRecord = await ctx.db
       .query("mdas")
@@ -64,17 +71,30 @@ export const createTicket = mutation({
     const ticketNumber = `REP-${dateKey}-${ticketSuffix}`;
     let guestUserId: Id<"users"> | null = null;
     if (!user) {
-      guestUserId = await ctx.db.insert("users", {
-        firstName: args.fullName.split(" ")[0] || "Guest",
-        lastName: args.fullName.split(" ").slice(1).join(" ") || "",
-        email: args.email,
-        phoneNumber: args.phoneNumber,
-        state: args.state ?? "",
-        address: args.address ?? "",
-        role: "user",
-        imageUrl: "",
-        clerkUserId: "guest_" + Date.now(),
-      });
+      const clerkUserId = args.whatsappPhone
+        ? `guest_whatsapp_${args.whatsappPhone}`
+        : "guest_" + Date.now();
+      const existingGuest = args.whatsappPhone
+        ? await ctx.db
+            .query("users")
+            .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", clerkUserId))
+            .first()
+        : null;
+      if (existingGuest) {
+        guestUserId = existingGuest._id;
+      } else {
+        guestUserId = await ctx.db.insert("users", {
+          firstName: args.fullName.split(" ")[0] || "Guest",
+          lastName: args.fullName.split(" ").slice(1).join(" ") || "",
+          email: args.email,
+          phoneNumber: args.phoneNumber,
+          state: args.state ?? "",
+          address: args.address ?? "",
+          role: "user",
+          imageUrl: "",
+          clerkUserId,
+        });
+      }
     }
     const ticketId = await ctx.db.insert("tickets", {
       title: args.title,
@@ -95,6 +115,8 @@ export const createTicket = mutation({
       businessName: args.businessName ?? "",
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      source: args.source ?? "web",
+      whatsappPhone: args.whatsappPhone,
     });
     const allAdmins = await ctx.db
       .query("users")
@@ -138,8 +160,7 @@ export const createTicket = mutation({
       ticketId,
       ticketNumber,
     };
-  },
-});
+}
 
 export const checkAndSendReminder = mutation({
   args: {

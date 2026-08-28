@@ -4,6 +4,12 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { WebhookEvent } from "@clerk/backend";
 import { Webhook } from "svix";
+import { normalizePhone } from "./whatsapp/constants";
+import {
+  parseTwilioForm,
+  toTwimlMessage,
+  twilioSignatureIsValid,
+} from "./whatsapp/twilio";
 const http = httpRouter();
 http.route({
   path: "/clerk-users-webhook",
@@ -38,6 +44,64 @@ http.route({
     });
   })
 });
+
+http.route({
+  path: "/twilio/whatsapp",
+  method: "GET",
+  handler: httpAction(async (_ctx, _request) => {
+    return new Response("ReportGov Twilio WhatsApp webhook is up.", {
+      status: 200,
+    });
+  }),
+});
+
+http.route({
+  path: "/twilio/whatsapp",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (!authToken) {
+      console.error("TWILIO_AUTH_TOKEN is not set");
+      return new Response("Server misconfigured", { status: 500 });
+    }
+
+    const rawBody = await request.text();
+    const params = parseTwilioForm(rawBody);
+    const url = process.env.TWILIO_WEBHOOK_URL || request.url;
+    const signature = request.headers.get("X-Twilio-Signature");
+    const valid = await twilioSignatureIsValid({
+      authToken,
+      url,
+      params,
+      signature,
+    });
+    if (!valid) {
+      console.error("Invalid Twilio WhatsApp signature");
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    const from = params.From ?? "";
+    const body = params.Body ?? "";
+    const messageSid = params.MessageSid ?? "";
+    if (!from || !messageSid) {
+      return new Response(toTwimlMessage("Missing WhatsApp sender."), {
+        status: 200,
+        headers: { "Content-Type": "text/xml" },
+      });
+    }
+
+    const reply = await ctx.runMutation(internal.whatsapp.handler.processInbound, {
+      phone: normalizePhone(from),
+      body,
+      messageSid,
+    });
+    return new Response(toTwimlMessage(reply), {
+      status: 200,
+      headers: { "Content-Type": "text/xml" },
+    });
+  }),
+});
+
 async function validateRequest(req: Request): Promise<WebhookEvent | null> {
   const payloadString = await req.text();
   const svixHeaders = {

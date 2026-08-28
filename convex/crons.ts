@@ -14,4 +14,7 @@ crons.cron("dailySaberReminderCheck", "0 8 * * *", internal.saber_deadlines.proc
 // Overdue ticket reminders for report gov agents - runs daily at 10:00 AM Nigeria time (9:00 AM UTC)
 crons.cron("dailyOverdueTicketReminders", "0 9 * * *", internal.tickets.processOverdueTicketRemindersInternal);
 
+// Close monthly BFA report windows on the 30th (or last day of shorter months), Nigeria time.
+crons.cron("monthlyMdaReportComplianceClose", "0 22 * * *", internal.public_mda_reports.refreshMonthlyReportCompliance);
+
 export default crons;

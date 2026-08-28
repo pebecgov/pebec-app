@@ -37,6 +37,7 @@ import type * as internal_notes from "../internal_notes.js";
 import type * as internal_reports from "../internal_reports.js";
 import type * as leaveRequests from "../leaveRequests.js";
 import type * as letters from "../letters.js";
+import type * as lib_mdaReportCompliance from "../lib/mdaReportCompliance.js";
 import type * as mda_scoring from "../mda_scoring.js";
 import type * as media from "../media.js";
 import type * as meetings from "../meetings.js";
@@ -62,6 +63,7 @@ import type * as newsletters from "../newsletters.js";
 import type * as notifications from "../notifications.js";
 import type * as plainText from "../plainText.js";
 import type * as posts from "../posts.js";
+import type * as public_mda_reports from "../public_mda_reports.js";
 import type * as public_scores from "../public_scores.js";
 import type * as reforms from "../reforms.js";
 import type * as reports from "../reports.js";
@@ -87,6 +89,9 @@ import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
 import type * as users from "../users.js";
 import type * as utils_appResult from "../utils/appResult.js";
 import type * as utils_auditLog from "../utils/auditLog.js";
+import type * as whatsapp_constants from "../whatsapp/constants.js";
+import type * as whatsapp_handler from "../whatsapp/handler.js";
+import type * as whatsapp_twilio from "../whatsapp/twilio.js";
 import type * as workshop from "../workshop.js";
 
 /**
@@ -122,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   internal_reports: typeof internal_reports;
   leaveRequests: typeof leaveRequests;
   letters: typeof letters;
+  "lib/mdaReportCompliance": typeof lib_mdaReportCompliance;
   mda_scoring: typeof mda_scoring;
   media: typeof media;
   meetings: typeof meetings;
@@ -147,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   plainText: typeof plainText;
   posts: typeof posts;
+  public_mda_reports: typeof public_mda_reports;
   public_scores: typeof public_scores;
   reforms: typeof reforms;
   reports: typeof reports;
@@ -172,6 +179,9 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   "utils/appResult": typeof utils_appResult;
   "utils/auditLog": typeof utils_auditLog;
+  "whatsapp/constants": typeof whatsapp_constants;
+  "whatsapp/handler": typeof whatsapp_handler;
+  "whatsapp/twilio": typeof whatsapp_twilio;
   workshop: typeof workshop;
 }>;
 export declare const api: FilterApi<

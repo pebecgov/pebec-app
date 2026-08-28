@@ -14,21 +14,26 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2, Search } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2, Search, Pencil } from "lucide-react";
 import { fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
 import { fuelCarLabel, FUEL_CARS, type FuelCarKey } from "@/lib/fuelCars";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   getCompletionDocumentsFromTask,
+  isOwnTaskCompletionDocument,
+  moveTaskCompletionDocument,
   type TaskCompletionDocument
 } from "@/lib/taskCompletionDocuments";
+import { TaskCompletionDocumentsPanel } from "@/components/Tasks/TaskCompletionDocumentsPanel";
 
 export default function StaffTasks() {
   const [selectedTask, setSelectedTask] = useState<Id<"tasks"> | null>(null);
   const [isCompletionDialogOpen, setIsCompletionDialogOpen] = useState(false);
+  const [isEditDocumentsDialogOpen, setIsEditDocumentsDialogOpen] = useState(false);
   const [completionDocuments, setCompletionDocuments] = useState<TaskCompletionDocument[]>([]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [replacingStorageId, setReplacingStorageId] = useState<Id<"_storage"> | null>(null);
   const [completionNotes, setCompletionNotes] = useState("");
   const [receptionDocsPage, setReceptionDocsPage] = useState(1);
   const [receptionDocsSearch, setReceptionDocsSearch] = useState("");
@@ -54,6 +59,10 @@ export default function StaffTasks() {
   const cancelTaskCompletionRequest = useMutation(api.tasks.cancelTaskCompletionRequest);
   const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
   const saveUploadedFile = useMutation(api.tickets.saveUploadedFile);
+  const addTaskCompletionDocuments = useMutation(api.tasks.addTaskCompletionDocuments);
+  const deleteTaskCompletionDocument = useMutation(api.tasks.deleteTaskCompletionDocument);
+  const replaceTaskCompletionDocument = useMutation(api.tasks.replaceTaskCompletionDocument);
+  const reorderTaskCompletionDocuments = useMutation(api.tasks.reorderTaskCompletionDocuments);
   const getCompletionDocumentUrl = useMutation(api.tasks.getCompletionDocumentUrl);
   const generateReceptionUploadUrl = useMutation(api.tasks.generateReceptionUploadUrl);
   const submitReceptionDocument = useMutation(api.tasks.submitReceptionDocument);
@@ -107,48 +116,68 @@ export default function StaffTasks() {
     setSelectedTask(task._id);
     setCompletionNotes(task.completionNotes || "");
     setCompletionDocuments(getCompletionDocumentsFromTask(task));
+    setIsEditDocumentsDialogOpen(false);
     setIsCompletionDialogOpen(true);
   };
 
-  const uploadCompletionFiles = async (files: File[]) => {
-    if (!files.length || uploadingDocument) return;
+  const handleOpenEditDocuments = (task: any) => {
+    setSelectedTask(task._id);
+    setIsCompletionDialogOpen(false);
+    setIsEditDocumentsDialogOpen(true);
+  };
 
-    const task = staffTasks.find((t: any) => t._id === selectedTask);
-    const locked =
-      getCompletionDocumentsFromTask(task ?? {}).length > 0 &&
-      (task?.completionRequestStatus === "awaiting_consensus" ||
-        task?.completionRequestStatus === "pending");
-    if (locked) return;
+  const uploadFilesToStorage = async (files: File[]): Promise<TaskCompletionDocument[]> => {
+    const uploaded: TaskCompletionDocument[] = [];
+    const uploaderName = `${currentUser?.firstName || ""} ${currentUser?.lastName || ""}`.trim() || currentUser?.email || "Staff";
+
+    for (const file of files) {
+      const uploadUrl = await generateUploadUrl();
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file
+      });
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const { storageId } = await response.json();
+      await saveUploadedFile({
+        storageId: storageId as StorageId<"_storage">,
+        fileName: file.name
+      });
+
+      uploaded.push({
+        storageId: storageId as StorageId<"_storage">,
+        fileName: file.name,
+        uploadedBy: currentUser?._id,
+        uploadedByName: uploaderName
+      });
+    }
+
+    return uploaded;
+  };
+
+  const uploadCompletionFiles = async (files: File[], persistToTask = false) => {
+    if (!files.length || uploadingDocument) return;
 
     try {
       setUploadingDocument(true);
-      const uploaded: TaskCompletionDocument[] = [];
+      const uploaded = await uploadFilesToStorage(files);
 
-      for (const file of files) {
-        const uploadUrl = await generateUploadUrl();
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file
+      if (persistToTask && selectedTask) {
+        await addTaskCompletionDocuments({
+          taskId: selectedTask,
+          documents: uploaded.map((doc) => ({
+            storageId: doc.storageId,
+            fileName: doc.fileName
+          }))
         });
-
-        if (!response.ok) {
-          throw new Error("Upload failed");
-        }
-
-        const { storageId } = await response.json();
-        await saveUploadedFile({
-          storageId: storageId as StorageId<"_storage">,
-          fileName: file.name
-        });
-
-        uploaded.push({
-          storageId: storageId as StorageId<"_storage">,
-          fileName: file.name
-        });
+      } else {
+        setCompletionDocuments((prev) => [...prev, ...uploaded]);
       }
 
-      setCompletionDocuments((prev) => [...prev, ...uploaded]);
       toast.success(
         uploaded.length === 1
           ? "Document uploaded successfully!"
@@ -164,6 +193,36 @@ export default function StaffTasks() {
 
   const removeCompletionDocument = (storageId: StorageId<"_storage">) => {
     setCompletionDocuments((prev) => prev.filter((doc) => doc.storageId !== storageId));
+  };
+
+  const handleReorderSavedDocuments = async (taskId: Id<"tasks">, orderedStorageIds: Id<"_storage">[]) => {
+    await reorderTaskCompletionDocuments({ taskId, orderedStorageIds });
+  };
+
+  const handleDeleteSavedDocument = async (taskId: Id<"tasks">, storageId: Id<"_storage">) => {
+    await deleteTaskCompletionDocument({ taskId, storageId });
+    toast.success("Document removed.");
+  };
+
+  const handleReplaceSavedDocument = async (taskId: Id<"tasks">, existingStorageId: Id<"_storage">, file: File) => {
+    try {
+      setReplacingStorageId(existingStorageId);
+      const [uploaded] = await uploadFilesToStorage([file]);
+      if (!uploaded) {
+        throw new Error("Upload failed");
+      }
+      await replaceTaskCompletionDocument({
+        taskId,
+        existingStorageId,
+        newStorageId: uploaded.storageId,
+        newFileName: uploaded.fileName
+      });
+      toast.success("Document replaced.");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to replace document");
+    } finally {
+      setReplacingStorageId(null);
+    }
   };
 
   const handleReceptionSubmit = async () => {
@@ -246,7 +305,7 @@ export default function StaffTasks() {
       const result = await requestTaskCompletion({
         taskId: selectedTask,
         completionNotes: completionNotes.trim() || undefined,
-        completionDocuments: completionDocuments.length > 0 ? completionDocuments : undefined
+        completionDocuments
       });
 
       if (result?.stage === "awaiting_consensus") {
@@ -334,10 +393,6 @@ export default function StaffTasks() {
 
   const currentTask = staffTasks.find((t: any) => t._id === selectedTask);
   const currentTaskCompletionDocuments = getCompletionDocumentsFromTask(currentTask ?? {});
-  const isCompletionDocumentLocked =
-    currentTaskCompletionDocuments.length > 0 &&
-    (currentTask?.completionRequestStatus === "awaiting_consensus" ||
-      currentTask?.completionRequestStatus === "pending");
   const isCompletionNotesLocked =
     !!currentTask?.completionNotes &&
     (currentTask?.completionRequestStatus === "awaiting_consensus" ||
@@ -678,10 +733,17 @@ export default function StaffTasks() {
                         </div>
                       )}
 
-                      <TaskCompletionDocumentsList
+                      <TaskCompletionDocumentsPanel
                         documents={getCompletionDocumentsFromTask(task)}
                         taskId={task._id}
                         getCompletionDocumentUrl={getCompletionDocumentUrl}
+                        currentUserId={currentUser?._id}
+                        completionRequestedBy={task.completionRequestedBy}
+                        interactive
+                        replacingStorageId={replacingStorageId}
+                        onReorder={(orderedStorageIds) => handleReorderSavedDocuments(task._id, orderedStorageIds)}
+                        onDelete={(storageId) => handleDeleteSavedDocument(task._id, storageId)}
+                        onReplace={(storageId, file) => handleReplaceSavedDocument(task._id, storageId, file)}
                       />
 
                       {task.consensusTotalParticipants > 1 && task.completionRequestStatus === "awaiting_consensus" && (
@@ -695,7 +757,7 @@ export default function StaffTasks() {
                         </div>
                       )}
 
-                      <div className="flex gap-2 mt-4">
+                      <div className="flex flex-wrap gap-2 mt-4">
                         {task.status !== "to_do" && task.status !== "in_progress" && (
                           <Button
                             size="sm"
@@ -706,6 +768,15 @@ export default function StaffTasks() {
                             Mark In Progress
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenEditDocuments(task)}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit Submission
+                        </Button>
                         {task.status !== "done" &&
                           task.completionRequestStatus !== "pending" &&
                           task.completionRequestStatus !== "rejected" &&
@@ -924,10 +995,12 @@ export default function StaffTasks() {
                         </div>
                       )}
 
-                      <TaskCompletionDocumentsList
+                      <TaskCompletionDocumentsPanel
                         documents={getCompletionDocumentsFromTask(task)}
                         taskId={task._id}
                         getCompletionDocumentUrl={getCompletionDocumentUrl}
+                        currentUserId={currentUser?._id}
+                        completionRequestedBy={task.completionRequestedBy}
                       />
 
                       {task.completionAdminComment && (
@@ -1175,71 +1248,109 @@ export default function StaffTasks() {
                 Upload Supporting Documents (Optional)
               </label>
               <p className="text-xs text-gray-500 mb-2">
-                Upload any supporting documents related to task completion. You can add more than one.
+                Upload any supporting documents related to task completion. You can add more than one and arrange the sequence. You can only remove files you uploaded.
               </p>
-              {isCompletionDocumentLocked && (
-                <p className="text-xs text-amber-700 mb-2">
-                  Supporting documents are locked while voting is in progress. They can only be changed after rejection.
-                </p>
-              )}
 
               {completionDocuments.length > 0 && (
                 <div className="space-y-2 mb-3">
-                  {completionDocuments.map((doc) => (
-                    <div
-                      key={doc.storageId}
-                      className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-md"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="w-5 h-5 text-green-600 shrink-0" />
-                        <span className="text-sm text-green-800 truncate">{doc.fileName}</span>
+                  {completionDocuments.map((doc, index) => {
+                    const canRemove = isOwnTaskCompletionDocument(
+                      doc,
+                      currentUser?._id,
+                      currentTask?.completionRequestedBy
+                    );
+                    return (
+                      <div
+                        key={doc.storageId}
+                        className="flex items-center justify-between gap-2 p-3 bg-green-50 border border-green-200 rounded-md"
+                      >
+                        <span className="w-6 shrink-0 text-center text-xs font-semibold text-green-800">
+                          {index + 1}
+                        </span>
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <FileText className="w-5 h-5 text-green-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm text-green-800 truncate">{doc.fileName}</p>
+                            {doc.uploadedByName && (
+                              <p className="text-xs text-green-700">Uploaded by {doc.uploadedByName}</p>
+                            )}
+                          </div>
+                        </div>
+                        {completionDocuments.length > 1 && (
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={index === 0}
+                              onClick={() =>
+                                setCompletionDocuments((prev) =>
+                                  moveTaskCompletionDocument(prev, doc.storageId, "up")
+                                )
+                              }
+                            >
+                              Up
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={index === completionDocuments.length - 1}
+                              onClick={() =>
+                                setCompletionDocuments((prev) =>
+                                  moveTaskCompletionDocument(prev, doc.storageId, "down")
+                                )
+                              }
+                            >
+                              Down
+                            </Button>
+                          </div>
+                        )}
+                        {canRemove && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeCompletionDocument(doc.storageId)}
+                            className="text-red-600 hover:text-red-700 shrink-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
-                      {!isCompletionDocumentLocked && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeCompletionDocument(doc.storageId)}
-                          className="text-red-600 hover:text-red-700 shrink-0"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
-              {!isCompletionDocumentLocked && (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                  <input
-                    type="file"
-                    id="completion-document"
-                    className="hidden"
-                    multiple
-                    disabled={uploadingDocument}
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length > 0) {
-                        void uploadCompletionFiles(files);
-                      }
-                      e.target.value = "";
-                    }}
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  />
-                  <label
-                    htmlFor="completion-document"
-                    className={`flex flex-col items-center justify-center ${uploadingDocument ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-                  >
-                    <FileText className="w-8 h-8 text-gray-400 mb-2" />
-                    <span className="text-sm text-gray-600">
-                      {uploadingDocument ? "Uploading..." : "Click to select files or drag and drop"}
-                    </span>
-                    <span className="text-xs text-gray-500 mt-1">
-                      PDF, DOC, DOCX, XLS, XLSX, JPG, PNG (Max 200MB each)
-                    </span>
-                  </label>
-                </div>
-              )}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                <input
+                  type="file"
+                  id="completion-document"
+                  className="hidden"
+                  multiple
+                  disabled={uploadingDocument}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length > 0) {
+                      void uploadCompletionFiles(files);
+                    }
+                    e.target.value = "";
+                  }}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                />
+                <label
+                  htmlFor="completion-document"
+                  className={`flex flex-col items-center justify-center ${uploadingDocument ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                >
+                  <FileText className="w-8 h-8 text-gray-400 mb-2" />
+                  <span className="text-sm text-gray-600">
+                    {uploadingDocument ? "Uploading..." : "Click to select files or drag and drop"}
+                  </span>
+                  <span className="text-xs text-gray-500 mt-1">
+                    PDF, DOC, DOCX, XLS, XLSX, JPG, PNG (Max 200MB each)
+                  </span>
+                </label>
+              </div>
             </div>
 
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
@@ -1266,60 +1377,70 @@ export default function StaffTasks() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
 
-function TaskCompletionDocumentsList({
-  documents,
-  taskId,
-  getCompletionDocumentUrl
-}: {
-  documents: TaskCompletionDocument[];
-  taskId: Id<"tasks">;
-  getCompletionDocumentUrl: (args: {
-    storageId: StorageId<"_storage">;
-    taskId: Id<"tasks">;
-  }) => Promise<string | null>;
-}) {
-  if (documents.length === 0) return null;
-
-  return (
-    <div className="mt-3 mb-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
-      <p className="text-sm font-medium text-purple-900 mb-2">
-        Supporting Document{documents.length > 1 ? "s" : ""}:
-      </p>
-      <div className="space-y-2">
-        {documents.map((doc) => (
-          <div key={doc.storageId} className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-600 shrink-0" />
-            <span className="text-sm text-purple-800 flex-1 truncate">{doc.fileName}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const url = await getCompletionDocumentUrl({
-                    storageId: doc.storageId,
-                    taskId
-                  });
-                  if (url) {
-                    window.open(url, "_blank");
-                  } else {
-                    toast.error("Could not retrieve document");
+      <Dialog open={isEditDocumentsDialogOpen} onOpenChange={setIsEditDocumentsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-4 pr-12">
+            <DialogTitle>Edit Submission: {currentTask?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4 space-y-4">
+            <p className="text-sm text-gray-600">
+              Add more documents, replace your own files, or arrange the sequence. You can reorder a teammate&apos;s document, but you cannot delete it.
+            </p>
+            {currentTask && (
+              <TaskCompletionDocumentsPanel
+                documents={currentTaskCompletionDocuments}
+                taskId={currentTask._id}
+                getCompletionDocumentUrl={getCompletionDocumentUrl}
+                currentUserId={currentUser?._id}
+                completionRequestedBy={currentTask.completionRequestedBy}
+                interactive
+                replacingStorageId={replacingStorageId}
+                onReorder={(orderedStorageIds) => handleReorderSavedDocuments(currentTask._id, orderedStorageIds)}
+                onDelete={(storageId) => handleDeleteSavedDocument(currentTask._id, storageId)}
+                onReplace={(storageId, file) => handleReplaceSavedDocument(currentTask._id, storageId, file)}
+              />
+            )}
+            {currentTaskCompletionDocuments.length === 0 && (
+              <p className="text-sm text-gray-500">No documents have been uploaded yet.</p>
+            )}
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+              <input
+                type="file"
+                id="edit-completion-document"
+                className="hidden"
+                multiple
+                disabled={uploadingDocument || !selectedTask}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) {
+                    void uploadCompletionFiles(files, true);
                   }
-                } catch (error: any) {
-                  toast.error(error.message || "Failed to open document");
-                }
-              }}
-              className="text-purple-600 hover:text-purple-700 shrink-0"
-            >
-              <Download className="w-4 h-4 mr-1" />
-              Download
-            </Button>
+                  e.target.value = "";
+                }}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+              />
+              <label
+                htmlFor="edit-completion-document"
+                className={`flex flex-col items-center justify-center ${uploadingDocument ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+              >
+                <FileText className="w-8 h-8 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600">
+                  {uploadingDocument ? "Uploading..." : "Click to add more documents"}
+                </span>
+                <span className="text-xs text-gray-500 mt-1">
+                  PDF, DOC, DOCX, XLS, XLSX, JPG, PNG (Max 200MB each)
+                </span>
+              </label>
+            </div>
           </div>
-        ))}
-      </div>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
+            <Button variant="outline" onClick={() => setIsEditDocumentsDialogOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
