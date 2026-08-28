@@ -36,6 +36,16 @@ export function isOwnTaskCompletionDocument(
   return false;
 }
 
+export function userHasUploadedTaskDocument(
+  documents: TaskCompletionDocument[],
+  currentUserId?: Id<"users">,
+  completionRequestedBy?: Id<"users">
+): boolean {
+  return documents.some((doc) =>
+    isOwnTaskCompletionDocument(doc, currentUserId, completionRequestedBy)
+  );
+}
+
 export function moveTaskCompletionDocument(
   documents: TaskCompletionDocument[],
   storageId: Id<"_storage">,

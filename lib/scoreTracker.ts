@@ -120,3 +120,32 @@ export function getMdaAbbreviation(name: string): string | undefined {
 export function scoreSlug(name: string): string {
   return createSlugFromName(name);
 }
+
+function isNovember(month: { monthName: string; month?: number }): boolean {
+  return month.month === 10 || month.monthName.toLowerCase().startsWith("nov");
+}
+
+/** BFA reporting cycle is November through the following November. */
+export function startMonthsFromNovember<T extends { monthName: string; month?: number; year: number }>(
+  months: T[]
+): T[] {
+  const start = months.findIndex(isNovember);
+  if (start < 0) return months;
+  const startYear = months[start]?.year;
+  const end = months.findIndex(
+    (month, index) => index > start && isNovember(month) && month.year === (startYear ?? 0) + 1
+  );
+  if (end < 0) return months.slice(start);
+  return months.slice(start, end + 1);
+}
+
+export function reportCountsFromMonths(
+  months: Array<{ status: "submitted" | "outstanding" | "upcoming"; submitted: boolean }>
+): { submitted: number; due: number; outstanding: number } {
+  const dueMonths = months.filter((month) => month.status !== "upcoming");
+  return {
+    submitted: dueMonths.filter((month) => month.submitted).length,
+    due: dueMonths.length,
+    outstanding: dueMonths.filter((month) => month.status === "outstanding").length,
+  };
+}

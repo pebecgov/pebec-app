@@ -23,6 +23,7 @@ import {
   getCompletionDocumentsFromTask,
   isOwnTaskCompletionDocument,
   moveTaskCompletionDocument,
+  userHasUploadedTaskDocument,
   type TaskCompletionDocument
 } from "@/lib/taskCompletionDocuments";
 import { TaskCompletionDocumentsPanel } from "@/components/Tasks/TaskCompletionDocumentsPanel";
@@ -200,8 +201,17 @@ export default function StaffTasks() {
   };
 
   const handleDeleteSavedDocument = async (taskId: Id<"tasks">, storageId: Id<"_storage">) => {
-    await deleteTaskCompletionDocument({ taskId, storageId });
+    const result = await deleteTaskCompletionDocument({ taskId, storageId });
     toast.success("Document removed.");
+    const task = staffTasks.find((item: { _id: Id<"tasks"> }) => item._id === taskId);
+    const stillHasOwn = userHasUploadedTaskDocument(
+      result.documents,
+      currentUser?._id,
+      task?.completionRequestedBy
+    );
+    if (!stillHasOwn) {
+      setIsEditDocumentsDialogOpen(false);
+    }
   };
 
   const handleReplaceSavedDocument = async (taskId: Id<"tasks">, existingStorageId: Id<"_storage">, file: File) => {
@@ -739,11 +749,6 @@ export default function StaffTasks() {
                         getCompletionDocumentUrl={getCompletionDocumentUrl}
                         currentUserId={currentUser?._id}
                         completionRequestedBy={task.completionRequestedBy}
-                        interactive
-                        replacingStorageId={replacingStorageId}
-                        onReorder={(orderedStorageIds) => handleReorderSavedDocuments(task._id, orderedStorageIds)}
-                        onDelete={(storageId) => handleDeleteSavedDocument(task._id, storageId)}
-                        onReplace={(storageId, file) => handleReplaceSavedDocument(task._id, storageId, file)}
                       />
 
                       {task.consensusTotalParticipants > 1 && task.completionRequestStatus === "awaiting_consensus" && (
@@ -768,15 +773,22 @@ export default function StaffTasks() {
                             Mark In Progress
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenEditDocuments(task)}
-                          className="text-blue-600 hover:text-blue-700"
-                        >
-                          <Pencil className="w-4 h-4 mr-1" />
-                          Edit Submission
-                        </Button>
+                        {userHasUploadedTaskDocument(
+                          getCompletionDocumentsFromTask(task),
+                          currentUser?._id,
+                          task.completionRequestedBy
+                        ) &&
+                          task.completionRequestStatus !== "approved" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenEditDocuments(task)}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Pencil className="w-4 h-4 mr-1" />
+                            Edit Submission
+                          </Button>
+                        )}
                         {task.status !== "done" &&
                           task.completionRequestStatus !== "pending" &&
                           task.completionRequestStatus !== "rejected" &&
@@ -1385,7 +1397,7 @@ export default function StaffTasks() {
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4 space-y-4">
             <p className="text-sm text-gray-600">
-              Add more documents, replace your own files, or arrange the sequence. You can reorder a teammate&apos;s document, but you cannot delete it.
+              Delete a document you uploaded if it is no longer relevant, replace your own files, add more, or arrange the sequence. You can reorder a teammate&apos;s document, but you cannot delete it.
             </p>
             {currentTask && (
               <TaskCompletionDocumentsPanel

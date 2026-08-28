@@ -1,25 +1,24 @@
 "use client";
 
+import { reportCountsFromMonths, startMonthsFromNovember } from "@/lib/scoreTracker";
+
 interface ReportMonth {
   monthName: string;
+  month?: number;
   year: number;
   status: "submitted" | "outstanding" | "upcoming";
   submitted: boolean;
 }
 
 export function MonthlyReportsPanel({
-  submitted,
-  due,
-  outstanding,
   months,
   lastClosedAt,
 }: {
-  submitted: number;
-  due: number;
-  outstanding: number;
   months: ReportMonth[];
   lastClosedAt: number | null;
 }) {
+  const displayMonths = startMonthsFromNovember(months);
+  const { submitted, due, outstanding } = reportCountsFromMonths(displayMonths);
   const closedLabel = lastClosedAt
     ? new Date(lastClosedAt).toLocaleDateString("en-NG", {
         day: "numeric",
@@ -34,7 +33,7 @@ export function MonthlyReportsPanel({
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Monthly BFA Reports</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Live from Reform Champion submissions. Each month closes on the 30th.
+            Live from Reform Champion submissions. Each month closes on the 30th. Cycle runs November to November.
           </p>
         </div>
         <p className="text-sm font-medium text-gray-700">
@@ -52,7 +51,7 @@ export function MonthlyReportsPanel({
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          {months.map((month) => {
+          {displayMonths.map((month) => {
             const styles =
               month.status === "submitted"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-800"
@@ -72,6 +71,7 @@ export function MonthlyReportsPanel({
                 className={`rounded-lg border px-3 py-2 text-center ${styles}`}
               >
                 <div className="text-xs font-semibold">{month.monthName}</div>
+                <div className="text-[11px] text-current/70">{month.year}</div>
                 <div className="text-[11px] mt-0.5">{label}</div>
               </div>
             );
