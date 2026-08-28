@@ -2909,6 +2909,10 @@ export const getAllMdaSavedDataForDashboard = query({
           ...mda.reportGovResolution,
           maxPossibleScore: efficiencyConfig?.reportGovPoints || 20
         } : null,
+        mysteryShopping: mda.mysteryShopping ? {
+          ...mda.mysteryShopping,
+          maxPossibleScore: mysteryTotal
+        } : null,
       };
     });
 

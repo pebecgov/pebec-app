@@ -121,9 +121,6 @@ export default function MdaSummaryPage() {
       />
       {reports && (
         <MonthlyReportsPanel
-          submitted={reports.submitted}
-          due={reports.due}
-          outstanding={reports.outstanding}
           months={reports.months}
           lastClosedAt={reportData?.lastClosedAt ?? null}
         />

@@ -8,7 +8,7 @@ import {
   type TaskCompletionDocument
 } from "@/lib/taskCompletionDocuments";
 import { Id, Id as StorageId } from "@/convex/_generated/dataModel";
-import { ArrowDown, ArrowUp, Download, FileText, Pencil, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Download, FileText, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function TaskCompletionDocumentsPanel({
@@ -170,12 +170,13 @@ export function TaskCompletionDocumentsPanel({
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   disabled={busy}
                   onClick={() => void handleDelete(doc.storageId)}
                   className="text-red-600 hover:text-red-700 shrink-0"
                 >
-                  <X className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Delete
                 </Button>
               )}
             </div>

@@ -74,6 +74,7 @@ import type * as saber_materials from "../saber_materials.js";
 import type * as saber_reports from "../saber_reports.js";
 import type * as saveStateScore from "../saveStateScore.js";
 import type * as scoring_config from "../scoring_config.js";
+import type * as seedTrackerDemo from "../seedTrackerDemo.js";
 import type * as sendEmail from "../sendEmail.js";
 import type * as sendTicketemail from "../sendTicketemail.js";
 import type * as sendgridMail from "../sendgridMail.js";
@@ -164,6 +165,7 @@ declare const fullApi: ApiFromModules<{
   saber_reports: typeof saber_reports;
   saveStateScore: typeof saveStateScore;
   scoring_config: typeof scoring_config;
+  seedTrackerDemo: typeof seedTrackerDemo;
   sendEmail: typeof sendEmail;
   sendTicketemail: typeof sendTicketemail;
   sendgridMail: typeof sendgridMail;
