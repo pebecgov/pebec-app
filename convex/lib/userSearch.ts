@@ -1,3 +1,5 @@
+const USER_LIST_SEARCH_CURSOR_PREFIX = "uls1:";
+
 export function buildUserSearchText(user: {
   firstName?: string;
   lastName?: string;
@@ -35,23 +37,28 @@ type UserListSearchCursor = {
   pendingMatchIds: Array<string>;
 };
 
+/** True when cursor was produced by our custom search path (not Convex .paginate). */
+export function isUserListSearchCursor(cursor: string | null | undefined): boolean {
+  return typeof cursor === "string" && cursor.startsWith(USER_LIST_SEARCH_CURSOR_PREFIX);
+}
+
 export function parseUserListSearchCursor(
   cursor: string | null
 ): UserListSearchCursor {
-  if (!cursor) {
+  if (!isUserListSearchCursor(cursor)) {
     return { lastCreationTime: null, pendingMatchIds: [] };
   }
+
   try {
-    const parsed = JSON.parse(cursor) as Partial<UserListSearchCursor> & {
-      dbCursor?: string | null;
-    };
+    const raw = cursor!.slice(USER_LIST_SEARCH_CURSOR_PREFIX.length);
+    const parsed = JSON.parse(raw) as Partial<UserListSearchCursor>;
     return {
       lastCreationTime:
         typeof parsed.lastCreationTime === "number"
           ? parsed.lastCreationTime
           : null,
       pendingMatchIds: Array.isArray(parsed.pendingMatchIds)
-        ? parsed.pendingMatchIds
+        ? parsed.pendingMatchIds.filter((id): id is string => typeof id === "string")
         : [],
     };
   } catch {
@@ -62,5 +69,5 @@ export function parseUserListSearchCursor(
 export function encodeUserListSearchCursor(
   cursor: UserListSearchCursor
 ): string {
-  return JSON.stringify(cursor);
+  return `${USER_LIST_SEARCH_CURSOR_PREFIX}${JSON.stringify(cursor)}`;
 }

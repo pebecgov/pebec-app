@@ -13,7 +13,13 @@ import {
   formatRoleSnapshot,
   logAuditEvent,
 } from './utils/auditLog';
-import { buildUserSearchText, encodeUserListSearchCursor, parseUserListSearchCursor, userMatchesSearch } from './lib/userSearch';
+import {
+  buildUserSearchText,
+  encodeUserListSearchCursor,
+  isUserListSearchCursor,
+  parseUserListSearchCursor,
+  userMatchesSearch,
+} from './lib/userSearch';
 
 export { buildUserSearchText } from './lib/userSearch';
 
@@ -277,8 +283,13 @@ export const listUsers = query({
       });
     }
 
+    // Never pass a custom search cursor into Convex .paginate() — that throws InvalidCursor.
+    const safePaginationOpts = isUserListSearchCursor(paginationOpts.cursor)
+      ? { ...paginationOpts, cursor: null }
+      : paginationOpts;
+
     const usersQuery = buildUsersTableQuery(ctx, role, staffStream, mdaName);
-    const page = await usersQuery.order("desc").paginate(paginationOpts);
+    const page = await usersQuery.order("desc").paginate(safePaginationOpts);
     return {
       ...page,
       page: page.page.filter((user) => passesUserListFilters(user, staffStream, mdaName)),
