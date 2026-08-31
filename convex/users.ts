@@ -7,50 +7,251 @@ import { v, Validator } from 'convex/values';
 import { paginationOptsValidator } from 'convex/server';
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import {
   auditDisplayName,
   formatRoleSnapshot,
   logAuditEvent,
 } from './utils/auditLog';
+import { buildUserSearchText, encodeUserListSearchCursor, parseUserListSearchCursor, userMatchesSearch } from './lib/userSearch';
 
-const MAX_USERS_RETURN = 8191;
+export { buildUserSearchText } from './lib/userSearch';
 
-function applyUserListFilters(
-  users: Array<any>,
+const MAX_EXPORT_USERS = 2000;
+const LIST_PAGE_BATCH_SIZE = 100;
+const MAX_SEARCH_SCAN_BATCHES = 50;
+
+function isValidListUser(user: { clerkUserId?: string }) {
+  return Boolean(user.clerkUserId && !user.clerkUserId.startsWith("guest_"));
+}
+
+function passesUserListFilters(
+  user: {
+    clerkUserId?: string;
+    role?: string;
+    staffStream?: string;
+    mdaName?: string;
+  },
   staffStream?: string,
   mdaName?: string
 ) {
-  return users.filter((user) => {
-    if (!user.clerkUserId || user.clerkUserId.startsWith("guest_")) return false;
-    if (staffStream && staffStream !== "all") {
-      if (user.role !== "staff" || user.staffStream !== staffStream) return false;
-    }
-    if (mdaName && mdaName !== "all" && user.mdaName !== mdaName) return false;
-    return true;
-  });
+  if (!isValidListUser(user)) return false;
+  if (staffStream && staffStream !== "all") {
+    if (user.role !== "staff" || user.staffStream !== staffStream) return false;
+  }
+  if (mdaName && mdaName !== "all" && user.mdaName !== mdaName) return false;
+  return true;
 }
 
-function userMatchesSearch(user: any, search?: string) {
-  const term = search?.trim().toLowerCase();
-  if (!term) return true;
-  const haystack = [
-    user.firstName,
-    user.lastName,
-    `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
-    user.email,
-    user.phoneNumber,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(term);
+function buildUsersTableQuery(
+  ctx: QueryCtx,
+  role?: string,
+  staffStream?: string,
+  mdaName?: string
+) {
+  let usersQuery =
+    role && role !== "all"
+      ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
+      : ctx.db.query("users");
+
+  if (staffStream && staffStream !== "all") {
+    usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
+  }
+  if (mdaName && mdaName !== "all") {
+    usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
+  }
+
+  return usersQuery;
 }
+
+async function fetchUsersBatch(
+  usersQuery: ReturnType<typeof buildUsersTableQuery>,
+  lastCreationTime: number | null,
+  batchSize: number
+) {
+  let query = usersQuery.order("desc");
+  if (lastCreationTime !== null) {
+    query = query.filter((q) => q.lt(q.field("_creationTime"), lastCreationTime));
+  }
+  return await query.take(batchSize);
+}
+
+async function listUsersWithSearch(
+  ctx: QueryCtx,
+  args: {
+    paginationOpts: { numItems: number; cursor: string | null };
+    role?: string;
+    staffStream?: string;
+    mdaName?: string;
+    searchTerm: string;
+  }
+) {
+  const usersQuery = buildUsersTableQuery(
+    ctx,
+    args.role,
+    args.staffStream,
+    args.mdaName
+  );
+  const searchCursor = parseUserListSearchCursor(args.paginationOpts.cursor);
+  const page: Array<any> = [];
+  let lastCreationTime = searchCursor.lastCreationTime;
+  let pendingMatchIds = [...searchCursor.pendingMatchIds];
+  let dbDone = false;
+  let batchesScanned = 0;
+
+  while (page.length < args.paginationOpts.numItems && !dbDone) {
+    while (
+      pendingMatchIds.length > 0 &&
+      page.length < args.paginationOpts.numItems
+    ) {
+      const userId = pendingMatchIds.shift();
+      if (!userId) continue;
+      const user = await ctx.db.get(userId as Id<"users">);
+      if (!user) continue;
+      if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
+      page.push(user);
+    }
+
+    if (page.length >= args.paginationOpts.numItems) {
+      break;
+    }
+
+    if (batchesScanned >= MAX_SEARCH_SCAN_BATCHES) {
+      break;
+    }
+
+    const batch = await fetchUsersBatch(
+      usersQuery,
+      lastCreationTime,
+      LIST_PAGE_BATCH_SIZE
+    );
+
+    if (batch.length === 0) {
+      dbDone = true;
+      break;
+    }
+
+    lastCreationTime = batch[batch.length - 1]._creationTime;
+    batchesScanned += 1;
+
+    for (const user of batch) {
+      if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
+      if (!userMatchesSearch(user, args.searchTerm)) continue;
+      pendingMatchIds.push(user._id);
+    }
+
+    if (batch.length < LIST_PAGE_BATCH_SIZE) {
+      dbDone = true;
+    }
+
+    if (dbDone && pendingMatchIds.length === 0) {
+      break;
+    }
+  }
+
+  while (
+    pendingMatchIds.length > 0 &&
+    page.length < args.paginationOpts.numItems
+  ) {
+    const userId = pendingMatchIds.shift();
+    if (!userId) continue;
+    const user = await ctx.db.get(userId as Id<"users">);
+    if (!user) continue;
+    if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
+    page.push(user);
+  }
+
+  const hitScanLimit =
+    batchesScanned >= MAX_SEARCH_SCAN_BATCHES &&
+    (pendingMatchIds.length > 0 || !dbDone);
+
+  return {
+    page,
+    isDone:
+      dbDone &&
+      pendingMatchIds.length === 0 &&
+      page.length < args.paginationOpts.numItems &&
+      !hitScanLimit,
+    continueCursor: encodeUserListSearchCursor({
+      lastCreationTime,
+      pendingMatchIds,
+    }),
+  };
+}
+
+async function collectExportUsers(
+  ctx: QueryCtx,
+  args: {
+    role?: string;
+    staffStream?: string;
+    mdaName?: string;
+    search?: string;
+  }
+) {
+  const searchTerm = args.search?.trim();
+  const usersQuery = buildUsersTableQuery(
+    ctx,
+    args.role,
+    args.staffStream,
+    args.mdaName
+  );
+
+  const results: Array<any> = [];
+  let lastCreationTime: number | null = null;
+  let batchesScanned = 0;
+
+  while (results.length < MAX_EXPORT_USERS) {
+    const batch = await fetchUsersBatch(
+      usersQuery,
+      lastCreationTime,
+      LIST_PAGE_BATCH_SIZE
+    );
+
+    if (batch.length === 0) {
+      break;
+    }
+
+    lastCreationTime = batch[batch.length - 1]._creationTime;
+    batchesScanned += 1;
+
+    for (const user of batch) {
+      if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
+      if (searchTerm && !userMatchesSearch(user, searchTerm)) continue;
+      results.push(user);
+      if (results.length >= MAX_EXPORT_USERS) break;
+    }
+
+    if (batch.length < LIST_PAGE_BATCH_SIZE || results.length >= MAX_EXPORT_USERS) {
+      break;
+    }
+    if (searchTerm && batchesScanned >= MAX_SEARCH_SCAN_BATCHES) break;
+  }
+
+  return results;
+}
+
+/** Kick off searchText backfill for existing users (run once after deploy). */
+export const startUserSearchTextBackfill = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const admin = await getCurrentUserOrThrow(ctx);
+    if (admin.role !== "admin") {
+      throw new Error("Unauthorized: Only admins can run backfill");
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.migrations.backfillUserSearchText.backfillUserSearchText,
+      {}
+    );
+    return null;
+  },
+});
 
 export const getUsers = query({
   args: {},
   handler: async ctx => {
-    return await ctx.db.query('users').take(MAX_USERS_RETURN);
+    return await ctx.db.query('users').take(LIST_PAGE_BATCH_SIZE);
   }
 });
 
@@ -65,36 +266,22 @@ export const listUsers = query({
   },
   handler: async (ctx, { paginationOpts, role, staffStream, mdaName, search }) => {
     const searchTerm = search?.trim();
-    let usersQuery =
-      role && role !== "all"
-        ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
-        : ctx.db.query("users");
-
-    if (staffStream && staffStream !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
-    }
-    if (mdaName && mdaName !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
-    }
 
     if (searchTerm) {
-      const users = await usersQuery.order("desc").take(MAX_USERS_RETURN);
-      const filtered = applyUserListFilters(users, staffStream, mdaName).filter((user) =>
-        userMatchesSearch(user, searchTerm)
-      );
-      const start = paginationOpts.cursor ? Number.parseInt(paginationOpts.cursor, 10) || 0 : 0;
-      const end = start + paginationOpts.numItems;
-      return {
-        page: filtered.slice(start, end),
-        isDone: end >= filtered.length,
-        continueCursor: String(end),
-      };
+      return await listUsersWithSearch(ctx, {
+        paginationOpts,
+        role,
+        staffStream,
+        mdaName,
+        searchTerm,
+      });
     }
 
+    const usersQuery = buildUsersTableQuery(ctx, role, staffStream, mdaName);
     const page = await usersQuery.order("desc").paginate(paginationOpts);
     return {
       ...page,
-      page: applyUserListFilters(page.page, staffStream, mdaName),
+      page: page.page.filter((user) => passesUserListFilters(user, staffStream, mdaName)),
     };
   },
 });
@@ -107,23 +294,8 @@ export const exportUsers = query({
     mdaName: v.optional(v.string()),
     search: v.optional(v.string()),
   },
-  handler: async (ctx, { role, staffStream, mdaName, search }) => {
-    let usersQuery =
-      role && role !== "all"
-        ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
-        : ctx.db.query("users");
-
-    if (staffStream && staffStream !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
-    }
-    if (mdaName && mdaName !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
-    }
-
-    const users = await usersQuery.order("desc").take(MAX_USERS_RETURN);
-    return applyUserListFilters(users, staffStream, mdaName).filter((user) =>
-      userMatchesSearch(user, search)
-    );
+  handler: async (ctx, args) => {
+    return await collectExportUsers(ctx, args);
   },
 });
 
@@ -170,7 +342,12 @@ export const upsertFromClerk = internalMutation({
       firstName: data.first_name ?? undefined,
       lastName: data.last_name ?? undefined,
       imageUrl: data.image_url ?? undefined,
-      role: existingUser?.role ?? "user"
+      role: existingUser?.role ?? "user",
+      searchText: buildUserSearchText({
+        email: primaryEmail,
+        firstName: data.first_name ?? undefined,
+        lastName: data.last_name ?? undefined,
+      }),
     };
     if (existingUser === null) {
       console.log("✅ Creating new user:", userAttributes);
@@ -1089,7 +1266,13 @@ export const approveRoleRequest = mutation({
       firstName: user.roleRequest.firstName,
       lastName: user.roleRequest.lastName,
       roleRequest: undefined,
-      roleApprovalHistory: [...existingHistory, approvalEntry]
+      roleApprovalHistory: [...existingHistory, approvalEntry],
+      searchText: buildUserSearchText({
+        email: user.email,
+        firstName: user.roleRequest.firstName,
+        lastName: user.roleRequest.lastName,
+        phoneNumber: args.phoneNumber,
+      }),
     });
     await ctx.scheduler.runAfter(0, api.email.sendEmail, {
       to: user.email,

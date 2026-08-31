@@ -55,8 +55,18 @@ export default defineSchema({
       approvedAt: v.number(),
       role: v.optional(v.string()),
       mdaName: v.optional(v.string())
-    })))
-  }).index("byClerkUserId", ["clerkUserId"]).index("byRole", ["role"]).index("byMdaId", ["mdaId"]).index("byState", ["state"]).index("byEmail", ["email"]),
+    }))),
+    searchText: v.optional(v.string()),
+  })
+    .index("byClerkUserId", ["clerkUserId"])
+    .index("byRole", ["role"])
+    .index("byMdaId", ["mdaId"])
+    .index("byState", ["state"])
+    .index("byEmail", ["email"])
+    .searchIndex("search_users", {
+      searchField: "searchText",
+      filterFields: ["role", "staffStream", "mdaName"],
+    }),
   mdas: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
