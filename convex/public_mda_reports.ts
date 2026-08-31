@@ -27,7 +27,12 @@ const mdaComplianceValidator = v.object({
   months: v.array(monthValidator),
 });
 
-async function loadCompliance(ctx: QueryCtx | MutationCtx, year: number, asOf: number) {
+async function loadCompliance(
+  ctx: QueryCtx | MutationCtx,
+  year: number,
+  asOf: number,
+  extraMdaName?: string
+) {
   const [efficiency, mdas, reports] = await Promise.all([
     ctx.db.query("efficiency_periods").withIndex("byYear", (q) => q.eq("year", year)).first(),
     ctx.db.query("mdas").collect(),
@@ -38,6 +43,9 @@ async function loadCompliance(ctx: QueryCtx | MutationCtx, year: number, asOf: n
   ]);
 
   const mdaNames = mdas.map((mda) => mda.name);
+  if (extraMdaName) {
+    mdaNames.push(extraMdaName);
+  }
   return buildMdaReportCompliance({
     year,
     asOf,
@@ -68,7 +76,7 @@ export const getPublicMdaReportCompliance = query({
     mdas: v.array(mdaComplianceValidator),
   }),
   handler: async (ctx, args) => {
-    const all = await loadCompliance(ctx, args.year, args.asOf);
+    const all = await loadCompliance(ctx, args.year, args.asOf, args.mdaName);
     const wanted = args.mdaName ? canonicalizeMdaName(args.mdaName) : null;
     const mdas = wanted ? all.filter((mda) => mda.mdaName === wanted) : all;
 

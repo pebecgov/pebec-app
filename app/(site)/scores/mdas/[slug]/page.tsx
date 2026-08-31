@@ -41,16 +41,19 @@ export default function MdaSummaryPage() {
   const slug = params.slug;
   const asOf = useMemo(() => Date.now(), []);
   const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: SCORE_YEAR });
-  const reportData = useQuery(api.public_mda_reports.getPublicMdaReportCompliance, {
-    year: SCORE_YEAR,
-    asOf,
-  });
   const frameworkMetrics = (mdaData?.frameworkMetrics || []) as BfaFrameworkMetric[];
 
   const selected = useMemo(() => {
     if (!mdaData?.mdas) return undefined;
     return (mdaData.mdas as MdaScoreData[]).find((mda) => scoreSlug(mda.mdaName) === slug) ?? null;
   }, [mdaData, slug]);
+
+  const reportData = useQuery(
+    api.public_mda_reports.getPublicMdaReportCompliance,
+    selected?.mdaName
+      ? { year: SCORE_YEAR, asOf, mdaName: selected.mdaName }
+      : "skip"
+  );
 
   if (selected === undefined || mdaData === undefined) {
     return (
@@ -83,9 +86,10 @@ export default function MdaSummaryPage() {
   const status = getScoreStatus(selected.finalScore, selected.maxPossibleScore);
   const abbreviation = getMdaAbbreviation(selected.mdaName);
   const excluded = selected.excludedMetrics || [];
-  const reports = (reportData?.mdas || []).find(
-    (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
-  );
+  const reports =
+    (reportData?.mdas || []).find(
+      (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
+    ) ?? reportData?.mdas?.[0];
   const metrics = frameworkMetrics
     .filter((metric) => !excluded.includes(metric.key))
     .map((metric) => {
@@ -121,6 +125,7 @@ export default function MdaSummaryPage() {
       />
       {reports && (
         <MonthlyReportsPanel
+          mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}
           months={reports.months}
           lastClosedAt={reportData?.lastClosedAt ?? null}
         />
