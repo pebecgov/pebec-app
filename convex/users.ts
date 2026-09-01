@@ -15,18 +15,85 @@ import {
 } from './utils/auditLog';
 import {
   buildUserSearchText,
-  encodeUserListSearchCursor,
   isUserListSearchCursor,
-  parseUserListSearchCursor,
+  patchWithSearchText,
   userMatchesSearch,
+  withSearchText,
 } from './lib/userSearch';
 
 export { buildUserSearchText } from './lib/userSearch';
 
-const MAX_EXPORT_USERS = 2000;
-const LIST_PAGE_BATCH_SIZE = 100;
-const MAX_SEARCH_SCAN_BATCHES = 50;
+async function insertUser(
+  ctx: MutationCtx,
+  fields: Parameters<typeof withSearchText>[0] & Record<string, unknown>
+) {
+  return await ctx.db.insert("users", withSearchText(fields));
+}
 
+async function patchUser(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  existing: Parameters<typeof patchWithSearchText>[0],
+  patch: Record<string, unknown>
+) {
+  await ctx.db.patch(userId, patchWithSearchText(existing, patch));
+}
+
+const MAX_EXPORT_USERS = 2000;
+
+function buildUsersSearchQuery(
+  ctx: QueryCtx,
+  searchTerm: string,
+  role?: string,
+  staffStream?: string,
+  mdaName?: string
+) {
+  return ctx.db.query("users").withSearchIndex("search_users", (q) => {
+    let searchQuery = q.search("searchText", searchTerm);
+    if (role && role !== "all") {
+      searchQuery = searchQuery.eq("role", role);
+    }
+    if (staffStream && staffStream !== "all") {
+      searchQuery = searchQuery.eq("staffStream", staffStream);
+    }
+    if (mdaName && mdaName !== "all") {
+      searchQuery = searchQuery.eq("mdaName", mdaName);
+    }
+    return searchQuery;
+  });
+}
+
+async function listUsersWithSearch(
+  ctx: QueryCtx,
+  args: {
+    paginationOpts: { numItems: number; cursor: string | null };
+    role?: string;
+    staffStream?: string;
+    mdaName?: string;
+    searchTerm: string;
+  }
+) {
+  // One paginate call via search index — avoids 32k document read limit from table scans.
+  const safePaginationOpts = isUserListSearchCursor(args.paginationOpts.cursor)
+    ? { ...args.paginationOpts, cursor: null }
+    : args.paginationOpts;
+
+  const page = await buildUsersSearchQuery(
+    ctx,
+    args.searchTerm,
+    args.role,
+    args.staffStream,
+    args.mdaName
+  ).paginate(safePaginationOpts);
+
+  return {
+    ...page,
+    page: page.page.filter(
+      (user) =>
+        isValidListUser(user) && userMatchesSearch(user, args.searchTerm)
+    ),
+  };
+}
 function isValidListUser(user: { clerkUserId?: string }) {
   return Boolean(user.clerkUserId && !user.clerkUserId.startsWith("guest_"));
 }
@@ -70,121 +137,6 @@ function buildUsersTableQuery(
   return usersQuery;
 }
 
-async function fetchUsersBatch(
-  usersQuery: ReturnType<typeof buildUsersTableQuery>,
-  lastCreationTime: number | null,
-  batchSize: number
-) {
-  let query = usersQuery.order("desc");
-  if (lastCreationTime !== null) {
-    query = query.filter((q) => q.lt(q.field("_creationTime"), lastCreationTime));
-  }
-  return await query.take(batchSize);
-}
-
-async function listUsersWithSearch(
-  ctx: QueryCtx,
-  args: {
-    paginationOpts: { numItems: number; cursor: string | null };
-    role?: string;
-    staffStream?: string;
-    mdaName?: string;
-    searchTerm: string;
-  }
-) {
-  const usersQuery = buildUsersTableQuery(
-    ctx,
-    args.role,
-    args.staffStream,
-    args.mdaName
-  );
-  const searchCursor = parseUserListSearchCursor(args.paginationOpts.cursor);
-  const page: Array<any> = [];
-  let lastCreationTime = searchCursor.lastCreationTime;
-  let pendingMatchIds = [...searchCursor.pendingMatchIds];
-  let dbDone = false;
-  let batchesScanned = 0;
-
-  while (page.length < args.paginationOpts.numItems && !dbDone) {
-    while (
-      pendingMatchIds.length > 0 &&
-      page.length < args.paginationOpts.numItems
-    ) {
-      const userId = pendingMatchIds.shift();
-      if (!userId) continue;
-      const user = await ctx.db.get(userId as Id<"users">);
-      if (!user) continue;
-      if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
-      page.push(user);
-    }
-
-    if (page.length >= args.paginationOpts.numItems) {
-      break;
-    }
-
-    if (batchesScanned >= MAX_SEARCH_SCAN_BATCHES) {
-      break;
-    }
-
-    const batch = await fetchUsersBatch(
-      usersQuery,
-      lastCreationTime,
-      LIST_PAGE_BATCH_SIZE
-    );
-
-    if (batch.length === 0) {
-      dbDone = true;
-      break;
-    }
-
-    lastCreationTime = batch[batch.length - 1]._creationTime;
-    batchesScanned += 1;
-
-    for (const user of batch) {
-      if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
-      if (!userMatchesSearch(user, args.searchTerm)) continue;
-      pendingMatchIds.push(user._id);
-    }
-
-    if (batch.length < LIST_PAGE_BATCH_SIZE) {
-      dbDone = true;
-    }
-
-    if (dbDone && pendingMatchIds.length === 0) {
-      break;
-    }
-  }
-
-  while (
-    pendingMatchIds.length > 0 &&
-    page.length < args.paginationOpts.numItems
-  ) {
-    const userId = pendingMatchIds.shift();
-    if (!userId) continue;
-    const user = await ctx.db.get(userId as Id<"users">);
-    if (!user) continue;
-    if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
-    page.push(user);
-  }
-
-  const hitScanLimit =
-    batchesScanned >= MAX_SEARCH_SCAN_BATCHES &&
-    (pendingMatchIds.length > 0 || !dbDone);
-
-  return {
-    page,
-    isDone:
-      dbDone &&
-      pendingMatchIds.length === 0 &&
-      page.length < args.paginationOpts.numItems &&
-      !hitScanLimit,
-    continueCursor: encodeUserListSearchCursor({
-      lastCreationTime,
-      pendingMatchIds,
-    }),
-  };
-}
-
 async function collectExportUsers(
   ctx: QueryCtx,
   args: {
@@ -195,48 +147,35 @@ async function collectExportUsers(
   }
 ) {
   const searchTerm = args.search?.trim();
+
+  if (searchTerm) {
+    const users = await buildUsersSearchQuery(
+      ctx,
+      searchTerm,
+      args.role,
+      args.staffStream,
+      args.mdaName
+    ).take(MAX_EXPORT_USERS);
+    return users.filter(
+      (user) =>
+        passesUserListFilters(user, args.staffStream, args.mdaName) &&
+        userMatchesSearch(user, searchTerm)
+    );
+  }
+
   const usersQuery = buildUsersTableQuery(
     ctx,
     args.role,
     args.staffStream,
     args.mdaName
   );
-
-  const results: Array<any> = [];
-  let lastCreationTime: number | null = null;
-  let batchesScanned = 0;
-
-  while (results.length < MAX_EXPORT_USERS) {
-    const batch = await fetchUsersBatch(
-      usersQuery,
-      lastCreationTime,
-      LIST_PAGE_BATCH_SIZE
-    );
-
-    if (batch.length === 0) {
-      break;
-    }
-
-    lastCreationTime = batch[batch.length - 1]._creationTime;
-    batchesScanned += 1;
-
-    for (const user of batch) {
-      if (!passesUserListFilters(user, args.staffStream, args.mdaName)) continue;
-      if (searchTerm && !userMatchesSearch(user, searchTerm)) continue;
-      results.push(user);
-      if (results.length >= MAX_EXPORT_USERS) break;
-    }
-
-    if (batch.length < LIST_PAGE_BATCH_SIZE || results.length >= MAX_EXPORT_USERS) {
-      break;
-    }
-    if (searchTerm && batchesScanned >= MAX_SEARCH_SCAN_BATCHES) break;
-  }
-
-  return results;
+  const users = await usersQuery.order("desc").take(MAX_EXPORT_USERS);
+  return users.filter((user) =>
+    passesUserListFilters(user, args.staffStream, args.mdaName)
+  );
 }
 
-/** Kick off searchText backfill for existing users (run once after deploy). */
+/** Kick off one-time searchText backfill for legacy users (new users are handled automatically). */
 export const startUserSearchTextBackfill = mutation({
   args: {},
   returns: v.null(),
@@ -257,7 +196,7 @@ export const startUserSearchTextBackfill = mutation({
 export const getUsers = query({
   args: {},
   handler: async ctx => {
-    return await ctx.db.query('users').take(LIST_PAGE_BATCH_SIZE);
+    return await ctx.db.query('users').take(100);
   }
 });
 
@@ -354,18 +293,13 @@ export const upsertFromClerk = internalMutation({
       lastName: data.last_name ?? undefined,
       imageUrl: data.image_url ?? undefined,
       role: existingUser?.role ?? "user",
-      searchText: buildUserSearchText({
-        email: primaryEmail,
-        firstName: data.first_name ?? undefined,
-        lastName: data.last_name ?? undefined,
-      }),
     };
     if (existingUser === null) {
       console.log("✅ Creating new user:", userAttributes);
-      await ctx.db.insert("users", userAttributes);
+      await insertUser(ctx, userAttributes);
     } else {
       console.log("🔄 Updating existing user:", userAttributes);
-      await ctx.db.patch(existingUser._id, userAttributes);
+      await patchUser(ctx, existingUser._id, existingUser, userAttributes);
     }
   }
 });
@@ -612,7 +546,7 @@ export const updateUserProfile = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       firstName: args.firstName,
       lastName: args.lastName,
       phoneNumber: args.phoneNumber,
@@ -818,7 +752,7 @@ export const updateUserInConvex = mutation({
       const mda = await ctx.db.get(mdaId);
       if (!mda) throw new Error("MDA not found");
     }
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       role,
       mdaId,
       mdaName,
@@ -1163,7 +1097,7 @@ export const requestInternalRole = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (!user) throw new Error("User not found");
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       firstName: args.firstName,
       lastName: args.lastName,
       phoneNumber: args.phoneNumber,
@@ -1265,7 +1199,7 @@ export const approveRoleRequest = mutation({
       mdaName: args.mdaName ?? user.roleRequest.mdaName
     };
     const existingHistory = user.roleApprovalHistory ?? [];
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       role: args.role,
       mdaId,
       mdaName: args.mdaName,
@@ -1278,12 +1212,6 @@ export const approveRoleRequest = mutation({
       lastName: user.roleRequest.lastName,
       roleRequest: undefined,
       roleApprovalHistory: [...existingHistory, approvalEntry],
-      searchText: buildUserSearchText({
-        email: user.email,
-        firstName: user.roleRequest.firstName,
-        lastName: user.roleRequest.lastName,
-        phoneNumber: args.phoneNumber,
-      }),
     });
     await ctx.scheduler.runAfter(0, api.email.sendEmail, {
       to: user.email,
