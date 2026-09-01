@@ -58,6 +58,7 @@ import type * as migrations_resetLandRegistration from "../migrations/resetLandR
 import type * as migrations_resetMarketAccess from "../migrations/resetMarketAccess.js";
 import type * as migrations_resetStateScores from "../migrations/resetStateScores.js";
 import type * as migrations_resetWorkforceDevelopment from "../migrations/resetWorkforceDevelopment.js";
+import type * as migrations_seedUsersStressTest from "../migrations/seedUsersStressTest.js";
 import type * as migrations_updateCrisisResilience from "../migrations/updateCrisisResilience.js";
 import type * as migrations from "../migrations.js";
 import type * as missingReportReminders from "../missingReportReminders.js";
@@ -151,6 +152,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/resetMarketAccess": typeof migrations_resetMarketAccess;
   "migrations/resetStateScores": typeof migrations_resetStateScores;
   "migrations/resetWorkforceDevelopment": typeof migrations_resetWorkforceDevelopment;
+  "migrations/seedUsersStressTest": typeof migrations_seedUsersStressTest;
   "migrations/updateCrisisResilience": typeof migrations_updateCrisisResilience;
   migrations: typeof migrations;
   missingReportReminders: typeof missingReportReminders;

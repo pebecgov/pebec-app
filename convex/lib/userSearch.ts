@@ -18,6 +18,47 @@ export function buildUserSearchText(user: {
     .toLowerCase();
 }
 
+export type UserSearchFields = {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+};
+
+/** Attach searchText when inserting a user. */
+export function withSearchText<T extends UserSearchFields>(record: T): T & { searchText: string } {
+  return {
+    ...record,
+    searchText: buildUserSearchText(record),
+  };
+}
+
+/** Recompute searchText when patching searchable user fields. */
+export function patchWithSearchText(
+  existing: UserSearchFields,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const merged: UserSearchFields = {
+    email: typeof patch.email === "string" ? patch.email : existing.email,
+    firstName:
+      patch.firstName !== undefined
+        ? (patch.firstName as string | undefined)
+        : existing.firstName,
+    lastName:
+      patch.lastName !== undefined
+        ? (patch.lastName as string | undefined)
+        : existing.lastName,
+    phoneNumber:
+      patch.phoneNumber !== undefined
+        ? (patch.phoneNumber as string | undefined)
+        : existing.phoneNumber,
+  };
+  return {
+    ...patch,
+    searchText: buildUserSearchText(merged),
+  };
+}
+
 export function userMatchesSearch(
   user: {
     firstName?: string;
@@ -34,6 +75,7 @@ export function userMatchesSearch(
 
 type UserListSearchCursor = {
   lastCreationTime: number | null;
+  lastId: string | null;
   pendingMatchIds: Array<string>;
 };
 
@@ -46,7 +88,7 @@ export function parseUserListSearchCursor(
   cursor: string | null
 ): UserListSearchCursor {
   if (!isUserListSearchCursor(cursor)) {
-    return { lastCreationTime: null, pendingMatchIds: [] };
+    return { lastCreationTime: null, lastId: null, pendingMatchIds: [] };
   }
 
   try {
@@ -57,12 +99,13 @@ export function parseUserListSearchCursor(
         typeof parsed.lastCreationTime === "number"
           ? parsed.lastCreationTime
           : null,
+      lastId: typeof parsed.lastId === "string" ? parsed.lastId : null,
       pendingMatchIds: Array.isArray(parsed.pendingMatchIds)
         ? parsed.pendingMatchIds.filter((id): id is string => typeof id === "string")
         : [],
     };
   } catch {
-    return { lastCreationTime: null, pendingMatchIds: [] };
+    return { lastCreationTime: null, lastId: null, pendingMatchIds: [] };
   }
 }
 

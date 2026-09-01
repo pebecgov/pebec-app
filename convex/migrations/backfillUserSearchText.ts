@@ -5,7 +5,7 @@ import { buildUserSearchText } from "../lib/userSearch";
 
 const BATCH_SIZE = 100;
 
-/** One-time backfill for users.searchText. Run once after deploy, then optional. */
+/** One-time backfill for users created before searchText was auto-maintained. */
 export const backfillUserSearchText = internalMutation({
   args: {
     cursor: v.optional(v.string()),
