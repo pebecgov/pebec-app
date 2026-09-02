@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
-/** Rows scanned when searching for the BFA header row (matches SLA modal behaviour). */
-export const HEADER_SCAN_ROW_LIMIT = 15;
+/** Rows scanned when searching for the BFA header row (title blocks often push headers to row 5–10). */
+export const HEADER_SCAN_ROW_LIMIT = 25;
 
 export type IngestionSheetSummary = {
   sheetName: string;
