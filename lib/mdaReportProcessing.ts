@@ -22,14 +22,21 @@ export { HEADER_SCAN_ROW_LIMIT, DATE_ISSUE_SAMPLE_LIMIT };
 
 export const HEADER_DETECTION_KEYWORDS = [
   "CUSTOMER",
+  "NAME",
   "SERVICE",
   "DATE",
+  "SUBMISSION",
+  "COMPLETION",
+  "TIMELINE",
   "PHONE",
   "COST",
   "AMOUNT",
   "EMAIL",
   "ADDRESS",
 ] as const;
+
+/** Minimum keyword hits before a row is treated as the BFA header row. */
+export const MIN_HEADER_KEYWORD_MATCHES = 3;
 
 export type SlaHeaderMapping = {
   DATE_OF_SUBMISSION: string | null;
@@ -83,30 +90,37 @@ function countMappedColumns(mapping: SlaHeaderMapping): number {
   ).length;
 }
 
-function extractSheetData(
-  sheet: XLSX.WorkSheet,
+function countHeaderKeywordsInRow(row: unknown): number {
+  if (!Array.isArray(row)) return 0;
+  let matchCount = 0;
+  row.forEach((cell) => {
+    if (
+      HEADER_DETECTION_KEYWORDS.some((keyword) => cellMatchesHeaderKeyword(cell, keyword))
+    ) {
+      matchCount++;
+    }
+  });
+  return matchCount;
+}
+
+function buildSheetScanFromHeaderRow(
+  rawData: unknown[][],
+  headerRowIndex: number,
+  keywordMatches: number,
   sheetName: string,
   sheetIndex: number
 ): SheetScanResult | null {
-  const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
-  if (rawData.length === 0) return null;
+  const headerRow = rawData[headerRowIndex];
+  if (!Array.isArray(headerRow)) return null;
 
-  const { headerRowIndex, maxMatches } = detectHeaderRowIndex(rawData);
-  const rawDataWithHeaders = XLSX.utils.sheet_to_json(sheet, {
-    range: headerRowIndex,
-    header: 1,
-    defval: "",
-  }) as unknown[][];
+  const headers = headerRow.map((h) => String(h ?? "").replace(/[\r\n]+/g, " ").trim());
+  const nonEmptyHeaders = headers.filter((h) => h.length > 0);
+  if (nonEmptyHeaders.length < 3) return null;
 
-  if (rawDataWithHeaders.length === 0) return null;
-
-  const originalHeaders = rawDataWithHeaders[0];
-  if (!Array.isArray(originalHeaders)) return null;
-
-  const headers = originalHeaders.map((h) => String(h).replace(/[\r\n]+/g, " ").trim());
-  const jsonData = rawDataWithHeaders.slice(1).map((row) => {
+  const jsonData = rawData.slice(headerRowIndex + 1).map((row) => {
     const obj: Record<string, unknown> = {};
     headers.forEach((header, index) => {
+      if (!header) return;
       if (Array.isArray(row)) obj[header] = row[index];
     });
     return obj;
@@ -122,12 +136,58 @@ function extractSheetData(
     sheetIndex,
     sheetName,
     headerRowIndex,
-    keywordMatches: maxMatches,
+    keywordMatches,
     headers,
     mapping,
     mappedColumnCount: countMappedColumns(mapping),
     jsonData,
   };
+}
+
+function extractSheetData(
+  sheet: XLSX.WorkSheet,
+  sheetName: string,
+  sheetIndex: number
+): SheetScanResult | null {
+  const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as unknown[][];
+  if (rawData.length === 0) return null;
+
+  let bestScan: SheetScanResult | null = null;
+  const scanLimit = Math.min(rawData.length, HEADER_SCAN_ROW_LIMIT);
+
+  for (let rowIndex = 0; rowIndex < scanLimit; rowIndex++) {
+    const keywordMatches = countHeaderKeywordsInRow(rawData[rowIndex]);
+    if (keywordMatches < MIN_HEADER_KEYWORD_MATCHES) continue;
+
+    const candidate = buildSheetScanFromHeaderRow(
+      rawData,
+      rowIndex,
+      keywordMatches,
+      sheetName,
+      sheetIndex
+    );
+    if (!candidate) continue;
+
+    if (!bestScan) {
+      bestScan = candidate;
+      continue;
+    }
+
+    if (candidate.mappedColumnCount > bestScan.mappedColumnCount) {
+      bestScan = candidate;
+    } else if (candidate.mappedColumnCount === bestScan.mappedColumnCount) {
+      if (candidate.keywordMatches > bestScan.keywordMatches) {
+        bestScan = candidate;
+      } else if (
+        candidate.keywordMatches === bestScan.keywordMatches &&
+        candidate.jsonData.length > bestScan.jsonData.length
+      ) {
+        bestScan = candidate;
+      }
+    }
+  }
+
+  return bestScan;
 }
 
 function scanWorkbookSheets(workbook: XLSX.WorkBook): SheetScanResult[] {
@@ -263,10 +323,56 @@ const MONTH_NAME_TO_INDEX: Record<string, number> = {
 
 export function normalizeHeaderForMatch(header: string): string {
   return header
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
     .toUpperCase()
     .replace(/[_\-/]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Matches TIMELINE, TIME LINE, TIME-LINE (normalized), etc. */
+function headerIndicatesTimeline(normalized: string): boolean {
+  return normalized.includes("TIMELINE") || normalized.includes("TIME LINE");
+}
+
+/** Header-detection cells that look like transaction data, not column titles. */
+function looksLikeHeaderDetectionDataCell(cell: unknown): boolean {
+  const raw = String(cell ?? "").trim();
+  if (!raw) return true;
+  if (raw.length > 45) return true;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return true;
+  if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(raw)) return true;
+  if (/^-?\d+(\.\d+)?$/.test(raw) && Number(raw) > 1000) return true;
+  return false;
+}
+
+function cellMatchesHeaderKeyword(cell: unknown, keyword: string): boolean {
+  if (looksLikeHeaderDetectionDataCell(cell)) return false;
+  const cellStr = String(cell).toUpperCase().trim();
+  if (keyword === "SERVICE") {
+    return /\bSERVICE(S)?\b/.test(cellStr) && cellStr.length <= 45;
+  }
+  if (keyword === "NAME") {
+    return (
+      (/\bNAME\b/.test(cellStr) || cellStr === "NAME") &&
+      cellStr.length <= 35 &&
+      !cellStr.includes("COMPANY NAME")
+    );
+  }
+  if (keyword === "SUBMISSION") {
+    return cellStr.includes("SUBMISSION") && cellStr.length <= 45;
+  }
+  if (keyword === "COMPLETION") {
+    return cellStr.includes("COMPLETION") && cellStr.length <= 45;
+  }
+  if (keyword === "TIMELINE") {
+    return (
+      (cellStr.includes("TIMELINE") || cellStr.includes("TIME LINE")) &&
+      cellStr.length <= 45
+    );
+  }
+  return cellStr.includes(keyword);
 }
 
 /** Headers that are labels (names, codes) — not date fields. */
@@ -283,6 +389,8 @@ function isLikelyNonDateLabelColumn(normalized: string): boolean {
 
 function scoreSubmissionHeader(normalized: string): number {
   if (isLikelyNonDateLabelColumn(normalized)) return -1000;
+  if (normalized.includes("SUBMITTED AT") || normalized === "SUBMITTED AT") return 96;
+  if (normalized.includes("SUBMISSION DATE") || normalized === "SUBMISSIONDATE") return 97;
   if (normalized.includes("REGISTRATION SUBMISSION")) return 100;
   if (normalized.includes("SUBMISSION DATE") || normalized === "DATE OF SUBMISSION") return 98;
   if (normalized.includes("SUBMISSION") && normalized.includes("DATE")) return 95;
@@ -298,12 +406,14 @@ function scoreSubmissionHeader(normalized: string): number {
 
 function scoreCompletionHeader(normalized: string): number {
   if (isLikelyNonDateLabelColumn(normalized)) return -1000;
+  if (normalized.includes("DECISION AT") || normalized === "DECISION AT") return 96;
   // registration_approved is often a yes/no flag, not a date — only treat as date when header says DATE
   if (normalized.includes("REGISTRATION APPROVED")) {
     return normalized.includes("DATE") ? 100 : 20;
   }
   if (normalized.includes("DATE APPROVED") || normalized.includes("APPROVAL DATE")) return 98;
   if (normalized.includes("DATE OF COMPLETION") || normalized.includes("COMPLETION DATE")) return 98;
+  if (normalized === "DATE COMPLETION" || normalized.endsWith(" DATE COMPLETION")) return 97;
   if (normalized.includes("DATE CREATED") || normalized === "CREATED DATE") return 92;
   if (normalized.includes("LOAN APPROVAL")) return 90;
   if (normalized.includes("COMPLETION") && normalized.includes("DATE")) return 88;
@@ -323,7 +433,9 @@ function scoreCompletionHeader(normalized: string): number {
 
 function scoreTimelineHeader(normalized: string): number {
   if (normalized.includes("TIME TAKEN")) return 100;
-  if (normalized.includes("EXPECTED TIMELINE") || normalized === "TIMELINE") return 98;
+  if (headerIndicatesTimeline(normalized)) return 98;
+  if (normalized.includes("SLA TIMELINE")) return 95;
+  if (normalized === "EXPECTED" || normalized.startsWith("EXPECTED ")) return 88;
   if (normalized.includes("AVAILABILITY CODE") || normalized === "AVAILABILITY") return 85;
   if (normalized.includes("TURNAROUND") || normalized === "TAT") return 90;
   if (normalized.includes("PROCESSING TIME")) return 88;
@@ -1106,18 +1218,8 @@ export function detectHeaderRowIndex(rawData: unknown[][]): { headerRowIndex: nu
   let maxMatches = 0;
 
   for (let i = 0; i < Math.min(rawData.length, HEADER_SCAN_ROW_LIMIT); i++) {
-    const row = rawData[i];
-    let matchCount = 0;
-    if (Array.isArray(row)) {
-      row.forEach((cell) => {
-        if (!cell) return;
-        const cellStr = String(cell).toUpperCase();
-        if (HEADER_DETECTION_KEYWORDS.some((keyword) => cellStr.includes(keyword))) {
-          matchCount++;
-        }
-      });
-    }
-    if (matchCount > maxMatches) {
+    const matchCount = countHeaderKeywordsInRow(rawData[i]);
+    if (matchCount >= MIN_HEADER_KEYWORD_MATCHES && matchCount > maxMatches) {
       maxMatches = matchCount;
       headerRowIndex = i;
     }
@@ -1146,28 +1248,11 @@ function resolveSheetLayout(
     return { ...base, metadata };
   }
 
-  const firstSheet = scans.find((s) => s.sheetIndex === 0);
-
-  if (
-    best.sheetIndex > 0 &&
-    best.mappedColumnCount >= 1 &&
-    (firstSheet?.mappedColumnCount ?? 0) < best.mappedColumnCount
-  ) {
-    const base = excelLayoutFailure(
-      `Report data looks like it is on sheet "${best.sheetName}" (sheet ${best.sheetIndex + 1}), not the first sheet. ` +
-        `Expected columns (Date of Submission, Date of Completion, Expected Timeline) were not found on "${firstSheet?.sheetName ?? "Sheet1"}".`
-    );
-    return {
-      ...base,
-      failureDetail: enrichFailureDetailWithMetadata(base.failureDetail, metadata),
-      metadata,
-    };
-  }
-
   if (best.keywordMatches === 0) {
     const base = excelLayoutFailure(
       `Could not detect a BFA header row in the first ${HEADER_SCAN_ROW_LIMIT} row(s) on sheet "${best.sheetName}". ` +
-        `Expected columns like Customer, Service, Date, Amount, etc. Found: ${formatHeaderPreview(best.headers)}`
+        `Need at least ${MIN_HEADER_KEYWORD_MATCHES} column-title keyword matches (Customer, Service, Date, Amount, etc.). ` +
+        `Found: ${formatHeaderPreview(best.headers)}`
     );
     return {
       ...base,
