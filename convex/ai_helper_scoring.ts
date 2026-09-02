@@ -67,7 +67,11 @@ export const processSlaData = action({
   returns: v.any(),
   handler: async (_ctx, { data, headerMapping }) => {
     try {
-      return internalProcessSlaData(data, headerMapping);
+      const headers =
+        data.length > 0
+          ? Object.keys(data[0] as Record<string, unknown>)
+          : undefined;
+      return internalProcessSlaData(data, headerMapping, headers);
     } catch (error) {
       console.error("Data processing error:", error);
       return {

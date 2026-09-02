@@ -104,6 +104,10 @@ export const processIngestionForCell = internalAction({
           validRowCount: result.validRowCount,
           totalRowCount: result.totalRowCount,
           invalidDateRowCount: result.invalidDateRowCount,
+          validRowPercent: result.validRowPercent,
+          skippedBlankRowCount: result.skippedBlankRowCount,
+          outcomeStatus:
+            result.processingQuality === "partial_success" ? "partial_success" : "success",
           processingMetadata: result.metadata,
         });
         return null;
@@ -115,6 +119,9 @@ export const processIngestionForCell = internalAction({
         failureDetail: result.failureDetail,
         invalidDateRowCount: result.invalidDateRowCount,
         totalRowCount: result.totalRowCount,
+        validRowCount: result.validRowCount,
+        validRowPercent: result.validRowPercent,
+        skippedBlankRowCount: result.skippedBlankRowCount,
         processingMetadata: result.metadata,
       });
       return null;

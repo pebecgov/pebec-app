@@ -49,6 +49,10 @@ export type IngestionProcessingMetadata = {
   dateIssueSamples?: DateIssueSample[];
   dateIssueTotalCount?: number;
   dateIssueSampleLimit?: number;
+  skippedBlankRowCount?: number;
+  validRowPercent?: number;
+  processingQuality?: "success" | "partial_success" | "failed";
+  partialSuccessNote?: string;
 };
 
 export const dateIssueReasonValidator = v.union(
@@ -95,6 +99,12 @@ export const ingestionProcessingMetadataValidator = v.object({
   dateIssueSamples: v.optional(v.array(dateIssueSampleValidator)),
   dateIssueTotalCount: v.optional(v.number()),
   dateIssueSampleLimit: v.optional(v.number()),
+  skippedBlankRowCount: v.optional(v.number()),
+  validRowPercent: v.optional(v.number()),
+  processingQuality: v.optional(
+    v.union(v.literal("success"), v.literal("partial_success"), v.literal("failed"))
+  ),
+  partialSuccessNote: v.optional(v.string()),
 });
 
 export const DATE_ISSUE_LABELS: Record<DateIssueReason, string> = {

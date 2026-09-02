@@ -16,11 +16,12 @@ const INGESTION_SCHEDULE_DELAY_MS = 500;
 export const ingestionStatusValidator = v.union(
   v.literal("pending"),
   v.literal("success"),
+  v.literal("partial_success"),
   v.literal("failed")
 );
 
 /** Max time a cell may stay pending before marked as timed out */
-const INGESTION_CELL_TIMEOUT_MS = 2 * 60 * 1000;
+const INGESTION_CELL_TIMEOUT_MS = 5 * 60 * 1000;
 
 export const ingestionFailureTypeValidator = v.optional(
   v.union(
@@ -29,6 +30,7 @@ export const ingestionFailureTypeValidator = v.optional(
     v.literal("completion_date_column_missing"),
     v.literal("timeline_column_missing"),
     v.literal("unparseable_dates"),
+    v.literal("insufficient_valid_rows"),
     v.literal("empty_file"),
     v.literal("unsupported_format"),
     v.literal("processing_timeout"),
@@ -230,6 +232,8 @@ export const getIngestionStatusForRange = query({
       invalidDateRowCount: v.optional(v.number()),
       validRowCount: v.optional(v.number()),
       totalRowCount: v.optional(v.number()),
+      validRowPercent: v.optional(v.number()),
+      skippedBlankRowCount: v.optional(v.number()),
       processedAt: v.optional(v.number()),
       pendingStartedAt: v.optional(v.number()),
       checkRunId: v.optional(v.string()),
@@ -264,6 +268,8 @@ export const getIngestionStatusForRange = query({
         invalidDateRowCount: row.invalidDateRowCount,
         validRowCount: row.validRowCount,
         totalRowCount: row.totalRowCount,
+        validRowPercent: row.validRowPercent,
+        skippedBlankRowCount: row.skippedBlankRowCount,
         processedAt: row.processedAt,
         pendingStartedAt: row.pendingStartedAt,
         checkRunId: row.checkRunId,
@@ -661,6 +667,9 @@ export const recordIngestionSuccess = internalMutation({
     validRowCount: v.number(),
     totalRowCount: v.number(),
     invalidDateRowCount: v.number(),
+    validRowPercent: v.optional(v.number()),
+    skippedBlankRowCount: v.optional(v.number()),
+    outcomeStatus: v.union(v.literal("success"), v.literal("partial_success")),
     checkRunId: v.optional(v.string()),
     processingMetadata: v.optional(ingestionProcessingMetadataValidator),
   },
@@ -679,12 +688,17 @@ export const recordIngestionSuccess = internalMutation({
 
     await ctx.db.patch(existing._id, {
       submittedReportId: args.submittedReportId,
-      status: "success",
+      status: args.outcomeStatus,
       failureType: undefined,
-      failureDetail: undefined,
+      failureDetail:
+        args.outcomeStatus === "partial_success"
+          ? `Partial success: ${args.validRowPercent?.toFixed(1) ?? "?"}% of rows have valid dates (${args.validRowCount}/${args.totalRowCount}).`
+          : undefined,
       validRowCount: args.validRowCount,
       totalRowCount: args.totalRowCount,
       invalidDateRowCount: args.invalidDateRowCount,
+      validRowPercent: args.validRowPercent,
+      skippedBlankRowCount: args.skippedBlankRowCount,
       processedAt: Date.now(),
       checkRunId: args.checkRunId ?? existing.checkRunId,
       processingMetadata: args.processingMetadata,
@@ -705,6 +719,7 @@ export const recordIngestionFailure = internalMutation({
       v.literal("completion_date_column_missing"),
       v.literal("timeline_column_missing"),
       v.literal("unparseable_dates"),
+      v.literal("insufficient_valid_rows"),
       v.literal("empty_file"),
       v.literal("unsupported_format"),
       v.literal("processing_timeout"),
@@ -714,6 +729,9 @@ export const recordIngestionFailure = internalMutation({
     failureDetail: v.string(),
     invalidDateRowCount: v.optional(v.number()),
     totalRowCount: v.optional(v.number()),
+    validRowCount: v.optional(v.number()),
+    validRowPercent: v.optional(v.number()),
+    skippedBlankRowCount: v.optional(v.number()),
     checkRunId: v.optional(v.string()),
     processingMetadata: v.optional(ingestionProcessingMetadataValidator),
   },
@@ -737,7 +755,9 @@ export const recordIngestionFailure = internalMutation({
       failureDetail: args.failureDetail,
       invalidDateRowCount: args.invalidDateRowCount,
       totalRowCount: args.totalRowCount,
-      validRowCount: undefined,
+      validRowCount: args.validRowCount,
+      validRowPercent: args.validRowPercent,
+      skippedBlankRowCount: args.skippedBlankRowCount,
       processedAt: Date.now(),
       checkRunId: args.checkRunId ?? existing.checkRunId,
       processingMetadata: args.processingMetadata,

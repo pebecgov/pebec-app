@@ -17,6 +17,10 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Save, FileText, Trash2, Upload } from "lucide-react";
 import * as XLSX from 'xlsx';
 import ReportSubmissionSuccessDialog from "@/components/ReformChampion/ReportSubmissionSuccessDialog";
+import {
+  isAllowedReformChampionUpload,
+  reformChampionUploadRejectedMessage,
+} from "@/lib/reformChampionUpload";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -608,6 +612,12 @@ export default function FillReportPage() {
      const file = event.target.files?.[0];
      if (!file || !template) {
        toast.error("No file selected or template not loaded.");
+       return;
+     }
+
+     if (!isAllowedReformChampionUpload(file.name, file.type)) {
+       toast.error(reformChampionUploadRejectedMessage(file.name));
+       event.target.value = "";
        return;
      }
 
@@ -1271,7 +1281,7 @@ export default function FillReportPage() {
             <input
               id="excel-file-upload"
               type="file"
-              accept=".xlsx, .xls"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={handleExcelUpload}
               className="hidden"
             />
@@ -1296,7 +1306,7 @@ export default function FillReportPage() {
             ref={fileInputRef}
             id="excel-file-upload"
             type="file"
-            accept=".xlsx, .xls"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={handleExcelUpload}
             className="hidden"
           />

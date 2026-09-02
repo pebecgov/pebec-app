@@ -14,18 +14,21 @@ export type IngestionCellStatus =
   | "not_checked"
   | "pending"
   | "success"
+  | "partial_success"
   | "failed";
 
 export type IngestionStatusRow = {
   mdaName: string;
   reportPeriodMonth: number;
   reportPeriodYear: number;
-  status: "pending" | "success" | "failed";
+  status: "pending" | "success" | "partial_success" | "failed";
   failureType?: string;
   failureDetail?: string;
   invalidDateRowCount?: number;
   validRowCount?: number;
   totalRowCount?: number;
+  validRowPercent?: number;
+  skippedBlankRowCount?: number;
   processedAt?: number;
   submittedReportId?: string;
   processingMetadata?: IngestionProcessingMetadata;
@@ -38,6 +41,8 @@ export type IngestionCellDetail = {
   invalidDateRowCount?: number;
   validRowCount?: number;
   totalRowCount?: number;
+  validRowPercent?: number;
+  skippedBlankRowCount?: number;
   processedAt?: number;
   processingMetadata?: IngestionProcessingMetadata;
 };
@@ -53,6 +58,7 @@ const FAILURE_LABELS: Record<string, string> = {
   completion_date_column_missing: "Completion date column missing",
   timeline_column_missing: "Timeline column missing",
   unparseable_dates: "Unparseable dates (all rows)",
+  insufficient_valid_rows: "Too few valid rows (<20%)",
   empty_file: "Empty file",
   unsupported_format: "Excel layout mismatch (wrong sheet or headers)",
   processing_timeout: "Processing timed out",
@@ -144,7 +150,13 @@ function applyIngestionToCell(
   status: IngestionStatusRow
 ) {
   const cellStatus: IngestionCellStatus =
-    status.status === "pending" ? "pending" : status.status === "success" ? "success" : "failed";
+    status.status === "pending"
+      ? "pending"
+      : status.status === "success"
+        ? "success"
+        : status.status === "partial_success"
+          ? "partial_success"
+          : "failed";
 
   cellStates[rowIdx]![colIdx] = cellStatus;
   cellDetails[rowIdx]![colIdx] = {
@@ -154,6 +166,8 @@ function applyIngestionToCell(
     invalidDateRowCount: status.invalidDateRowCount,
     validRowCount: status.validRowCount,
     totalRowCount: status.totalRowCount,
+    validRowPercent: status.validRowPercent,
+    skippedBlankRowCount: status.skippedBlankRowCount,
     processedAt: status.processedAt,
     processingMetadata: status.processingMetadata,
   };
@@ -275,12 +289,14 @@ export function computeIngestionMatrix(
 
 export function countIngestionCells(matrix: IngestionMatrix): {
   success: number;
+  partialSuccess: number;
   failed: number;
   pending: number;
   notChecked: number;
   noSubmission: number;
 } {
   let success = 0;
+  let partialSuccess = 0;
   let failed = 0;
   let pending = 0;
   let notChecked = 0;
@@ -289,6 +305,7 @@ export function countIngestionCells(matrix: IngestionMatrix): {
   matrix.cellStates.forEach((row) => {
     row.forEach((state) => {
       if (state === "success") success++;
+      else if (state === "partial_success") partialSuccess++;
       else if (state === "failed") failed++;
       else if (state === "pending") pending++;
       else if (state === "not_checked") notChecked++;
@@ -296,13 +313,15 @@ export function countIngestionCells(matrix: IngestionMatrix): {
     });
   });
 
-  return { success, failed, pending, notChecked, noSubmission };
+  return { success, partialSuccess, failed, pending, notChecked, noSubmission };
 }
 
 export function cellStatusColor(state: IngestionCellStatus): string {
   switch (state) {
     case "success":
       return "bg-green-600";
+    case "partial_success":
+      return "bg-lime-500";
     case "failed":
       return "bg-red-500";
     case "pending":
@@ -320,10 +339,16 @@ export function cellStatusTitle(state: IngestionCellStatus, detail?: IngestionCe
   if (state === "pending") return detail?.failureDetail ?? "Processing in progress…";
   if (state === "success") {
     const invalid = detail?.invalidDateRowCount ?? 0;
+    const pct = detail?.validRowPercent;
     if (invalid > 0) {
-      return `Processed successfully (${invalid} row(s) with invalid dates)`;
+      return `Processed successfully (${invalid} row(s) with invalid dates${pct != null ? `, ${pct.toFixed(0)}% valid overall` : ""})`;
     }
     return "Processed successfully";
+  }
+  if (state === "partial_success") {
+    const pct = detail?.validRowPercent;
+    const invalid = detail?.invalidDateRowCount ?? 0;
+    return `Partial success${pct != null ? `: ${pct.toFixed(1)}% valid rows` : ""}${invalid > 0 ? ` (${invalid} bad rows)` : ""}`;
   }
   return detail?.failureDetail ?? "Processing failed";
 }
