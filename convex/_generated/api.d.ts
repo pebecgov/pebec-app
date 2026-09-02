@@ -39,6 +39,8 @@ import type * as leaveRequests from "../leaveRequests.js";
 import type * as letters from "../letters.js";
 import type * as lib_mdaReportCompliance from "../lib/mdaReportCompliance.js";
 import type * as lib_userSearch from "../lib/userSearch.js";
+import type * as mdaReportIngestion from "../mdaReportIngestion.js";
+import type * as mdaReportIngestionActions from "../mdaReportIngestionActions.js";
 import type * as mda_scoring from "../mda_scoring.js";
 import type * as media from "../media.js";
 import type * as meetings from "../meetings.js";
@@ -133,6 +135,8 @@ declare const fullApi: ApiFromModules<{
   letters: typeof letters;
   "lib/mdaReportCompliance": typeof lib_mdaReportCompliance;
   "lib/userSearch": typeof lib_userSearch;
+  mdaReportIngestion: typeof mdaReportIngestion;
+  mdaReportIngestionActions: typeof mdaReportIngestionActions;
   mda_scoring: typeof mda_scoring;
   media: typeof media;
   meetings: typeof meetings;

@@ -656,6 +656,7 @@ export default function Admin() {
                         <div className="grid grid-cols-1 gap-1 text-sm">
                           {[
                             { label: "All Submitted Reports", value: "/admin/submitted-reports" },
+                            { label: "Processing Status", value: "/admin/ingestion-status" },
                             { label: "Report Templates", value: "/admin/internal-reports" },
                             { label: "Generate Reports", value: "/admin/generate-ticket-reports" },
                             { label: "All Tickets (ReportGov)", value: "/admin/tickets" }
