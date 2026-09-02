@@ -1,6 +1,7 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { ingestionProcessingMetadataValidator } from "../lib/ingestionProcessingMetadata";
 export default defineSchema({
   users: defineTable({
     email: v.string(),
@@ -205,6 +206,54 @@ export default defineSchema({
       onTime: v.optional(v.boolean())
     }))
   }).index("byYear", ["year"]).index("byYearMda", ["year", "mdaName"]),
+
+  // SLA/BFA Excel processing outcome per MDA per reporting month (linked to submitted_reports)
+  mda_report_ingestion_status: defineTable({
+    submittedReportId: v.optional(v.id("submitted_reports")),
+    mdaName: v.string(),
+    reportPeriodMonth: v.number(),
+    reportPeriodYear: v.number(),
+    status: v.union(v.literal("pending"), v.literal("success"), v.literal("failed")),
+    failureType: v.optional(
+      v.union(
+        v.literal("header_row_not_found"),
+        v.literal("submission_date_column_missing"),
+        v.literal("completion_date_column_missing"),
+        v.literal("timeline_column_missing"),
+        v.literal("unparseable_dates"),
+        v.literal("empty_file"),
+        v.literal("unsupported_format"),
+        v.literal("processing_timeout"),
+        v.literal("cancelled"),
+        v.literal("unknown")
+      )
+    ),
+    failureDetail: v.optional(v.string()),
+    invalidDateRowCount: v.optional(v.number()),
+    validRowCount: v.optional(v.number()),
+    totalRowCount: v.optional(v.number()),
+    processedAt: v.optional(v.number()),
+    pendingStartedAt: v.optional(v.number()),
+    checkRunId: v.optional(v.string()),
+    processingMetadata: v.optional(ingestionProcessingMetadataValidator),
+  })
+    .index("by_mda_period", ["mdaName", "reportPeriodYear", "reportPeriodMonth"])
+    .index("by_submitted_report", ["submittedReportId"])
+    .index("by_status", ["status"])
+    .index("by_check_run", ["checkRunId"])
+    .index("by_period", ["reportPeriodYear", "reportPeriodMonth"]),
+
+  mda_report_ingestion_runs: defineTable({
+    checkRunId: v.string(),
+    fromMonthValue: v.string(),
+    toMonthValue: v.string(),
+    status: v.union(v.literal("running"), v.literal("cancelled"), v.literal("completed")),
+    queuedCount: v.number(),
+    startedAt: v.number(),
+    cancelledAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+  }).index("by_check_run", ["checkRunId"]),
+
   tickets: defineTable({
     title: v.string(),
     description: v.string(),
