@@ -1,5 +1,11 @@
 import * as XLSX from "xlsx";
 import {
+  classifyProcessingQuality,
+  computeValidRowPercent,
+  MIN_VALID_ROW_PERCENT,
+  SUCCESS_VALID_ROW_PERCENT,
+} from "./bfaProcessingConfig";
+import {
   DATE_ISSUE_SAMPLE_LIMIT,
   enrichFailureDetailWithMetadata,
   formatDateIssueSummary,
@@ -37,6 +43,7 @@ export type IngestionFailureType =
   | "completion_date_column_missing"
   | "timeline_column_missing"
   | "unparseable_dates"
+  | "insufficient_valid_rows"
   | "empty_file"
   | "unsupported_format"
   | "processing_timeout"
@@ -97,7 +104,6 @@ function extractSheetData(
   if (!Array.isArray(originalHeaders)) return null;
 
   const headers = originalHeaders.map((h) => String(h).replace(/[\r\n]+/g, " ").trim());
-  const mapping = performFallbackHeaderMatching(headers);
   const jsonData = rawDataWithHeaders.slice(1).map((row) => {
     const obj: Record<string, unknown> = {};
     headers.forEach((header, index) => {
@@ -105,6 +111,12 @@ function extractSheetData(
     });
     return obj;
   });
+
+  const mapping = refineHeaderMappingWithContent(
+    performFallbackHeaderMatching(headers),
+    headers,
+    jsonData
+  );
 
   return {
     sheetIndex,
@@ -196,6 +208,8 @@ function excelLayoutFailure(detail: string): ProcessExcelFailure {
   return { ok: false, failureType: "unsupported_format", failureDetail: detail };
 }
 
+export type ProcessingQuality = "success" | "partial_success" | "failed";
+
 export type ProcessExcelBufferResult =
   | {
       ok: true;
@@ -204,6 +218,9 @@ export type ProcessExcelBufferResult =
       invalidDateRowCount: number;
       overallPercentage: number | null;
       metadata: IngestionProcessingMetadata;
+      processingQuality: ProcessingQuality;
+      validRowPercent: number;
+      skippedBlankRowCount: number;
     }
   | {
       ok: false;
@@ -212,6 +229,9 @@ export type ProcessExcelBufferResult =
       invalidDateRowCount?: number;
       totalRowCount?: number;
       metadata?: IngestionProcessingMetadata;
+      validRowCount?: number;
+      validRowPercent?: number;
+      skippedBlankRowCount?: number;
     };
 
 const MONTH_NAME_TO_INDEX: Record<string, number> = {
@@ -241,61 +261,435 @@ const MONTH_NAME_TO_INDEX: Record<string, number> = {
   december: 11,
 };
 
+export function normalizeHeaderForMatch(header: string): string {
+  return header
+    .toUpperCase()
+    .replace(/[_\-/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Headers that are labels (names, codes) — not date fields. */
+function isLikelyNonDateLabelColumn(normalized: string): boolean {
+  if (normalized.includes("DATE") || normalized.includes("TIME")) return false;
+  if (normalized.includes("NAME")) return true;
+  if (normalized.includes("EMAIL") || normalized.includes("ADDRESS")) return true;
+  if (normalized.includes("DESCRIPTION") || normalized.includes("AMOUNT")) return true;
+  if (normalized.includes("NUMBER") && !normalized.includes("DATE")) return true;
+  if (normalized.includes("CODE") && !normalized.includes("DATE")) return true;
+  if (normalized.includes("RRR") || normalized === "RC NUMBER") return true;
+  return false;
+}
+
+function scoreSubmissionHeader(normalized: string): number {
+  if (isLikelyNonDateLabelColumn(normalized)) return -1000;
+  if (normalized.includes("REGISTRATION SUBMISSION")) return 100;
+  if (normalized.includes("SUBMISSION DATE") || normalized === "DATE OF SUBMISSION") return 98;
+  if (normalized.includes("SUBMISSION") && normalized.includes("DATE")) return 95;
+  if (normalized.includes("SUBMITTED") && normalized.includes("DATE")) return 93;
+  if (normalized.includes("PAYMENT DATE")) return 70;
+  if (normalized.includes("REGISTRATION DATE") && !normalized.includes("APPROVED")) return 75;
+  if (normalized.includes("SUBMISSION") || normalized.includes("SUBMITTED")) return 60;
+  if (normalized.includes("START") && normalized.includes("DATE")) return 65;
+  if (normalized.includes("RECEIVED") && normalized.includes("DATE")) return 65;
+  if (normalized.includes("DATE") && normalized.includes("FILED")) return 65;
+  return -1;
+}
+
+function scoreCompletionHeader(normalized: string): number {
+  if (isLikelyNonDateLabelColumn(normalized)) return -1000;
+  // registration_approved is often a yes/no flag, not a date — only treat as date when header says DATE
+  if (normalized.includes("REGISTRATION APPROVED")) {
+    return normalized.includes("DATE") ? 100 : 20;
+  }
+  if (normalized.includes("DATE APPROVED") || normalized.includes("APPROVAL DATE")) return 98;
+  if (normalized.includes("DATE OF COMPLETION") || normalized.includes("COMPLETION DATE")) return 98;
+  if (normalized.includes("DATE CREATED") || normalized === "CREATED DATE") return 92;
+  if (normalized.includes("LOAN APPROVAL")) return 90;
+  if (normalized.includes("COMPLETION") && normalized.includes("DATE")) return 88;
+  if (normalized.includes("COMPLETED") && normalized.includes("DATE")) return 86;
+  if (normalized.includes("PAYMENT DATE")) return 80;
+  if (normalized.includes("DATE ISSUED") || normalized.includes("ISSUED DATE")) return 78;
+  if (normalized.includes("DATE CLOSED") || normalized.includes("CLOSED DATE")) return 76;
+  if (normalized.includes("DISBURSED") && normalized.includes("DATE")) return 74;
+  if (normalized.includes("FINALIZED") && normalized.includes("DATE")) return 72;
+  if (normalized.includes("END DATE") || normalized.includes("DATE END")) return 70;
+  if (normalized.includes("COMPLETION") || normalized.includes("COMPLETED")) return 40;
+  if (normalized.includes("APPROVED") && normalized.includes("DATE")) return 85;
+  // Bare "APPROVED" without DATE must not beat registration_approved
+  if (normalized.includes("APPROVED") || normalized.includes("APPROVAL")) return -1;
+  return -1;
+}
+
+function scoreTimelineHeader(normalized: string): number {
+  if (normalized.includes("TIME TAKEN")) return 100;
+  if (normalized.includes("EXPECTED TIMELINE") || normalized === "TIMELINE") return 98;
+  if (normalized.includes("AVAILABILITY CODE") || normalized === "AVAILABILITY") return 85;
+  if (normalized.includes("TURNAROUND") || normalized === "TAT") return 90;
+  if (normalized.includes("PROCESSING TIME")) return 88;
+  if (normalized.includes("EXPECTED DAYS") || normalized.includes("TARGET DAYS")) return 85;
+  if (normalized.includes("DURATION")) return 80;
+  if (normalized.includes("DEADLINE")) return 75;
+  if (normalized.includes("SLA")) return 70;
+  if (normalized.includes("DAYS") && !normalized.includes("DATE")) return 50;
+  return -1;
+}
+
+function pickBestHeaderByScore(
+  headers: string[],
+  scoreFn: (normalized: string) => number,
+  exclude: Set<string>,
+  minScore = 1
+): string | null {
+  let bestHeader: string | null = null;
+  let bestScore = minScore - 1;
+
+  for (const header of headers) {
+    if (exclude.has(header)) continue;
+    const score = scoreFn(normalizeHeaderForMatch(header));
+    if (score > bestScore) {
+      bestScore = score;
+      bestHeader = header;
+    }
+  }
+
+  return bestHeader;
+}
+
 export function performFallbackHeaderMatching(headers: string[]): SlaHeaderMapping {
+  const nonEmptyHeaders = headers.filter((h) => h.trim().length > 0);
+  const used = new Set<string>();
+
   const mapping: SlaHeaderMapping = {
     DATE_OF_SUBMISSION: null,
     DATE_OF_COMPLETION: null,
     EXPECTED_TIMELINE: null,
   };
 
-  headers.forEach((header) => {
-    const upperHeader = header.toUpperCase();
+  mapping.EXPECTED_TIMELINE = pickBestHeaderByScore(
+    nonEmptyHeaders,
+    scoreTimelineHeader,
+    used
+  );
+  if (mapping.EXPECTED_TIMELINE) used.add(mapping.EXPECTED_TIMELINE);
 
-    if (
-      !mapping.DATE_OF_SUBMISSION &&
-      (upperHeader.includes("SUBMISSION") ||
-        upperHeader.includes("START") ||
-        upperHeader.includes("SUBMITTED"))
-    ) {
-      mapping.DATE_OF_SUBMISSION = header;
-    }
+  mapping.DATE_OF_SUBMISSION = pickBestHeaderByScore(
+    nonEmptyHeaders,
+    scoreSubmissionHeader,
+    used
+  );
+  if (mapping.DATE_OF_SUBMISSION) used.add(mapping.DATE_OF_SUBMISSION);
 
-    if (
-      !mapping.DATE_OF_COMPLETION &&
-      (upperHeader.includes("COMPLETION") ||
-        upperHeader.includes("END") ||
-        upperHeader.includes("COMPLETED") ||
-        upperHeader.includes("FINISH"))
-    ) {
-      mapping.DATE_OF_COMPLETION = header;
-    }
+  mapping.DATE_OF_COMPLETION = pickBestHeaderByScore(
+    nonEmptyHeaders,
+    scoreCompletionHeader,
+    used
+  );
+  if (mapping.DATE_OF_COMPLETION) used.add(mapping.DATE_OF_COMPLETION);
 
-    if (
-      !mapping.EXPECTED_TIMELINE &&
-      (upperHeader.includes("TIMELINE") ||
-        upperHeader.includes("EXPECTED") ||
-        upperHeader.includes("DAYS") ||
-        upperHeader.includes("DEADLINE") ||
-        upperHeader.includes("TARGET") ||
-        upperHeader.includes("SLA"))
-    ) {
-      mapping.EXPECTED_TIMELINE = header;
+  // Legacy fallback: lone "DATE" column when completion already mapped elsewhere
+  if (!mapping.DATE_OF_SUBMISSION) {
+    const dateCol = nonEmptyHeaders.find(
+      (h) => !used.has(h) && normalizeHeaderForMatch(h) === "DATE"
+    );
+    if (dateCol && mapping.DATE_OF_COMPLETION) {
+      mapping.DATE_OF_SUBMISSION = dateCol;
+      used.add(dateCol);
     }
-  });
+  }
 
-  headers.forEach((header) => {
-    const upperHeader = header.toUpperCase();
-    if (
-      !mapping.DATE_OF_SUBMISSION &&
-      !mapping.DATE_OF_COMPLETION &&
-      upperHeader === "DATE" &&
-      mapping.DATE_OF_COMPLETION
-    ) {
-      mapping.DATE_OF_SUBMISSION = header;
-    }
-  });
+  // Generic "DAYS" column only if nothing timeline-like matched yet
+  if (!mapping.EXPECTED_TIMELINE) {
+    const daysCol = nonEmptyHeaders.find((h) => {
+      if (used.has(h)) return false;
+      const n = normalizeHeaderForMatch(h);
+      return n === "DAYS" || n.endsWith(" DAYS");
+    });
+    if (daysCol) mapping.EXPECTED_TIMELINE = daysCol;
+  }
 
   return mapping;
+}
+
+function isBooleanCellValue(value: unknown): boolean {
+  if (typeof value === "boolean") return true;
+  const raw = String(value).trim().toLowerCase();
+  return raw === "true" || raw === "false";
+}
+
+/** Share of non-empty sample cells that parse as dates (excludes booleans). */
+function columnDateParseRate(
+  rows: Record<string, unknown>[],
+  column: string,
+  maxSample = 250
+): number {
+  const sample = rows.slice(0, maxSample);
+  let nonEmpty = 0;
+  let parsed = 0;
+
+  for (const row of sample) {
+    const value = row[column];
+    const raw = formatRawCellValue(value);
+    if (!raw) continue;
+    nonEmpty++;
+    if (isBooleanCellValue(value)) continue;
+    if (parseSmartDate(value)) parsed++;
+  }
+
+  return nonEmpty === 0 ? 0 : parsed / nonEmpty;
+}
+
+/** Share of non-empty sample cells that parse as timeline day counts. */
+function columnTimelineParseRate(
+  rows: Record<string, unknown>[],
+  column: string,
+  maxSample = 250
+): number {
+  const sample = rows.slice(0, maxSample);
+  let nonEmpty = 0;
+  let parsed = 0;
+
+  for (const row of sample) {
+    const value = row[column];
+    const raw = formatRawCellValue(value);
+    if (!raw) continue;
+    nonEmpty++;
+    if (parseTimeline(value) !== null) parsed++;
+  }
+
+  return nonEmpty === 0 ? 0 : parsed / nonEmpty;
+}
+
+/**
+ * Some MDAs export a broken "Time Taken" formula (≈ constant − submission serial).
+ * Values look like -4620.76 when submission is 45995.76 (sum ≈ 41375).
+ */
+function isBrokenSubmissionDerivedTimeline(
+  timelineValue: unknown,
+  submissionValue: unknown
+): boolean {
+  const timelineNum = Number(formatRawCellValue(timelineValue));
+  const submissionNum = Number(formatRawCellValue(submissionValue));
+  if (!Number.isFinite(timelineNum) || !Number.isFinite(submissionNum)) return false;
+  if (timelineNum >= 0 || submissionNum < 30000) return false;
+  const magnitude = Math.abs(timelineNum);
+  if (magnitude <= 730) return false;
+  const combined = magnitude + submissionNum;
+  return combined > 40000 && combined < 50000;
+}
+
+function columnBrokenTimelineRate(
+  rows: Record<string, unknown>[],
+  timelineColumn: string,
+  submissionColumn: string | null,
+  maxSample = 250
+): number {
+  if (!submissionColumn) return 0;
+  const sample = rows.slice(0, maxSample);
+  let checked = 0;
+  let broken = 0;
+
+  for (const row of sample) {
+    const timelineRaw = formatRawCellValue(row[timelineColumn]);
+    if (!timelineRaw) continue;
+    checked++;
+    if (isBrokenSubmissionDerivedTimeline(row[timelineColumn], row[submissionColumn])) {
+      broken++;
+    }
+  }
+
+  return checked === 0 ? 0 : broken / checked;
+}
+
+function rankHeadersByScore(
+  headers: string[],
+  scoreFn: (normalized: string) => number,
+  minScore = 1
+): Array<{ header: string; score: number }> {
+  return headers
+    .map((header) => ({
+      header,
+      score: scoreFn(normalizeHeaderForMatch(header)),
+    }))
+    .filter((entry) => entry.score >= minScore)
+    .sort((a, b) => b.score - a.score);
+}
+
+const MIN_COLUMN_CONTENT_PARSE_RATE = 0.35;
+
+/**
+ * Prefer columns whose cells actually parse — fixes boolean flags (registration_approved)
+ * beating real date columns (date_created) on header name alone.
+ */
+export function refineHeaderMappingWithContent(
+  mapping: SlaHeaderMapping,
+  headers: string[],
+  rows: Record<string, unknown>[]
+): SlaHeaderMapping {
+  if (rows.length === 0) return mapping;
+
+  const refined: SlaHeaderMapping = { ...mapping };
+  const used = new Set<string>();
+
+  const pickBestContentColumn = (
+    role: "submission" | "completion" | "timeline",
+    current: string | null,
+    scoreFn: (normalized: string) => number,
+    rateFn: (column: string) => number
+  ): string | null => {
+    const candidates = rankHeadersByScore(headers, scoreFn);
+    let bestHeader = current;
+    let bestRate = current ? rateFn(current) : 0;
+
+    for (const { header, score } of candidates) {
+      if (used.has(header)) continue;
+      const rate = rateFn(header);
+      const beatsCurrent =
+        rate > bestRate + 0.05 ||
+        (rate >= MIN_COLUMN_CONTENT_PARSE_RATE &&
+          bestRate < MIN_COLUMN_CONTENT_PARSE_RATE &&
+          rate > bestRate);
+      if (!beatsCurrent) continue;
+      // Slightly prefer higher header score when parse rates are similar
+      if (
+        bestHeader &&
+        Math.abs(rate - bestRate) < 0.05 &&
+        score <= scoreFn(normalizeHeaderForMatch(bestHeader))
+      ) {
+        continue;
+      }
+      bestHeader = header;
+      bestRate = rate;
+    }
+
+    if (bestHeader && bestRate < MIN_COLUMN_CONTENT_PARSE_RATE && role !== "timeline") {
+      // No column in this role has enough parseable values — keep scored pick for error reporting
+      return current ?? bestHeader;
+    }
+
+    return bestHeader;
+  };
+
+  const submissionRate = (column: string) => columnDateParseRate(rows, column);
+  const completionRate = (column: string) => columnDateParseRate(rows, column);
+  const timelineRate = (column: string) => columnTimelineParseRate(rows, column);
+
+  refined.DATE_OF_SUBMISSION =
+    pickBestContentColumn(
+      "submission",
+      mapping.DATE_OF_SUBMISSION,
+      scoreSubmissionHeader,
+      submissionRate
+    ) ?? mapping.DATE_OF_SUBMISSION;
+  if (refined.DATE_OF_SUBMISSION) used.add(refined.DATE_OF_SUBMISSION);
+
+  refined.DATE_OF_COMPLETION =
+    pickBestContentColumn(
+      "completion",
+      mapping.DATE_OF_COMPLETION,
+      scoreCompletionHeader,
+      completionRate
+    ) ?? mapping.DATE_OF_COMPLETION;
+  if (refined.DATE_OF_COMPLETION) used.add(refined.DATE_OF_COMPLETION);
+
+  refined.EXPECTED_TIMELINE =
+    pickBestContentColumn(
+      "timeline",
+      mapping.EXPECTED_TIMELINE,
+      scoreTimelineHeader,
+      timelineRate
+    ) ?? mapping.EXPECTED_TIMELINE;
+
+  if (
+    refined.EXPECTED_TIMELINE &&
+    refined.DATE_OF_SUBMISSION &&
+    columnBrokenTimelineRate(rows, refined.EXPECTED_TIMELINE, refined.DATE_OF_SUBMISSION) > 0.5
+  ) {
+    const alternatives = rankHeadersByScore(headers, scoreTimelineHeader).filter(
+      ({ header }) =>
+        header !== refined.EXPECTED_TIMELINE && !used.has(header)
+    );
+
+    let replacement: string | null = null;
+    let bestAltRate = 0;
+
+    for (const { header } of alternatives) {
+      const brokenRate = columnBrokenTimelineRate(
+        rows,
+        header,
+        refined.DATE_OF_SUBMISSION
+      );
+      if (brokenRate > 0.5) continue;
+      const rate = timelineRate(header);
+      if (rate > bestAltRate) {
+        bestAltRate = rate;
+        replacement = header;
+      }
+    }
+
+    if (replacement && bestAltRate >= MIN_COLUMN_CONTENT_PARSE_RATE) {
+      refined.EXPECTED_TIMELINE = replacement;
+    }
+  }
+
+  return refined;
+}
+
+function findCustomerOrServiceHeader(headers: string[], kind: "customer" | "service"): string | null {
+  const patterns =
+    kind === "customer"
+      ? ["CUSTOMER", "CLIENT", "APPLICANT", "BENEFICIARY", "COMPANY NAME", "NAME OF CUSTOMER"]
+      : ["SERVICE", "PRODUCT", "APPLICATION TYPE", "SERVICE TYPE", "TYPE OF SERVICE"];
+
+  return (
+    headers.find((header) => {
+      const normalized = normalizeHeaderForMatch(header);
+      return patterns.some((p) => normalized.includes(p));
+    }) ?? null
+  );
+}
+
+/** Skip template padding rows — all SLA fields and customer/service identifiers blank. */
+export function filterBlankPaddingRows(
+  inputRows: Record<string, unknown>[],
+  headerMapping: SlaHeaderMapping,
+  headers: string[]
+): { rows: Record<string, unknown>[]; skippedCount: number } {
+  const customerHeader = findCustomerOrServiceHeader(headers, "customer");
+  const serviceHeader = findCustomerOrServiceHeader(headers, "service");
+
+  let skippedCount = 0;
+  const rows = inputRows.filter((row) => {
+    const submissionRaw = headerMapping.DATE_OF_SUBMISSION
+      ? formatRawCellValue(row[headerMapping.DATE_OF_SUBMISSION])
+      : "";
+    const completionRaw = headerMapping.DATE_OF_COMPLETION
+      ? formatRawCellValue(row[headerMapping.DATE_OF_COMPLETION])
+      : "";
+    const timelineRaw = headerMapping.EXPECTED_TIMELINE
+      ? formatRawCellValue(row[headerMapping.EXPECTED_TIMELINE])
+      : "";
+    const customerRaw = customerHeader ? formatRawCellValue(row[customerHeader]) : "";
+    const serviceRaw = serviceHeader ? formatRawCellValue(row[serviceHeader]) : "";
+
+    const slaBlank = !submissionRaw && !completionRaw && !timelineRaw;
+    const identityBlank = !customerRaw && !serviceRaw;
+
+    if (slaBlank && identityBlank) {
+      skippedCount++;
+      return false;
+    }
+
+    const entirelyBlank = Object.values(row).every((value) => formatRawCellValue(value) === "");
+    if (entirelyBlank) {
+      skippedCount++;
+      return false;
+    }
+
+    return true;
+  });
+
+  return { rows, skippedCount };
 }
 
 function isValidDateParts(year: number, monthIndex: number, day: number): boolean {
@@ -307,10 +701,28 @@ function isValidDateParts(year: number, monthIndex: number, day: number): boolea
   return date.getFullYear() === year && date.getMonth() === monthIndex && date.getDate() === day;
 }
 
+function parseExcelSerialNumber(value: number): Date | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const wholeDays = Math.floor(value);
+  // Excel serial dates for modern reports are typically 40k+ (≈ 2009+)
+  if (wholeDays < 30000) return null;
+  const excelEpochDiff = 25569;
+  const msPerDay = 86400 * 1000;
+  const date = new Date((wholeDays - excelEpochDiff) * msPerDay);
+  if (isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  if (year < 1990 || year > 2100) return null;
+  return date;
+}
+
 export function parseSmartDate(input: unknown): Date | null {
   if (input === null || input === undefined) return null;
 
+  if (typeof input === "boolean") return null;
+
   if (typeof input === "number" && Number.isFinite(input)) {
+    const fromSerial = parseExcelSerialNumber(input);
+    if (fromSerial) return fromSerial;
     if (input <= 0) return null;
     const excelEpochDiff = 25569;
     const msPerDay = 86400 * 1000;
@@ -324,6 +736,18 @@ export function parseSmartDate(input: unknown): Date | null {
 
   const raw = String(input).trim();
   if (!raw) return null;
+
+  const lower = raw.toLowerCase();
+  if (lower === "true" || lower === "false") return null;
+
+  // Numeric strings from Excel exports (e.g. "46006.402576747685")
+  if (/^-?\d+(\.\d+)?$/.test(raw)) {
+    const asNumber = Number(raw);
+    if (Number.isFinite(asNumber)) {
+      const fromSerial = parseExcelSerialNumber(asNumber);
+      if (fromSerial) return fromSerial;
+    }
+  }
 
   const normalized = raw
     .replace(/(\d+)(st|nd|rd|th)/gi, "$1")
@@ -412,10 +836,28 @@ function calculateWorkingDays(startDate: unknown, endDate: unknown): number | nu
 }
 
 function parseTimeline(timelineStr: unknown): number | null {
-  if (!timelineStr) return null;
+  if (timelineStr === null || timelineStr === undefined) return null;
 
   try {
+    if (typeof timelineStr === "number" && Number.isFinite(timelineStr)) {
+      // Reject Excel serial-sized garbage; accept day counts (some exports use negative values)
+      const days = timelineStr < 0 ? Math.abs(timelineStr) : timelineStr;
+      if (days > 730) return null;
+      return Math.round(days * 10) / 10;
+    }
+
     const str = String(timelineStr).toLowerCase().trim();
+    if (!str) return null;
+
+    // Pure numeric timeline (days)
+    if (/^-?\d+(\.\d+)?$/.test(str)) {
+      const num = Number(str);
+      if (!Number.isFinite(num)) return null;
+      const days = num < 0 ? Math.abs(num) : num;
+      if (days > 730) return null;
+      return Math.round(days * 10) / 10;
+    }
+
     let value: number | null = null;
 
     const numberWords: Record<string, number> = {
@@ -446,12 +888,49 @@ function parseTimeline(timelineStr: unknown): number | null {
     }
 
     if (value === null) return null;
+    if (value < 0 || value > 730) return null;
     if (str.includes("week")) return value * 5;
     if (str.includes("hour")) return Math.ceil(value / 24);
     return value;
   } catch {
     return null;
   }
+}
+
+function findAvailabilityCodeHeader(headers: string[]): string | null {
+  return (
+    headers.find((header) => {
+      const normalized = normalizeHeaderForMatch(header);
+      return normalized.includes("AVAILABILITY");
+    }) ?? null
+  );
+}
+
+function resolveExpectedTimelineDays(
+  row: Record<string, unknown>,
+  headerMapping: SlaHeaderMapping,
+  submissionDate: unknown,
+  availabilityHeader: string | null
+): number | null {
+  const timelineStr = headerMapping.EXPECTED_TIMELINE
+    ? row[headerMapping.EXPECTED_TIMELINE]
+    : null;
+
+  if (
+    timelineStr !== null &&
+    timelineStr !== undefined &&
+    !isBrokenSubmissionDerivedTimeline(timelineStr, submissionDate)
+  ) {
+    const parsed = parseTimeline(timelineStr);
+    if (parsed !== null) return parsed;
+  }
+
+  if (availabilityHeader) {
+    const fromAvailability = parseTimeline(row[availabilityHeader]);
+    if (fromAvailability !== null) return fromAvailability;
+  }
+
+  return null;
 }
 
 function calculatePerformance(actualDays: number | null, expectedDays: number | null): number | null {
@@ -464,7 +943,8 @@ function calculatePerformance(actualDays: number | null, expectedDays: number | 
 function classifyRowDateIssues(
   submissionDate: unknown,
   completionDate: unknown,
-  timelineStr: unknown
+  timelineStr: unknown,
+  availabilityValue?: unknown
 ): DateIssueReason[] {
   const issues: DateIssueReason[] = [];
 
@@ -484,9 +964,17 @@ function classifyRowDateIssues(
     issues.push("unparseable_completion_date");
   }
 
-  if (!timelineRaw) {
+  const timelineBroken =
+    timelineRaw !== "" &&
+    isBrokenSubmissionDerivedTimeline(timelineStr, submissionDate);
+  const availabilityParsed =
+    availabilityValue !== undefined ? parseTimeline(availabilityValue) : null;
+  const timelineParsed =
+    timelineRaw && !timelineBroken ? parseTimeline(timelineStr) : null;
+
+  if (!timelineRaw && availabilityParsed === null) {
     issues.push("missing_timeline");
-  } else if (parseTimeline(timelineStr) === null) {
+  } else if (timelineParsed === null && availabilityParsed === null) {
     issues.push("unparseable_timeline");
   }
 
@@ -507,7 +995,8 @@ function classifyRowDateIssues(
 
 function collectDateIssueSamples(
   data: Record<string, unknown>[],
-  headerMapping: SlaHeaderMapping
+  headerMapping: SlaHeaderMapping,
+  availabilityHeader: string | null
 ): { samples: DateIssueSample[]; totalCount: number } {
   const allSamples: DateIssueSample[] = [];
 
@@ -519,8 +1008,14 @@ function collectDateIssueSamples(
       ? row[headerMapping.DATE_OF_COMPLETION]
       : null;
     const timelineStr = headerMapping.EXPECTED_TIMELINE ? row[headerMapping.EXPECTED_TIMELINE] : null;
+    const availabilityValue = availabilityHeader ? row[availabilityHeader] : undefined;
 
-    const issues = classifyRowDateIssues(submissionDate, completionDate, timelineStr);
+    const issues = classifyRowDateIssues(
+      submissionDate,
+      completionDate,
+      timelineStr,
+      availabilityValue
+    );
     if (issues.length === 0) return;
 
     allSamples.push({
@@ -539,7 +1034,14 @@ function collectDateIssueSamples(
   };
 }
 
-export function internalProcessSlaData(data: Record<string, unknown>[], headerMapping: SlaHeaderMapping) {
+export function internalProcessSlaData(
+  data: Record<string, unknown>[],
+  headerMapping: SlaHeaderMapping,
+  headers?: string[]
+) {
+  const availabilityHeader =
+    headers?.length ? findAvailabilityCodeHeader(headers) : null;
+
   const processedData = data.map((row) => {
     const submissionDate = headerMapping.DATE_OF_SUBMISSION
       ? row[headerMapping.DATE_OF_SUBMISSION]
@@ -550,7 +1052,12 @@ export function internalProcessSlaData(data: Record<string, unknown>[], headerMa
     const timelineStr = headerMapping.EXPECTED_TIMELINE ? row[headerMapping.EXPECTED_TIMELINE] : null;
 
     const actualDays = calculateWorkingDays(submissionDate, completionDate);
-    const expectedDays = parseTimeline(timelineStr);
+    const expectedDays = resolveExpectedTimelineDays(
+      row,
+      headerMapping,
+      submissionDate,
+      availabilityHeader
+    );
     const performancePercentage = calculatePerformance(actualDays, expectedDays);
 
     let status = "Invalid Dates";
@@ -580,7 +1087,7 @@ export function internalProcessSlaData(data: Record<string, unknown>[], headerMa
 
   const overallPercentage = validRows.length > 0 ? totalPercentage / validRows.length : null;
   const invalidDateRowCount = processedData.filter((row) => row.STATUS === "Invalid Dates").length;
-  const dateIssues = collectDateIssueSamples(data, headerMapping);
+  const dateIssues = collectDateIssueSamples(data, headerMapping, availabilityHeader);
 
   return {
     processedData,
@@ -734,6 +1241,9 @@ export function processExcelBuffer(
     invalidDateRowCount: full.invalidDateRowCount,
     overallPercentage: full.overallPercentage,
     metadata: full.metadata,
+    processingQuality: full.processingQuality,
+    validRowPercent: full.validRowPercent,
+    skippedBlankRowCount: full.skippedBlankRowCount,
   };
 }
 
@@ -749,6 +1259,9 @@ export function processExcelBufferFull(
       overallPercentage: number | null;
       processedData: ReturnType<typeof internalProcessSlaData>["processedData"];
       metadata: IngestionProcessingMetadata;
+      processingQuality: ProcessingQuality;
+      validRowPercent: number;
+      skippedBlankRowCount: number;
     })
   | ({
       ok: false;
@@ -757,6 +1270,9 @@ export function processExcelBufferFull(
       invalidDateRowCount?: number;
       totalRowCount?: number;
       metadata?: IngestionProcessingMetadata;
+      validRowCount?: number;
+      validRowPercent?: number;
+      skippedBlankRowCount?: number;
     }) {
   try {
     const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: "array" });
@@ -771,30 +1287,69 @@ export function processExcelBufferFull(
     }
 
     const sheet = resolved as SheetScanResult & { metadata: IngestionProcessingMetadata };
-    const processResult = internalProcessSlaData(sheet.jsonData, sheet.mapping);
+    const { rows: dataRows, skippedCount: skippedBlankRowCount } = filterBlankPaddingRows(
+      sheet.jsonData,
+      sheet.mapping,
+      sheet.headers
+    );
+
+    if (dataRows.length === 0) {
+      return {
+        ok: false,
+        failureType: "empty_file",
+        failureDetail: enrichFailureDetailWithMetadata(
+          skippedBlankRowCount > 0
+            ? `File has ${skippedBlankRowCount} blank padding row(s) but no data rows with customer/service or date values.`
+            : "Excel file has headers but no data rows",
+          sheet.metadata
+        ),
+        totalRowCount: 0,
+        skippedBlankRowCount,
+        metadata: sheet.metadata,
+      };
+    }
+
+    const processResult = internalProcessSlaData(dataRows, sheet.mapping, sheet.headers);
     const metadataWithDates = attachDateIssuesToMetadata(
       sheet.metadata,
       processResult.dateIssueSamples,
       processResult.dateIssueTotalCount
     );
+    const validRowPercent = computeValidRowPercent(processResult.validRows, processResult.totalRows);
+    const processingQuality = classifyProcessingQuality(
+      processResult.validRows,
+      processResult.totalRows
+    );
 
-    if (processResult.validRows === 0) {
+    if (processingQuality === "failed") {
       const sampleHint =
         processResult.dateIssueSamples.length > 0
           ? ` See date failure report for ${processResult.dateIssueTotalCount} row(s) with details.`
           : "";
+      const failureType =
+        processResult.validRows === 0 ? "unparseable_dates" : "insufficient_valid_rows";
+      const baseDetail =
+        processResult.validRows === 0
+          ? `All ${processResult.totalRows} data row(s) have invalid or missing dates.${sampleHint}`
+          : `Only ${validRowPercent.toFixed(1)}% of rows (${processResult.validRows}/${processResult.totalRows}) have valid dates — below the ${MIN_VALID_ROW_PERCENT}% minimum for a passing file.${sampleHint}`;
+
       return {
         ok: false,
-        failureType: "unparseable_dates",
-        failureDetail: enrichFailureDetailWithMetadata(
-          `All ${processResult.totalRows} row(s) have invalid or missing dates.${sampleHint}`,
-          metadataWithDates
-        ),
+        failureType,
+        failureDetail: enrichFailureDetailWithMetadata(baseDetail, metadataWithDates),
         invalidDateRowCount: processResult.invalidDateRowCount,
         totalRowCount: processResult.totalRows,
+        validRowCount: processResult.validRows,
+        validRowPercent,
+        skippedBlankRowCount,
         metadata: metadataWithDates,
       };
     }
+
+    const partialNote =
+      processingQuality === "partial_success"
+        ? `${validRowPercent.toFixed(1)}% of rows valid (${processResult.validRows}/${processResult.totalRows}) — below ${SUCCESS_VALID_ROW_PERCENT}% full-success threshold.`
+        : undefined;
 
     return {
       ok: true,
@@ -803,7 +1358,16 @@ export function processExcelBufferFull(
       invalidDateRowCount: processResult.invalidDateRowCount,
       overallPercentage: processResult.overallPercentage,
       processedData: processResult.processedData,
-      metadata: metadataWithDates,
+      metadata: {
+        ...metadataWithDates,
+        skippedBlankRowCount,
+        validRowPercent,
+        processingQuality,
+        partialSuccessNote: partialNote,
+      },
+      processingQuality,
+      validRowPercent,
+      skippedBlankRowCount,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not open file";

@@ -95,6 +95,8 @@ export default function IngestionStatusPage() {
           invalidDateRowCount: s.invalidDateRowCount,
           validRowCount: s.validRowCount,
           totalRowCount: s.totalRowCount,
+          validRowPercent: s.validRowPercent,
+          skippedBlankRowCount: s.skippedBlankRowCount,
           processedAt: s.processedAt,
           submittedReportId: s.submittedReportId,
           processingMetadata: s.processingMetadata ?? undefined,
@@ -172,7 +174,8 @@ export default function IngestionStatusPage() {
       state === "failed" ||
       state === "pending" ||
       state === "not_checked" ||
-      state === "success"
+      state === "success" ||
+      state === "partial_success"
     ) {
       setSelectedCell({ mdaName, monthLabel, detail });
     }
@@ -240,13 +243,14 @@ export default function IngestionStatusPage() {
       {activeRun && activeRun.pendingCount > 0 && (
         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
           Processing {activeRun.pendingCount} of {activeRun.queuedCount} file(s)… Items that take
-          longer than 2 minutes will be marked as timed out. Wrong Excel layout (headers or sheet
+          longer than 5 minutes will be marked as timed out. Wrong Excel layout (headers or sheet
           tab) is reported separately from PDF or other file types.
         </p>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <StatCard label="Processed OK" value={cellCounts.success} className="border-green-200 bg-green-50" />
+        <StatCard label="Partial OK" value={cellCounts.partialSuccess} className="border-lime-200 bg-lime-50" />
         <StatCard label="Failed" value={cellCounts.failed} className="border-red-200 bg-red-50" />
         <StatCard label="Pending" value={cellCounts.pending} className="border-amber-200 bg-amber-50" />
         <StatCard label="Not checked" value={cellCounts.notChecked} className="border-sky-200 bg-sky-50" />
@@ -271,7 +275,8 @@ export default function IngestionStatusPage() {
       )}
 
       <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-        <LegendDot className="bg-green-600" label="Success" />
+        <LegendDot className="bg-green-600" label="Success (≥80% valid rows)" />
+        <LegendDot className="bg-lime-500" label="Partial success (20–79%)" />
         <LegendDot className="bg-red-500" label="Failed" />
         <LegendDot className="bg-amber-400" label="Pending (processing)" />
         <LegendDot className="bg-sky-300" label="Not checked yet" />
@@ -306,7 +311,8 @@ export default function IngestionStatusPage() {
                       state === "failed" ||
                       state === "pending" ||
                       state === "not_checked" ||
-                      state === "success";
+                      state === "success" ||
+                      state === "partial_success";
 
                     return (
                       <TableCell key={`${mdaName}-${colIdx}`} className="text-center align-middle">

@@ -33,6 +33,7 @@ const STATUS_LABELS: Record<IngestionCellStatus, string> = {
   not_checked: "Not checked",
   pending: "Pending",
   success: "Processed OK",
+  partial_success: "Partial success",
   failed: "Failed",
 };
 

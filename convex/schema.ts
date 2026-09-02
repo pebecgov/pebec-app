@@ -213,7 +213,12 @@ export default defineSchema({
     mdaName: v.string(),
     reportPeriodMonth: v.number(),
     reportPeriodYear: v.number(),
-    status: v.union(v.literal("pending"), v.literal("success"), v.literal("failed")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("success"),
+      v.literal("partial_success"),
+      v.literal("failed")
+    ),
     failureType: v.optional(
       v.union(
         v.literal("header_row_not_found"),
@@ -221,6 +226,7 @@ export default defineSchema({
         v.literal("completion_date_column_missing"),
         v.literal("timeline_column_missing"),
         v.literal("unparseable_dates"),
+        v.literal("insufficient_valid_rows"),
         v.literal("empty_file"),
         v.literal("unsupported_format"),
         v.literal("processing_timeout"),
@@ -232,6 +238,8 @@ export default defineSchema({
     invalidDateRowCount: v.optional(v.number()),
     validRowCount: v.optional(v.number()),
     totalRowCount: v.optional(v.number()),
+    validRowPercent: v.optional(v.number()),
+    skippedBlankRowCount: v.optional(v.number()),
     processedAt: v.optional(v.number()),
     pendingStartedAt: v.optional(v.number()),
     checkRunId: v.optional(v.string()),
