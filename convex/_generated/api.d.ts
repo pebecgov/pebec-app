@@ -18,6 +18,7 @@ import type * as ai_helpers from "../ai_helpers.js";
 import type * as auditLogs from "../auditLogs.js";
 import type * as beepaImport from "../beepaImport.js";
 import type * as bulkImportStateScores from "../bulkImportStateScores.js";
+import type * as bulkNationwideTourScores from "../bulkNationwideTourScores.js";
 import type * as business_letters from "../business_letters.js";
 import type * as calendar from "../calendar.js";
 import type * as chat from "../chat.js";
@@ -116,6 +117,7 @@ declare const fullApi: ApiFromModules<{
   auditLogs: typeof auditLogs;
   beepaImport: typeof beepaImport;
   bulkImportStateScores: typeof bulkImportStateScores;
+  bulkNationwideTourScores: typeof bulkNationwideTourScores;
   business_letters: typeof business_letters;
   calendar: typeof calendar;
   chat: typeof chat;

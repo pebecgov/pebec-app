@@ -1,4 +1,4 @@
-const STATE_LIST = [
+export const STATE_LIST: string[] = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa",
   "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo",
   "Ekiti", "Enugu", "Gombe", "Imo", "Jigawa", "Kaduna",

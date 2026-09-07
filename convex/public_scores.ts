@@ -13,6 +13,7 @@ import {
   overallIndicatorMaxScore,
   type IndicatorKey,
 } from "./config/indicators";
+import { STATE_LIST, normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
 
 // Helper function for grade calculation
 function gradeFromPercentage(percentage: number): string {
@@ -41,55 +42,42 @@ export const getPublicStateRankings = query({
   },
   handler: async (ctx, args) => {
     const currentYear = args.year || new Date().getFullYear();
-    
-    // Get all state scores for the year
-    let allScores;
-    try {
-      allScores = await ctx.db
-        .query("state_scores")
-        .withIndex("byYear", (q) => q.eq("year", currentYear))
-        .collect();
-    } catch (error) {
-      // If year index doesn't exist, use in-memory filtering
-      const allRecords = await ctx.db.query("state_scores").collect();
-      allScores = allRecords.filter((record) => 
-        record.year === currentYear || (!record.year && currentYear === 2025)
-      );
+
+    // Always seed the full roster so Total States = 37 even before any scores exist.
+    const stateDetails = new Map<
+      string,
+      {
+        totalScore: number;
+        indicators: Record<
+          string,
+          {
+            name: string;
+            score: number;
+            maxScore: number;
+            subIndicators: Record<string, number>;
+          }
+        >;
+        lastUpdated: number;
+      }
+    >();
+
+    for (const stateName of STATE_LIST) {
+      stateDetails.set(stateName, {
+        totalScore: 0,
+        indicators: {},
+        lastUpdated: 0,
+      });
     }
 
-    if (allScores.length === 0) {
-      return {
-        states: [],
-        totalStates: 0,
-        indicators: Object.keys(indicators),
-      };
-    }
-
-    // Group by state and collect detailed breakdown
-    const stateDetails = new Map<string, {
-      totalScore: number;
-      indicators: Record<string, {
-        name: string;
-        score: number;
-        maxScore: number;
-        subIndicators: Record<string, number>;
-      }>;
-      lastUpdated: number;
-    }>();
-
-    const validStateKeywords = ['Lagos', 'Kano', 'Rivers', 'Kaduna', 'Oyo', 'Edo', 'Delta', 'Imo', 'Enugu', 'Plateau', 'Cross River', 'Akwa Ibom', 'Ondo', 'Osun', 'Ogun', 'Kwara', 'Benue', 'Anambra', 'Borno', 'Niger', 'Abia', 'Taraba', 'Adamawa', 'Sokoto', 'Kebbi', 'Katsina', 'Jigawa', 'Yobe', 'Bauchi', 'Gombe', 'Zamfara', 'Nasarawa', 'Kogi', 'Ekiti', 'Ebonyi', 'Bayelsa', 'Federal Capital Territory', 'FCT'];
+    const allScores = await ctx.db
+      .query("state_scores")
+      .withIndex("byYear", (q) => q.eq("year", currentYear))
+      .collect();
 
     for (const score of allScores) {
-      const stateName = score.state;
-      
-      // Filter out invalid state names like "Data Sources"
-      const isValidState = validStateKeywords.some(keyword => 
-        stateName.toLowerCase().includes(keyword.toLowerCase()) ||
-        keyword.toLowerCase().includes(stateName.toLowerCase())
-      );
-      
-      if (!isValidState) {
-        continue; // Skip invalid state entries
+      const stateName = normalizeStateName(score.state);
+      if (!VALID_NIGERIAN_STATES.has(stateName)) {
+        continue;
       }
 
       const indicatorKey = score.indicator as IndicatorKey;
@@ -97,22 +85,17 @@ export const getPublicStateRankings = query({
         continue;
       }
 
-      if (!stateDetails.has(stateName)) {
-        stateDetails.set(stateName, {
-          totalScore: 0,
-          indicators: {},
-          lastUpdated: score.createdAt || Date.now(),
-        });
+      const stateData = stateDetails.get(stateName);
+      if (!stateData) {
+        continue;
       }
-      
-      const stateData = stateDetails.get(stateName)!;
+
       stateData.totalScore += score.score;
-      
+
       if (score.createdAt > stateData.lastUpdated) {
         stateData.lastUpdated = score.createdAt;
       }
 
-      // Initialize indicator if not exists
       if (!stateData.indicators[score.indicator]) {
         stateData.indicators[score.indicator] = {
           name: indicators[indicatorKey].name,
@@ -121,12 +104,11 @@ export const getPublicStateRankings = query({
           subIndicators: {},
         };
       }
-      
+
       stateData.indicators[score.indicator].score += score.score;
       stateData.indicators[score.indicator].subIndicators[score.subIndicator] = score.score;
     }
 
-    // Convert to final format
     const denominator: number = overallIndicatorMaxScore;
     const states = Array.from(stateDetails.entries())
       .map(([stateName, data]) => {
@@ -137,10 +119,15 @@ export const getPublicStateRankings = query({
           maxScore: denominator,
           percentage: Math.round(percentage * 100) / 100,
           lastUpdated: data.lastUpdated,
-          indicators: data.indicators, // Include detailed breakdown
+          indicators: data.indicators,
         };
       })
-      .sort((a, b) => b.percentage - a.percentage)
+      // Scored states first (by %), then unscored alphabetically so ranks stay stable.
+      .sort((a, b) => {
+        if (b.percentage !== a.percentage) return b.percentage - a.percentage;
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+        return a.state.localeCompare(b.state);
+      })
       .map((state, index) => ({
         ...state,
         rank: index + 1,
