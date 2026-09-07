@@ -34,7 +34,9 @@ export function RankingTable({
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Rank</th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Score</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Progress</th>
+              {!hideStatusColumn && (
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Progress</th>
+              )}
               {!hideStatusColumn && (
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
               )}
@@ -43,7 +45,7 @@ export function RankingTable({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map((row, index) => {
-              const status = getScoreStatus(row.score, row.maxScore);
+              const status = hideStatusColumn ? null : getScoreStatus(row.score, row.maxScore);
               return (
                 <tr
                   key={row.id}
@@ -62,10 +64,12 @@ export function RankingTable({
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm font-semibold text-gray-900">{formatPoints(row.score)}</span>
                   </td>
-                  <td className="px-6 py-4 w-40">
-                    <ProgressBar score={row.score} maxScore={row.maxScore} color={status.color} size="sm" />
-                  </td>
-                  {!hideStatusColumn && (
+                  {!hideStatusColumn && status && (
+                    <td className="px-6 py-4 w-40">
+                      <ProgressBar score={row.score} maxScore={row.maxScore} color={status.color} size="sm" />
+                    </td>
+                  )}
+                  {!hideStatusColumn && status && (
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge status={status} size="sm" />
                     </td>
