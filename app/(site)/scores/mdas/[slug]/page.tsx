@@ -28,6 +28,12 @@ interface MdaScoreData {
   finalScore: number;
   maxPossibleScore: number;
   metricScores?: Record<string, { score: number; max: number }>;
+  othersBreakdown?: Array<{
+    itemId: string;
+    itemName: string;
+    score: number;
+    max: number;
+  }>;
   excludedMetrics?: string[];
   penaltyScore?: number;
   bonusScore?: number;
@@ -94,14 +100,23 @@ export default function MdaSummaryPage() {
     .filter((metric) => !excluded.includes(metric.key))
     .map((metric) => {
       const scored = selected.metricScores?.[metric.key];
+      const details =
+        metric.key === "others" && (selected.othersBreakdown?.length ?? 0) > 0
+          ? selected.othersBreakdown!.map((item) => ({
+              label: item.itemName,
+              score: item.score,
+              maxScore: item.max,
+            }))
+          : [
+              { label: "Score awarded", score: scored?.score ?? 0 },
+              { label: "Maximum possible", score: scored?.max ?? metric.max },
+            ];
+
       return {
         name: metric.label,
         score: scored?.score ?? 0,
         maxScore: scored?.max ?? metric.max,
-        details: [
-          { label: "Score awarded", score: scored?.score ?? 0 },
-          { label: "Maximum possible", score: scored?.max ?? metric.max },
-        ],
+        details,
       };
     });
 

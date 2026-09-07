@@ -16,6 +16,7 @@ import type {
 import type * as ai_helper_scoring from "../ai_helper_scoring.js";
 import type * as ai_helpers from "../ai_helpers.js";
 import type * as auditLogs from "../auditLogs.js";
+import type * as beepaImport from "../beepaImport.js";
 import type * as bulkImportStateScores from "../bulkImportStateScores.js";
 import type * as business_letters from "../business_letters.js";
 import type * as calendar from "../calendar.js";
@@ -112,6 +113,7 @@ declare const fullApi: ApiFromModules<{
   ai_helper_scoring: typeof ai_helper_scoring;
   ai_helpers: typeof ai_helpers;
   auditLogs: typeof auditLogs;
+  beepaImport: typeof beepaImport;
   bulkImportStateScores: typeof bulkImportStateScores;
   business_letters: typeof business_letters;
   calendar: typeof calendar;

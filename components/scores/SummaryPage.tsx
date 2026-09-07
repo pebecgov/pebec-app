@@ -15,7 +15,7 @@ export interface MetricItem {
   name: string;
   score: number;
   maxScore: number;
-  details?: { label: string; score: number }[];
+  details?: { label: string; score: number; maxScore?: number }[];
 }
 
 export function SummaryHeader({
@@ -158,17 +158,19 @@ export function MetricBreakdown({
                 {isExpanded && hasDetails && (
                   <div className="border-t border-gray-200">
                     <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      <div className="col-span-8">Sub-indicator</div>
-                      <div className="col-span-4 text-right">Score</div>
+                      <div className="col-span-7">Sub-indicator</div>
+                      <div className="col-span-5 text-right">Score</div>
                     </div>
                     <div className="divide-y divide-gray-100">
                       {metric.details!.map((detail) => (
                         <div key={detail.label} className="px-5 py-4 grid grid-cols-12 gap-4 items-center">
-                          <div className="col-span-8 text-sm text-gray-900 capitalize">
+                          <div className="col-span-7 text-sm text-gray-900 capitalize">
                             {detail.label.replace(/_/g, " ")}
                           </div>
-                          <div className="col-span-4 text-right text-sm font-semibold text-gray-900">
-                            {formatPoints(detail.score)}
+                          <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
+                            {detail.maxScore !== undefined
+                              ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
+                              : formatPoints(detail.score)}
                           </div>
                         </div>
                       ))}
