@@ -42,7 +42,7 @@ export default function StateScoresPage() {
       metricCount={INDICATOR_COUNT}
       metricLabel="Indicators"
       rows={rows}
-      emptyMessage="No state scoring data is available for 2026 yet."
+      emptyMessage="No states found for this search."
     />
   );
 }
