@@ -59,23 +59,13 @@ export const indicators = {
   infrastructure: {
     name: "Infrastructure (8%)",
     subIndicators: {
-      roads_within_state_capital: {
-        label: "Roads within State Capital (4%)",
-        options: [
-          { value: "excellent", label: "Excellent (4)", score: 4 },
-          { value: "very_good", label: "Very Good (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "poor", label: "Poor (0)", score: 0 },
-        ],
-      },
       industrial_zones: {
-        label: "Industrial Zones (4%)",
+        label: "Industrial Zones (8%)",
         options: [
-          { value: "excellent", label: "Excellent (4)", score: 4 },
-          { value: "very_good", label: "Very Good (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
+          { value: "excellent", label: "Excellent (8)", score: 8 },
+          { value: "very_good", label: "Very Good (6)", score: 6 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (2)", score: 2 },
           { value: "poor", label: "Poor (0)", score: 0 },
         ],
       },
@@ -161,20 +151,11 @@ export const indicators = {
     name: "Access to Skilled Labor (5%)",
     subIndicators: {
       technical_vocational_training_centers: {
-        label: "Technical & Vocational Training Centers (2.5%)",
+        label: "Technical & Vocational Training Centers (5%)",
         options: [
-          { value: "seven-plus", label: "7 or more centres (2.5)", score: 2.5 },
-          { value: "four-to-six", label: "4 to 6 centres (1.75)", score: 1.75 },
-          { value: "one-to-three", label: "1 to 3 centres (1)", score: 1 },
-          { value: "zero", label: "None (0)", score: 0 },
-        ],
-      },
-      tertiary_institutions: {
-        label: "Total number of tertiary institutions (2.5%)",
-        options: [
-          { value: "seven-plus", label: "7 or more institutions (2.5)", score: 2.5 },
-          { value: "three-to-six", label: "3 to 6 institutions (1.75)", score: 1.75 },
-          { value: "one-to-two", label: "1 or 2 institutions (1)", score: 1 },
+          { value: "seven-plus", label: "7 or more centres (5)", score: 5 },
+          { value: "four-to-six", label: "4 to 6 centres (3.5)", score: 3.5 },
+          { value: "one-to-three", label: "1 to 3 centres (2)", score: 2 },
           { value: "zero", label: "None (0)", score: 0 },
         ],
       },
@@ -257,30 +238,20 @@ export const indicators = {
     name: "Investor Lifecycle (5%)",
     subIndicators: {
       digital_one_stop_shop: {
-        label: "Digital One Stop Shop",
+        label: "Digital One Stop Shop (5%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      digitization_of_processes: {
-        label: "Digitization of Processes",
-        options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      investor_aftercare: {
-        label: "Investor Aftercare / Retention Support",
-        options: [
-          { value: "yes", label: "Yes (1)", score: 1 },
-          { value: "no", label: "No (0)", score: 0 },
+          { value: "excellent", label: "Excellent (5)", score: 5 },
+          { value: "good", label: "Good (4)", score: 4 },
+          { value: "fair", label: "Fair (3)", score: 3 },
+          { value: "poor", label: "Poor (2)", score: 2 },
+          { value: "very_poor", label: "Very Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
   },
   grievance_redress_mechanisms: {
-    name: "Grievance Redress Mechanism (3%)",
+    name: "Grievance Redress Mechanism (4%)",
     subIndicators: {
       availability_of_grm: {
         label: "Availability of GRM (1%)",
@@ -290,9 +261,9 @@ export const indicators = {
         ],
       },
       centralized_grm: {
-        label: "Centralized GRM (1%)",
+        label: "Centralized GRM (2%)",
         options: [
-          { value: "yes", label: "Centralized GRM available (1)", score: 1 },
+          { value: "yes", label: "Centralized GRM available (2)", score: 2 },
           { value: "no", label: "No centralized GRM (0)", score: 0 },
         ],
       },
@@ -308,63 +279,47 @@ export const indicators = {
   export_facilitation: {
     name: "Export Facilitation (2%)",
     subIndicators: {
-      formalization_of_informal_businesses: {
-        label: "Formalization of Informal Businesses",
-        options: [
-          { value: "yes", label: "Yes (0.5)", score: 0.5 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
       nepc_certificate_facilitation: {
-        label: "NEPC Certificate Facilitation",
+        label: "NEPC Certificate Facilitation (2%)",
         options: [
-          { value: "yes", label: "Yes (1)", score: 1 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      export_strategy_document: {
-        label: "Export Strategy Document",
-        options: [
-          { value: "yes", label: "Yes (0.5)", score: 0.5 },
-          { value: "no", label: "No (0)", score: 0 },
+          { value: "excellent", label: "Excellent (2)", score: 2 },
+          { value: "good", label: "Good (1.5)", score: 1.5 },
+          { value: "fair", label: "Fair (1)", score: 1 },
+          { value: "poor", label: "Poor (0.5)", score: 0.5 },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
   },
-  social_infrastructure: {
-    name: "Social Infrastructure (3%)",
+  nationwide_tour_engagement: {
+    name: "Nationwide Tour Engagement (10%)",
     subIndicators: {
-      social_security_system: {
-        label: "Social Security System",
+      peer_to_peer: {
+        label: "Peer to Peer (3%)",
         options: [
-          { value: "yes", label: "Yes (1.5)", score: 1.5 },
-          { value: "no", label: "No (0)", score: 0 },
+          { value: "excellent", label: "Excellent (3)", score: 3 },
+          { value: "good", label: "Good (2)", score: 2 },
+          { value: "fair", label: "Fair (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
-      primary_healthcare_free_education: {
-        label: "Primary Health-Care Centres / Free Education",
+      hosted_ta_session: {
+        label: "Hosted TA Session (3%)",
         options: [
-          { value: "yes", label: "Yes (1.5)", score: 1.5 },
-          { value: "no", label: "No (0)", score: 0 },
+          { value: "excellent", label: "Excellent (3)", score: 3 },
+          { value: "good", label: "Good (2)", score: 2 },
+          { value: "fair", label: "Fair (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
-    },
-  },
-  crisis_resilience: {
-    name: "Crisis Resilience (2%)",
-    subIndicators: {
-      disaster_emergency_preparedness: {
-        label: "Disaster & Emergency Preparedness",
+      private_sector_stakeholder_engagement: {
+        label: "Private Sector Stakeholder Engagement (4%)",
         options: [
-          { value: "yes", label: "Yes (1)", score: 1 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      emergency_response_channels: {
-        label: "Emergency Response Channels",
-        options: [
-          { value: "yes", label: "Yes (1)", score: 1 },
-          { value: "no", label: "No (0)", score: 0 },
+          { value: "excellent", label: "Excellent (4)", score: 4 },
+          { value: "good", label: "Good (3)", score: 3 },
+          { value: "fair", label: "Fair (2)", score: 2 },
+          { value: "poor", label: "Poor (1)", score: 1 },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
