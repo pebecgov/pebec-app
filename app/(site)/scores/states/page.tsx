@@ -43,6 +43,8 @@ export default function StateScoresPage() {
       metricLabel="Indicators"
       rows={rows}
       emptyMessage="No states found for this search."
+      hideStatusDistribution
+      hideStatusColumn
     />
   );
 }

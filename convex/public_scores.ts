@@ -110,7 +110,7 @@ export const getPublicStateRankings = query({
     }
 
     const denominator: number = overallIndicatorMaxScore;
-    const states = Array.from(stateDetails.entries())
+    const sortedStates = Array.from(stateDetails.entries())
       .map(([stateName, data]) => {
         const percentage = denominator > 0 ? (data.totalScore / denominator) * 100 : 0;
         return {
@@ -122,16 +122,15 @@ export const getPublicStateRankings = query({
           indicators: data.indicators,
         };
       })
-      // Scored states first (by %), then unscored alphabetically so ranks stay stable.
+      // Scored states first (by %), then unscored alphabetically so order stays stable.
       .sort((a, b) => {
         if (b.percentage !== a.percentage) return b.percentage - a.percentage;
         if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
         return a.state.localeCompare(b.state);
-      })
-      .map((state, index) => ({
-        ...state,
-        rank: index + 1,
-      }));
+      });
+
+    // Dense tied ranks: equal scores share the same number (1, 1, 1, 2…).
+    const states = withDenseTiedRanks(sortedStates, (s) => s.totalScore);
 
     const limitedStates = args.limit ? states.slice(0, args.limit) : states;
 
@@ -145,6 +144,26 @@ export const getPublicStateRankings = query({
 
 function roundScore(value: number): number {
   return Math.round((value || 0) * 100) / 100;
+}
+
+/** Same score → same rank; next distinct score bumps by 1 (dense / “1223” ranking). */
+function withDenseTiedRanks<T>(
+  items: T[],
+  getScore: (item: T) => number
+): Array<T & { rank: number }> {
+  if (items.length === 0) return [];
+
+  let rank = 1;
+  return items.map((item, index) => {
+    if (index > 0) {
+      const prev = roundScore(getScore(items[index - 1]!));
+      const curr = roundScore(getScore(item));
+      if (curr !== prev) {
+        rank += 1;
+      }
+    }
+    return { ...item, rank };
+  });
 }
 
 type FrameworkMetric = {
@@ -594,7 +613,7 @@ export const getPublicMdaScores = query({
           }
         }
 
-        const scoredMdas: PublicMdaRow[] = BEEPA_TRACKER_ROSTER.map((entry) => {
+        const sortedRosterMdas: PublicMdaRow[] = BEEPA_TRACKER_ROSTER.map((entry) => {
           const dashboardRow = dashboardByRosterName.get(entry.name);
           const extraExcluded =
             entry.beepaExempted && beepaExclusionKey ? [beepaExclusionKey] : [];
@@ -608,9 +627,9 @@ export const getPublicMdaScores = query({
             );
           }
           return buildEmptyPublicMdaRow(entry, frameworkMetrics, beepaExclusionKey);
-        })
-          .sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName))
-          .map((mda, index) => ({ ...mda, rank: index + 1 }));
+        }).sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
+
+        const scoredMdas = withDenseTiedRanks(sortedRosterMdas, (mda) => mda.finalScore);
 
         const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
         const hasAnyScore = scoredMdas.some((mda) => mda.finalScore > 0);
@@ -641,7 +660,7 @@ export const getPublicMdaScores = query({
         };
       }
 
-      const scoredMdas: PublicMdaRow[] = dashboardData
+      const sortedLegacyMdas: PublicMdaRow[] = dashboardData
         .filter((mda) => mda && typeof mda.mdaName === "string" && Number(mda.totalScore) > 0)
         .map((mda) =>
           buildPublicMdaRowFromDashboard(
@@ -651,8 +670,9 @@ export const getPublicMdaScores = query({
             othersItems
           )
         )
-        .sort((a, b) => b.finalScore - a.finalScore)
-        .map((mda, index) => ({ ...mda, rank: index + 1 }));
+        .sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
+
+      const scoredMdas = withDenseTiedRanks(sortedLegacyMdas, (mda) => mda.finalScore);
 
       const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
 
