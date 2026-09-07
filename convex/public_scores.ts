@@ -224,12 +224,16 @@ function buildBfaFrameworkMetrics(
     metrics.push({ key: "timeliness", label: "Timeliness in Submission", max: timelinessMax });
   }
 
-  const othersMax =
-    (config?.othersItems || []).reduce((sum, item) => sum + (item.weight || 0), 0) +
-    (config?.innovationItems || []).reduce((sum, item) => sum + (item.weight || 0), 0) +
-    (config?.stakeholderItems || []).reduce((sum, item) => sum + (item.weight || 0), 0);
-  if (othersMax > 0) {
-    metrics.push({ key: "others", label: "Others", max: othersMax });
+  const othersItems = [...(config?.othersItems || [])].sort(
+    (a, b) => ((a as { order?: number }).order ?? 0) - ((b as { order?: number }).order ?? 0)
+  );
+  for (const item of othersItems) {
+    if (!item.itemId || !item.itemName || !(item.weight > 0)) continue;
+    metrics.push({
+      key: `others:${item.itemId}`,
+      label: item.itemName,
+      max: item.weight,
+    });
   }
 
   return metrics;
@@ -275,8 +279,17 @@ function metricScoreFromDashboard(
       return nested("stakeholder", frameworkMax);
     case "innovation":
       return nested("innovation", frameworkMax);
-    default:
+    default: {
+      if (key.startsWith("others:")) {
+        const itemId = key.slice("others:".length);
+        const others = mda.others as { scores?: Record<string, number> } | null | undefined;
+        return {
+          score: roundScore(Number(others?.scores?.[itemId]) || 0),
+          max: frameworkMax,
+        };
+      }
       return { score: 0, max: frameworkMax };
+    }
   }
 }
 
@@ -284,7 +297,12 @@ function isMetricExcluded(excluded: string[] | undefined, key: string): boolean 
   if (!excluded || excluded.length === 0) return false;
   if (excluded.includes(key)) return true;
   if (key === "mystery" && excluded.includes("mysteryShopping")) return true;
-  if (key === "others" && excluded.some((item) => item.startsWith("others"))) return true;
+  if (key === "others" && excluded.some((item) => item === "others" || item.startsWith("others:"))) {
+    return true;
+  }
+  if (key.startsWith("others:")) {
+    return excluded.includes("others") || excluded.includes(key);
+  }
   return false;
 }
 

@@ -97,26 +97,21 @@ export default function MdaSummaryPage() {
       (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
     ) ?? reportData?.mdas?.[0];
   const metrics = frameworkMetrics
-    .filter((metric) => !excluded.includes(metric.key))
+    .filter((metric) => {
+      if (excluded.includes(metric.key)) return false;
+      if (metric.key.startsWith("others:") && excluded.includes("others")) return false;
+      return true;
+    })
     .map((metric) => {
       const scored = selected.metricScores?.[metric.key];
-      const details =
-        metric.key === "others" && (selected.othersBreakdown?.length ?? 0) > 0
-          ? selected.othersBreakdown!.map((item) => ({
-              label: item.itemName,
-              score: item.score,
-              maxScore: item.max,
-            }))
-          : [
-              { label: "Score awarded", score: scored?.score ?? 0 },
-              { label: "Maximum possible", score: scored?.max ?? metric.max },
-            ];
-
       return {
         name: metric.label,
         score: scored?.score ?? 0,
         maxScore: scored?.max ?? metric.max,
-        details,
+        details: [
+          { label: "Score awarded", score: scored?.score ?? 0 },
+          { label: "Maximum possible", score: scored?.max ?? metric.max },
+        ],
       };
     });
 
@@ -135,7 +130,7 @@ export default function MdaSummaryPage() {
       />
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Efficiency bundle and Others from the 2026 BFA configuration"
+        hint="Efficiency metrics and configured BFA metrics for 2026"
         metrics={metrics}
       />
       {reports && (
