@@ -1278,7 +1278,7 @@ function OthersConfiguration({ year, othersItems }: any) {
                 itemId: '3',
                 itemName: 'BEEPA',
                 weight: 10,
-                answerType: 'yes_no',
+                answerType: 'scale_1_10',
                 order: 2
             }
         ];
@@ -1312,7 +1312,7 @@ function OthersConfiguration({ year, othersItems }: any) {
                     itemId: '3',
                     itemName: 'BEEPA',
                     weight: 10,
-                    answerType: 'yes_no',
+                    answerType: 'scale_1_10',
                     order: 2
                 }
             ]);

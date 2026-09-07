@@ -83,22 +83,36 @@ const DynamicOthersCard: React.FC<DynamicOthersCardProps> = ({
                                         disabled={!selectedMda || isLoading}
                                     />
                                 ) : (
-                                    <span className="text-sm font-bold w-8 text-right">
-                                        {typeof othersValues[item.itemId] === 'number' ? othersValues[item.itemId] : 0}
+                                    <span className="text-sm font-bold w-10 text-right">
+                                        {typeof othersValues[item.itemId] === 'number'
+                                            ? Number(othersValues[item.itemId]).toFixed(1)
+                                            : "0.0"}
                                     </span>
                                 )}
                             </div>
 
                             {item.answerType === 'scale_1_10' && (
-                                <Slider
-                                    value={[typeof othersValues[item.itemId] === 'number' ? othersValues[item.itemId] as number : 0]}
-                                    min={0}
-                                    max={10}
-                                    step={1}
-                                    onValueChange={(vals) => onValueChange(item.itemId, vals[0])}
-                                    disabled={!selectedMda || isLoading}
-                                    className="pt-2"
-                                />
+                                <div className="space-y-2">
+                                    <Slider
+                                        value={[typeof othersValues[item.itemId] === 'number' ? othersValues[item.itemId] as number : 0]}
+                                        min={0}
+                                        max={10}
+                                        step={0.1}
+                                        onValueChange={(vals) => onValueChange(item.itemId, Number(vals[0].toFixed(1)))}
+                                        disabled={!selectedMda || isLoading}
+                                        className="pt-2"
+                                    />
+                                    <div className="text-right text-xs text-muted-foreground">
+                                        {(
+                                            ((typeof othersValues[item.itemId] === 'number'
+                                                ? (othersValues[item.itemId] as number)
+                                                : 0) /
+                                                10) *
+                                            item.weight
+                                        ).toFixed(1)}{" "}
+                                        / {item.weight} pts
+                                    </div>
+                                </div>
                             )}
                         </div>
                     ))}
