@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { generateStateAnalysisPDF } from "@/lib/stateAnalysisPdfGenerator";
+import { indicators } from "@/convex/config/indicators";
 
 type SubMetric = {
   subIndicator: string;
@@ -51,26 +52,9 @@ type AnalysisTabProps = {
 
 const MAX_CARD_COUNT = 16;
 
-const DEFAULT_INDICATORS: Indicator[] = [
-  "Access to Electricity",
-  "Infrastructure",
-  "Getting Credit",
-  "Digital Connectivity",
-  "Land Registration",
-  "Interstate Trade",
-  "Access to Skilled Labor",
-  "Small Claims Courts",
-  "Paying Taxes",
-  "Investor Aftercare Service",
-  "Grievance Redress Mechanisms",
-  "Export-Import Facilitation",
-  "Workforce Development and Social Infrastructure",
-  "Crisis Resilience and Business Continuity",
-  "Contract Enforcement and Commercial Dispute Resolution",
-  "Market Access and Competition",
-].map((name) => ({
-  name,
-  indicatorKey: "",
+const DEFAULT_INDICATORS: Indicator[] = Object.entries(indicators).map(([indicatorKey, config]) => ({
+  name: config.name,
+  indicatorKey,
   totalScore: 0,
   maxScore: 0,
   percentage: 0,
