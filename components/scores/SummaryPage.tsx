@@ -16,6 +16,8 @@ export interface MetricItem {
   score: number;
   maxScore: number;
   details?: { label: string; score: number; maxScore?: number }[];
+  /** Optional category label shown next to the metric name (e.g. "Efficiency"). */
+  badge?: string;
 }
 
 export function SummaryHeader({
@@ -87,7 +89,7 @@ export function MetricBreakdown({
   metrics,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
   metrics: MetricItem[];
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function MetricBreakdown({
         <h2 className="text-lg font-semibold text-gray-900">
           {title} ({metrics.length})
         </h2>
-        <p className="text-sm text-gray-500">{hint}</p>
+        {hint ? <p className="text-sm text-gray-500">{hint}</p> : null}
       </div>
 
       {metrics.length === 0 ? (
@@ -135,11 +137,16 @@ export function MetricBreakdown({
                           </svg>
                         </button>
                       )}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#006B3F] text-white text-sm font-bold shadow-sm">
                           {index + 1}
                         </span>
                         <h3 className="text-base font-semibold text-gray-900">{metric.name}</h3>
+                        {metric.badge ? (
+                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {metric.badge}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     <StatusBadge status={status} size="sm" />

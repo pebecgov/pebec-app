@@ -96,6 +96,13 @@ export default function MdaSummaryPage() {
     (reportData?.mdas || []).find(
       (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
     ) ?? reportData?.mdas?.[0];
+  const efficiencyKeys = new Set([
+    "sla",
+    "mystery",
+    "reportGov",
+    "reportSubmission",
+    "timeliness",
+  ]);
   const metrics = frameworkMetrics
     .filter((metric) => {
       if (excluded.includes(metric.key)) return false;
@@ -108,6 +115,7 @@ export default function MdaSummaryPage() {
         name: metric.label,
         score: scored?.score ?? 0,
         maxScore: scored?.max ?? metric.max,
+        badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         details: [
           { label: "Score awarded", score: scored?.score ?? 0 },
           { label: "Maximum possible", score: scored?.max ?? metric.max },
@@ -128,11 +136,7 @@ export default function MdaSummaryPage() {
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
       />
-      <MetricBreakdown
-        title="BFA Metrics"
-        hint="Efficiency metrics and configured BFA metrics for 2026"
-        metrics={metrics}
-      />
+      <MetricBreakdown title="BFA Metrics" metrics={metrics} />
       {reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}

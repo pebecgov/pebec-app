@@ -228,11 +228,12 @@ function buildBfaFrameworkMetrics(
     (a, b) => ((a as { order?: number }).order ?? 0) - ((b as { order?: number }).order ?? 0)
   );
   for (const item of othersItems) {
-    if (!item.itemId || !item.itemName || !(item.weight > 0)) continue;
+    const weight = item.weight;
+    if (!item.itemId || !item.itemName || weight == null || weight <= 0) continue;
     metrics.push({
       key: `others:${item.itemId}`,
       label: item.itemName,
-      max: item.weight,
+      max: weight,
     });
   }
 
