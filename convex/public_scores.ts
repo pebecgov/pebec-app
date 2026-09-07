@@ -171,7 +171,7 @@ function buildBfaFrameworkMetrics(
       timelinessPoints?: number;
     } | null;
     mysteryShoppingTypes?: Array<{ questions?: Array<{ weight?: number }> }>;
-    othersItems?: Array<{ weight?: number }>;
+    othersItems?: Array<{ weight?: number; itemId?: string; itemName?: string }>;
     innovationItems?: Array<{ weight?: number }>;
     stakeholderItems?: Array<{ weight?: number }>;
   } | null
@@ -302,11 +302,18 @@ type ScoringYearConfig = {
     timelinessPoints?: number;
   } | null;
   mysteryShoppingTypes?: Array<{ questions?: Array<{ weight?: number }> }>;
-  othersItems?: Array<{ weight?: number }>;
+  othersItems?: Array<{ itemId: string; itemName: string; weight: number; order?: number }>;
   innovationItems?: Array<{ weight?: number }>;
   stakeholderItems?: Array<{ weight?: number }>;
   penaltyItems?: Array<{ penaltyId: string; penaltyName: string; penaltyValue: number }>;
   bonusItems?: Array<{ bonusId: string; bonusName: string; bonusValue: number }>;
+};
+
+type OthersBreakdownItem = {
+  itemId: string;
+  itemName: string;
+  score: number;
+  max: number;
 };
 
 type PublicMdaRow = {
@@ -315,6 +322,7 @@ type PublicMdaRow = {
   maxPossibleScore: number;
   percentage: number;
   metricScores: Record<string, { score: number; max: number }>;
+  othersBreakdown: OthersBreakdownItem[];
   excludedMetrics: string[];
   applicableMetricCount: number;
   penaltyScore: number;
@@ -340,6 +348,15 @@ type PublicMdaScoresResult = {
   message?: string;
 };
 
+const othersBreakdownValidator = v.array(
+  v.object({
+    itemId: v.string(),
+    itemName: v.string(),
+    score: v.number(),
+    max: v.number(),
+  })
+);
+
 const publicMdaScoresReturns = v.object({
   mdas: v.array(
     v.object({
@@ -348,6 +365,7 @@ const publicMdaScoresReturns = v.object({
       maxPossibleScore: v.number(),
       percentage: v.number(),
       metricScores: v.record(v.string(), v.object({ score: v.number(), max: v.number() })),
+      othersBreakdown: othersBreakdownValidator,
       excludedMetrics: v.array(v.string()),
       applicableMetricCount: v.number(),
       penaltyScore: v.number(),
@@ -376,6 +394,29 @@ const publicMdaScoresReturns = v.object({
   }),
   message: v.optional(v.string()),
 });
+
+function buildOthersBreakdown(
+  mda: Record<string, unknown>,
+  othersItems: Array<{ itemId: string; itemName: string; weight: number; order?: number }>,
+  excludedMetrics: string[]
+): OthersBreakdownItem[] {
+  const others = mda.others as
+    | { scores?: Record<string, number>; values?: Record<string, boolean | number> }
+    | null
+    | undefined;
+  const scores = others?.scores || {};
+  const fullyExcluded = excludedMetrics.includes("others");
+
+  return [...othersItems]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .filter((item) => !fullyExcluded && !excludedMetrics.includes(`others:${item.itemId}`))
+    .map((item) => ({
+      itemId: item.itemId,
+      itemName: item.itemName,
+      score: roundScore(Number(scores[item.itemId]) || 0),
+      max: item.weight,
+    }));
+}
 
 function emptyPublicMdaScores(
   year: number,
@@ -455,6 +496,11 @@ export const getPublicMdaScores = query({
 
           const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
           const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
+          const othersBreakdown = buildOthersBreakdown(
+            mda,
+            yearConfig?.othersItems || [],
+            excludedMetrics
+          );
 
           return {
             mdaName: canonicalizeMdaName(String(mda.mdaName)),
@@ -462,6 +508,7 @@ export const getPublicMdaScores = query({
             maxPossibleScore: Number(mda.maxPossiblePoints) || 100,
             percentage: roundScore(Number(mda.totalPercentage) || 0),
             metricScores,
+            othersBreakdown,
             excludedMetrics,
             applicableMetricCount: frameworkMetrics.filter(
               (metric) => !isMetricExcluded(excludedMetrics, metric.key)
