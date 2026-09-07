@@ -18,6 +18,8 @@ export interface MetricItem {
   details?: { label: string; score: number; maxScore?: number }[];
   /** Optional category label shown next to the metric name (e.g. "Efficiency"). */
   badge?: string;
+  /** Programme exemption: metric is shown but not included in the BFA total. */
+  exempted?: boolean;
 }
 
 export function SummaryHeader({
@@ -111,6 +113,7 @@ export function MetricBreakdown({
         <div className="space-y-4">
           {metrics.map((metric, index) => {
             const isExpanded = expanded === metric.name;
+            const isExempted = metric.exempted === true;
             const status = getScoreStatus(metric.score, metric.maxScore);
             const hasDetails = (metric.details?.length ?? 0) > 0;
 
@@ -147,19 +150,36 @@ export function MetricBreakdown({
                             {metric.badge}
                           </span>
                         ) : null}
+                        {isExempted ? (
+                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                            Exempted
+                          </span>
+                        ) : null}
                       </div>
                     </div>
-                    <StatusBadge status={status} size="sm" />
+                    {isExempted ? (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                        Not in BFA total
+                      </span>
+                    ) : (
+                      <StatusBadge status={status} size="sm" />
+                    )}
                   </div>
-                  <div className={`flex items-center gap-4 ${hasDetails ? "ml-9" : "ml-0"}`}>
-                    <div className="flex-1 max-w-md">
-                      <ProgressBar score={metric.score} maxScore={metric.maxScore} color={status.color} size="sm" />
+                  {isExempted ? (
+                    <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                      Programme exemption — this metric is excluded from the overall BFA score and maximum.
+                    </p>
+                  ) : (
+                    <div className={`flex items-center gap-4 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                      <div className="flex-1 max-w-md">
+                        <ProgressBar score={metric.score} maxScore={metric.maxScore} color={status.color} size="sm" />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
+                        {formatPoints(metric.score)}
+                      </span>
+                      <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
                     </div>
-                    <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
-                      {formatPoints(metric.score)}
-                    </span>
-                    <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
-                  </div>
+                  )}
                 </div>
 
                 {isExpanded && hasDetails && (
@@ -175,9 +195,11 @@ export function MetricBreakdown({
                             {detail.label.replace(/_/g, " ")}
                           </div>
                           <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
-                            {detail.maxScore !== undefined
-                              ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
-                              : formatPoints(detail.score)}
+                            {isExempted
+                              ? "Exempted"
+                              : detail.maxScore !== undefined
+                                ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
+                                : formatPoints(detail.score)}
                           </div>
                         </div>
                       ))}

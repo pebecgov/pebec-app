@@ -105,21 +105,36 @@ export default function MdaSummaryPage() {
   ]);
   const metrics = frameworkMetrics
     .filter((metric) => {
+      const isOthersExempted =
+        metric.key.startsWith("others:") &&
+        (excluded.includes(metric.key) || excluded.includes("others"));
+      // Keep exempted Others items (e.g. BEEPA) visible; hide other excluded metrics.
+      if (isOthersExempted) return true;
       if (excluded.includes(metric.key)) return false;
-      if (metric.key.startsWith("others:") && excluded.includes("others")) return false;
       return true;
     })
     .map((metric) => {
+      const exempted =
+        metric.key.startsWith("others:") &&
+        (excluded.includes(metric.key) || excluded.includes("others"));
       const scored = selected.metricScores?.[metric.key];
       return {
         name: metric.label,
-        score: scored?.score ?? 0,
+        score: exempted ? 0 : (scored?.score ?? 0),
         maxScore: scored?.max ?? metric.max,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
-        details: [
-          { label: "Score awarded", score: scored?.score ?? 0 },
-          { label: "Maximum possible", score: scored?.max ?? metric.max },
-        ],
+        exempted,
+        details: exempted
+          ? [
+              {
+                label: "Status",
+                score: 0,
+              },
+            ]
+          : [
+              { label: "Score awarded", score: scored?.score ?? 0 },
+              { label: "Maximum possible", score: scored?.max ?? metric.max },
+            ],
       };
     });
 

@@ -311,27 +311,40 @@ export default function ViewDetailsModal({
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             {othersItems.map((item: any) => {
-                                                if (isOthersItemExcluded(item.itemId)) return null;
+                                                const itemExempted = isOthersItemExcluded(item.itemId);
                                                 const itemScore = others?.scores?.[item.itemId];
                                                 const itemValue = others?.values?.[item.itemId];
                                                 return (
-                                                    <div key={item.itemId} className="rounded-xl border border-slate-200 p-3 bg-gradient-to-b from-white to-slate-50 shadow-sm">
+                                                    <div key={item.itemId} className={`rounded-xl border p-3 shadow-sm ${itemExempted ? "border-amber-200 bg-gradient-to-b from-white to-amber-50/50" : "border-slate-200 bg-gradient-to-b from-white to-slate-50"}`}>
                                                         <div className="flex items-center justify-between gap-2 mb-2">
                                                             <p className="text-sm font-semibold text-gray-900">{item.itemName}</p>
-                                                            <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                                                                Weight {formatText(item.weight)}
-                                                            </span>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                                                                <p className="text-[11px] uppercase tracking-wide text-slate-500">Score</p>
-                                                                <p className="text-sm font-semibold text-slate-900">{formatNumericOrZero(itemScore)} / {formatText(item.weight)}</p>
-                                                            </div>
-                                                            <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                                                                <p className="text-[11px] uppercase tracking-wide text-slate-500">Value</p>
-                                                                <p className="text-sm font-semibold text-slate-900">{itemValue === null || itemValue === undefined ? "Not set" : formatText(itemValue)}</p>
+                                                            <div className="flex items-center gap-1.5">
+                                                                {itemExempted ? (
+                                                                    <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                                                                        Exempted
+                                                                    </span>
+                                                                ) : null}
+                                                                <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                                                    Weight {formatText(item.weight)}
+                                                                </span>
                                                             </div>
                                                         </div>
+                                                        {itemExempted ? (
+                                                            <p className="text-sm text-amber-900/80">
+                                                                Programme exemption — not included in this MDA&apos;s BFA total (max reduced by this weight).
+                                                            </p>
+                                                        ) : (
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                                                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Score</p>
+                                                                    <p className="text-sm font-semibold text-slate-900">{formatNumericOrZero(itemScore)} / {formatText(item.weight)}</p>
+                                                                </div>
+                                                                <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                                                                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Value</p>
+                                                                    <p className="text-sm font-semibold text-slate-900">{itemValue === null || itemValue === undefined ? "Not set" : formatText(itemValue)}</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
