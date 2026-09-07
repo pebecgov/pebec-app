@@ -9,6 +9,9 @@ export const mdasList = [{
   name: "Bureau for Public Procurement",
   abbreviation: "BPP"
 }, {
+  name: "Citizenship and Business Department",
+  abbreviation: "CBD"
+}, {
   name: "Central Bank of Nigeria – National Collateral Agency",
   abbreviation: "CBN - NCR"
 },  {
