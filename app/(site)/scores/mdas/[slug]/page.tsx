@@ -16,6 +16,7 @@ import {
   type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
 import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
+import { matchBeepaTrackerRosterEntry } from "@/lib/beepaTrackerRoster";
 
 interface AdjustmentItem {
   id: string;
@@ -92,6 +93,10 @@ export default function MdaSummaryPage() {
   const status = getScoreStatus(selected.finalScore, selected.maxPossibleScore);
   const abbreviation = getMdaAbbreviation(selected.mdaName);
   const excluded = selected.excludedMetrics || [];
+  const rosterEntry = matchBeepaTrackerRosterEntry(selected.mdaName, abbreviation);
+  const beepaExempted =
+    rosterEntry?.beepaExempted === true ||
+    excluded.some((key) => key === "others" || key.startsWith("others:"));
   const reports =
     (reportData?.mdas || []).find(
       (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
@@ -107,16 +112,19 @@ export default function MdaSummaryPage() {
     .filter((metric) => {
       const isOthersExempted =
         metric.key.startsWith("others:") &&
-        (excluded.includes(metric.key) || excluded.includes("others"));
+        (excluded.includes(metric.key) || excluded.includes("others") || beepaExempted);
       // Keep exempted Others items (e.g. BEEPA) visible; hide other excluded metrics.
       if (isOthersExempted) return true;
       if (excluded.includes(metric.key)) return false;
       return true;
     })
     .map((metric) => {
+      const isBeepaMetric =
+        metric.key.startsWith("others:") && /beepa/i.test(metric.label);
       const exempted =
-        metric.key.startsWith("others:") &&
-        (excluded.includes(metric.key) || excluded.includes("others"));
+        (metric.key.startsWith("others:") &&
+          (excluded.includes(metric.key) || excluded.includes("others"))) ||
+        (isBeepaMetric && beepaExempted);
       const scored = selected.metricScores?.[metric.key];
       return {
         name: metric.label,
@@ -151,6 +159,17 @@ export default function MdaSummaryPage() {
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
       />
+      {beepaExempted && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
+            <p className="text-sm font-semibold">Exempted from BEEPA</p>
+            <p className="text-sm mt-1 text-amber-900/90">
+              This agency has a programme exemption from BEEPA. BEEPA is not included in its overall
+              BFA score — the total is recalculated on the remaining metrics only.
+            </p>
+          </div>
+        </div>
+      )}
       <MetricBreakdown title="BFA Metrics" metrics={metrics} />
       {reports && (
         <MonthlyReportsPanel

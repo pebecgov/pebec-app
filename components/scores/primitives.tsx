@@ -106,10 +106,12 @@ export function EntityCard({
   row,
   extraLabel,
   onClick,
+  hideStatus = false,
 }: {
   row: RankingRow;
   extraLabel: string;
   onClick: () => void;
+  hideStatus?: boolean;
 }) {
   const status = getScoreStatus(row.score, row.maxScore);
 
@@ -142,7 +144,7 @@ export function EntityCard({
         <ProgressBar score={row.score} maxScore={row.maxScore} color={status.color} />
       </div>
       <div className="flex items-center justify-between">
-        <StatusBadge status={status} size="sm" />
+        {hideStatus ? <span className="text-sm text-gray-500">BFA score</span> : <StatusBadge status={status} size="sm" />}
         <span className="text-lg font-bold text-[#006B3F]">{formatPoints(row.score)}</span>
       </div>
       <p className="mt-3 text-xs text-gray-500">

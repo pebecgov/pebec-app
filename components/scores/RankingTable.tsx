@@ -7,9 +7,15 @@ interface RankingTableProps {
   rows: RankingRow[];
   extraColumnHeader: string;
   onRowClick: (row: RankingRow) => void;
+  hideStatusColumn?: boolean;
 }
 
-export function RankingTable({ rows, extraColumnHeader, onRowClick }: RankingTableProps) {
+export function RankingTable({
+  rows,
+  extraColumnHeader,
+  onRowClick,
+  hideStatusColumn = false,
+}: RankingTableProps) {
   if (rows.length === 0) {
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
@@ -29,7 +35,9 @@ export function RankingTable({ rows, extraColumnHeader, onRowClick }: RankingTab
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Score</th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Progress</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
+              {!hideStatusColumn && (
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
+              )}
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">{extraColumnHeader}</th>
             </tr>
           </thead>
@@ -57,9 +65,11 @@ export function RankingTable({ rows, extraColumnHeader, onRowClick }: RankingTab
                   <td className="px-6 py-4 w-40">
                     <ProgressBar score={row.score} maxScore={row.maxScore} color={status.color} size="sm" />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <StatusBadge status={status} size="sm" />
-                  </td>
+                  {!hideStatusColumn && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <StatusBadge status={status} size="sm" />
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.extra}</td>
                 </tr>
               );
