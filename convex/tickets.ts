@@ -16,6 +16,7 @@ import {
   addBusinessHours,
   skipWeekendsHours,
 } from "../lib/businessHours";
+import { withSearchText } from "./lib/userSearch";
 
 function generateTicketNumber() {
   return `TICKET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -83,7 +84,7 @@ export async function createTicketRecord(ctx, args) {
       if (existingGuest) {
         guestUserId = existingGuest._id;
       } else {
-        guestUserId = await ctx.db.insert("users", {
+        guestUserId = await ctx.db.insert("users", withSearchText({
           firstName: args.fullName.split(" ")[0] || "Guest",
           lastName: args.fullName.split(" ").slice(1).join(" ") || "",
           email: args.email,
@@ -93,7 +94,7 @@ export async function createTicketRecord(ctx, args) {
           role: "user",
           imageUrl: "",
           clerkUserId,
-        });
+        }));
       }
     }
     const ticketId = await ctx.db.insert("tickets", {

@@ -7,34 +7,196 @@ import { v, Validator } from 'convex/values';
 import { paginationOptsValidator } from 'convex/server';
 import { internalMutation, mutation, MutationCtx, query, QueryCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import {
   auditDisplayName,
   formatRoleSnapshot,
   logAuditEvent,
 } from './utils/auditLog';
+import {
+  buildUserSearchText,
+  isUserListSearchCursor,
+  patchWithSearchText,
+  userMatchesSearch,
+  withSearchText,
+} from './lib/userSearch';
 
-const MAX_USERS_RETURN = 8191;
+export { buildUserSearchText } from './lib/userSearch';
 
-function applyUserListFilters(
-  users: Array<any>,
+async function insertUser(
+  ctx: MutationCtx,
+  fields: Parameters<typeof withSearchText>[0] & Record<string, unknown>
+) {
+  return await ctx.db.insert("users", withSearchText(fields));
+}
+
+async function patchUser(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  existing: Parameters<typeof patchWithSearchText>[0],
+  patch: Record<string, unknown>
+) {
+  await ctx.db.patch(userId, patchWithSearchText(existing, patch));
+}
+
+const MAX_EXPORT_USERS = 2000;
+
+function buildUsersSearchQuery(
+  ctx: QueryCtx,
+  searchTerm: string,
+  role?: string,
   staffStream?: string,
   mdaName?: string
 ) {
-  return users.filter((user) => {
-    if (!user.clerkUserId || user.clerkUserId.startsWith("guest_")) return false;
-    if (staffStream && staffStream !== "all") {
-      if (user.role !== "staff" || user.staffStream !== staffStream) return false;
+  return ctx.db.query("users").withSearchIndex("search_users", (q) => {
+    let searchQuery = q.search("searchText", searchTerm);
+    if (role && role !== "all") {
+      searchQuery = searchQuery.eq("role", role);
     }
-    if (mdaName && mdaName !== "all" && user.mdaName !== mdaName) return false;
-    return true;
+    if (staffStream && staffStream !== "all") {
+      searchQuery = searchQuery.eq("staffStream", staffStream);
+    }
+    if (mdaName && mdaName !== "all") {
+      searchQuery = searchQuery.eq("mdaName", mdaName);
+    }
+    return searchQuery;
   });
 }
+
+async function listUsersWithSearch(
+  ctx: QueryCtx,
+  args: {
+    paginationOpts: { numItems: number; cursor: string | null };
+    role?: string;
+    staffStream?: string;
+    mdaName?: string;
+    searchTerm: string;
+  }
+) {
+  // One paginate call via search index — avoids 32k document read limit from table scans.
+  const safePaginationOpts = isUserListSearchCursor(args.paginationOpts.cursor)
+    ? { ...args.paginationOpts, cursor: null }
+    : args.paginationOpts;
+
+  const page = await buildUsersSearchQuery(
+    ctx,
+    args.searchTerm,
+    args.role,
+    args.staffStream,
+    args.mdaName
+  ).paginate(safePaginationOpts);
+
+  return {
+    ...page,
+    page: page.page.filter(
+      (user) =>
+        isValidListUser(user) && userMatchesSearch(user, args.searchTerm)
+    ),
+  };
+}
+function isValidListUser(user: { clerkUserId?: string }) {
+  return Boolean(user.clerkUserId && !user.clerkUserId.startsWith("guest_"));
+}
+
+function passesUserListFilters(
+  user: {
+    clerkUserId?: string;
+    role?: string;
+    staffStream?: string;
+    mdaName?: string;
+  },
+  staffStream?: string,
+  mdaName?: string
+) {
+  if (!isValidListUser(user)) return false;
+  if (staffStream && staffStream !== "all") {
+    if (user.role !== "staff" || user.staffStream !== staffStream) return false;
+  }
+  if (mdaName && mdaName !== "all" && user.mdaName !== mdaName) return false;
+  return true;
+}
+
+function buildUsersTableQuery(
+  ctx: QueryCtx,
+  role?: string,
+  staffStream?: string,
+  mdaName?: string
+) {
+  let usersQuery =
+    role && role !== "all"
+      ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
+      : ctx.db.query("users");
+
+  if (staffStream && staffStream !== "all") {
+    usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
+  }
+  if (mdaName && mdaName !== "all") {
+    usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
+  }
+
+  return usersQuery;
+}
+
+async function collectExportUsers(
+  ctx: QueryCtx,
+  args: {
+    role?: string;
+    staffStream?: string;
+    mdaName?: string;
+    search?: string;
+  }
+) {
+  const searchTerm = args.search?.trim();
+
+  if (searchTerm) {
+    const users = await buildUsersSearchQuery(
+      ctx,
+      searchTerm,
+      args.role,
+      args.staffStream,
+      args.mdaName
+    ).take(MAX_EXPORT_USERS);
+    return users.filter(
+      (user) =>
+        passesUserListFilters(user, args.staffStream, args.mdaName) &&
+        userMatchesSearch(user, searchTerm)
+    );
+  }
+
+  const usersQuery = buildUsersTableQuery(
+    ctx,
+    args.role,
+    args.staffStream,
+    args.mdaName
+  );
+  const users = await usersQuery.order("desc").take(MAX_EXPORT_USERS);
+  return users.filter((user) =>
+    passesUserListFilters(user, args.staffStream, args.mdaName)
+  );
+}
+
+/** Kick off one-time searchText backfill for legacy users (new users are handled automatically). */
+export const startUserSearchTextBackfill = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const admin = await getCurrentUserOrThrow(ctx);
+    if (admin.role !== "admin") {
+      throw new Error("Unauthorized: Only admins can run backfill");
+    }
+    await ctx.scheduler.runAfter(
+      0,
+      internal.migrations.backfillUserSearchText.backfillUserSearchText,
+      {}
+    );
+    return null;
+  },
+});
 
 export const getUsers = query({
   args: {},
   handler: async ctx => {
-    return await ctx.db.query('users').take(MAX_USERS_RETURN);
+    return await ctx.db.query('users').take(100);
   }
 });
 
@@ -45,24 +207,31 @@ export const listUsers = query({
     role: v.optional(v.string()),
     staffStream: v.optional(v.string()),
     mdaName: v.optional(v.string()),
+    search: v.optional(v.string()),
   },
-  handler: async (ctx, { paginationOpts, role, staffStream, mdaName }) => {
-    let usersQuery =
-      role && role !== "all"
-        ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
-        : ctx.db.query("users");
+  handler: async (ctx, { paginationOpts, role, staffStream, mdaName, search }) => {
+    const searchTerm = search?.trim();
 
-    if (staffStream && staffStream !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
-    }
-    if (mdaName && mdaName !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
+    if (searchTerm) {
+      return await listUsersWithSearch(ctx, {
+        paginationOpts,
+        role,
+        staffStream,
+        mdaName,
+        searchTerm,
+      });
     }
 
-    const page = await usersQuery.order("desc").paginate(paginationOpts);
+    // Never pass a custom search cursor into Convex .paginate() — that throws InvalidCursor.
+    const safePaginationOpts = isUserListSearchCursor(paginationOpts.cursor)
+      ? { ...paginationOpts, cursor: null }
+      : paginationOpts;
+
+    const usersQuery = buildUsersTableQuery(ctx, role, staffStream, mdaName);
+    const page = await usersQuery.order("desc").paginate(safePaginationOpts);
     return {
       ...page,
-      page: applyUserListFilters(page.page, staffStream, mdaName),
+      page: page.page.filter((user) => passesUserListFilters(user, staffStream, mdaName)),
     };
   },
 });
@@ -73,22 +242,10 @@ export const exportUsers = query({
     role: v.optional(v.string()),
     staffStream: v.optional(v.string()),
     mdaName: v.optional(v.string()),
+    search: v.optional(v.string()),
   },
-  handler: async (ctx, { role, staffStream, mdaName }) => {
-    let usersQuery =
-      role && role !== "all"
-        ? ctx.db.query("users").withIndex("byRole", (q) => q.eq("role", role))
-        : ctx.db.query("users");
-
-    if (staffStream && staffStream !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("staffStream"), staffStream));
-    }
-    if (mdaName && mdaName !== "all") {
-      usersQuery = usersQuery.filter((q) => q.eq(q.field("mdaName"), mdaName));
-    }
-
-    const users = await usersQuery.order("desc").take(MAX_USERS_RETURN);
-    return applyUserListFilters(users, staffStream, mdaName);
+  handler: async (ctx, args) => {
+    return await collectExportUsers(ctx, args);
   },
 });
 
@@ -135,14 +292,14 @@ export const upsertFromClerk = internalMutation({
       firstName: data.first_name ?? undefined,
       lastName: data.last_name ?? undefined,
       imageUrl: data.image_url ?? undefined,
-      role: existingUser?.role ?? "user"
+      role: existingUser?.role ?? "user",
     };
     if (existingUser === null) {
       console.log("✅ Creating new user:", userAttributes);
-      await ctx.db.insert("users", userAttributes);
+      await insertUser(ctx, userAttributes);
     } else {
       console.log("🔄 Updating existing user:", userAttributes);
-      await ctx.db.patch(existingUser._id, userAttributes);
+      await patchUser(ctx, existingUser._id, existingUser, userAttributes);
     }
   }
 });
@@ -389,7 +546,7 @@ export const updateUserProfile = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       firstName: args.firstName,
       lastName: args.lastName,
       phoneNumber: args.phoneNumber,
@@ -595,7 +752,7 @@ export const updateUserInConvex = mutation({
       const mda = await ctx.db.get(mdaId);
       if (!mda) throw new Error("MDA not found");
     }
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       role,
       mdaId,
       mdaName,
@@ -940,7 +1097,7 @@ export const requestInternalRole = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUserOrThrow(ctx);
     if (!user) throw new Error("User not found");
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       firstName: args.firstName,
       lastName: args.lastName,
       phoneNumber: args.phoneNumber,
@@ -1042,7 +1199,7 @@ export const approveRoleRequest = mutation({
       mdaName: args.mdaName ?? user.roleRequest.mdaName
     };
     const existingHistory = user.roleApprovalHistory ?? [];
-    await ctx.db.patch(user._id, {
+    await patchUser(ctx, user._id, user, {
       role: args.role,
       mdaId,
       mdaName: args.mdaName,
@@ -1054,7 +1211,7 @@ export const approveRoleRequest = mutation({
       firstName: user.roleRequest.firstName,
       lastName: user.roleRequest.lastName,
       roleRequest: undefined,
-      roleApprovalHistory: [...existingHistory, approvalEntry]
+      roleApprovalHistory: [...existingHistory, approvalEntry],
     });
     await ctx.scheduler.runAfter(0, api.email.sendEmail, {
       to: user.email,

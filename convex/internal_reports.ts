@@ -2,6 +2,10 @@
 import { v } from "convex/values";
 import { mutation, query, MutationCtx } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
+import {
+  isAllowedReformChampionUpload,
+  reformChampionUploadRejectedMessage,
+} from "../lib/reformChampionUpload";
 import { api } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
@@ -816,6 +820,10 @@ export const submitLargeReport = mutation({
     totalRows: v.number()
   },
   handler: async (ctx, args) => {
+    if (args.role === "reform_champion" && !isAllowedReformChampionUpload(args.fileName)) {
+      throw new Error(reformChampionUploadRejectedMessage(args.fileName));
+    }
+
     const user = await ctx.db.get(args.submittedBy);
     const mdaName = user?.mdaName ?? undefined;
     const submittedAt = Date.now();
