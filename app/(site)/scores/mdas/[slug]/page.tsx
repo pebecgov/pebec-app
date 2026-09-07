@@ -96,27 +96,45 @@ export default function MdaSummaryPage() {
     (reportData?.mdas || []).find(
       (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
     ) ?? reportData?.mdas?.[0];
+  const efficiencyKeys = new Set([
+    "sla",
+    "mystery",
+    "reportGov",
+    "reportSubmission",
+    "timeliness",
+  ]);
   const metrics = frameworkMetrics
-    .filter((metric) => !excluded.includes(metric.key))
+    .filter((metric) => {
+      const isOthersExempted =
+        metric.key.startsWith("others:") &&
+        (excluded.includes(metric.key) || excluded.includes("others"));
+      // Keep exempted Others items (e.g. BEEPA) visible; hide other excluded metrics.
+      if (isOthersExempted) return true;
+      if (excluded.includes(metric.key)) return false;
+      return true;
+    })
     .map((metric) => {
+      const exempted =
+        metric.key.startsWith("others:") &&
+        (excluded.includes(metric.key) || excluded.includes("others"));
       const scored = selected.metricScores?.[metric.key];
-      const details =
-        metric.key === "others" && (selected.othersBreakdown?.length ?? 0) > 0
-          ? selected.othersBreakdown!.map((item) => ({
-              label: item.itemName,
-              score: item.score,
-              maxScore: item.max,
-            }))
+      return {
+        name: metric.label,
+        score: exempted ? 0 : (scored?.score ?? 0),
+        maxScore: scored?.max ?? metric.max,
+        badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
+        exempted,
+        details: exempted
+          ? [
+              {
+                label: "Status",
+                score: 0,
+              },
+            ]
           : [
               { label: "Score awarded", score: scored?.score ?? 0 },
               { label: "Maximum possible", score: scored?.max ?? metric.max },
-            ];
-
-      return {
-        name: metric.label,
-        score: scored?.score ?? 0,
-        maxScore: scored?.max ?? metric.max,
-        details,
+            ],
       };
     });
 
@@ -133,11 +151,7 @@ export default function MdaSummaryPage() {
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
       />
-      <MetricBreakdown
-        title="BFA Metrics"
-        hint="Efficiency bundle and Others from the 2026 BFA configuration"
-        metrics={metrics}
-      />
+      <MetricBreakdown title="BFA Metrics" metrics={metrics} />
       {reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}

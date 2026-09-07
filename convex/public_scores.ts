@@ -3,6 +3,11 @@ import { query } from "./_generated/server";
 import { api } from "./_generated/api";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
 import {
+  BEEPA_TRACKER_ROSTER,
+  matchBeepaTrackerRosterEntry,
+  type BeepaTrackerRosterEntry,
+} from "../lib/beepaTrackerRoster";
+import {
   indicators,
   indicatorMaxScores,
   overallIndicatorMaxScore,
@@ -224,12 +229,17 @@ function buildBfaFrameworkMetrics(
     metrics.push({ key: "timeliness", label: "Timeliness in Submission", max: timelinessMax });
   }
 
-  const othersMax =
-    (config?.othersItems || []).reduce((sum, item) => sum + (item.weight || 0), 0) +
-    (config?.innovationItems || []).reduce((sum, item) => sum + (item.weight || 0), 0) +
-    (config?.stakeholderItems || []).reduce((sum, item) => sum + (item.weight || 0), 0);
-  if (othersMax > 0) {
-    metrics.push({ key: "others", label: "Others", max: othersMax });
+  const othersItems = [...(config?.othersItems || [])].sort(
+    (a, b) => ((a as { order?: number }).order ?? 0) - ((b as { order?: number }).order ?? 0)
+  );
+  for (const item of othersItems) {
+    const weight = item.weight;
+    if (!item.itemId || !item.itemName || weight == null || weight <= 0) continue;
+    metrics.push({
+      key: `others:${item.itemId}`,
+      label: item.itemName,
+      max: weight,
+    });
   }
 
   return metrics;
@@ -275,8 +285,17 @@ function metricScoreFromDashboard(
       return nested("stakeholder", frameworkMax);
     case "innovation":
       return nested("innovation", frameworkMax);
-    default:
+    default: {
+      if (key.startsWith("others:")) {
+        const itemId = key.slice("others:".length);
+        const others = mda.others as { scores?: Record<string, number> } | null | undefined;
+        return {
+          score: roundScore(Number(others?.scores?.[itemId]) || 0),
+          max: frameworkMax,
+        };
+      }
       return { score: 0, max: frameworkMax };
+    }
   }
 }
 
@@ -284,7 +303,12 @@ function isMetricExcluded(excluded: string[] | undefined, key: string): boolean 
   if (!excluded || excluded.length === 0) return false;
   if (excluded.includes(key)) return true;
   if (key === "mystery" && excluded.includes("mysteryShopping")) return true;
-  if (key === "others" && excluded.some((item) => item.startsWith("others"))) return true;
+  if (key === "others" && excluded.some((item) => item === "others" || item.startsWith("others:"))) {
+    return true;
+  }
+  if (key.startsWith("others:")) {
+    return excluded.includes("others") || excluded.includes(key);
+  }
   return false;
 }
 
@@ -418,6 +442,101 @@ function buildOthersBreakdown(
     }));
 }
 
+function findBeepaExclusionKey(
+  othersItems: Array<{ itemId: string; itemName: string }> | undefined
+): string | null {
+  if (!othersItems?.length) return null;
+  const beepa = othersItems.find((item) => {
+    const key = String(item.itemName || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    return key === "beepa" || key.includes("beepa");
+  });
+  return beepa ? `others:${beepa.itemId}` : null;
+}
+
+function buildPublicMdaRowFromDashboard(
+  mda: Record<string, unknown>,
+  displayName: string,
+  frameworkMetrics: FrameworkMetric[],
+  othersItems: Array<{ itemId: string; itemName: string; weight: number; order?: number }>,
+  extraExcluded: string[] = []
+): PublicMdaRow {
+  const excludedMetrics = Array.from(
+    new Set([
+      ...(Array.isArray(mda.excludedMetrics) ? (mda.excludedMetrics as string[]) : []),
+      ...extraExcluded,
+    ])
+  );
+  const metricScores: Record<string, { score: number; max: number }> = {};
+  for (const metric of frameworkMetrics) {
+    metricScores[metric.key] = metricScoreFromDashboard(mda, metric.key, metric.max);
+  }
+
+  const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
+  const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
+  const othersBreakdown = buildOthersBreakdown(mda, othersItems, excludedMetrics);
+
+  const maxFromFramework = frameworkMetrics
+    .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
+    .reduce((sum, metric) => sum + metric.max, 0);
+
+  return {
+    mdaName: displayName,
+    finalScore: roundScore(Number(mda.totalScore) || 0),
+    maxPossibleScore: Number(mda.maxPossiblePoints) || maxFromFramework || 100,
+    percentage: roundScore(Number(mda.totalPercentage) || 0),
+    metricScores,
+    othersBreakdown,
+    excludedMetrics,
+    applicableMetricCount: frameworkMetrics.filter(
+      (metric) => !isMetricExcluded(excludedMetrics, metric.key)
+    ).length,
+    penaltyScore: roundScore(Math.abs(penalties?.score || 0)),
+    bonusScore: roundScore(Math.abs(bonuses?.score || 0)),
+    penaltyValues: penalties?.values || {},
+    bonusValues: bonuses?.values || {},
+    lastUpdated: Number(mda.lastUpdated) || Date.now(),
+    rank: 0,
+  };
+}
+
+function buildEmptyPublicMdaRow(
+  entry: BeepaTrackerRosterEntry,
+  frameworkMetrics: FrameworkMetric[],
+  beepaExclusionKey: string | null
+): PublicMdaRow {
+  const excludedMetrics =
+    entry.beepaExempted && beepaExclusionKey ? [beepaExclusionKey] : [];
+  const maxPossibleScore = frameworkMetrics
+    .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
+    .reduce((sum, metric) => sum + metric.max, 0);
+  const metricScores: Record<string, { score: number; max: number }> = {};
+  for (const metric of frameworkMetrics) {
+    metricScores[metric.key] = { score: 0, max: metric.max };
+  }
+
+  return {
+    mdaName: entry.name,
+    finalScore: 0,
+    maxPossibleScore: maxPossibleScore || 100,
+    percentage: 0,
+    metricScores,
+    othersBreakdown: [],
+    excludedMetrics,
+    applicableMetricCount: frameworkMetrics.filter(
+      (metric) => !isMetricExcluded(excludedMetrics, metric.key)
+    ).length,
+    penaltyScore: 0,
+    bonusScore: 0,
+    penaltyValues: {},
+    bonusValues: {},
+    lastUpdated: Date.now(),
+    rank: 0,
+  };
+}
+
 function emptyPublicMdaScores(
   year: number,
   message: string,
@@ -471,6 +590,58 @@ export const getPublicMdaScores = query({
       };
       const dashboardData = ((dashboardResult as { data?: Array<Record<string, unknown>> } | null)?.data ||
         []) as Array<Record<string, unknown>>;
+      const othersItems = yearConfig?.othersItems || [];
+      const beepaExclusionKey = findBeepaExclusionKey(othersItems);
+
+      // 2026+ public tracker is scoped to the official BEEPA MDA roster (minus BOA).
+      if (requestedYear >= 2026) {
+        const dashboardByRosterName = new Map<string, Record<string, unknown>>();
+        for (const mda of dashboardData) {
+          if (!mda || typeof mda.mdaName !== "string") continue;
+          const matched = matchBeepaTrackerRosterEntry(String(mda.mdaName));
+          if (!matched) continue;
+          const key = matched.name;
+          const existing = dashboardByRosterName.get(key);
+          if (!existing || Number(mda.totalScore) > Number(existing.totalScore || 0)) {
+            dashboardByRosterName.set(key, mda);
+          }
+        }
+
+        const scoredMdas: PublicMdaRow[] = BEEPA_TRACKER_ROSTER.map((entry) => {
+          const dashboardRow = dashboardByRosterName.get(entry.name);
+          const extraExcluded =
+            entry.beepaExempted && beepaExclusionKey ? [beepaExclusionKey] : [];
+          if (dashboardRow) {
+            return buildPublicMdaRowFromDashboard(
+              dashboardRow,
+              entry.name,
+              frameworkMetrics,
+              othersItems,
+              extraExcluded
+            );
+          }
+          return buildEmptyPublicMdaRow(entry, frameworkMetrics, beepaExclusionKey);
+        })
+          .sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName))
+          .map((mda, index) => ({ ...mda, rank: index + 1 }));
+
+        const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
+        const hasAnyScore = scoredMdas.some((mda) => mda.finalScore > 0);
+
+        return {
+          mdas: limitedMdas,
+          totalMdas: BEEPA_TRACKER_ROSTER.length,
+          year: requestedYear,
+          requestedYear: args.year,
+          availableYears: hasAnyScore ? [requestedYear] : [],
+          hasDataForRequestedYear: hasAnyScore,
+          frameworkMetrics,
+          adjustments,
+          message: hasAnyScore
+            ? undefined
+            : `No MDA scoring data available for ${requestedYear} yet. Showing the ${BEEPA_TRACKER_ROSTER.length} agencies on the BEEPA assessment roster.`,
+        };
+      }
 
       if (!dashboardData.length) {
         return {
@@ -485,42 +656,14 @@ export const getPublicMdaScores = query({
 
       const scoredMdas: PublicMdaRow[] = dashboardData
         .filter((mda) => mda && typeof mda.mdaName === "string" && Number(mda.totalScore) > 0)
-        .map((mda) => {
-          const excludedMetrics = Array.isArray(mda.excludedMetrics)
-            ? (mda.excludedMetrics as string[])
-            : [];
-          const metricScores: Record<string, { score: number; max: number }> = {};
-          for (const metric of frameworkMetrics) {
-            metricScores[metric.key] = metricScoreFromDashboard(mda, metric.key, metric.max);
-          }
-
-          const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
-          const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
-          const othersBreakdown = buildOthersBreakdown(
+        .map((mda) =>
+          buildPublicMdaRowFromDashboard(
             mda,
-            yearConfig?.othersItems || [],
-            excludedMetrics
-          );
-
-          return {
-            mdaName: canonicalizeMdaName(String(mda.mdaName)),
-            finalScore: roundScore(Number(mda.totalScore) || 0),
-            maxPossibleScore: Number(mda.maxPossiblePoints) || 100,
-            percentage: roundScore(Number(mda.totalPercentage) || 0),
-            metricScores,
-            othersBreakdown,
-            excludedMetrics,
-            applicableMetricCount: frameworkMetrics.filter(
-              (metric) => !isMetricExcluded(excludedMetrics, metric.key)
-            ).length,
-            penaltyScore: roundScore(Math.abs(penalties?.score || 0)),
-            bonusScore: roundScore(Math.abs(bonuses?.score || 0)),
-            penaltyValues: penalties?.values || {},
-            bonusValues: bonuses?.values || {},
-            lastUpdated: Number(mda.lastUpdated) || Date.now(),
-            rank: 0,
-          };
-        })
+            canonicalizeMdaName(String(mda.mdaName)),
+            frameworkMetrics,
+            othersItems
+          )
+        )
         .sort((a, b) => b.finalScore - a.finalScore)
         .map((mda, index) => ({ ...mda, rank: index + 1 }));
 

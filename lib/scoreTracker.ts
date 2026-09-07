@@ -1,5 +1,6 @@
 import { mdasList } from "@/components/mdaList";
 import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
+import { matchBeepaTrackerRosterEntry } from "@/lib/beepaTrackerRoster";
 import { createSlugFromName } from "@/lib/utils";
 
 export const SCORE_YEAR = 2026;
@@ -108,6 +109,8 @@ export function getStatusColorClasses(color: StatusColor): {
 
 export function getMdaAbbreviation(name: string): string | undefined {
   const canonical = canonicalizeMdaName(name);
+  const roster = matchBeepaTrackerRosterEntry(canonical) || matchBeepaTrackerRosterEntry(name);
+  if (roster) return roster.abbreviation;
   const match = mdasList.find(
     (mda) =>
       mda.name === canonical ||

@@ -9,6 +9,9 @@ export const mdasList = [{
   name: "Bureau for Public Procurement",
   abbreviation: "BPP"
 }, {
+  name: "Citizenship and Business Department",
+  abbreviation: "CBD"
+}, {
   name: "Central Bank of Nigeria – National Collateral Agency",
   abbreviation: "CBN - NCR"
 },  {
@@ -123,6 +126,9 @@ export const mdasList = [{
   name: "Nigeria Customs Service",
   abbreviation: "NCS"
 }, {
+  name: "Nigeria Data Protection Commission",
+  abbreviation: "NDPC"
+}, {
   name: "Nigeria Export Processing Zone Authority",
   abbreviation: "NEPZA"
 }, {
@@ -137,6 +143,9 @@ export const mdasList = [{
 }, {
   name: "Nigeria Police Force",
   abbreviation: "NPF"
+}, {
+  name: "Nigeria Social Insurance Trust Fund",
+  abbreviation: "NSITF"
 }, {
   name: "Nigerian Agricultural Insurance Corporation",
   abbreviation: "NAIC"
@@ -197,6 +206,9 @@ export const mdasList = [{
 }, {
   name: "Port Health (Quarantine) Services",
   abbreviation: "PHS"
+}, {
+  name: "Rural Electrification Agency",
+  abbreviation: "REA"
 }, {
   name: "Secretary to the Government of the Federation",
   abbreviation: "OSGF"
