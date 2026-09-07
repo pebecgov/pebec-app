@@ -28,6 +28,10 @@ interface RankingDashboardProps {
   metricLabel: string;
   rows: RankingRow[] | undefined;
   emptyMessage: string;
+  /** Hide the status distribution strip (MDA tracker). */
+  hideStatusDistribution?: boolean;
+  /** Hide status badges in table/cards (MDA tracker). */
+  hideStatusColumn?: boolean;
 }
 
 export function RankingDashboard({
@@ -41,6 +45,8 @@ export function RankingDashboard({
   metricLabel,
   rows,
   emptyMessage,
+  hideStatusDistribution = false,
+  hideStatusColumn = false,
 }: RankingDashboardProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>("ranking");
@@ -136,7 +142,7 @@ export function RankingDashboard({
         </div>
       </section>
 
-      {rows && rows.length > 0 && (
+      {rows && rows.length > 0 && !hideStatusDistribution && (
         <section className="mb-8">
           <StatusDistribution rows={rows} />
         </section>
@@ -202,6 +208,7 @@ export function RankingDashboard({
             <RankingTable
               rows={filteredRows}
               extraColumnHeader={extraColumnHeader}
+              hideStatusColumn={hideStatusColumn}
               onRowClick={(row) => router.push(row.href)}
             />
           ) : (
@@ -211,6 +218,7 @@ export function RankingDashboard({
                   key={row.id}
                   row={row}
                   extraLabel={extraCardLabel}
+                  hideStatus={hideStatusColumn}
                   onClick={() => router.push(row.href)}
                 />
               ))}

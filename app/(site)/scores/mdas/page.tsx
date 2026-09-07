@@ -52,7 +52,7 @@ export default function MdaScoresPage() {
         abbreviation: getMdaAbbreviation(mda.mdaName),
         score: mda.finalScore,
         maxScore: mda.maxPossibleScore,
-        extra: reports ? `${reports.submitted}/${reports.due}` : "—",
+        extra: reports && reports.submitted > 0 ? `${reports.submitted}/${reports.due}` : "—",
         href: `/scores/mdas/${scoreSlug(mda.mdaName)}`,
       };
     });
@@ -70,6 +70,8 @@ export default function MdaScoresPage() {
       metricLabel="Metrics"
       rows={rows}
       emptyMessage="No MDA scoring data is available for 2026 yet."
+      hideStatusDistribution
+      hideStatusColumn
     />
   );
 }
