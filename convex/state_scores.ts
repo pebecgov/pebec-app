@@ -1,21 +1,10 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { indicators } from "./config/indicators";
+import {
+  getIndicatorMaxScoresForYear,
+  getOverallMaxScoreForYear,
+} from "./config/indicators";
 import { normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
-
-const indicatorMaxScores = Object.fromEntries(
-  Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
-    const maxScoreForIndicator = Object.values(indicatorConfig.subIndicators).reduce((sum, subIndicator: any) => {
-      const options = subIndicator.options as Array<{ score: number }>;
-      const maxOptionScore = options.reduce((max, option) => Math.max(max, option.score), 0);
-      return sum + maxOptionScore;
-    }, 0);
-
-    return [indicatorKey, maxScoreForIndicator];
-  })
-);
-
-const overallMaxScore = Object.values(indicatorMaxScores).reduce((sum, value) => sum + value, 0);
 
 export const getStateRankings = query({
   args: {
@@ -47,8 +36,8 @@ export const getStateRankings = query({
     }
 
     const targetMaxScore = indicator
-      ? indicatorMaxScores[indicator] ?? null
-      : overallMaxScore;
+      ? getIndicatorMaxScoresForYear(currentYear)[indicator] ?? null
+      : getOverallMaxScoreForYear(currentYear);
 
     if (indicator && targetMaxScore === null) {
       return [];

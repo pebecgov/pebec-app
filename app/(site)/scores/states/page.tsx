@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { RankingDashboard } from "@/components/scores/RankingDashboard";
 import { SCORE_YEAR, scoreSlug, type RankingRow } from "@/lib/scoreTracker";
-import { INDICATOR_COUNT } from "@/convex/config/indicators";
+import { getIndicatorCountForYear } from "@/convex/config/indicators";
 
 interface StateRankingData {
   state: string;
@@ -39,7 +39,7 @@ export default function StateScoresPage() {
       extraColumnHeader="Indicators"
       extraCardLabel="indicators"
       entityLabel="State"
-      metricCount={INDICATOR_COUNT}
+      metricCount={getIndicatorCountForYear(SCORE_YEAR)}
       metricLabel="Indicators"
       rows={rows}
       emptyMessage="No states found for this search."

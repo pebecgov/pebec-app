@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { indicators } from "@/convex/config/indicators";
+import { getIndicatorsForYear } from "@/convex/config/indicators";
 
 export interface StateIndicatorScore {
   state: string;
@@ -100,7 +100,7 @@ export async function generateStateIndicatorPDF({
     const sortedStates = [...stateData].sort((a, b) => b.percentage - a.percentage);
 
     // Get sub-indicator information
-    const indicatorConfig = indicators[indicatorKey as keyof typeof indicators];
+    const indicatorConfig = getIndicatorsForYear(year)[indicatorKey];
     const subIndicatorKeys = Object.keys(indicatorConfig?.subIndicators || {});
 
     // Create main summary table
@@ -201,12 +201,12 @@ export async function generateStateIndicatorPDF({
     subIndicatorKeys.forEach((subKey, index) => {
       const config = indicatorConfig?.subIndicators[subKey];
       if (config) {
-        const maxScore = Math.max(...(config.options as Array<{ score: number }>).map(opt => opt.score));
+        const maxScore = Math.max(...config.options.map(opt => opt.score));
         doc.text(`${index + 1}. ${config.label} (Max: ${maxScore} pts)`, 15, currentY);
         currentY += 5;
 
         // Show scoring options
-        (config.options as Array<{ value: string; label: string; score: number }>).forEach(option => {
+        config.options.forEach(option => {
           doc.text(`   • ${option.label} = ${option.score} pts`, 20, currentY);
           currentY += 4;
         });
@@ -253,14 +253,15 @@ function getPerformanceGrade(percentage: number): string {
 // Helper function to process raw state scores into structured data
 export function processStateScoresForIndicator(
   allScores: StateIndicatorScore[],
-  indicatorKey: string
+  indicatorKey: string,
+  year?: number
 ): StateIndicatorData[] {
-  const indicatorConfig = indicators[indicatorKey as keyof typeof indicators];
+  const indicatorConfig = getIndicatorsForYear(year)[indicatorKey];
   if (!indicatorConfig) return [];
 
   // Calculate max score for this indicator
-  const maxScore = Object.values(indicatorConfig.subIndicators).reduce((sum, subConfig: any) => {
-    const maxSubScore = Math.max(...subConfig.options.map((opt: any) => opt.score));
+  const maxScore = Object.values(indicatorConfig.subIndicators).reduce((sum, subConfig) => {
+    const maxSubScore = Math.max(...subConfig.options.map((opt) => opt.score));
     return sum + maxSubScore;
   }, 0);
 
@@ -282,9 +283,9 @@ export function processStateScoresForIndicator(
     const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
     // Process sub-indicators
-    const subIndicatorScores = Object.entries(indicatorConfig.subIndicators).map(([subKey, subConfig]: [string, any]) => {
+    const subIndicatorScores = Object.entries(indicatorConfig.subIndicators).map(([subKey, subConfig]) => {
       const subScore = scores.find(s => s.subIndicator === subKey);
-      const maxSubScore = Math.max(...subConfig.options.map((opt: any) => opt.score));
+      const maxSubScore = Math.max(...subConfig.options.map((opt) => opt.score));
       const score = subScore?.score || 0;
       const subPercentage = maxSubScore > 0 ? (score / maxSubScore) * 100 : 0;
 

@@ -1,7 +1,10 @@
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { indicators } from "@/convex/config/indicators";
+import {
+  getIndicatorMaxScoresForYear,
+  getOverallMaxScoreForYear,
+} from "@/convex/config/indicators";
 import { getStateDeduction, normalizeStateName } from "@/convex/stateUtils";
 
 export interface StateRanking {
@@ -12,29 +15,6 @@ export interface StateRanking {
   maxScore: number;
   deduction?: number;
 }
-
-const indicatorMaxScores = Object.fromEntries(
-  Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
-    const maxScoreForIndicator = Object.values(indicatorConfig.subIndicators).reduce(
-      (sum, subIndicator: any) => {
-        const options = subIndicator.options as Array<{ score: number }>;
-        const maxOptionScore = options.reduce(
-          (max, option) => Math.max(max, option.score),
-          0
-        );
-        return sum + maxOptionScore;
-      },
-      0
-    );
-
-    return [indicatorKey, maxScoreForIndicator];
-  })
-);
-
-const overallMaxScore = Object.values(indicatorMaxScores).reduce(
-  (sum, value) => sum + value,
-  0
-);
 
 function applyDeductions(
   items: Array<{ state: string; totalScore: number; percentageScore: number; maxScore: number }>
@@ -83,7 +63,7 @@ export function useStateRankings(indicator?: string, year?: number) {
         stateTotals.set(normalizedState, currentTotal + (score.score || 0));
       });
 
-      const maxScore = indicatorMaxScores[indicator] ?? 0;
+      const maxScore = getIndicatorMaxScoresForYear(currentYear)[indicator] ?? 0;
       const baseItems = Array.from(stateTotals.entries()).map(([state, totalScore]) => {
         const percentageScore = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
         return {
@@ -99,6 +79,7 @@ export function useStateRankings(indicator?: string, year?: number) {
 
     if (!baseRankings) return undefined;
 
+    const overallMaxScore = getOverallMaxScoreForYear(currentYear);
     const normalizedBase = baseRankings.map((ranking) => {
       const state = normalizeStateName(ranking.state);
       const totalScore = ranking.totalScore ?? 0;
@@ -115,7 +96,7 @@ export function useStateRankings(indicator?: string, year?: number) {
     });
 
     return applyDeductions(normalizedBase);
-  }, [indicator, baseRankings, stateScores]);
+  }, [indicator, baseRankings, stateScores, currentYear]);
 
   return {
     rankings: data || [],

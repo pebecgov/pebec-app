@@ -14,7 +14,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useStateRankings } from "@/hooks/useStateRankings";
-import { indicators } from "@/convex/config/indicators";
+import {
+  CURRENT_INDICATOR_YEAR,
+  getIndicatorMaxScoresForYear,
+  getIndicatorsForYear,
+  getOverallMaxScoreForYear,
+} from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 import AnalysisTab from "@/components/Admin/AnalysisTab";
 import { generateStateIndicatorPDF, processStateScoresForIndicator } from "@/lib/stateIndicatorPdfGenerator";
@@ -22,19 +27,11 @@ import { toast } from "sonner";
 import { stateRegions, geopoliticalRegions } from "@/lib/stateRegions";
 import * as XLSX from 'xlsx';
 
-// Grade calculation function
-const indicatorMaxScores: Record<string, number> = Object.fromEntries(
-  Object.entries(indicators).map(([indicatorKey, indicatorConfig]) => {
-    const maxScoreForIndicator = Object.values(indicatorConfig.subIndicators).reduce((sum, subIndicator: any) => {
-      const options = subIndicator.options as Array<{ score: number }>;
-      const maxOptionScore = options.reduce((max, option) => Math.max(max, option.score), 0);
-      return sum + maxOptionScore;
-    }, 0);
-    return [indicatorKey, maxScoreForIndicator];
-  })
-);
+// Analytics and indicator analysis always report on the live assessment year.
+const ANALYTICS_YEAR = CURRENT_INDICATOR_YEAR;
 
-const overallMaxScore = Object.values(indicatorMaxScores).reduce((sum, value) => sum + value, 0);
+const indicatorMaxScores = getIndicatorMaxScoresForYear(ANALYTICS_YEAR);
+const overallMaxScore = getOverallMaxScoreForYear(ANALYTICS_YEAR);
 
 const nigerianStates = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa",
@@ -209,7 +206,7 @@ const calculateAnalytics = (allScores: any[], selectedIndicator?: string) => {
 const AnalyticsDashboard = () => {
   const [selectedIndicatorFilter, setSelectedIndicatorFilter] = useState<string>("all");
   const [selectedRegionFilter, setSelectedRegionFilter] = useState<string>("all");
-  const allScores = useQuery(api.saveStateScore.getStateScores, {});
+  const allScores = useQuery(api.saveStateScore.getStateScores, { year: ANALYTICS_YEAR });
   
   const analytics = useMemo(() => {
     if (!allScores) return null;
@@ -278,7 +275,7 @@ const AnalyticsDashboard = () => {
         'Max Possible': stateData.maxScore,
         'Percentage': ((state.score / stateData.maxScore) * 100).toFixed(1) + '%',
         'Indicator Filter': selectedIndicatorFilter === "all" ? "All Indicators" : 
-          (indicators[selectedIndicatorFilter as keyof typeof indicators]?.name || selectedIndicatorFilter)
+          (getIndicatorsForYear(ANALYTICS_YEAR)[selectedIndicatorFilter]?.name || selectedIndicatorFilter)
       }));
 
       const stateSheet = XLSX.utils.json_to_sheet(stateExportData);
@@ -386,7 +383,7 @@ const AnalyticsDashboard = () => {
 
   // Get indicator name for display
   const selectedIndicatorName = selectedIndicator 
-    ? indicators[selectedIndicator as keyof typeof indicators]?.name 
+    ? getIndicatorsForYear(ANALYTICS_YEAR)[selectedIndicator]?.name 
     : null;
 
   // Regional data for charts
@@ -446,7 +443,7 @@ const AnalyticsDashboard = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Indicators</SelectItem>
-                {Object.entries(indicators).map(([key, config]) => (
+                {Object.entries(getIndicatorsForYear(ANALYTICS_YEAR)).map(([key, config]) => (
                   <SelectItem key={key} value={key}>
                     {config.name}
                   </SelectItem>
@@ -692,22 +689,31 @@ const RankingsTable = () => {
   const indicatorKey = selectedIndicator === INDICATOR_ALL_VALUE ? undefined : selectedIndicator;
   const { rankings, isLoading, isEmpty } = useStateRankings(indicatorKey, selectedYear);
 
+  // The framework differs per assessment year, so the filter list follows the year.
+  const yearIndicators = useMemo(() => getIndicatorsForYear(selectedYear), [selectedYear]);
+
+  useEffect(() => {
+    if (selectedIndicator !== INDICATOR_ALL_VALUE && !(selectedIndicator in yearIndicators)) {
+      setSelectedIndicator(INDICATOR_ALL_VALUE);
+    }
+  }, [selectedIndicator, yearIndicators]);
+
   const indicatorOptions = useMemo(() => {
     return [
       { value: INDICATOR_ALL_VALUE, label: "All Indicators" },
-      ...Object.entries(indicators).map(([key, config]) => ({
+      ...Object.entries(yearIndicators).map(([key, config]) => ({
         value: key,
         label: config.name,
       })),
     ];
-  }, []);
+  }, [yearIndicators]);
 
   const selectedIndicatorLabel = useMemo(() => {
     if (selectedIndicator === INDICATOR_ALL_VALUE) {
       return "All Indicators";
     }
-    return indicators[selectedIndicator]?.name ?? selectedIndicator;
-  }, [selectedIndicator]);
+    return yearIndicators[selectedIndicator]?.name ?? selectedIndicator;
+  }, [selectedIndicator, yearIndicators]);
 
   const exportPDF = useCallback(async () => {
     await generateStateRankingPDF({
@@ -776,8 +782,8 @@ const RankingsTable = () => {
     rankings.length > 0
       ? rankings[0].maxScore
       : indicatorKey
-        ? indicatorMaxScores[indicatorKey] ?? 0
-        : overallMaxScore;
+        ? getIndicatorMaxScoresForYear(selectedYear)[indicatorKey] ?? 0
+        : getOverallMaxScoreForYear(selectedYear);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -945,11 +951,11 @@ export default function StateScoringPage() {
   const [selectedIndicatorFilter, setSelectedIndicatorFilter] = useState("");
   const stateIndicatorScores = useQuery(
     api.saveStateScore.getStateScores,
-    selectedStateFilter ? { state: selectedStateFilter } : "skip",
+    selectedStateFilter ? { state: selectedStateFilter, year: ANALYTICS_YEAR } : "skip",
   );
 
   // Get all state scores for indicator analysis
-  const allStateScores = useQuery(api.saveStateScore.getStateScores, {});
+  const allStateScores = useQuery(api.saveStateScore.getStateScores, { year: ANALYTICS_YEAR });
 
   const analysisIndicators = useMemo(() => {
     if (!selectedStateFilter || !stateIndicatorScores) {
@@ -971,7 +977,7 @@ export default function StateScoringPage() {
       };
     });
 
-    return Object.entries(indicators).map(([indicatorKey, config]) => {
+    return Object.entries(getIndicatorsForYear(ANALYTICS_YEAR)).map(([indicatorKey, config]) => {
       const indicatorData = indicatorScores[indicatorKey] || { total: 0, subMetrics: {} };
       const totalScore = indicatorData.total;
       const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
@@ -981,7 +987,7 @@ export default function StateScoringPage() {
       const subMetrics = Object.entries(config.subIndicators).map(([subIndicatorKey, subIndicatorConfig]) => {
         const subMetricData = indicatorData.subMetrics[subIndicatorKey] || { score: 0 };
         const subMetricMaxScore = Math.max(
-          ...(subIndicatorConfig.options as Array<{ score: number }>).map((opt) => opt.score),
+          ...subIndicatorConfig.options.map((opt) => opt.score),
           0
         );
 
@@ -1011,7 +1017,7 @@ export default function StateScoringPage() {
     if (!selectedIndicatorFilter || !allStateScores) {
       return null;
     }
-    return processStateScoresForIndicator(allStateScores, selectedIndicatorFilter);
+    return processStateScoresForIndicator(allStateScores, selectedIndicatorFilter, ANALYTICS_YEAR);
   }, [selectedIndicatorFilter, allStateScores]);
 
   const handleGenerateIndicatorPDF = async () => {
@@ -1020,7 +1026,7 @@ export default function StateScoringPage() {
       return;
     }
 
-    const indicatorConfig = indicators[selectedIndicatorFilter as keyof typeof indicators];
+    const indicatorConfig = getIndicatorsForYear(ANALYTICS_YEAR)[selectedIndicatorFilter];
     if (!indicatorConfig) {
       toast.error("Invalid indicator selected");
       return;
@@ -1029,7 +1035,8 @@ export default function StateScoringPage() {
     await generateStateIndicatorPDF({
       indicatorKey: selectedIndicatorFilter,
       indicatorName: indicatorConfig.name,
-      stateData: selectedIndicatorData
+      stateData: selectedIndicatorData,
+      year: ANALYTICS_YEAR
     });
   };
 
@@ -1201,7 +1208,7 @@ export default function StateScoringPage() {
                       <SelectValue placeholder="Choose an indicator to analyze..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(indicators).map(([key, config]) => (
+                      {Object.entries(getIndicatorsForYear(ANALYTICS_YEAR)).map(([key, config]) => (
                         <SelectItem key={key} value={key}>
                           {config.name}
                         </SelectItem>
@@ -1221,7 +1228,7 @@ export default function StateScoringPage() {
 
               {/* Indicator Summary */}
               {selectedIndicatorFilter && selectedIndicatorData && (() => {
-                const indicatorConfig = indicators[selectedIndicatorFilter as keyof typeof indicators];
+                const indicatorConfig = getIndicatorsForYear(ANALYTICS_YEAR)[selectedIndicatorFilter];
                 const totalStates = selectedIndicatorData.length;
                 const averageScore = totalStates > 0 ? selectedIndicatorData.reduce((sum, state) => sum + state.percentage, 0) / totalStates : 0;
                 const maxScore = selectedIndicatorData[0]?.maxScore || 0;

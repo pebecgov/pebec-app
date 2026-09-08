@@ -8,10 +8,10 @@ import {
   type BeepaTrackerRosterEntry,
 } from "../lib/beepaTrackerRoster";
 import {
-  indicators,
-  indicatorMaxScores,
-  overallIndicatorMaxScore,
-  type IndicatorKey,
+  CURRENT_INDICATOR_YEAR,
+  getIndicatorMaxScoresForYear,
+  getIndicatorsForYear,
+  getOverallMaxScoreForYear,
 } from "./config/indicators";
 import { STATE_LIST, normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
 
@@ -29,9 +29,12 @@ function gradeFromPercentage(percentage: number): string {
 }
 
 export const getPublicStateIndicators = query({
-  args: {},
-  handler: async (_ctx) => {
-    return Object.keys(indicators);
+  args: {
+    year: v.optional(v.number()),
+  },
+  returns: v.array(v.string()),
+  handler: async (_ctx, args) => {
+    return Object.keys(getIndicatorsForYear(args.year ?? CURRENT_INDICATOR_YEAR));
   },
 });
 
@@ -42,6 +45,8 @@ export const getPublicStateRankings = query({
   },
   handler: async (ctx, args) => {
     const currentYear = args.year || new Date().getFullYear();
+    const yearIndicators = getIndicatorsForYear(currentYear);
+    const yearIndicatorMaxScores = getIndicatorMaxScoresForYear(currentYear);
 
     // Always seed the full roster so Total States = 37 even before any scores exist.
     const stateDetails = new Map<
@@ -80,8 +85,8 @@ export const getPublicStateRankings = query({
         continue;
       }
 
-      const indicatorKey = score.indicator as IndicatorKey;
-      if (!(indicatorKey in indicatorMaxScores)) {
+      const indicatorKey = score.indicator;
+      if (!(indicatorKey in yearIndicatorMaxScores)) {
         continue;
       }
 
@@ -98,9 +103,9 @@ export const getPublicStateRankings = query({
 
       if (!stateData.indicators[score.indicator]) {
         stateData.indicators[score.indicator] = {
-          name: indicators[indicatorKey].name,
+          name: yearIndicators[indicatorKey]!.name,
           score: 0,
-          maxScore: indicatorMaxScores[indicatorKey],
+          maxScore: yearIndicatorMaxScores[indicatorKey]!,
           subIndicators: {},
         };
       }
@@ -109,7 +114,7 @@ export const getPublicStateRankings = query({
       stateData.indicators[score.indicator].subIndicators[score.subIndicator] = score.score;
     }
 
-    const denominator: number = overallIndicatorMaxScore;
+    const denominator: number = getOverallMaxScoreForYear(currentYear);
     const sortedStates = Array.from(stateDetails.entries())
       .map(([stateName, data]) => {
         const percentage = denominator > 0 ? (data.totalScore / denominator) * 100 : 0;
@@ -137,7 +142,7 @@ export const getPublicStateRankings = query({
     return {
       states: limitedStates,
       totalStates: states.length,
-      indicators: Object.keys(indicators),
+      indicators: Object.keys(yearIndicators),
     };
   },
 });

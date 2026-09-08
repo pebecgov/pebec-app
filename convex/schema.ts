@@ -1195,7 +1195,7 @@ export default defineSchema({
     linkToSource: v.optional(v.string()), // optional link to source/documentation
     year: v.number(), // Assessment year (e.g., 2025, 2026)
     createdAt: v.number()
-  }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byYear", ["year"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byYearAndState", ["year", "state"]).index("byYearAndIndicator", ["year", "indicator"]).index("byCreatedAt", ["createdAt"]),
+  }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byYear", ["year"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byYearStateIndicatorSubIndicator", ["year", "state", "indicator", "subIndicator"]).index("byYearAndState", ["year", "state"]).index("byYearAndIndicator", ["year", "indicator"]).index("byCreatedAt", ["createdAt"]),
   // SLA Data Storage
   mda_sla_data: defineTable({
     mdaName: v.string(),

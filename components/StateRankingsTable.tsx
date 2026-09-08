@@ -8,33 +8,35 @@ import { Loader2 } from "lucide-react";
 import { useStateRankings, StateRanking } from "@/hooks/useStateRankings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { indicators } from "@/convex/config/indicators";
+import { CURRENT_INDICATOR_YEAR, getIndicatorsForYear } from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 
 const INDICATOR_ALL_VALUE = "all";
 
-export function StateRankingsTable() {
+export function StateRankingsTable({ year = CURRENT_INDICATOR_YEAR }: { year?: number }) {
   const [selectedIndicator, setSelectedIndicator] = useState<string>(INDICATOR_ALL_VALUE);
   const indicatorKey = selectedIndicator === INDICATOR_ALL_VALUE ? undefined : selectedIndicator;
-  const { rankings, isLoading, isEmpty } = useStateRankings(indicatorKey);
+  const { rankings, isLoading, isEmpty } = useStateRankings(indicatorKey, year);
+
+  const yearIndicators = useMemo(() => getIndicatorsForYear(year), [year]);
 
   const indicatorOptions = useMemo(() => {
     return [
       { value: INDICATOR_ALL_VALUE, label: "All Indicators" },
-      ...Object.entries(indicators).map(([key, config]) => ({
+      ...Object.entries(yearIndicators).map(([key, config]) => ({
         value: key,
         label: config.name,
       })),
     ];
-  }, []);
+  }, [yearIndicators]);
 
   const selectedIndicatorLabel = useMemo(() => {
     if (selectedIndicator === INDICATOR_ALL_VALUE) {
       return "All Indicators";
     }
 
-    return indicators[selectedIndicator]?.name ?? selectedIndicator;
-  }, [selectedIndicator]);
+    return yearIndicators[selectedIndicator]?.name ?? selectedIndicator;
+  }, [selectedIndicator, yearIndicators]);
 
   const maxScore = rankings.length > 0 ? rankings[0].maxScore : 0;
 

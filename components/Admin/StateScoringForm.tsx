@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { indicators } from "@/convex/config/indicators";
+import { getIndicatorsForYear } from "@/convex/config/indicators";
 import { 
   Save, 
   BarChart3, 
@@ -109,7 +109,7 @@ const StateForm = memo(({
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      const indicatorConfig = indicators[indicator as keyof typeof indicators];
+      const indicatorConfig = getIndicatorsForYear(year)[indicator];
       if (!indicatorConfig) return;
 
       // Save each sub-indicator with value and optional link
@@ -151,7 +151,7 @@ const StateForm = memo(({
     }
   }, [state, indicator, stateData, linkData, saveStateScore, saveStateScoreLink, year, onSaveComplete]);
 
-  const indicatorConfig = indicators[indicator as keyof typeof indicators];
+  const indicatorConfig = getIndicatorsForYear(year)[indicator];
   if (!indicatorConfig) return null;
 
   // Determine if this state is completed - check saved scores, not local edits
@@ -234,6 +234,16 @@ export default function StateScoringForm() {
   const [selectedYear, setSelectedYear] = useState(2026);
   const [stateScores, setStateScores] = useState<Record<string, StateScoreData>>({});
   const [stateLinks, setStateLinks] = useState<Record<string, StateLinkData>>({});
+
+  // The framework differs per assessment year, so the indicator list follows the year.
+  const yearIndicators = useMemo(() => getIndicatorsForYear(selectedYear), [selectedYear]);
+
+  // Drop a selection that does not exist in the newly chosen year's framework.
+  useEffect(() => {
+    if (selectedIndicator && !(selectedIndicator in yearIndicators)) {
+      setSelectedIndicator("");
+    }
+  }, [selectedIndicator, yearIndicators]);
   
   // Load existing scores
   const existingScores = useQuery(api.saveStateScore.getStateScores, 
@@ -274,7 +284,7 @@ export default function StateScoringForm() {
   const isStateCompleted = useCallback((state: string, indicator: string): boolean => {
     if (!indicator || !state) return false;
     
-    const indicatorConfig = indicators[indicator as keyof typeof indicators];
+    const indicatorConfig = yearIndicators[indicator];
     if (!indicatorConfig) return false;
     
     const stateData = stateScores[state] || {};
@@ -285,7 +295,7 @@ export default function StateScoringForm() {
            allSubIndicators.every(subIndicator => 
              stateData[subIndicator] && stateData[subIndicator] !== ""
            );
-  }, [stateScores]);
+  }, [stateScores, yearIndicators]);
 
   // Memoized progress calculation
   const progressData = useMemo(() => {
@@ -388,7 +398,7 @@ export default function StateScoringForm() {
                   <SelectValue placeholder="Choose an indicator" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(indicators).map(([id, config]) => (
+                  {Object.entries(yearIndicators).map(([id, config]) => (
                     <SelectItem key={id} value={id}>
                       {config.name}
                     </SelectItem>
