@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { action, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { indicators, type IndicatorKey } from "./config/indicators";
+import { getIndicatorsForYear } from "./config/indicators";
 import { VALID_NIGERIAN_STATES } from "./stateUtils";
 
 const YEAR = 2026;
@@ -359,8 +359,7 @@ export const seedStateBatch = internalMutation({
     for (const state of states) {
       const index = allStates.indexOf(state);
       const factor = stateFactor(state, index < 0 ? 0 : index);
-      for (const indicatorKey of Object.keys(indicators) as IndicatorKey[]) {
-        const indicator = indicators[indicatorKey];
+      for (const [indicatorKey, indicator] of Object.entries(getIndicatorsForYear(YEAR))) {
         for (const [subKey, sub] of Object.entries(indicator.subIndicators)) {
           const localFactor = jitter(factor, `${state}:${indicatorKey}:${subKey}`);
           const option = pickOption(sub.options, localFactor);

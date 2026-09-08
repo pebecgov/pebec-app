@@ -8,7 +8,10 @@ import { api } from "@/convex/_generated/api";
 import { MetricBreakdown, SummaryHeader } from "@/components/scores/SummaryPage";
 import { Skeleton } from "@/components/scores/primitives";
 import { SCORE_YEAR, getScoreStatus, scoreSlug } from "@/lib/scoreTracker";
-import { indicators, indicatorMaxScores, type IndicatorKey } from "@/convex/config/indicators";
+import {
+  getIndicatorMaxScoresForYear,
+  getIndicatorsForYear,
+} from "@/convex/config/indicators";
 
 interface StateRankingData {
   state: string;
@@ -62,13 +65,13 @@ export default function StateSummaryPage() {
   }
 
   const status = getScoreStatus(selected.totalScore, selected.maxScore);
-  const metrics = (Object.keys(indicators) as IndicatorKey[]).map((key) => {
-    const config = indicators[key];
+  const yearIndicatorMaxScores = getIndicatorMaxScoresForYear(SCORE_YEAR);
+  const metrics = Object.entries(getIndicatorsForYear(SCORE_YEAR)).map(([key, config]) => {
     const data = selected.indicators?.[key];
     return {
       name: config.name,
       score: data?.score ?? 0,
-      maxScore: indicatorMaxScores[key],
+      maxScore: yearIndicatorMaxScores[key] ?? 0,
       details: Object.entries(config.subIndicators).map(([subKey, subConfig]) => ({
         label: subConfig.label,
         score: data?.subIndicators?.[subKey] ?? 0,

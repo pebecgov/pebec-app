@@ -10,6 +10,8 @@ export const STATE_LIST: string[] = [
 
 const STATE_ALIASES: Record<string, string> = {
   "FCT": "Federal Capital Territory",
+  "FCT/ABUJA": "Federal Capital Territory",
+  "ABUJA": "Federal Capital Territory",
   "FEDERAL CAPITAL TERRITORY": "Federal Capital Territory",
 };
 

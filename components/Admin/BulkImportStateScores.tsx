@@ -11,7 +11,7 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle } from "lucide-react";
 import * as XLSX from "xlsx";
-import { indicators } from "@/convex/config/indicators";
+import { getIndicatorsForYear } from "@/convex/config/indicators";
 
 interface ScoreRow {
   state: string;
@@ -66,8 +66,8 @@ export default function BulkImportStateScores() {
       const scores: ScoreRow[] = [];
       const errors: string[] = [];
 
-      // Get indicator keys for validation
-      const indicatorKeys = Object.keys(indicators);
+      // Validate against the framework for the year being imported into
+      const indicatorKeys = Object.keys(getIndicatorsForYear(selectedYear));
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
@@ -119,7 +119,7 @@ export default function BulkImportStateScores() {
     } finally {
       setIsProcessing(false);
     }
-  }, []);
+  }, [selectedYear]);
 
   const handleImport = useCallback(async () => {
     if (parsedData.length === 0) {

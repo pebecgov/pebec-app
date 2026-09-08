@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { indicators } from "./config/indicators";
+import { getSubIndicatorScore } from "./config/indicators";
 import { normalizeStateName } from "./stateUtils";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
@@ -22,31 +22,19 @@ export const saveStateScore = mutation({
 
     const assessmentYear = year || new Date().getFullYear();
     const normalizedState = normalizeStateName(state);
-    let score = 0;
 
-    // Fetch score dynamically from indicators configuration
-    const indicatorKey = indicator as keyof typeof indicators;
-    const indicatorConfig = indicators[indicatorKey];
-    
-    if (indicatorConfig) {
-      const subIndicators = indicatorConfig.subIndicators as unknown as Record<string, { label: string; options: Array<{ value: string; label: string; score: number }> }>;
-      const subIndicatorConfig = subIndicators[subIndicator];
-      
-      if (subIndicatorConfig && subIndicatorConfig.options) {
-        const selectedOption = subIndicatorConfig.options.find((opt) => opt.value === value);
-        score = selectedOption ? selectedOption.score : 0;
-      } else {
-        console.warn(`No config found for subIndicator: ${subIndicator} in indicator: ${indicator}`);
-      }
-    } else {
-      console.warn(`No config found for indicator: ${indicator}`);
-    }
-    
-    // Check if a record already exists for this combination
+    // Points come from the framework in force for the year being scored.
+    const score = getSubIndicatorScore(indicator, subIndicator, value, assessmentYear);
+
+    // Check if a record already exists for this combination in the same year
     const existingRecord = await ctx.db
       .query("state_scores")
-      .withIndex("byStateIndicatorSubIndicator", (q) => 
-        q.eq("state", normalizedState).eq("indicator", indicator).eq("subIndicator", subIndicator)
+      .withIndex("byYearStateIndicatorSubIndicator", (q) =>
+        q
+          .eq("year", assessmentYear)
+          .eq("state", normalizedState)
+          .eq("indicator", indicator)
+          .eq("subIndicator", subIndicator)
       )
       .first();
     
@@ -114,12 +102,17 @@ export const saveStateScoreLink = mutation({
   },
   handler: async (ctx, { state, indicator, subIndicator, linkToSource, year }) => {
     const assessmentYear = year || new Date().getFullYear();
-    
-    // Check if a record already exists for this combination
+    const normalizedState = normalizeStateName(state);
+
+    // Check if a record already exists for this combination in the same year
     const existingRecord = await ctx.db
       .query("state_scores")
-      .withIndex("byStateIndicatorSubIndicator", (q) => 
-        q.eq("state", state).eq("indicator", indicator).eq("subIndicator", subIndicator)
+      .withIndex("byYearStateIndicatorSubIndicator", (q) =>
+        q
+          .eq("year", assessmentYear)
+          .eq("state", normalizedState)
+          .eq("indicator", indicator)
+          .eq("subIndicator", subIndicator)
       )
       .first();
     
@@ -132,7 +125,7 @@ export const saveStateScoreLink = mutation({
     } else {
       // Create new record with just the link (score will be 0)
       const scoreId = await ctx.db.insert("state_scores", {
-        state,
+        state: normalizedState,
         indicator,
         subIndicator,
         value: "",
