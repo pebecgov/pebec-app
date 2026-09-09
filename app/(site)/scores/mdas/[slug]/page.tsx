@@ -10,6 +10,7 @@ import { MonthlyReportsPanel } from "@/components/scores/MonthlyReportsPanel";
 import { Skeleton } from "@/components/scores/primitives";
 import {
   SCORE_YEAR,
+  SHOW_PUBLIC_MDA_REPORT_COMPLIANCE,
   getMdaAbbreviation,
   getScoreStatus,
   scoreSlug,
@@ -57,7 +58,7 @@ export default function MdaSummaryPage() {
 
   const reportData = useQuery(
     api.public_mda_reports.getPublicMdaReportCompliance,
-    selected?.mdaName
+    SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && selected?.mdaName
       ? { year: SCORE_YEAR, asOf, mdaName: selected.mdaName }
       : "skip"
   );
@@ -171,7 +172,7 @@ export default function MdaSummaryPage() {
         </div>
       )}
       <MetricBreakdown title="BFA Metrics" metrics={metrics} />
-      {reports && (
+      {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}
           months={reports.months}

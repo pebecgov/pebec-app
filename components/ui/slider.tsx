@@ -14,12 +14,13 @@ interface SliderProps {
 const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
   ({ className, value, onValueChange, max, min = 0, step = 1, disabled = false, ...props }, ref) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newValue = parseInt(e.target.value, 10)
-      console.log('Slider value changed:', newValue) // Debug log
-      onValueChange([newValue])
+      const newValue = parseFloat(e.target.value)
+      onValueChange([Number.isFinite(newValue) ? newValue : min])
     }
 
     const currentValue = value[0] !== undefined ? value[0] : min
+    const displayValue =
+      step < 1 ? Number(currentValue).toFixed(1) : String(currentValue)
 
     return (
       <div
@@ -41,9 +42,8 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
             disabled && "opacity-50 cursor-not-allowed"
           )}
         />
-        {/* Debug info */}
         <span className="absolute -bottom-6 left-0 text-xs text-gray-400">
-          {currentValue}/{max}
+          {displayValue}/{max}
         </span>
       </div>
     )
