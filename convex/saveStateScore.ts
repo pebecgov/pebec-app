@@ -139,6 +139,101 @@ export const saveStateScoreLink = mutation({
   }
 });
 
+/**
+ * Batch upsert for the indicator matrix UI. Saves only the provided cells
+ * (typically dirty ones) for one indicator/year.
+ */
+export const bulkSaveStateScoreCells = mutation({
+  args: {
+    year: v.number(),
+    indicator: v.string(),
+    cells: v.array(
+      v.object({
+        state: v.string(),
+        subIndicator: v.string(),
+        value: v.string(),
+      })
+    ),
+  },
+  returns: v.object({
+    saved: v.number(),
+    inserted: v.number(),
+    updated: v.number(),
+    skipped: v.number(),
+  }),
+  handler: async (ctx, { year, indicator, cells }) => {
+    const actor = await getCurrentUserOrThrow(ctx);
+    if (actor.role !== "admin" && actor.role !== "staff") {
+      throw new Error("Unauthorized");
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const cell of cells) {
+      if (!cell.value) {
+        skipped += 1;
+        continue;
+      }
+
+      const state = normalizeStateName(cell.state);
+      const score = getSubIndicatorScore(indicator, cell.subIndicator, cell.value, year);
+
+      const existing = await ctx.db
+        .query("state_scores")
+        .withIndex("byYearStateIndicatorSubIndicator", (q) =>
+          q
+            .eq("year", year)
+            .eq("state", state)
+            .eq("indicator", indicator)
+            .eq("subIndicator", cell.subIndicator)
+        )
+        .first();
+
+      if (existing) {
+        if (existing.value === cell.value && existing.score === score) {
+          skipped += 1;
+          continue;
+        }
+        await ctx.db.patch(existing._id, { value: cell.value, score });
+        updated += 1;
+      } else {
+        await ctx.db.insert("state_scores", {
+          state,
+          indicator,
+          subIndicator: cell.subIndicator,
+          value: cell.value,
+          score,
+          year,
+          createdAt: Date.now(),
+        });
+        inserted += 1;
+      }
+    }
+
+    const saved = inserted + updated;
+    if (saved > 0) {
+      await logAuditEvent(ctx, {
+        action: "bfa.state_score_saved",
+        category: "bfa",
+        summary: `Matrix saved ${saved} cells for ${indicator} (${year})`,
+        actor,
+        metadata: {
+          indicator,
+          year,
+          inserted,
+          updated,
+          skipped,
+          cellCount: cells.length,
+        },
+      });
+    }
+
+    return { saved, inserted, updated, skipped };
+  },
+});
+
 export const getStateScores = query({
   args: {
     state: v.optional(v.string()),

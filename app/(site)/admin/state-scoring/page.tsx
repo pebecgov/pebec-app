@@ -8,6 +8,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useSearchParams } from "next/navigation";
 import StateScoringForm from "@/components/Admin/StateScoringForm";
+import StateScoringMatrix from "@/components/Admin/StateScoringMatrix";
 import BulkImportStateScores from "@/components/Admin/BulkImportStateScores";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
@@ -947,6 +948,7 @@ export default function StateScoringPage() {
   };
   
   const [activeTab, setActiveTab] = useState(getInitialTab());
+  const [scoringMode, setScoringMode] = useState<"matrix" | "single" | "excel">("matrix");
   const [selectedStateFilter, setSelectedStateFilter] = useState("");
   const [selectedIndicatorFilter, setSelectedIndicatorFilter] = useState("");
   const stateIndicatorScores = useQuery(
@@ -1155,11 +1157,37 @@ export default function StateScoringPage() {
         {activeTab === "scoring" && canScoreStates && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Score States</h2>
-              <div className="mb-6">
-                <BulkImportStateScores />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Score States</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Use the matrix for day-to-day scoring. Fall back to one-state forms or Excel when you need them.
+              </p>
+
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 mb-6">
+                {(
+                  [
+                    { id: "matrix" as const, label: "Matrix (fast)" },
+                    { id: "single" as const, label: "One state" },
+                    { id: "excel" as const, label: "Excel import" },
+                  ] as const
+                ).map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setScoringMode(mode.id)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                      scoringMode === mode.id
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
               </div>
-              <StateScoringForm />
+
+              {scoringMode === "matrix" && <StateScoringMatrix />}
+              {scoringMode === "single" && <StateScoringForm />}
+              {scoringMode === "excel" && <BulkImportStateScores />}
             </div>
           </div>
         )}
