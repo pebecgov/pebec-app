@@ -6,6 +6,13 @@ import { createSlugFromName } from "@/lib/utils";
 export const SCORE_YEAR = 2026;
 export const PEBEC_GREEN = "#006B3F";
 
+/**
+ * Public tracker report compliance (submitted/due + MDA detail month panel).
+ * Keep false until BFA scoring for reports is ready across MDAs.
+ * Real uploads in `submitted_reports` are unaffected.
+ */
+export const SHOW_PUBLIC_MDA_REPORT_COMPLIANCE = false;
+
 export type StatusLabel =
   | "Requires Intervention"
   | "Progressing With Difficulty"

@@ -198,3 +198,38 @@ export const clearMonthlyReportSubmissionScores = internalMutation({
     };
   },
 });
+
+/**
+ * Clears ALL BFA Monthly Report Submission scoring rows for a period (or every period).
+ * Does NOT touch submitted_reports.
+ */
+export const clearAllMonthlyReportSubmissionScores = internalMutation({
+  args: {
+    scoringPeriod: v.optional(v.string()),
+  },
+  returns: v.object({
+    deletedScoreRows: v.number(),
+    matchedPeriods: v.array(v.string()),
+    matchedNames: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const matchedNames = new Set<string>();
+    const matchedPeriods = new Set<string>();
+    const scoreRows = await ctx.db.query("mda_monthly_report_data").collect();
+    let deletedScoreRows = 0;
+
+    for (const row of scoreRows) {
+      if (args.scoringPeriod && row.scoringPeriod !== args.scoringPeriod) continue;
+      matchedNames.add(row.mdaName);
+      matchedPeriods.add(row.scoringPeriod);
+      await ctx.db.delete(row._id);
+      deletedScoreRows += 1;
+    }
+
+    return {
+      deletedScoreRows,
+      matchedPeriods: Array.from(matchedPeriods).sort(),
+      matchedNames: Array.from(matchedNames).sort(),
+    };
+  },
+});

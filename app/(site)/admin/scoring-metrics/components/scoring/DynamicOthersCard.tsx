@@ -93,15 +93,40 @@ const DynamicOthersCard: React.FC<DynamicOthersCardProps> = ({
 
                             {item.answerType === 'scale_1_10' && (
                                 <div className="space-y-2">
-                                    <Slider
-                                        value={[typeof othersValues[item.itemId] === 'number' ? othersValues[item.itemId] as number : 0]}
-                                        min={0}
-                                        max={10}
-                                        step={0.1}
-                                        onValueChange={(vals) => onValueChange(item.itemId, Number(vals[0].toFixed(1)))}
-                                        disabled={!selectedMda || isLoading}
-                                        className="pt-2"
-                                    />
+                                    <div className="flex items-center gap-3">
+                                        <Slider
+                                            value={[typeof othersValues[item.itemId] === 'number' ? othersValues[item.itemId] as number : 0]}
+                                            min={0}
+                                            max={10}
+                                            step={0.1}
+                                            onValueChange={(vals) => onValueChange(item.itemId, Number(vals[0].toFixed(1)))}
+                                            disabled={!selectedMda || isLoading}
+                                            className="pt-2 flex-1"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={10}
+                                            step={0.1}
+                                            value={
+                                                typeof othersValues[item.itemId] === "number"
+                                                    ? Number(othersValues[item.itemId])
+                                                    : 0
+                                            }
+                                            onChange={(e) => {
+                                                const raw = parseFloat(e.target.value);
+                                                if (!Number.isFinite(raw)) {
+                                                    onValueChange(item.itemId, 0);
+                                                    return;
+                                                }
+                                                const clamped = Math.max(0, Math.min(10, Number(raw.toFixed(1))));
+                                                onValueChange(item.itemId, clamped);
+                                            }}
+                                            disabled={!selectedMda || isLoading}
+                                            className="w-16 h-9 rounded-md border border-gray-200 px-2 text-sm text-right"
+                                            aria-label={`${item.itemName} scale value`}
+                                        />
+                                    </div>
                                     <div className="text-right text-xs text-muted-foreground">
                                         {(
                                             ((typeof othersValues[item.itemId] === 'number'

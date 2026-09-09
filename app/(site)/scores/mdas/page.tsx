@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { RankingDashboard } from "@/components/scores/RankingDashboard";
 import {
   SCORE_YEAR,
+  SHOW_PUBLIC_MDA_REPORT_COMPLIANCE,
   getMdaAbbreviation,
   scoreSlug,
   type RankingRow,
@@ -24,14 +25,15 @@ interface MdaScoreData {
 export default function MdaScoresPage() {
   const asOf = useMemo(() => Date.now(), []);
   const mdaData = useQuery(api.public_scores.getPublicMdaScores, { year: SCORE_YEAR });
-  const reportData = useQuery(api.public_mda_reports.getPublicMdaReportCompliance, {
-    year: SCORE_YEAR,
-    asOf,
-  });
+  const reportData = useQuery(
+    api.public_mda_reports.getPublicMdaReportCompliance,
+    SHOW_PUBLIC_MDA_REPORT_COMPLIANCE ? { year: SCORE_YEAR, asOf } : "skip"
+  );
   const frameworkMetrics = (mdaData?.frameworkMetrics || []) as BfaFrameworkMetric[];
 
   const reportByMda = useMemo(() => {
     const map = new Map<string, { submitted: number; due: number }>();
+    if (!SHOW_PUBLIC_MDA_REPORT_COMPLIANCE) return map;
     for (const mda of reportData?.mdas || []) {
       map.set(canonicalizeMdaName(mda.mdaName), {
         submitted: mda.submitted,
@@ -52,7 +54,10 @@ export default function MdaScoresPage() {
         abbreviation: getMdaAbbreviation(mda.mdaName),
         score: mda.finalScore,
         maxScore: mda.maxPossibleScore,
-        extra: reports && reports.submitted > 0 ? `${reports.submitted}/${reports.due}` : "—",
+        extra:
+          SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && reports.submitted > 0
+            ? `${reports.submitted}/${reports.due}`
+            : "—",
         href: `/scores/mdas/${scoreSlug(mda.mdaName)}`,
       };
     });
