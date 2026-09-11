@@ -7,8 +7,8 @@ export const mdalistIcon = [{
     abbreviation: "BPP",
     icon: "📋" // Icon representing a clipboard or a checklist
   }, {
-    name: "Central Bank of Nigeria – National Collateral Agency",
-    abbreviation: "CBN - NCR",
+    name: "Central Bank of Nigeria",
+    abbreviation: "CBN",
     icon: "💰" // Icon representing money or finance
   }, {
     name: "Commercial Law & Trademarks Registry",
