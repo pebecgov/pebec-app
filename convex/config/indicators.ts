@@ -687,7 +687,7 @@ const indicators2026 = {
     },
   },
   nationwide_tour_engagement: {
-    name: "Nationwide Tour Engagement (10%)",
+    name: "State Engagement (10%)",
     subIndicators: {
       peer_to_peer: {
         label: "Peer to Peer (3%)",
