@@ -189,6 +189,10 @@ module.exports = {
           to: {
             height: '0'
           }
+        },
+        'scores-flicker': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.35' }
         }
       },
       animation: {
@@ -196,7 +200,8 @@ module.exports = {
         line2: 'line 6s linear infinite',
         line3: 'line 9s linear infinite',
         'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out'
+        'accordion-up': 'accordion-up 0.2s ease-out',
+        'scores-flicker': 'scores-flicker 1.1s ease-in-out infinite'
       },
       borderRadius: {
         lg: 'var(--radius)',
