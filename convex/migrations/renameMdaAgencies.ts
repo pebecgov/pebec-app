@@ -28,7 +28,12 @@ function needsRename(name: string | undefined): name is string {
   return canonicalizeMdaName(name) !== name;
 }
 
-export const renameFirsAndJtb = mutation({
+/**
+ * Safe rename for MDA display names (FIRS→NRS, JTB→JRB, CBN-NCR→CBN, NIPC Council→Commission).
+ * Tickets keep working because they store assignedMDA as mdas._id — we only patch `name`.
+ * Also rewrites string mdaName fields in scoring/report tables and users.
+ */
+export const renameMdaDisplayNames = mutation({
   args: {},
   returns: v.object({
     mdasRenamed: v.number(),
@@ -109,3 +114,6 @@ export const renameFirsAndJtb = mutation({
     return { mdasRenamed, mdasMerged, recordsPatched, usersPatched };
   },
 });
+
+/** @deprecated Prefer renameMdaDisplayNames — kept so existing dashboard links still work. */
+export const renameFirsAndJtb = renameMdaDisplayNames;

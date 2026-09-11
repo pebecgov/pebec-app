@@ -12,8 +12,8 @@ export const mdasList = [{
   name: "Citizenship and Business Department",
   abbreviation: "CBD"
 }, {
-  name: "Central Bank of Nigeria – National Collateral Agency",
-  abbreviation: "CBN - NCR"
+  name: "Central Bank of Nigeria",
+  abbreviation: "CBN"
 },  {
   name: "Trademarks Registry",
   abbreviation: "CLTR"
@@ -174,7 +174,7 @@ export const mdasList = [{
   name: "Nigerian Export-Import Bank",
   abbreviation: "NEXIM"
 }, {
-  name: "Nigerian Investment Promotion Council",
+  name: "Nigerian Investment Promotion Commission",
   abbreviation: "NIPC"
 }, {
   name: "Nigerian Maritime Administration and Safety Agency",

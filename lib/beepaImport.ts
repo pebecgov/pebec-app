@@ -15,7 +15,7 @@ export type BeepaImportCandidate = {
 };
 
 const KNOWN_ALIASES: Record<string, string> = {
-  "nigerian investment promotion commission": "Nigerian Investment Promotion Council",
+  "nigerian investment promotion council": "Nigerian Investment Promotion Commission",
   "trade marks registry": "Trademarks Registry",
   "trademarks registry": "Trademarks Registry",
   "efcc special control unit for money laundering":

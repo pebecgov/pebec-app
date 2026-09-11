@@ -18,7 +18,7 @@ const DEMO_MDAS: Array<{
 }> = [
   { name: "Corporate Affairs Commission", factor: 0.98, bonusIds: ["bonus_reform", "bonus_digital"], penaltyIds: [], submittedMonths: [0, 1, 2, 3, 4, 5, 6] },
   { name: "Nigeria Revenue Service", factor: 0.93, bonusIds: ["bonus_digital"], penaltyIds: [], submittedMonths: [0, 1, 2, 3, 4, 5, 6] },
-  { name: "Nigerian Investment Promotion Council", factor: 0.88, bonusIds: ["bonus_reform"], penaltyIds: [], submittedMonths: [0, 1, 2, 3, 4, 5, 6] },
+  { name: "Nigerian Investment Promotion Commission", factor: 0.88, bonusIds: ["bonus_reform"], penaltyIds: [], submittedMonths: [0, 1, 2, 3, 4, 5, 6] },
   { name: "Nigeria Immigration Service", factor: 0.84, bonusIds: [], penaltyIds: [], submittedMonths: [0, 1, 2, 3, 4, 6] },
   { name: "Nigeria Customs Service", factor: 0.79, bonusIds: [], penaltyIds: [], submittedMonths: [0, 1, 2, 3, 5, 6] },
   { name: "Standards Organisation of Nigeria", factor: 0.74, bonusIds: [], penaltyIds: [], submittedMonths: [0, 1, 2, 4, 5] },
