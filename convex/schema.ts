@@ -720,7 +720,8 @@ export default defineSchema({
         v.literal("hilux"),
         v.literal("highlander"),
         v.literal("bus"),
-        v.literal("camry")
+        v.literal("camry"),
+        v.literal("prado")
       )
     ),
     /** Calendar date (YYYY-MM-DD) in server local context at request time — "system date" for the trip. */
@@ -1193,7 +1194,7 @@ export default defineSchema({
     value: v.string(), // descriptive string selected from form
     score: v.float64(), // numeric score derived from value mapping
     linkToSource: v.optional(v.string()), // optional link to source/documentation
-    year: v.number(), // Assessment year (e.g., 2025, 2026)
+    year: v.optional(v.number()), // Assessment year (e.g., 2025, 2026); optional for older documents
     createdAt: v.number()
   }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byYear", ["year"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byYearStateIndicatorSubIndicator", ["year", "state", "indicator", "subIndicator"]).index("byYearAndState", ["year", "state"]).index("byYearAndIndicator", ["year", "indicator"]).index("byCreatedAt", ["createdAt"]),
   // SLA Data Storage
