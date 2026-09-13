@@ -12,20 +12,23 @@ const TRACKER_DISCLAIMER =
   "Disclaimer: If you find inconsistent or incorrect information on this tracker, please dispute it with PEBEC immediately by submitting counter evidence. Do not ignore errors.";
 
 const BAR_HEIGHT_PX = 48;
+/** Bump this key when the green announcement should reappear for users who dismissed an older one. */
+const GREEN_ANNOUNCEMENT_DISMISS_KEY = "announcementDismissed_v2_subnational_2025";
 
 const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
-    const isDismissed = localStorage.getItem("announcementDismissed");
+    // Drop the legacy dismiss flag so the green bar can show again under the stacked layout.
+    localStorage.removeItem("announcementDismissed");
+
+    const isDismissed = localStorage.getItem(GREEN_ANNOUNCEMENT_DISMISS_KEY);
     if (!isDismissed) {
       setIsVisible(true);
-      // Green + red bars stacked
       onVisibilityChange?.(true, BAR_HEIGHT_PX * 2);
       setTimeout(() => setIsAnimating(true), 50);
     } else {
-      // Disclaimer marquee still shows when the report announcement is dismissed
       onVisibilityChange?.(true, BAR_HEIGHT_PX);
     }
   }, [onVisibilityChange]);
@@ -36,7 +39,7 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
     setIsAnimating(false);
     setTimeout(() => {
       setIsVisible(false);
-      localStorage.setItem("announcementDismissed", "true");
+      localStorage.setItem(GREEN_ANNOUNCEMENT_DISMISS_KEY, "true");
       onVisibilityChange?.(true, BAR_HEIGHT_PX);
     }, 300);
   };
@@ -72,9 +75,10 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
         </div>
       )}
 
-      <div
+      <Link
+        href="/scores"
         role="alert"
-        className="bg-red-700 text-white shadow-md overflow-hidden border-t border-red-800"
+        className="block bg-red-700 text-white shadow-md overflow-hidden border-t border-red-800 hover:bg-red-800 transition-colors"
       >
         <div className="tracker-disclaimer-marquee py-3">
           <div className="tracker-disclaimer-marquee-track">
@@ -89,7 +93,7 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
             </span>
           </div>
         </div>
-      </div>
+      </Link>
 
       <style jsx>{`
         .tracker-disclaimer-marquee {
