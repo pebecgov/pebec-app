@@ -81,7 +81,7 @@ export default function MdaSummaryPage() {
           <h1 className="text-xl font-semibold text-gray-900 mb-2">MDA not found</h1>
           <p className="text-gray-600 mb-6">No 2026 scoring record matches this MDA.</p>
           <Link
-            href="/scores/mdas"
+            href="/tracker/mdas"
             className="inline-flex items-center rounded-lg bg-[#006B3F] px-4 py-2 text-sm font-medium text-white hover:bg-[#005432]"
           >
             Back to MDA Rankings
@@ -150,7 +150,7 @@ export default function MdaSummaryPage() {
   return (
     <div>
       <SummaryHeader
-        backHref="/scores/mdas"
+        backHref="/tracker/mdas"
         backLabel="Back to MDA Rankings"
         abbreviation={abbreviation}
         title={selected.mdaName}
