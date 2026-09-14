@@ -71,7 +71,7 @@ export function RankingDashboard({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <Link
-        href="/scores"
+        href="/tracker"
         className="inline-flex items-center gap-2 px-4 py-2 mb-6 text-sm font-medium text-white bg-[#006B3F] rounded-lg hover:bg-[#005432] transition-colors shadow-md"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

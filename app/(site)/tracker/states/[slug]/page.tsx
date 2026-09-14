@@ -54,7 +54,7 @@ export default function StateSummaryPage() {
           <h1 className="text-xl font-semibold text-gray-900 mb-2">State not found</h1>
           <p className="text-gray-600 mb-6">No 2026 scoring record matches this state.</p>
           <Link
-            href="/scores/states"
+            href="/tracker/states"
             className="inline-flex items-center rounded-lg bg-[#006B3F] px-4 py-2 text-sm font-medium text-white hover:bg-[#005432]"
           >
             Back to State Rankings
@@ -82,7 +82,7 @@ export default function StateSummaryPage() {
   return (
     <div>
       <SummaryHeader
-        backHref="/scores/states"
+        backHref="/tracker/states"
         backLabel="Back to State Rankings"
         title={selected.state}
         description={`Rank #${selected.rank} of ${stateData?.totalStates || 0} states`}

@@ -8,9 +8,6 @@ interface AnnouncementBarProps {
   onVisibilityChange?: (isVisible: boolean, offsetPx: number) => void;
 }
 
-const TRACKER_DISCLAIMER =
-  "Disclaimer: If you find inconsistent or incorrect information on this tracker, please dispute it with PEBEC immediately by submitting counter evidence. Do not ignore errors.";
-
 const BAR_HEIGHT_PX = 48;
 /** Bump this key when the green announcement should reappear for users who dismissed an older one. */
 const GREEN_ANNOUNCEMENT_DISMISS_KEY = "announcementDismissed_v2_subnational_2025";
@@ -26,10 +23,10 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
     const isDismissed = localStorage.getItem(GREEN_ANNOUNCEMENT_DISMISS_KEY);
     if (!isDismissed) {
       setIsVisible(true);
-      onVisibilityChange?.(true, BAR_HEIGHT_PX * 2);
+      onVisibilityChange?.(true, BAR_HEIGHT_PX);
       setTimeout(() => setIsAnimating(true), 50);
     } else {
-      onVisibilityChange?.(true, BAR_HEIGHT_PX);
+      onVisibilityChange?.(false, 0);
     }
   }, [onVisibilityChange]);
 
@@ -40,7 +37,7 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
     setTimeout(() => {
       setIsVisible(false);
       localStorage.setItem(GREEN_ANNOUNCEMENT_DISMISS_KEY, "true");
-      onVisibilityChange?.(true, BAR_HEIGHT_PX);
+      onVisibilityChange?.(false, 0);
     }, 300);
   };
 
@@ -75,72 +72,6 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
         </div>
       )}
 
-      <Link
-        href="/scores"
-        role="alert"
-        className="block bg-red-700 text-white shadow-md overflow-hidden border-t border-red-800 hover:bg-red-800 transition-colors"
-      >
-        <div className="tracker-disclaimer-marquee py-3">
-          <div className="tracker-disclaimer-marquee-track">
-            <span className="font-bold text-sm md:text-base uppercase tracking-wide px-8">
-              {TRACKER_DISCLAIMER}
-            </span>
-            <span
-              className="font-bold text-sm md:text-base uppercase tracking-wide px-8"
-              aria-hidden="true"
-            >
-              {TRACKER_DISCLAIMER}
-            </span>
-          </div>
-        </div>
-      </Link>
-
-      <style jsx>{`
-        .tracker-disclaimer-marquee {
-          width: 100%;
-          overflow: hidden;
-          white-space: nowrap;
-        }
-
-        .tracker-disclaimer-marquee-track {
-          display: inline-flex;
-          width: max-content;
-          animation: tracker-disclaimer-marquee 40s linear infinite;
-        }
-
-        .tracker-disclaimer-marquee-track:hover {
-          animation-play-state: paused;
-        }
-
-        @keyframes tracker-disclaimer-marquee {
-          0% {
-            transform: translate3d(0, 0, 0);
-          }
-          100% {
-            transform: translate3d(-50%, 0, 0);
-          }
-        }
-
-        @media (max-width: 768px) {
-          .tracker-disclaimer-marquee-track {
-            animation-duration: 28s;
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .tracker-disclaimer-marquee-track {
-            animation: none;
-            flex-wrap: wrap;
-            white-space: normal;
-            justify-content: center;
-            width: 100%;
-          }
-
-          .tracker-disclaimer-marquee-track span[aria-hidden="true"] {
-            display: none;
-          }
-        }
-      `}</style>
     </div>
   );
 };
