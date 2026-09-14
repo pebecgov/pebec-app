@@ -3584,3 +3584,117 @@ export const getBonusesData = query({
       .first();
   }
 });
+
+// Bulk update transparency scores for MDAs with Activity 1.8 at 100%
+export const bulkUpdateTransparencyForSLAPublication = mutation({
+  args: {
+    year: v.number(),
+    scoringPeriod: v.string(),
+    mdaNames: v.array(v.string()),
+    transparencyScore: v.number(), // Points to award (typically 5)
+    dryRun: v.optional(v.boolean())
+  },
+  returns: v.object({
+    updated: v.number(),
+    created: v.number(),
+    skipped: v.number(),
+    errors: v.array(v.string())
+  }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized: Only admins and staff can bulk update transparency scores");
+    }
+
+    let updated = 0;
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    // Get transparency item configuration for this year
+    const transparencyItems = await ctx.db.query("transparency_items")
+      .withIndex("byYearAndActive", q => q.eq("year", args.year).eq("isActive", true))
+      .collect();
+
+    const transparencyItem = transparencyItems.find(item => 
+      item.itemName.toLowerCase().includes("transparency") || 
+      item.itemId.includes("transparency")
+    );
+
+    if (!transparencyItem) {
+      throw new Error(`No transparency item found in configuration for year ${args.year}`);
+    }
+
+    for (const mdaName of args.mdaNames) {
+      try {
+        // Check if MDA already has transparency data
+        const existingData = await ctx.db.query("saved_others_data")
+          .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", args.scoringPeriod))
+          .first();
+
+        const values = existingData?.values || {};
+        const scores = existingData?.scores || {};
+
+        // Set transparency to true (assuming yes/no type)
+        values[transparencyItem.itemId] = true;
+        scores[transparencyItem.itemId] = args.transparencyScore;
+
+        // Calculate new total score
+        const totalScore = Object.values(scores).reduce((sum: number, score) => sum + (score as number), 0);
+
+        if (!args.dryRun) {
+          if (existingData) {
+            // Update existing record
+            await ctx.db.patch(existingData._id, {
+              values,
+              scores,
+              totalScore,
+              updatedAt: Date.now()
+            });
+            updated++;
+          } else {
+            // Create new record
+            await ctx.db.insert("saved_others_data", {
+              mdaName,
+              scoringPeriod: args.scoringPeriod,
+              values,
+              scores,
+              totalScore,
+              updatedAt: Date.now()
+            });
+            created++;
+          }
+
+          // Log audit event
+          await logAuditEvent(ctx, {
+            action: "bfa.mda_score_saved",
+            category: "bfa",
+            summary: `Bulk transparency update: ${mdaName} awarded ${args.transparencyScore} points for SLA publication`,
+            actor: user,
+            target: {
+              type: "mda",
+              id: mdaName,
+              label: mdaName
+            },
+            metadata: {
+              scoringPeriod: args.scoringPeriod,
+              transparencyScore: args.transparencyScore,
+              itemId: transparencyItem.itemId,
+              type: "bulk_transparency_update"
+            }
+          });
+        }
+      } catch (error) {
+        errors.push(`${mdaName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    return {
+      updated,
+      created, 
+      skipped,
+      errors
+    };
+  }
+});
