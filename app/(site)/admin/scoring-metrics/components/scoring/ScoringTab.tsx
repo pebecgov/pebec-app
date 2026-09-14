@@ -23,6 +23,7 @@ import DynamicOthersCard from './DynamicOthersCard';
 import DynamicPenaltiesCard from './DynamicPenaltiesCard';
 import DynamicBonusesCard from './DynamicBonusesCard';
 import BeepaCsvImportCard from './BeepaCsvImportCard';
+import BulkTransparencyCard from './BulkTransparencyCard';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -1197,14 +1198,20 @@ export default function ScoringTab({
                 <div className="w-full space-y-4">
                     <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Other Metrics</h3>
                     {useDynamicConfig && (
-                        <BeepaCsvImportCard
-                            year={scoringYear}
-                            scoringPeriod={scoringPeriod}
-                            knownMdas={(mdasList || []).map((mda: { name: string; abbreviation?: string }) => ({
-                                name: mda.name,
-                                abbreviation: mda.abbreviation,
-                            }))}
-                        />
+                        <>
+                            <BeepaCsvImportCard
+                                year={scoringYear}
+                                scoringPeriod={scoringPeriod}
+                                knownMdas={(mdasList || []).map((mda: { name: string; abbreviation?: string }) => ({
+                                    name: mda.name,
+                                    abbreviation: mda.abbreviation,
+                                }))}
+                            />
+                            <BulkTransparencyCard
+                                year={scoringYear}
+                                scoringPeriod={scoringPeriod}
+                            />
+                        </>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {useDynamicConfig ? (
