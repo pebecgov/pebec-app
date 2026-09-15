@@ -720,7 +720,8 @@ export default defineSchema({
         v.literal("hilux"),
         v.literal("highlander"),
         v.literal("bus"),
-        v.literal("camry")
+        v.literal("camry"),
+        v.literal("prado")
       )
     ),
     /** Calendar date (YYYY-MM-DD) in server local context at request time — "system date" for the trip. */
