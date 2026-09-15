@@ -656,16 +656,16 @@ const indicators2026 = {
         ],
       },
       centralized_grm: {
-        label: "Centralized GRM (2%)",
+        label: "Centralized GRM (1%)",
         options: [
-          { value: "yes", label: "Centralized GRM available (2)", score: 2 },
+          { value: "yes", label: "Centralized GRM available (1)", score: 1 },
           { value: "no", label: "No centralized GRM (0)", score: 0 },
         ],
       },
       multiple_channels_functionality: {
-        label: "Multiple Channels & Functionality (1%)",
+        label: "Multiple Channels & Functionality (2%)",
         options: [
-          { value: "yes", label: "Easily accessible via multiple channels (1)", score: 1 },
+          { value: "yes", label: "Easily accessible via multiple channels (2)", score: 2 },
           { value: "no", label: "Difficult to find or access (0)", score: 0 },
         ],
       },

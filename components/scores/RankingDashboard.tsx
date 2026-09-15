@@ -70,15 +70,6 @@ export function RankingDashboard({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <Link
-        href="/tracker"
-        className="inline-flex items-center gap-2 px-4 py-2 mb-6 text-sm font-medium text-white bg-[#006B3F] rounded-lg hover:bg-[#005432] transition-colors shadow-md"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Back to Tracker
-      </Link>
 
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
