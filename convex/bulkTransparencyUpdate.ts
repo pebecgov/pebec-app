@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import { mutation } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 
@@ -45,7 +45,7 @@ const MDAS_WITH_100_PERCENT_SLA_PUBLICATION = [
   "Standards Organisation of Nigeria"
 ];
 
-export const awardTransparencyForSLAPublication = internalMutation({
+export const awardTransparencyForSLAPublication = mutation({
   args: {
     year: v.optional(v.number()),
     scoringPeriod: v.optional(v.string()),
@@ -70,6 +70,21 @@ export const awardTransparencyForSLAPublication = internalMutation({
     }))
   }),
   handler: async (ctx, args) => {
+    // Check authentication and authorization
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .filter(q => q.eq(q.field("clerkUserId"), identity.subject))
+      .first();
+
+    if (!user || (user.role !== "admin" && user.role !== "staff")) {
+      throw new Error("Unauthorized: Only admins and staff can award bulk transparency points");
+    }
+
     const year = args.year ?? 2026;
     const scoringPeriod = args.scoringPeriod ?? String(year);
     const transparencyScore = args.transparencyScore ?? 5;
