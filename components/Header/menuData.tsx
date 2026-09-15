@@ -46,9 +46,14 @@ const menuData: Menu[] = [{
     path: "/auth/signup"
   }, {
     id: 46,
-    title: "Tracker",
+    title: "State Tracker",
     newTab: false,
-    path: "/tracker"
+    path: "/tracker/states"
+  }, {
+    id: 47,
+    title: "MDA Tracker",
+    newTab: false,
+    path: "/tracker/mdas"
   }]
 }, {
   id: 5,
