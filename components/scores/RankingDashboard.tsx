@@ -19,7 +19,6 @@ type ViewMode = "ranking" | "grid";
 
 interface RankingDashboardProps {
   title: string;
-  subtitle: string;
   searchPlaceholder: string;
   extraColumnHeader: string;
   extraCardLabel: string;
@@ -36,7 +35,6 @@ interface RankingDashboardProps {
 
 export function RankingDashboard({
   title,
-  subtitle,
   searchPlaceholder,
   extraColumnHeader,
   extraCardLabel,
@@ -73,7 +71,6 @@ export function RankingDashboard({
 
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <p className="text-gray-500 mt-1">{subtitle}</p>
       </div>
 
       <section className="mb-8">
