@@ -66,7 +66,6 @@ export default function MdaScoresPage() {
   return (
     <RankingDashboard
       title="MDA Performance"
-      subtitle="Federal MDA rankings for service delivery and efficiency — 2026. Monthly reports close on the 30th."
       searchPlaceholder="Search MDA..."
       extraColumnHeader="Reports"
       extraCardLabel="reports submitted"
