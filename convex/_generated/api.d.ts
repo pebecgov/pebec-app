@@ -91,6 +91,7 @@ import type * as sendEmail from "../sendEmail.js";
 import type * as sendTicketemail from "../sendTicketemail.js";
 import type * as sendgridMail from "../sendgridMail.js";
 import type * as staff_projects from "../staff_projects.js";
+import type * as stateAudit from "../stateAudit.js";
 import type * as stateUtils from "../stateUtils.js";
 import type * as state_scores from "../state_scores.js";
 import type * as tasks from "../tasks.js";
@@ -194,6 +195,7 @@ declare const fullApi: ApiFromModules<{
   sendTicketemail: typeof sendTicketemail;
   sendgridMail: typeof sendgridMail;
   staff_projects: typeof staff_projects;
+  stateAudit: typeof stateAudit;
   stateUtils: typeof stateUtils;
   state_scores: typeof state_scores;
   tasks: typeof tasks;

@@ -10,6 +10,7 @@ import { useSearchParams } from "next/navigation";
 import StateScoringForm from "@/components/Admin/StateScoringForm";
 import StateScoringMatrix from "@/components/Admin/StateScoringMatrix";
 import BulkImportStateScores from "@/components/Admin/BulkImportStateScores";
+import StateAuditDownload from "@/components/Admin/StateAuditDownload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -1156,6 +1157,9 @@ export default function StateScoringPage() {
       <div className="mt-6">
         {activeTab === "scoring" && canScoreStates && (
           <div className="space-y-6">
+            {/* State Audit Download */}
+            <StateAuditDownload year={CURRENT_INDICATOR_YEAR} />
+            
             <div>
               <h2 className="text-xl font-semibold text-gray-900 mb-2">Score States</h2>
               <p className="text-sm text-gray-600 mb-4">
