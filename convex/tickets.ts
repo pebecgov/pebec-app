@@ -7,6 +7,7 @@ import {
   getCurrentUserOrNull,
   getCurrentUserOrThrow,
   filterAdminsForNotifications,
+  isEmailNotificationBlacklisted,
 } from "./users";
 import { api } from "./_generated/api";
 import { internal } from "./_generated/api";
@@ -17,6 +18,7 @@ import {
   skipWeekendsHours,
 } from "../lib/businessHours";
 import { withSearchText } from "./lib/userSearch";
+import { mdaNamesMatch, resolveMdaRecord } from "./lib/resolveMda";
 
 function generateTicketNumber() {
   return `TICKET-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -46,10 +48,7 @@ export const createTicket = mutation({
 
 export async function createTicketRecord(ctx, args) {
     const user = await getCurrentUserOrNull(ctx);
-    const mdaRecord = await ctx.db
-      .query("mdas")
-      .withIndex("byName", (q) => q.eq("name", args.assignedMDA))
-      .first();
+    const mdaRecord = await resolveMdaRecord(ctx, args.assignedMDA);
     const assignedMDAId = mdaRecord ? mdaRecord._id : undefined;
     const now = new Date();
     const day = String(now.getDate()).padStart(2, "0");
@@ -157,6 +156,92 @@ export async function createTicketRecord(ctx, args) {
         },
       );
     }
+
+    if (args.source === "whatsapp") {
+      const assignedLabel = mdaRecord?.name ?? args.assignedMDA ?? "Unassigned";
+      const incidentLabel = args.incidentDate
+        ? new Date(args.incidentDate).toLocaleDateString("en-NG")
+        : "";
+      const adminHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <div style="background-color: #FF9800; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
+            <strong>New WhatsApp Report Created</strong>
+          </div>
+          <div style="padding: 20px; color: #333;">
+            <p>A new report was submitted via WhatsApp.</p>
+            <p><strong>Report Number:</strong> ${ticketNumber}</p>
+            <p><strong>Title:</strong> ${args.title}</p>
+            <p><strong>Description:</strong> ${args.description}</p>
+            <p><strong>MDA:</strong> ${assignedLabel}</p>
+            <p><strong>Location:</strong> ${args.state ?? ""}</p>
+            <p><strong>Incident Date:</strong> ${incidentLabel}</p>
+            <p><strong>Phone:</strong> ${args.phoneNumber}</p>
+            <p>Please review this ticket in the ReportGov dashboard.</p>
+          </div>
+        </div>
+      `;
+      const mdaHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <div style="background-color: #007bff; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
+            <strong>New Report Assigned to Your MDA</strong>
+          </div>
+          <div style="padding: 20px; color: #333;">
+            <p>A new WhatsApp report has been assigned to ${assignedLabel}.</p>
+            <p><strong>Report Number:</strong> ${ticketNumber}</p>
+            <p><strong>Title:</strong> ${args.title}</p>
+            <p><strong>Description:</strong> ${args.description}</p>
+            <p><strong>Location:</strong> ${args.state ?? ""}</p>
+            <p>Please log in to your dashboard to manage this report.</p>
+          </div>
+        </div>
+      `;
+      const emailed = new Set();
+      const queueEmail = async (to, subject, html) => {
+        if (!to || isEmailNotificationBlacklisted(to) || emailed.has(to.toLowerCase())) {
+          return;
+        }
+        emailed.add(to.toLowerCase());
+        await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+          to,
+          subject,
+          html,
+        });
+      };
+      for (const admin of admins) {
+        await queueEmail(
+          admin.email,
+          `New Ticket Created - ${ticketNumber}`,
+          adminHtml,
+        );
+      }
+      if (mdaRecord?.email) {
+        await queueEmail(
+          mdaRecord.email,
+          `New Ticket Assigned to ${assignedLabel}`,
+          mdaHtml,
+        );
+      }
+      const mdaRoleUsers = (
+        await ctx.db
+          .query("users")
+          .withIndex("byRole", (q) => q.eq("role", "mda"))
+          .take(500)
+      ).filter(
+        (mdaUser) =>
+          (assignedMDAId && mdaUser.mdaId === assignedMDAId) ||
+          (mdaUser.mdaName &&
+            (mdaNamesMatch(mdaUser.mdaName, assignedLabel) ||
+              mdaNamesMatch(mdaUser.mdaName, args.assignedMDA))),
+      );
+      for (const mdaUser of mdaRoleUsers) {
+        await queueEmail(
+          mdaUser.email,
+          `New Ticket Assigned to ${assignedLabel}`,
+          mdaHtml,
+        );
+      }
+    }
+
     return {
       ticketId,
       ticketNumber,
@@ -170,7 +255,7 @@ export const checkAndSendReminder = mutation({
   handler: async (ctx, { ticketId }) => {
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) {
-      console.log("❌ Ticket not found, stopping reminder.");
+      console.log("Ticket not found, stopping reminder.");
       return;
     }
     if (ticket.status !== "open") {
@@ -184,7 +269,7 @@ export const checkAndSendReminder = mutation({
       .withIndex("byMdaId", (q) => q.eq("mdaId", ticket.assignedMDA))
       .first();
     if (!mdaUser || !mdaUser.email) {
-      console.log(`❌ No MDA user found for ticket ${ticket.ticketNumber}`);
+      console.log(` No MDA user found for ticket ${ticket.ticketNumber}`);
       return;
     }
     console.log(
@@ -444,6 +529,27 @@ export const updateTicketStatus = mutation({
     console.log(
       `📧 Email sent to ${ticket.email} for status update to ${status}`,
     );
+    if (ticket.whatsappPhone) {
+      const statusLabel = status.replace("_", " ");
+      const whatsappLines = [
+        "PEBEC ReportGov update",
+        "",
+        `Ticket: ${ticket.ticketNumber}`,
+        `Status: ${statusLabel}`,
+      ];
+      if (
+        (status === "resolved" || status === "closed") &&
+        resolutionNote
+      ) {
+        whatsappLines.push(`Note: ${resolutionNote}`);
+      }
+      whatsappLines.push("");
+      whatsappLines.push("Send this ticket number on WhatsApp to check status.");
+      await ctx.scheduler.runAfter(0, internal.whatsapp.cloud.notifyCitizen, {
+        phone: ticket.whatsappPhone,
+        body: whatsappLines.join("\n"),
+      });
+    }
     return true;
   },
 });

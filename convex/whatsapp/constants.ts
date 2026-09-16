@@ -52,11 +52,43 @@ export const WELCOME_MESSAGE = [
   "",
   "Reply:",
   "1 - File a complaint",
-  "2 - Check status",
+  "2 - Check complaint",
   "HELP - commands",
   "",
   "Use CANCEL anytime to stop a draft.",
 ].join("\n");
+
+export const PEBEC_HELLO_MESSAGE =
+  "Hello! Welcome to PEBEC. How can we help you?";
+
+export const PEBEC_MENU_BODY =
+  "Welcome to PEBEC 👋\n\nHow can we help you?";
+
+export const WHATSAPP_DEFAULT_TITLE = "Complaint from WhatsApp";
+
+export const PEBEC_COMPLAINT_PROMPT =
+  "Step 5 of 5 — Describe what happened.\n\nType the details in your own words.\nType EXIT to cancel.";
+
+export const PEBEC_EXITED_MESSAGE =
+  "Complaint cancelled. Nothing was submitted.\n\nSend Hi for the menu.";
+
+export const PEBEC_STATUS_PROMPT =
+  "Send your ticket number (for example REP-130926-001) to check one ticket, or tap Check Complaint to see your recent tickets.";
+
+export const PEBEC_HELP_SHORT_MESSAGE =
+  "Tap Submit Complaint to file an issue with a Ports & Customs MDA.\nTap Check Complaint to track a ticket.\nType EXIT during filing to cancel.";
+
+export const PEBEC_ZONE_LIST_BODY =
+  "Step 1 of 5 — Where did this happen?\n\nTap Select region. Choose Exit to cancel.";
+
+export const PEBEC_MDA_LIST_BODY =
+  "Step 3 of 5 — Which Ports & Customs MDA should handle this?\n\nTap Select MDA and choose one agency.\nType EXIT to cancel.";
+
+export const PEBEC_DATE_PROMPT =
+  "Step 4 of 5 — When did this happen?\n\nType the date as DD/MM/YYYY.\nType EXIT to cancel.";
+
+export const PEBEC_DATE_INVALID =
+  "I could not read that date. Use a past date as DD/MM/YYYY.";
 
 export const HELP_MESSAGE = [
   "ReportGov commands:",
@@ -84,6 +116,11 @@ export function toNigeriaLocalPhone(e164: string): string {
 
 export function guestEmailForPhone(e164: string): string {
   return `whatsapp.${e164.replace(/\D/g, "")}@guest.reportgov.ng`;
+}
+
+export function extractTicketNumber(text: string): string | null {
+  const match = text.toUpperCase().match(/REP-\d{6}-\d{3}/);
+  return match ? match[0] : null;
 }
 
 export function matchState(input: string): string | null {

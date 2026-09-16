@@ -1,9 +1,12 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUserOrThrow } from "./users";
+import { getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { Id } from "./_generated/dataModel";
 import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
+import { followUpCopy } from "./whatsapp/i18n";
 export const addTicketComment = mutation({
   args: {
     ticketId: v.id("tickets"),
@@ -78,6 +81,23 @@ export const addTicketComment = mutation({
         html: `<p>Dear ${ticketCreator.firstName || "User"},</p><p>A new comment has been added to your ticket <strong>#${ticket.ticketNumber}</strong>.</p><p><strong>Comment:</strong> ${content}</p>`
       });
     }
+    const whatsappPhone = ticket.whatsappPhone;
+    if (whatsappPhone && user._id !== ticket.createdBy) {
+      const clipped =
+        content.length > 900 ? `${content.slice(0, 900)}…` : content;
+      const session = await ctx.db
+        .query("whatsapp_sessions")
+        .withIndex("byPhone", (q) => q.eq("phone", whatsappPhone))
+        .first();
+      const fu = followUpCopy(session?.language);
+      await ctx.scheduler.runAfter(0, internal.whatsapp.cloud.notifyCitizen, {
+        phone: whatsappPhone,
+        body: fu.officerUpdate(ticket.ticketNumber, clipped),
+        replyTicketId: ticket._id,
+        replyTitle: fu.reply,
+        menuTitle: fu.menuButton,
+      });
+    }
   }
 });
 export const getTicketComments = query({
@@ -136,3 +156,75 @@ export const editTicketComment = mutation({
     };
   }
 });
+
+export async function saveWhatsAppCitizenComment(
+  ctx: MutationCtx,
+  args: {
+    phone: string;
+    ticketId: Id<"tickets">;
+    content: string;
+    fileIds?: Id<"_storage">[];
+  },
+): Promise<string | null> {
+  const ticket = await ctx.db.get(args.ticketId);
+  if (!ticket || ticket.whatsappPhone !== args.phone) {
+    return null;
+  }
+
+  const author = await ctx.db.get(ticket.createdBy);
+  await ctx.db.insert("ticket_comments", {
+    ticketId: args.ticketId,
+    content: args.content,
+    authorId: ticket.createdBy,
+    clerkUserId: author?.clerkUserId,
+    authorName: author?.firstName || ticket.fullName || "WhatsApp Citizen",
+    authorImage: author?.imageUrl || undefined,
+    createdAt: Date.now(),
+    fileIds: args.fileIds ?? [],
+  });
+  await ctx.db.patch(args.ticketId, { updatedAt: Date.now() });
+
+  const timestamp = Date.now();
+  const allAdmins = await ctx.db
+    .query("users")
+    .withIndex("byRole", (q) => q.eq("role", "admin"))
+    .collect();
+  const admins = filterAdminsForNotifications(allAdmins);
+  for (const admin of admins) {
+    await ctx.db.insert("notifications", {
+      userId: admin._id,
+      ticketId: args.ticketId,
+      message: `New comment on ticket #${ticket.ticketNumber}.`,
+      isRead: false,
+      createdAt: timestamp,
+      type: "new_comment",
+    });
+  }
+
+  const assignedMDAId = ticket.assignedMDA;
+  if (assignedMDAId) {
+    const mdaUsers = filterAdminsForNotifications(
+      await ctx.db
+        .query("users")
+        .withIndex("byMdaId", (q) => q.eq("mdaId", assignedMDAId))
+        .collect(),
+    );
+    for (const mdaUser of mdaUsers) {
+      await ctx.db.insert("notifications", {
+        userId: mdaUser._id,
+        ticketId: args.ticketId,
+        message: `New comment on a ticket assigned to your MDA.`,
+        isRead: false,
+        createdAt: timestamp,
+        type: "new_comment",
+      });
+      await ctx.scheduler.runAfter(0, api.sendEmail.sendEmail, {
+        to: mdaUser.email,
+        subject: `New comment on ticket #${ticket.ticketNumber}`,
+        html: `<p>A new WhatsApp follow-up was added to ticket #${ticket.ticketNumber}.</p><p><strong>Comment:</strong> ${args.content}</p>`,
+      });
+    }
+  }
+
+  return ticket.ticketNumber;
+}
