@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MenuItem, Select } from '@mui/material';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface BooleanMetricCardProps {
     title: string;
@@ -12,6 +13,7 @@ interface BooleanMetricCardProps {
     value: boolean;
     setValue: (val: boolean) => void;
     handleSave: () => void;
+    handleClear?: () => void;
     selectedMda: string;
     maxPossibleScore?: number; // Optional, for display like "5/5" instead of just "5 points"
 }
@@ -25,6 +27,7 @@ export default function BooleanMetricCard({
     value,
     setValue,
     handleSave,
+    handleClear,
     selectedMda,
     maxPossibleScore
 }: BooleanMetricCardProps) {
@@ -65,16 +68,13 @@ export default function BooleanMetricCard({
                 Score: {currentScore.toFixed(1)}{maxPossibleScore ? `/${maxPossibleScore}` : ' points'}
             </div>
 
-            <button
-                onClick={handleSave}
+            <ScoreActionButtons
+                onSave={handleSave}
+                onClear={handleClear}
+                saveLabel="Save Score"
                 disabled={!selectedMda}
-                className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${!selectedMda
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-green-500 hover:bg-green-600'
-                    }`}
-            >
-                💾 Save
-            </button>
+                isSaved={isSaved}
+            />
         </div>
     );
 }

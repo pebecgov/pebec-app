@@ -318,6 +318,8 @@ export default function ScoringTab({
     const saveStakeholderData = useMutation(api.mda_scoring.saveStakeholderData);
     const saveTransparencyData = useMutation(api.mda_scoring.saveTransparencyData);
     const calculateScore = useMutation(api.mda_scoring.calculateAndSaveMDAScore);
+    const clearMetricScore = useMutation(api.mda_scoring.clearMetricScore);
+    const clearAllMDAScores = useMutation(api.mda_scoring.clearAllMDAScores);
 
     // --- Effects ---
     useEffect(() => {
@@ -1022,6 +1024,75 @@ export default function ScoringTab({
         } catch (e) { toast.error("Failed to save"); }
     };
 
+    const handleClearMetric = async (
+        metric:
+            | "sla"
+            | "reportGov"
+            | "mystery"
+            | "monthlyReport"
+            | "timeliness"
+            | "transparency"
+            | "others"
+            | "penalties"
+            | "bonuses"
+            | "controversial"
+            | "touting"
+            | "innovation"
+            | "stakeholder",
+        resetLocal?: () => void
+    ) => {
+        if (!selectedMda) return;
+        const confirmed = window.confirm(
+            "Clear this saved score? Tickets, submitted reports, and other source data will stay in the database."
+        );
+        if (!confirmed) return;
+        try {
+            const result = await clearMetricScore({
+                mdaName: selectedMda,
+                scoringPeriod,
+                metric,
+            });
+            resetLocal?.();
+            toast.success(result.message);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to clear score");
+        }
+    };
+
+    const handleClearAllScores = async () => {
+        if (!selectedMda) return;
+        const confirmed = window.confirm(
+            `Clear ALL saved BFA scores for ${selectedMda} (${scoringPeriod})?\n\nThis only removes scoring snapshots. Tickets, monthly report submissions, and source files will not be deleted.`
+        );
+        if (!confirmed) return;
+        try {
+            const result = await clearAllMDAScores({
+                mdaName: selectedMda,
+                scoringPeriod,
+            });
+            setMonthlySlaData({});
+            setMysteryRatings({});
+            setMysteryType("hasReportGov");
+            setIsControversial(false);
+            setIsInnovation(false);
+            setIsTouting(false);
+            setStakeholderRate(0);
+            setSkipTransparency(false);
+            setTransparencyItems({ serviceLevelPublishing: false });
+            setSkipReportGov(false);
+            setManualMonthlyReports({});
+            setUseManualMonthlyReports(false);
+            setManualTimeliness({});
+            setUseManualTimeliness(false);
+            setOthersValues({});
+            setPenaltyValues({});
+            setBonusValues({});
+            toast.success(result.message);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to clear scores");
+        }
+    };
+
     const handleSaveFinalScore = async () => {
         if (!selectedMda) return;
         try {
@@ -1091,6 +1162,18 @@ export default function ScoringTab({
                         mdaScoringStatus={mdaScoringStatus}
                     />
 
+                    {selectedMda && (
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleClearAllScores}
+                                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium"
+                            >
+                                Clear All Scores
+                            </button>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {!useDynamicConfig && (
                             <ScoringPeriodInfo
@@ -1118,6 +1201,7 @@ export default function ScoringTab({
                             slaScore={calculateMonthlySlaScore()}
                             setShowSlaModal={setShowSlaModal}
                             handleSaveSLAData={handleSaveSLAData}
+                            handleClear={() => handleClearMetric("sla", () => setMonthlySlaData({}))}
                             selectedMda={selectedMda}
                             periodMonths={periodMonths}
                             useDynamicConfig={useDynamicConfig}
@@ -1130,6 +1214,7 @@ export default function ScoringTab({
                             scoringPeriod={scoringPeriod}
                             realMonthlyReports={realMonthlyReports || []}
                             handleSave={handleSaveMonthlyReport}
+                            handleClear={() => handleClearMetric("monthlyReport")}
                             selectedMda={selectedMda}
                             periodMonths={periodMonths}
                             maxPoints={useDynamicConfig && efficiencyConfig ? efficiencyConfig.reportSubmissionPoints : 3}
@@ -1141,6 +1226,7 @@ export default function ScoringTab({
                             scoringPeriod={scoringPeriod}
                             realMonthlyReports={realMonthlyReports || []}
                             handleSave={handleSaveTimeliness}
+                            handleClear={() => handleClearMetric("timeliness")}
                             selectedMda={selectedMda}
                             periodMonths={periodMonths}
                             maxPoints={useDynamicConfig && efficiencyConfig ? efficiencyConfig.timelinessPoints : 2}
@@ -1166,6 +1252,7 @@ export default function ScoringTab({
                                     : 20
                             )}
                             handleSave={handleSaveMystery}
+                            handleClear={() => handleClearMetric("mystery", () => setMysteryRatings({}))}
                             selectedMda={selectedMda}
                             hasRatings={Object.keys(mysteryRatings).length > 0}
                             maxPoints={useDynamicConfig && Array.isArray(mysteryConfig)
@@ -1185,6 +1272,7 @@ export default function ScoringTab({
                             reportgovRate={reportgovRate}
                             setReportgovRate={setReportgovRate}
                             handleSave={handleSaveReportGov}
+                            handleClear={() => handleClearMetric("reportGov", () => setSkipReportGov(false))}
                             selectedMda={selectedMda}
                             mdasList={mdasList}
                             mdasWithScores={mdasWithScores || []}
@@ -1222,6 +1310,7 @@ export default function ScoringTab({
                                         othersValues={othersValues}
                                         onValueChange={(id, val) => setOthersValues(prev => ({ ...prev, [id]: val }))}
                                         onSave={handleSaveOthers}
+                                        onClear={() => handleClearMetric("others", () => setOthersValues({}))}
                                         isLoading={isLoadingOthersData}
                                         isSaved={!!savedOthersData}
                                         selectedMda={selectedMda}
@@ -1233,6 +1322,7 @@ export default function ScoringTab({
                                         penaltyValues={penaltyValues}
                                         onValueChange={(id, val) => setPenaltyValues(prev => ({ ...prev, [id]: val }))}
                                         onSave={handleSavePenalties}
+                                        onClear={() => handleClearMetric("penalties", () => setPenaltyValues({}))}
                                         isLoading={isLoadingPenaltiesData}
                                         isSaved={!!savedPenaltiesData}
                                         selectedMda={selectedMda}
@@ -1244,6 +1334,7 @@ export default function ScoringTab({
                                         bonusValues={bonusValues}
                                         onValueChange={(id, val) => setBonusValues(prev => ({ ...prev, [id]: val }))}
                                         onSave={handleSaveBonuses}
+                                        onClear={() => handleClearMetric("bonuses", () => setBonusValues({}))}
                                         isLoading={isLoadingBonusesData}
                                         isSaved={!!savedBonusesData}
                                         selectedMda={selectedMda}
@@ -1261,6 +1352,7 @@ export default function ScoringTab({
                                     value={isControversial}
                                     setValue={setIsControversial}
                                     handleSave={handleSaveControversial}
+                                    handleClear={() => handleClearMetric("controversial", () => setIsControversial(false))}
                                     selectedMda={selectedMda}
                                 />
 
@@ -1273,6 +1365,7 @@ export default function ScoringTab({
                                     value={isTouting}
                                     setValue={setIsTouting}
                                     handleSave={handleSaveTouting}
+                                    handleClear={() => handleClearMetric("touting", () => setIsTouting(false))}
                                     selectedMda={selectedMda}
                                 />
 
@@ -1285,6 +1378,7 @@ export default function ScoringTab({
                                     value={isInnovation}
                                     setValue={setIsInnovation}
                                     handleSave={handleSaveInnovation}
+                                    handleClear={() => handleClearMetric("innovation", () => setIsInnovation(false))}
                                     selectedMda={selectedMda}
                                 />
 
@@ -1294,6 +1388,7 @@ export default function ScoringTab({
                                     rate={stakeholderRate}
                                     setRate={setStakeholderRate}
                                     handleSave={handleSaveStakeholder}
+                                    handleClear={() => handleClearMetric("stakeholder", () => setStakeholderRate(0))}
                                     selectedMda={selectedMda}
                                 />
 
@@ -1307,6 +1402,10 @@ export default function ScoringTab({
                                     transparencyQuestions={transparencyQuestions}
                                     transparencyScore={skipTransparency ? 0 : (transparencyItems.serviceLevelPublishing ? 10 : 0)}
                                     handleSave={handleSaveTransparency}
+                                    handleClear={() => handleClearMetric("transparency", () => {
+                                        setSkipTransparency(false);
+                                        setTransparencyItems({ serviceLevelPublishing: false });
+                                    })}
                                     selectedMda={selectedMda}
                                 />
                             </>

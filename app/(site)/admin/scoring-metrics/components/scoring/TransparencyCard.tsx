@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { TransparencyItemsState } from '../../utils/types';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface TransparencyCardProps {
     isLoading: boolean;
@@ -13,6 +14,7 @@ interface TransparencyCardProps {
     transparencyQuestions: Array<{ key: string; label: string }>;
     transparencyScore: number;
     handleSave: () => void;
+    handleClear?: () => void;
     selectedMda: string;
 }
 
@@ -26,6 +28,7 @@ export default function TransparencyCard({
     transparencyQuestions,
     transparencyScore,
     handleSave,
+    handleClear,
     selectedMda
 }: TransparencyCardProps) {
     return (
@@ -95,16 +98,13 @@ export default function TransparencyCard({
                 Score: {transparencyScore.toFixed(1)}/10
             </div>
 
-            <button
-                onClick={handleSave}
+            <ScoreActionButtons
+                onSave={handleSave}
+                onClear={handleClear}
+                saveLabel="Save Score"
                 disabled={!selectedMda}
-                className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${!selectedMda
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-green-500 hover:bg-green-600'
-                    }`}
-            >
-                💾 Save
-            </button>
+                isSaved={isSaved}
+            />
         </div>
     );
 }
