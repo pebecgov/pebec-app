@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface MysteryShoppingCardProps {
     isLoading: boolean;
@@ -9,6 +10,7 @@ interface MysteryShoppingCardProps {
     setShowModal: (show: boolean) => void;
     score: number;
     handleSave: () => void;
+    handleClear?: () => void;
     selectedMda: string;
     hasRatings: boolean;
     maxPoints?: number; // Dynamic max points from config
@@ -21,6 +23,7 @@ export default function MysteryShoppingCard({
     setShowModal,
     score,
     handleSave,
+    handleClear,
     selectedMda,
     hasRatings,
     maxPoints = 20 // Default to 20 for 2025
@@ -68,16 +71,13 @@ export default function MysteryShoppingCard({
                     Score: {score.toFixed(1)}/{maxPoints}
                 </div>
 
-                <button
-                    onClick={handleSave}
-                    disabled={!selectedMda || !hasRatings}
-                    className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${!selectedMda || !hasRatings
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-green-500 hover:bg-green-600'
-                        }`}
-                >
-                    💾 Save
-                </button>
+                <ScoreActionButtons
+                    onSave={handleSave}
+                    onClear={handleClear}
+                    saveLabel="Save Score"
+                    disabled={!selectedMda || (!hasRatings && !isSaved)}
+                    isSaved={isSaved}
+                />
             </div>
         </div>
     );

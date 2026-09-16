@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MenuItem, Select } from '@mui/material';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface StakeholderCardProps {
     isLoading: boolean;
@@ -9,6 +10,7 @@ interface StakeholderCardProps {
     rate: number;
     setRate: (val: number) => void;
     handleSave: () => void;
+    handleClear?: () => void;
     selectedMda: string;
 }
 
@@ -18,6 +20,7 @@ export default function StakeholderCard({
     rate,
     setRate,
     handleSave,
+    handleClear,
     selectedMda
 }: StakeholderCardProps) {
     return (
@@ -56,16 +59,13 @@ export default function StakeholderCard({
                 Score: {rate.toFixed(1)}/10
             </div>
 
-            <button
-                onClick={handleSave}
+            <ScoreActionButtons
+                onSave={handleSave}
+                onClear={handleClear}
+                saveLabel="Save Score"
                 disabled={!selectedMda}
-                className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${!selectedMda
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-green-500 hover:bg-green-600'
-                    }`}
-            >
-                💾 Save
-            </button>
+                isSaved={isSaved}
+            />
         </div>
     );
 }
