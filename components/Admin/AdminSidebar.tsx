@@ -181,6 +181,10 @@ export default function Sidebar({
     items: [{
       name: "Conference Room Bookings",
       path: "/admin/rooms"
+    }, {
+      name: "Company Properties",
+      path: "/admin/company-items",
+      adminOnly: true
     }]
   },
   // {
@@ -220,7 +224,10 @@ export default function Sidebar({
           if (section.name === "Leave and Calendar") return true;
           if (section.path) return allowedPaths.includes(section.path);
           if (section.items) {
-            return section.items.some(item => allowedPaths.includes(item.path));
+            return section.items.some(item => {
+              if ("adminOnly" in item && item.adminOnly) return false;
+              return allowedPaths.includes(item.path);
+            });
           }
           return false;
         }).map(section => <div key={section.name}>
@@ -244,12 +251,15 @@ export default function Sidebar({
               {isOpen && (openDropdowns[section.name] ? <FaChevronUp /> : <FaChevronDown />)}
             </div>
             {openDropdowns[section.name] && <div className="pl-2 space-y-1">
-              {section.items.filter(item => shouldShowAllItems || allowedPaths.includes(item.path)).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
+              {section.items.filter(item => {
+                if ("adminOnly" in item && item.adminOnly && !shouldShowAllItems) return false;
+                return shouldShowAllItems || allowedPaths.includes(item.path);
+              }).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
                 <div className={`pl-6 py-2 rounded-md transition-colors cursor-pointer flex items-center justify-between gap-2
               ${pathname === item.path ? "bg-green-100 text-green-800 font-medium" : "text-gray-700 hover:bg-gray-100"}
             `}>
                   <span>{item.name}</span>
-                  {item.showPendingBadge &&
+                  {"showPendingBadge" in item && item.showPendingBadge &&
                     pendingLeaveCount != null &&
                     pendingLeaveCount > 0 && (
                       <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white">

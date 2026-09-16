@@ -25,6 +25,7 @@ import type * as calendar from "../calendar.js";
 import type * as chat from "../chat.js";
 import type * as cleanup from "../cleanup.js";
 import type * as clearMdaReports from "../clearMdaReports.js";
+import type * as companyAssets from "../companyAssets.js";
 import type * as config_indicators from "../config/indicators.js";
 import type * as contact_messages from "../contact_messages.js";
 import type * as crons from "../crons.js";
@@ -128,6 +129,7 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   cleanup: typeof cleanup;
   clearMdaReports: typeof clearMdaReports;
+  companyAssets: typeof companyAssets;
   "config/indicators": typeof config_indicators;
   contact_messages: typeof contact_messages;
   crons: typeof crons;
