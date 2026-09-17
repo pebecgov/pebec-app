@@ -168,7 +168,7 @@ export async function createTicketRecord(ctx, args) {
             <strong>New WhatsApp Report Created</strong>
           </div>
           <div style="padding: 20px; color: #333;">
-            <p>A new report was submitted via WhatsApp.</p>
+            <p>A ne w report was submitted via WhatsApp.</p>
             <p><strong>Report Number:</strong> ${ticketNumber}</p>
             <p><strong>Title:</strong> ${args.title}</p>
             <p><strong>Description:</strong> ${args.description}</p>
