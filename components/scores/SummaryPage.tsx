@@ -15,7 +15,9 @@ export interface MetricItem {
   name: string;
   score: number;
   maxScore: number;
-  details?: { label: string; score: number; maxScore?: number }[];
+  /** False when this metric has not been saved yet (do not treat as a real zero). */
+  scored?: boolean;
+  details?: { label: string; score: number; maxScore?: number; scored?: boolean }[];
   /** Optional category label shown next to the metric name (e.g. "Efficiency"). */
   badge?: string;
   /** Programme exemption: metric is shown but not included in the BFA total. */
@@ -114,7 +116,10 @@ export function MetricBreakdown({
           {metrics.map((metric, index) => {
             const isExpanded = expanded === metric.name;
             const isExempted = metric.exempted === true;
-            const status = getScoreStatus(metric.score, metric.maxScore);
+            const isNotScored = !isExempted && metric.scored === false;
+            const status = isNotScored
+              ? null
+              : getScoreStatus(metric.score, metric.maxScore);
             const hasDetails = (metric.details?.length ?? 0) > 0;
 
             return (
@@ -161,18 +166,26 @@ export function MetricBreakdown({
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not in BFA total
                       </span>
-                    ) : (
+                    ) : isNotScored ? (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                        Not scored yet
+                      </span>
+                    ) : status ? (
                       <StatusBadge status={status} size="sm" />
-                    )}
+                    ) : null}
                   </div>
                   {isExempted ? (
                     <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       Programme exemption — this metric is excluded from the overall BFA score and maximum.
                     </p>
+                  ) : isNotScored ? (
+                    <p className={`text-sm text-gray-500 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                      Not scored yet — this is not a zero score.
+                    </p>
                   ) : (
                     <div className={`flex items-center gap-4 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       <div className="flex-1 max-w-md">
-                        <ProgressBar score={metric.score} maxScore={metric.maxScore} color={status.color} size="sm" />
+                        <ProgressBar score={metric.score} maxScore={metric.maxScore} color={status!.color} size="sm" />
                       </div>
                       <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
                         {formatPoints(metric.score)}
@@ -197,9 +210,11 @@ export function MetricBreakdown({
                           <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
                             {isExempted
                               ? "Exempted"
-                              : detail.maxScore !== undefined
-                                ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
-                                : formatPoints(detail.score)}
+                              : isNotScored || detail.scored === false
+                                ? "Not scored yet"
+                                : detail.maxScore !== undefined
+                                  ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
+                                  : formatPoints(detail.score)}
                           </div>
                         </div>
                       ))}
