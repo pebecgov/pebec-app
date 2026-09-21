@@ -135,21 +135,6 @@ export default function MdaSummaryPage() {
         scored: exempted ? true : isScored,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         exempted,
-        details: exempted
-          ? [
-              {
-                label: "Status",
-                score: 0,
-              },
-            ]
-          : isScored
-            ? [
-                { label: "Score awarded", score: scored?.score ?? 0, scored: true },
-                { label: "Maximum possible", score: scored?.max ?? metric.max, scored: true },
-              ]
-            : [
-                { label: "Status", score: 0, scored: false },
-              ],
       };
     });
 
