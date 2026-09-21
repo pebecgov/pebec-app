@@ -68,14 +68,24 @@ export default function StateSummaryPage() {
   const yearIndicatorMaxScores = getIndicatorMaxScoresForYear(SCORE_YEAR);
   const metrics = Object.entries(getIndicatorsForYear(SCORE_YEAR)).map(([key, config]) => {
     const data = selected.indicators?.[key];
+    const details = Object.entries(config.subIndicators).map(([subKey, subConfig]) => {
+      const hasSubScore =
+        !!data?.subIndicators && Object.prototype.hasOwnProperty.call(data.subIndicators, subKey);
+      return {
+        label: subConfig.label,
+        score: hasSubScore ? (data!.subIndicators[subKey] ?? 0) : 0,
+        scored: hasSubScore,
+      };
+    });
+    const scoredSubCount = details.filter((detail) => detail.scored).length;
+    const isIndicatorScored = scoredSubCount > 0;
+
     return {
       name: config.name,
       score: data?.score ?? 0,
       maxScore: yearIndicatorMaxScores[key] ?? 0,
-      details: Object.entries(config.subIndicators).map(([subKey, subConfig]) => ({
-        label: subConfig.label,
-        score: data?.subIndicators?.[subKey] ?? 0,
-      })),
+      scored: isIndicatorScored,
+      details,
     };
   });
 
