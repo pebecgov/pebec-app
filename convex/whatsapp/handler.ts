@@ -4,14 +4,24 @@ import { v } from "convex/values";
 import { createTicketRecord } from "../tickets";
 import {
   guestEmailForPhone,
-  HELP_MESSAGE,
   matchState,
   toNigeriaLocalPhone,
-  WELCOME_MESSAGE,
 } from "./constants";
+import {
+  copyFor,
+  isCancelCommand,
+  isGreeting,
+  parseLanguageChoice,
+  type WhatsAppLang,
+} from "./i18n";
 import type { Doc, Id } from "../_generated/dataModel";
 
 type SessionDoc = Doc<"whatsapp_sessions">;
+type Copy = ReturnType<typeof copyFor>;
+
+function sessionCopy(session: SessionDoc): Copy {
+  return copyFor(session.language);
+}
 
 function isCommand(normalized: string, command: string): boolean {
   return normalized === command;
@@ -107,6 +117,20 @@ async function patchSession(
   });
 }
 
+async function setLanguage(
+  ctx: MutationCtx,
+  session: SessionDoc,
+  language: WhatsAppLang,
+  now: number,
+): Promise<string> {
+  await patchSession(ctx, session._id, {
+    step: "idle",
+    language,
+    lastInboundAt: now,
+  });
+  return copyFor(language).welcome;
+}
+
 async function handleMessage(
   ctx: MutationCtx,
   session: SessionDoc,
@@ -114,36 +138,47 @@ async function handleMessage(
   normalized: string,
   now: number,
 ): Promise<string> {
+  const copy = sessionCopy(session);
+
   if (!text) {
-    return "Please send a text message. File a complaint with NEW, or send STATUS.";
+    return copy.emptyText;
   }
 
   if (isCommand(normalized, "help")) {
     await patchSession(ctx, session._id, { lastInboundAt: now });
-    return HELP_MESSAGE;
+    return copy.helpLong;
+  }
+
+  const languageChoice = parseLanguageChoice(text);
+  if (languageChoice && session.step === "collect_language") {
+    return await setLanguage(ctx, session, languageChoice, now);
   }
 
   if (
-    session.step === "idle" &&
-    (isCommand(normalized, "menu") ||
-      isCommand(normalized, "hi") ||
-      isCommand(normalized, "hello") ||
-      isCommand(normalized, "start"))
+    (session.step === "idle" || session.step === "collect_language") &&
+    (isGreeting(normalized) || isCommand(normalized, "menu"))
   ) {
-    await patchSession(ctx, session._id, { lastInboundAt: now });
-    return WELCOME_MESSAGE;
+    await patchSession(ctx, session._id, {
+      step: "collect_language",
+      lastInboundAt: now,
+    });
+    return copyFor("en").languageListBody;
   }
 
-  if (isCommand(normalized, "cancel")) {
+  if (session.step === "collect_language") {
+    return copyFor("en").languageListBody;
+  }
+
+  if (isCancelCommand(normalized)) {
     await patchSession(ctx, session._id, {
       step: "idle",
       draft: {},
     });
-    return "Draft cancelled.\n\n" + WELCOME_MESSAGE;
+    return copy.cancelled + "\n\n" + copy.welcome;
   }
 
   if (normalized === "status" || normalized.startsWith("status ")) {
-    return await statusReply(ctx, session.phone, text);
+    return await statusReply(ctx, session, text);
   }
 
   if (
@@ -155,30 +190,34 @@ async function handleMessage(
       step: "collect_name",
       draft: {},
     });
-    return "What is your full name?";
+    return copy.askName;
   }
 
   if (session.step === "idle" && isCommand(normalized, "2")) {
-    return await statusReply(ctx, session.phone, text);
+    return await statusReply(ctx, session, text);
   }
 
   switch (session.step) {
     case "idle":
-      return WELCOME_MESSAGE;
+      return copy.welcome;
     case "collect_name":
-      return await collectName(ctx, session, text);
+      return await collectName(ctx, session, text, copy);
     case "collect_state":
-      return await collectState(ctx, session, text);
+      return await collectState(ctx, session, text, copy);
     case "collect_mda":
-      return await collectMda(ctx, session, text);
+      return await collectMda(ctx, session, text, copy);
     case "confirm_mda":
-      return await confirmMda(ctx, session, text, normalized);
+      return await confirmMda(ctx, session, text, normalized, copy);
     case "collect_title":
-      return await collectTitle(ctx, session, text);
+      return await collectTitle(ctx, session, text, copy);
     case "collect_description":
-      return await collectDescription(ctx, session, text);
+      return await collectDescription(ctx, session, text, copy);
+    case "awaiting_complaint":
+    case "collect_zone":
+    case "collect_incident_date":
+      return copy.welcome;
     default:
-      return WELCOME_MESSAGE;
+      return copy.welcome;
   }
 }
 
@@ -186,42 +225,45 @@ async function collectName(
   ctx: MutationCtx,
   session: SessionDoc,
   text: string,
+  copy: Copy,
 ): Promise<string> {
   if (text.length < 2) {
-    return "Please send your full name.";
+    return copy.nameTooShort;
   }
   await patchSession(ctx, session._id, {
     step: "collect_state",
     draft: { ...session.draft, fullName: text },
   });
-  return "Which state did this happen in? (e.g. Lagos, FCT, Kano)";
+  return copy.askState;
 }
 
 async function collectState(
   ctx: MutationCtx,
   session: SessionDoc,
   text: string,
+  copy: Copy,
 ): Promise<string> {
   const state = matchState(text);
   if (!state) {
-    return "I didn't match that to a Nigerian state. Try again, e.g. Lagos, Rivers, or FCT.";
+    return copy.stateInvalid;
   }
   await patchSession(ctx, session._id, {
     step: "collect_mda",
     draft: { ...session.draft, state },
   });
-  return "Which MDA should handle this? Type part of the name, e.g. Customs, FIRS, or NIMC.";
+  return copy.askMda;
 }
 
 async function collectMda(
   ctx: MutationCtx,
   session: SessionDoc,
   text: string,
+  copy: Copy,
 ): Promise<string> {
   const mdas = await ctx.db.query("mdas").take(500);
   const matches = searchMdas(mdas, text);
   if (matches.length === 0) {
-    return "No MDA matched that. Try a shorter name, e.g. Customs or Immigration.";
+    return copy.mdaNone;
   }
   if (matches.length === 1) {
     await patchSession(ctx, session._id, {
@@ -232,7 +274,7 @@ async function collectMda(
         mdaMatches: matches,
       },
     });
-    return `Did you mean *${matches[0]}*?\nReply YES or 1 to confirm, or type another name.`;
+    return copy.confirmMda(matches[0] ?? "");
   }
   await patchSession(ctx, session._id, {
     step: "confirm_mda",
@@ -242,7 +284,7 @@ async function collectMda(
       mdaMatches: matches,
     },
   });
-  return `Which one?\n${formatMdaChoices(matches)}\nReply with the number, or type another name.`;
+  return copy.chooseMda(formatMdaChoices(matches));
 }
 
 async function confirmMda(
@@ -250,12 +292,19 @@ async function confirmMda(
   session: SessionDoc,
   text: string,
   normalized: string,
+  copy: Copy,
 ): Promise<string> {
   const matches = session.draft.mdaMatches ?? [];
   const index = Number.parseInt(normalized, 10);
   let chosen: string | undefined;
   if (
-    (normalized === "yes" || normalized === "y" || normalized === "1") &&
+    (normalized === "yes" ||
+      normalized === "y" ||
+      normalized === "1" ||
+      normalized === "ee" ||
+      normalized === "ehn" ||
+      normalized === "beeni" ||
+      normalized === "bẹẹni") &&
     session.draft.assignedMDA
   ) {
     chosen = session.draft.assignedMDA;
@@ -264,7 +313,7 @@ async function confirmMda(
   }
 
   if (!chosen) {
-    return await collectMda(ctx, session, text);
+    return await collectMda(ctx, session, text, copy);
   }
 
   await patchSession(ctx, session._id, {
@@ -275,31 +324,33 @@ async function confirmMda(
       mdaMatches: undefined,
     },
   });
-  return `MDA: ${chosen}\n\nSend a short title for the complaint.`;
+  return copy.mdaChosenTitle(chosen);
 }
 
 async function collectTitle(
   ctx: MutationCtx,
   session: SessionDoc,
   text: string,
+  copy: Copy,
 ): Promise<string> {
   if (text.length < 3) {
-    return "Please send a slightly longer title.";
+    return copy.titleTooShort;
   }
   await patchSession(ctx, session._id, {
     step: "collect_description",
     draft: { ...session.draft, title: text },
   });
-  return "Describe what happened.";
+  return copy.askDescription;
 }
 
 async function collectDescription(
   ctx: MutationCtx,
   session: SessionDoc,
   text: string,
+  copy: Copy,
 ): Promise<string> {
   if (text.length < 10) {
-    return "Please add a bit more detail (at least a sentence).";
+    return copy.descriptionTooShort;
   }
   const fullName = session.draft.fullName?.trim();
   const state = session.draft.state;
@@ -307,7 +358,7 @@ async function collectDescription(
   const title = session.draft.title?.trim();
   if (!fullName || !state || !assignedMDA || !title) {
     await patchSession(ctx, session._id, { step: "idle", draft: {} });
-    return "Something was missing from the draft. Send NEW to start again.";
+    return copy.missingDraft;
   }
 
   const created = await createTicketRecord(ctx, {
@@ -331,41 +382,35 @@ async function collectDescription(
     activeTicketId: created.ticketId,
   });
 
-  return [
-    `Complaint submitted.`,
-    `Ticket: ${created.ticketNumber}`,
-    `MDA: ${assignedMDA}`,
-    "",
-    "MDAs will see this on the ReportGov portal.",
-    "Send STATUS to check it, or NEW for another complaint.",
-  ].join("\n");
+  return copy.submitted(created.ticketNumber, assignedMDA);
 }
 
 async function statusReply(
   ctx: MutationCtx,
-  phone: string,
+  session: SessionDoc,
   text: string,
 ): Promise<string> {
+  const copy = sessionCopy(session);
   const ticketNumber = extractTicketNumber(text);
   if (ticketNumber) {
     const ticket = await ctx.db
       .query("tickets")
       .withIndex("byTicketNumber", (q) => q.eq("ticketNumber", ticketNumber))
       .first();
-    if (!ticket || ticket.whatsappPhone !== phone) {
-      return "No ticket with that number was found for this WhatsApp number.";
+    if (!ticket || ticket.whatsappPhone !== session.phone) {
+      return copy.statusNotFound;
     }
-    return formatTicketStatus(ctx, ticket);
+    return formatTicketStatus(ctx, ticket, copy);
   }
 
   const tickets = await ctx.db
     .query("tickets")
-    .withIndex("byWhatsappPhone", (q) => q.eq("whatsappPhone", phone))
+    .withIndex("byWhatsappPhone", (q) => q.eq("whatsappPhone", session.phone))
     .order("desc")
     .take(5);
 
   if (tickets.length === 0) {
-    return "No tickets on this number yet. Send NEW to file one.";
+    return copy.noTickets;
   }
 
   const lines = await Promise.all(
@@ -373,25 +418,26 @@ async function statusReply(
       const mda = ticket.assignedMDA
         ? await ctx.db.get(ticket.assignedMDA)
         : null;
-      return `• ${ticket.ticketNumber} — ${ticket.status.replace("_", " ")} — ${mda?.name ?? "Unassigned"}`;
+      return `• ${ticket.ticketNumber} — ${ticket.status.replace("_", " ")} — ${mda?.name ?? copy.unassigned}`;
     }),
   );
-  return ["Your recent tickets:", ...lines, "", "Send STATUS REP-… for one ticket."].join("\n");
+  return [copy.recentTickets, ...lines, "", copy.sendTicketNumber].join("\n");
 }
 
 async function formatTicketStatus(
   ctx: MutationCtx,
   ticket: Doc<"tickets">,
+  copy: Copy,
 ): Promise<string> {
   const mda = ticket.assignedMDA ? await ctx.db.get(ticket.assignedMDA) : null;
   const lines = [
     ticket.ticketNumber,
-    `Status: ${ticket.status.replace("_", " ")}`,
-    `MDA: ${mda?.name ?? "Unassigned"}`,
-    `Title: ${ticket.title}`,
+    `${copy.statusLabel}: ${ticket.status.replace("_", " ")}`,
+    `${copy.mdaLabel}: ${mda?.name ?? copy.unassigned}`,
+    `${copy.titleLabel}: ${ticket.title}`,
   ];
   if (ticket.resolutionNote) {
-    lines.push(`Resolution: ${ticket.resolutionNote}`);
+    lines.push(`${copy.resolutionLabel}: ${ticket.resolutionNote}`);
   }
   return lines.join("\n");
 }

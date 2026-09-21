@@ -300,15 +300,34 @@ export default defineSchema({
     phone: v.string(),
     step: v.union(
       v.literal("idle"),
+      v.literal("collect_language"),
+      v.literal("awaiting_complaint"),
+      v.literal("collect_zone"),
       v.literal("collect_name"),
       v.literal("collect_state"),
       v.literal("collect_mda"),
       v.literal("confirm_mda"),
       v.literal("collect_title"),
-      v.literal("collect_description")
+      v.literal("collect_description"),
+      v.literal("collect_incident_date"),
+      v.literal("follow_up_select"),
+      v.literal("follow_up_ticket"),
+      v.literal("follow_up_view"),
+      v.literal("follow_up_reply"),
+      v.literal("follow_up_attach"),
+      v.literal("collect_evidence")
+    ),
+    language: v.optional(
+      v.union(
+        v.literal("en"),
+        v.literal("ha"),
+        v.literal("ig"),
+        v.literal("yo")
+      )
     ),
     draft: v.object({
       fullName: v.optional(v.string()),
+      zone: v.optional(v.string()),
       state: v.optional(v.string()),
       assignedMDA: v.optional(v.string()),
       mdaMatches: v.optional(v.array(v.string())),
@@ -316,10 +335,8 @@ export default defineSchema({
       description: v.optional(v.string()),
       fileIds: v.optional(v.array(v.id("_storage"))),
       incidentDate: v.optional(v.number()),
-      zone: v.optional(v.string()),
     }),
     activeTicketId: v.optional(v.id("tickets")),
-    language: v.optional(v.string()),
     lastInboundAt: v.number(),
     updatedAt: v.number()
   }).index("byPhone", ["phone"]),

@@ -32,6 +32,7 @@ export default clerkMiddleware(async (auth, req) => {
       pathname.startsWith("/sign-in") ||
       pathname.startsWith("/sign-up") ||
       pathname.startsWith("/api/contact") ||
+      pathname.startsWith("/api/whatsapp") ||
       pathname === "/scores" ||
       pathname.startsWith("/scores/") ||
       pathname === "/tracker" ||
