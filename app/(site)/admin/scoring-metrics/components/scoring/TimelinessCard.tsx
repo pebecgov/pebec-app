@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { getMonthsForPeriod } from '../../utils/helpers';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface TimelinessCardProps {
     isLoading: boolean;
@@ -15,6 +16,7 @@ interface TimelinessCardProps {
     scoringPeriod: string;
     realMonthlyReports: any[] | undefined;
     handleSave: () => void;
+    handleClear?: () => void;
     selectedMda: string;
     periodMonths?: Array<{ month: number; year: number; monthName: string }>;
     maxPoints?: number;
@@ -27,6 +29,7 @@ export default function TimelinessCard({
     scoringPeriod,
     realMonthlyReports,
     handleSave,
+    handleClear,
     selectedMda,
     periodMonths,
     maxPoints = 2
@@ -120,16 +123,13 @@ export default function TimelinessCard({
                 </div>
             </div>
 
-            <button
-                onClick={handleSave}
+            <ScoreActionButtons
+                onSave={handleSave}
+                onClear={handleClear}
+                saveLabel="Save Score"
                 disabled={!selectedMda}
-                className={`w-full py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${!selectedMda
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-green-500 hover:bg-green-600'
-                    }`}
-            >
-                💾 Save Timeliness Data
-            </button>
+                isSaved={isSaved}
+            />
         </div>
     );
 }

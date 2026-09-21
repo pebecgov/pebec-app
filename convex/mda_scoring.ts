@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import type { Id, TableNames } from "./_generated/dataModel";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import { resolveReportPeriod } from "../lib/reportPeriod";
@@ -3582,5 +3584,365 @@ export const getBonusesData = query({
     return await ctx.db.query("saved_bonuses_data")
       .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
       .first();
+  }
+});
+
+const bfaScoreMetricValidator = v.union(
+  v.literal("sla"),
+  v.literal("reportGov"),
+  v.literal("mystery"),
+  v.literal("monthlyReport"),
+  v.literal("timeliness"),
+  v.literal("transparency"),
+  v.literal("others"),
+  v.literal("penalties"),
+  v.literal("bonuses"),
+  v.literal("controversial"),
+  v.literal("touting"),
+  v.literal("innovation"),
+  v.literal("stakeholder"),
+  v.literal("finalScore")
+);
+
+const ALL_BFA_SCORE_METRICS = [
+  "sla",
+  "reportGov",
+  "mystery",
+  "monthlyReport",
+  "timeliness",
+  "transparency",
+  "others",
+  "penalties",
+  "bonuses",
+  "controversial",
+  "touting",
+  "innovation",
+  "stakeholder",
+  "finalScore",
+] as const;
+
+type BfaScoreMetric = (typeof ALL_BFA_SCORE_METRICS)[number];
+
+const METRIC_LABELS: Record<BfaScoreMetric, string> = {
+  sla: "SLA",
+  reportGov: "ReportGov",
+  mystery: "Mystery Shopping",
+  monthlyReport: "Monthly Reports",
+  timeliness: "Timeliness",
+  transparency: "Transparency",
+  others: "Others",
+  penalties: "Penalties",
+  bonuses: "Bonuses",
+  controversial: "Controversial",
+  touting: "Touting & Rentseeking",
+  innovation: "Innovation",
+  stakeholder: "Stakeholder Engagement",
+  finalScore: "Final Score",
+};
+
+/**
+ * Deletes a saved BFA score row. Source data (tickets, submitted monthly
+ * reports, SLA files) is never touched — only the scoring snapshot.
+ */
+async function deleteSavedScoreRow(
+  ctx: MutationCtx,
+  row: { _id: Id<TableNames> } | null
+): Promise<boolean> {
+  if (!row) return false;
+  await ctx.db.delete(row._id);
+  return true;
+}
+
+async function clearSavedMetricScore(
+  ctx: MutationCtx,
+  mdaName: string,
+  scoringPeriod: string,
+  metric: BfaScoreMetric
+): Promise<boolean> {
+  switch (metric) {
+    case "sla":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_sla_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "reportGov":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_reportgov_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "mystery":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_mystery_shopping_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "monthlyReport":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_monthly_report_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "timeliness":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_timeliness_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "transparency":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_transparency_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "controversial":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_controversial_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "touting":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_touting_rentseeking_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "innovation":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_innovation_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "stakeholder":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("mda_stakeholder_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "others":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("saved_others_data").withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "penalties":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("saved_penalties_data").withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "bonuses":
+      return await deleteSavedScoreRow(
+        ctx,
+        await ctx.db.query("saved_bonuses_data").withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+      );
+    case "finalScore": {
+      const history = await ctx.db
+        .query("mda_scoring_history")
+        .withIndex("byMdaName", (q) => q.eq("mdaName", mdaName))
+        .collect();
+      const matching = history.filter((row) => row.scoringPeriod === scoringPeriod);
+      for (const row of matching) {
+        await ctx.db.delete(row._id);
+      }
+      return matching.length > 0;
+    }
+    default:
+      return false;
+  }
+}
+
+export const clearMetricScore = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    metric: bfaScoreMetricValidator,
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    cleared: v.boolean(),
+  }),
+  handler: async (ctx, { mdaName, scoringPeriod, metric }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized: Only admins and staff can clear BFA scores");
+    }
+
+    const cleared = await clearSavedMetricScore(ctx, mdaName, scoringPeriod, metric);
+    // Individual metric changes should unstick the calculated final score
+    // so rankings are not left with a stale total.
+    if (metric !== "finalScore") {
+      await clearSavedMetricScore(ctx, mdaName, scoringPeriod, "finalScore");
+    }
+
+    await logAuditEvent(ctx, {
+      category: "bfa",
+      summary: `Cleared ${METRIC_LABELS[metric]} score for ${mdaName}`,
+      action: "bfa.mda_score_saved",
+      actor: user,
+      target: { type: "mda", id: mdaName, label: mdaName },
+      metadata: { scoringPeriod, metric, action: "cleared" },
+    });
+
+    return {
+      success: true,
+      cleared,
+      message: cleared
+        ? `${METRIC_LABELS[metric]} score cleared`
+        : `No saved ${METRIC_LABELS[metric]} score to clear`,
+    };
+  },
+});
+
+export const clearAllMDAScores = mutation({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    clearedMetrics: v.array(v.string()),
+    clearedCount: v.number(),
+  }),
+  handler: async (ctx, { mdaName, scoringPeriod }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized: Only admins and staff can clear BFA scores");
+    }
+
+    const clearedMetrics: string[] = [];
+    for (const metric of ALL_BFA_SCORE_METRICS) {
+      const cleared = await clearSavedMetricScore(ctx, mdaName, scoringPeriod, metric);
+      if (cleared) {
+        clearedMetrics.push(METRIC_LABELS[metric]);
+      }
+    }
+
+    await logAuditEvent(ctx, {
+      category: "bfa",
+      summary: `Cleared all BFA scores for ${mdaName} (${clearedMetrics.length} metrics)`,
+      action: "bfa.mda_score_saved",
+      actor: user,
+      target: { type: "mda", id: mdaName, label: mdaName },
+      metadata: {
+        scoringPeriod,
+        action: "cleared_all",
+        clearedCount: clearedMetrics.length,
+        clearedMetrics: clearedMetrics.join(", "),
+      },
+    });
+
+    return {
+      success: true,
+      message: clearedMetrics.length > 0
+        ? `Cleared ${clearedMetrics.length} saved score(s). Source data was not deleted.`
+        : "No saved scores to clear",
+      clearedMetrics,
+      clearedCount: clearedMetrics.length,
+    };
+  },
+});
+
+export const bulkUpdateTransparencyForSLAPublication = mutation({
+  args: {
+    year: v.number(),
+    scoringPeriod: v.string(),
+    mdaNames: v.array(v.string()),
+    transparencyScore: v.number(), // Points to award (typically 5)
+    dryRun: v.optional(v.boolean())
+  },
+  returns: v.object({
+    updated: v.number(),
+    created: v.number(),
+    skipped: v.number(),
+    errors: v.array(v.string())
+  }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized: Only admins and staff can bulk update transparency scores");
+    }
+
+    let updated = 0;
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    // Get transparency item configuration for this year
+    const transparencyItems = await ctx.db.query("transparency_items")
+      .withIndex("byYearAndActive", q => q.eq("year", args.year).eq("isActive", true))
+      .collect();
+
+    const transparencyItem = transparencyItems.find(item => 
+      item.itemName.toLowerCase().includes("transparency") || 
+      item.itemId.includes("transparency")
+    );
+
+    if (!transparencyItem) {
+      throw new Error(`No transparency item found in configuration for year ${args.year}`);
+    }
+
+    for (const mdaName of args.mdaNames) {
+      try {
+        // Check if MDA already has transparency data
+        const existingData = await ctx.db.query("saved_others_data")
+          .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", args.scoringPeriod))
+          .first();
+
+        const values = existingData?.values || {};
+        const scores = existingData?.scores || {};
+
+        // Set transparency to true (assuming yes/no type)
+        values[transparencyItem.itemId] = true;
+        scores[transparencyItem.itemId] = args.transparencyScore;
+
+        // Calculate new total score
+        const totalScore = Object.values(scores).reduce((sum: number, score) => sum + (score as number), 0);
+
+        if (!args.dryRun) {
+          if (existingData) {
+            // Update existing record
+            await ctx.db.patch(existingData._id, {
+              values,
+              scores,
+              totalScore,
+              updatedAt: Date.now()
+            });
+            updated++;
+          } else {
+            // Create new record
+            await ctx.db.insert("saved_others_data", {
+              mdaName,
+              scoringPeriod: args.scoringPeriod,
+              values,
+              scores,
+              totalScore,
+              updatedAt: Date.now()
+            });
+            created++;
+          }
+
+          // Log audit event
+          await logAuditEvent(ctx, {
+            action: "bfa.mda_score_saved",
+            category: "bfa",
+            summary: `Bulk transparency update: ${mdaName} awarded ${args.transparencyScore} points for SLA publication`,
+            actor: user,
+            target: {
+              type: "mda",
+              id: mdaName,
+              label: mdaName
+            },
+            metadata: {
+              scoringPeriod: args.scoringPeriod,
+              transparencyScore: args.transparencyScore,
+              itemId: transparencyItem.itemId,
+              type: "bulk_transparency_update"
+            }
+          });
+        }
+      } catch (error) {
+        errors.push(`${mdaName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    return {
+      updated,
+      created, 
+      skipped,
+      errors
+    };
   }
 });

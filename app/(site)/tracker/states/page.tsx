@@ -27,7 +27,7 @@ export default function StateScoresPage() {
       score: state.totalScore,
       maxScore: state.maxScore,
       extra: Object.keys(state.indicators || {}).length,
-      href: `/scores/states/${scoreSlug(state.state)}`,
+      href: `/tracker/states/${scoreSlug(state.state)}`,
     }));
   }, [stateData]);
 

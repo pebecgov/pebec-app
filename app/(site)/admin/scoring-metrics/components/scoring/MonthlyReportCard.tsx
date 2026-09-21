@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { getMonthsForPeriod } from '../../utils/helpers';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface MonthlyReportCardProps {
     isLoading: boolean;
@@ -15,6 +16,7 @@ interface MonthlyReportCardProps {
     scoringPeriod: string;
     realMonthlyReports: any[] | undefined;
     handleSave: () => void;
+    handleClear?: () => void;
     selectedMda: string;
     periodMonths?: Array<{ month: number; year: number; monthName: string }>;
     maxPoints?: number;
@@ -27,6 +29,7 @@ export default function MonthlyReportCard({
     scoringPeriod,
     realMonthlyReports,
     handleSave,
+    handleClear,
     selectedMda,
     periodMonths,
     maxPoints = 3
@@ -168,16 +171,13 @@ export default function MonthlyReportCard({
                     {monthlyReportData.score.toFixed(2)}/{maxPoints}
                 </div>
             </div>
-            <button
-                onClick={handleSave}
+            <ScoreActionButtons
+                onSave={handleSave}
+                onClear={handleClear}
+                saveLabel="Save Score"
                 disabled={!selectedMda}
-                className={`w-full mb-4 py-2 px-4 rounded-lg text-white text-sm font-medium transition-colors ${!selectedMda
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-green-500 hover:bg-green-600'
-                    }`}
-            >
-                💾 Save Monthly Report Data
-            </button>
+                isSaved={isSaved}
+            />
         </div>
     );
 }

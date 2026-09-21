@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface OthersItem {
@@ -20,6 +20,7 @@ interface DynamicOthersCardProps {
     othersValues: Record<string, boolean | number>;
     onValueChange: (itemId: string, value: boolean | number) => void;
     onSave: () => Promise<void>;
+    onClear?: () => Promise<void> | void;
     isLoading: boolean;
     isSaved: boolean;
     selectedMda: string;
@@ -30,6 +31,7 @@ const DynamicOthersCard: React.FC<DynamicOthersCardProps> = ({
     othersValues,
     onValueChange,
     onSave,
+    onClear,
     isLoading,
     isSaved,
     selectedMda
@@ -142,23 +144,36 @@ const DynamicOthersCard: React.FC<DynamicOthersCardProps> = ({
                         </div>
                     ))}
 
-                    <Button
-                        onClick={onSave}
-                        disabled={!selectedMda || isLoading}
-                        className="w-full mt-4"
-                    >
-                        {isLoading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
-                            </>
-                        ) : (
-                            <>
-                                <Save className="mr-2 h-4 w-4" />
-                                Save Others Metrics
-                            </>
+                    <div className="flex gap-2 mt-4">
+                        <Button
+                            onClick={onSave}
+                            disabled={!selectedMda || isLoading}
+                            className="flex-1"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Save Score
+                                </>
+                            )}
+                        </Button>
+                        {onClear && (
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={onClear}
+                                disabled={!selectedMda || isLoading || !isSaved}
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Clear Score
+                            </Button>
                         )}
-                    </Button>
+                    </div>
                 </div>
             </CardContent>
         </Card>

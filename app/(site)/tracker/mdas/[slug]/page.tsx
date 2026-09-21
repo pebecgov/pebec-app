@@ -29,7 +29,7 @@ interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
-  metricScores?: Record<string, { score: number; max: number }>;
+  metricScores?: Record<string, { score: number; max: number; scored?: boolean }>;
   othersBreakdown?: Array<{
     itemId: string;
     itemName: string;
@@ -81,7 +81,7 @@ export default function MdaSummaryPage() {
           <h1 className="text-xl font-semibold text-gray-900 mb-2">MDA not found</h1>
           <p className="text-gray-600 mb-6">No 2026 scoring record matches this MDA.</p>
           <Link
-            href="/scores/mdas"
+            href="/tracker/mdas"
             className="inline-flex items-center rounded-lg bg-[#006B3F] px-4 py-2 text-sm font-medium text-white hover:bg-[#005432]"
           >
             Back to MDA Rankings
@@ -127,10 +127,12 @@ export default function MdaSummaryPage() {
           (excluded.includes(metric.key) || excluded.includes("others"))) ||
         (isBeepaMetric && beepaExempted);
       const scored = selected.metricScores?.[metric.key];
+      const isScored = scored?.scored === true;
       return {
         name: metric.label,
         score: exempted ? 0 : (scored?.score ?? 0),
         maxScore: scored?.max ?? metric.max,
+        scored: exempted ? true : isScored,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         exempted,
         details: exempted
@@ -140,17 +142,21 @@ export default function MdaSummaryPage() {
                 score: 0,
               },
             ]
-          : [
-              { label: "Score awarded", score: scored?.score ?? 0 },
-              { label: "Maximum possible", score: scored?.max ?? metric.max },
-            ],
+          : isScored
+            ? [
+                { label: "Score awarded", score: scored?.score ?? 0, scored: true },
+                { label: "Maximum possible", score: scored?.max ?? metric.max, scored: true },
+              ]
+            : [
+                { label: "Status", score: 0, scored: false },
+              ],
       };
     });
 
   return (
     <div>
       <SummaryHeader
-        backHref="/scores/mdas"
+        backHref="/tracker/mdas"
         backLabel="Back to MDA Rankings"
         abbreviation={abbreviation}
         title={selected.mdaName}

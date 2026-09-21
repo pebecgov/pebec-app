@@ -210,20 +210,15 @@ const indicators2025 = {
       small_claims_court: {
         label: "Small Claims Court (2%)",
         options: [
-          { value: "15-and-above", label: "15 and above (2)", score: 2 },
-          { value: "11-14", label: "11-14 (1.5)", score: 1.5 },
-          { value: "6-10", label: "6-10 (1)", score: 1 },
-          { value: "1-5", label: "1-5 (0.5)", score: 0.5 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       compliance_reporting: {
         label: "Compliance Reporting (2%)",
         options: [
-          { value: "up-to-date", label: "Up to date (2)", score: 2 },
-          { value: "6-months-old", label: "More than 6 months (1.5)", score: 1.5 },
-          { value: "3-months-old", label: "More than 3 months (1)", score: 1 },
-          { value: "not-published", label: "Not published (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       multi_door_courthouse: {
@@ -562,20 +557,15 @@ const indicators2026 = {
       small_claims_court: {
         label: "Small Claims Court (2%)",
         options: [
-          { value: "15-and-above", label: "15 and above (2)", score: 2 },
-          { value: "11-14", label: "11-14 (1.5)", score: 1.5 },
-          { value: "6-10", label: "6-10 (1)", score: 1 },
-          { value: "1-5", label: "1-5 (0.5)", score: 0.5 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       compliance_reporting: {
         label: "Compliance Reporting (2%)",
         options: [
-          { value: "up-to-date", label: "Up to date (2)", score: 2 },
-          { value: "6-months-old", label: "More than 6 months (1.5)", score: 1.5 },
-          { value: "3-months-old", label: "More than 3 months (1)", score: 1 },
-          { value: "not-published", label: "Not published (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       multi_door_courthouse: {
@@ -656,16 +646,16 @@ const indicators2026 = {
         ],
       },
       centralized_grm: {
-        label: "Centralized GRM (2%)",
+        label: "Centralized GRM (1%)",
         options: [
-          { value: "yes", label: "Centralized GRM available (2)", score: 2 },
+          { value: "yes", label: "Centralized GRM available (1)", score: 1 },
           { value: "no", label: "No centralized GRM (0)", score: 0 },
         ],
       },
       multiple_channels_functionality: {
-        label: "Multiple Channels & Functionality (1%)",
+        label: "Multiple Channels & Functionality (2%)",
         options: [
-          { value: "yes", label: "Easily accessible via multiple channels (1)", score: 1 },
+          { value: "yes", label: "Easily accessible via multiple channels (2)", score: 2 },
           { value: "no", label: "Difficult to find or access (0)", score: 0 },
         ],
       },

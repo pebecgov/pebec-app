@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface PenaltyItem {
@@ -18,6 +18,7 @@ interface DynamicPenaltiesCardProps {
     penaltyValues: Record<string, boolean>;
     onValueChange: (penaltyId: string, isApplied: boolean) => void;
     onSave: () => Promise<void>;
+    onClear?: () => Promise<void> | void;
     isLoading: boolean;
     isSaved: boolean;
     selectedMda: string;
@@ -28,6 +29,7 @@ const DynamicPenaltiesCard: React.FC<DynamicPenaltiesCardProps> = ({
     penaltyValues,
     onValueChange,
     onSave,
+    onClear,
     isLoading,
     isSaved,
     selectedMda
@@ -74,23 +76,37 @@ const DynamicPenaltiesCard: React.FC<DynamicPenaltiesCardProps> = ({
                         </div>
                     ))}
 
-                    <Button
-                        onClick={onSave}
-                        disabled={!selectedMda || isLoading}
-                        className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white"
-                    >
-                        {isLoading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
-                            </>
-                        ) : (
-                            <>
-                                <Save className="mr-2 h-4 w-4" />
-                                Save Penalties
-                            </>
+                    <div className="flex gap-2 mt-4">
+                        <Button
+                            onClick={onSave}
+                            disabled={!selectedMda || isLoading}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Save Score
+                                </>
+                            )}
+                        </Button>
+                        {onClear && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={onClear}
+                                disabled={!selectedMda || isLoading || !isSaved}
+                                className="border-red-300 text-red-700 hover:bg-red-50"
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Clear Score
+                            </Button>
                         )}
-                    </Button>
+                    </div>
                 </div>
             </CardContent>
         </Card>

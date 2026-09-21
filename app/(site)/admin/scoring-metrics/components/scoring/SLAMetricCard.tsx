@@ -3,6 +3,7 @@
 import React from 'react';
 import { getMonthsForPeriod } from '../../utils/helpers';
 import { MonthlySlaData } from '../../utils/types';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface SLAMetricCardProps {
     isLoadingSLAData: boolean;
@@ -20,6 +21,7 @@ interface SLAMetricCardProps {
     };
     setShowSlaModal: (show: boolean) => void;
     handleSaveSLAData: () => void;
+    handleClear?: () => void;
     selectedMda: string;
     periodMonths?: Array<{ month: number; year: number; monthName: string }>;
     useDynamicConfig?: boolean;
@@ -36,6 +38,7 @@ export default function SLAMetricCard({
     slaScore,
     setShowSlaModal,
     handleSaveSLAData,
+    handleClear,
     selectedMda,
     periodMonths,
     useDynamicConfig,
@@ -114,23 +117,20 @@ export default function SLAMetricCard({
                         <div className="text-sm text-gray-600">
                             {slaScore.monthsWithData}/{slaScore.totalMonths} months completed
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2">
                             <button
                                 onClick={() => setShowSlaModal(true)}
                                 className="bg-blue-500 px-4 py-2 rounded-md text-white hover:bg-blue-600 transition-colors duration-300 text-sm font-medium"
                             >
                                 Configure Monthly SLA
                             </button>
-                            <button
-                                onClick={handleSaveSLAData}
+                            <ScoreActionButtons
+                                onSave={handleSaveSLAData}
+                                onClear={handleClear}
+                                saveLabel="Save SLA Data"
                                 disabled={!selectedMda}
-                                className={`px-4 py-2 rounded-md text-white text-sm font-medium transition-colors duration-300 ${!selectedMda
-                                    ? 'bg-gray-400 cursor-not-allowed'
-                                    : 'bg-green-500 hover:bg-green-600'
-                                    }`}
-                            >
-                                💾 Save SLA Data
-                            </button>
+                                isSaved={savedSLAData}
+                            />
                         </div>
                     </div>
                 </div>

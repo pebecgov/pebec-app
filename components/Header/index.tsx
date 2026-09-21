@@ -27,7 +27,7 @@ import HeaderTranslateWidget from "./HeaderTranslateWidget";
 const Header = () => {
   let hoverTimeout: NodeJS.Timeout;
   const [stickyMenu, setStickyMenu] = useState(false);
-  const [showAnnouncementBar, setShowAnnouncementBar] = useState(false);
+  const [announcementOffsetPx, setAnnouncementOffsetPx] = useState(0);
   const {
     openSignIn
   } = useClerk();
@@ -110,8 +110,8 @@ const Header = () => {
     window.location.href = "/reportgov-ng";
   };
   return <>
-    <AnnouncementBar onVisibilityChange={setShowAnnouncementBar} />
-    <header className={`fixed left-0 top-0 z-50 w-full py-14 transition-all duration-300 ${stickyMenu ? "bg-white !py-4 shadow dark:bg-black" : "bg-transparent"} ${modalOpen ? "pointer-events-none opacity-50" : ""}`} style={{ marginTop: showAnnouncementBar ? '48px' : '0' }}>
+    <AnnouncementBar onVisibilityChange={(_isVisible, offsetPx) => setAnnouncementOffsetPx(offsetPx)} />
+    <header className={`fixed left-0 top-0 z-50 w-full py-14 transition-all duration-300 ${stickyMenu ? "bg-white !py-4 shadow dark:bg-black" : "bg-transparent"} ${modalOpen ? "pointer-events-none opacity-50" : ""}`} style={{ marginTop: announcementOffsetPx ? `${announcementOffsetPx}px` : "0" }}>
       <div className="relative mx-auto max-w-7xl flex items-center justify-between px-4 md:px-8 lg:px-0">
         { }
         <a href="/" className="relative z-[60] flex shrink-0 items-center gap-3">
@@ -235,15 +235,21 @@ const Header = () => {
                   title: "Gallery",
                   path: "/media",
                   icon: FaCameraRetro
-                }/* , {
-                  title: "Tracker",
-                  path: "/tracker",
+                }, {
+                  title: "State Tracker",
+                  path: "/tracker/states",
                   icon: MdAnalytics
-                } */].map((item, key) => <Link key={key} href={item.path} className="flex items-center gap-3 p-3 rounded-md hover:bg-gray-100">
+                }, {
+                  title: "MDA Tracker",
+                  path: "/tracker/mdas",
+                  icon: MdAnalytics
+                } ].map((item, key) => <Link key={key} href={item.path} className="flex items-center gap-3 p-3 rounded-md hover:bg-gray-100">
                   <item.icon className="text-[#2D8B10] text-lg" />
                   <div>
                     <p className="text-sm font-semibold">{item.title}</p>
-                    <p className="text-xs text-gray-500">Learn more</p>
+                    {item.title !== "Tracker" && (
+                      <p className="text-xs text-gray-500">Learn more</p>
+                    )}
                   </div>
                 </Link>)}
               </div>}

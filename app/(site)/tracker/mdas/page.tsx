@@ -58,7 +58,7 @@ export default function MdaScoresPage() {
           SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && reports.submitted > 0
             ? `${reports.submitted}/${reports.due}`
             : "—",
-        href: `/scores/mdas/${scoreSlug(mda.mdaName)}`,
+        href: `/tracker/mdas/${scoreSlug(mda.mdaName)}`,
       };
     });
   }, [mdaData, reportByMda]);
@@ -66,7 +66,6 @@ export default function MdaScoresPage() {
   return (
     <RankingDashboard
       title="MDA Performance"
-      subtitle="Federal MDA rankings for service delivery and efficiency — 2026. Monthly reports close on the 30th."
       searchPlaceholder="Search MDA..."
       extraColumnHeader="Reports"
       extraCardLabel="reports submitted"

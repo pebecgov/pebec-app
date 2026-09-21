@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Save } from 'lucide-react';
+import ScoreActionButtons from './ScoreActionButtons';
 
 interface ReportGovCardProps {
     isLoading: boolean;
@@ -16,6 +16,7 @@ interface ReportGovCardProps {
     setReportgovRate: (val: number) => void;
 
     handleSave: () => void;
+    handleClear?: () => void;
     selectedMda: string;
     mdasList: any[];
     mdasWithScores: any[] | undefined;
@@ -35,6 +36,7 @@ export default function ReportGovCard({
     reportgovRate,
     setReportgovRate,
     handleSave,
+    handleClear,
     selectedMda,
     mdasList,
     mdasWithScores,
@@ -158,19 +160,13 @@ export default function ReportGovCard({
                 </p>
             </div>
 
-            <div className="flex justify-center w-full mt-4">
-                <button
-                    onClick={handleSave}
-                    disabled={!selectedMda}
-                    className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-white text-sm font-medium transition-all duration-300 shadow-sm ${!selectedMda
-                        ? 'bg-gray-400 cursor-not-allowed opacity-70'
-                        : 'bg-green-600 hover:bg-green-700 hover:shadow-md active:scale-[0.99]'
-                        }`}
-                >
-                    <Save className="w-4 h-4" />
-                    Save Report Gov Data
-                </button>
-            </div>
+            <ScoreActionButtons
+                onSave={handleSave}
+                onClear={handleClear}
+                saveLabel="Save Score"
+                disabled={!selectedMda}
+                isSaved={isSaved}
+            />
 
             <div className="text-center mt-3">
                 Score: {reportgovRate.toFixed(2)}/{maxPoints}
