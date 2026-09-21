@@ -625,12 +625,8 @@ const indicators2026 = {
       digital_one_stop_shop: {
         label: "Digital One Stop Shop (5%)",
         options: [
-          { value: "excellent", label: "Excellent (5)", score: 5 },
-          { value: "good", label: "Good (4)", score: 4 },
-          { value: "fair", label: "Fair (3)", score: 3 },
-          { value: "poor", label: "Poor (2)", score: 2 },
-          { value: "very_poor", label: "Very Poor (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (5)", score: 5 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
