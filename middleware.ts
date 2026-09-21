@@ -2,6 +2,16 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/api/contact(.*)",
+  "/api/whatsapp/webhook(.*)",
+  "/scores(.*)",
+  "/tracker(.*)",
+]);
+const isWhatsAppWebhookRoute = createRouteMatcher(["/api/whatsapp/webhook(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isUserRoute = createRouteMatcher(["/user(.*)"]);
 const isFeedbackRoute = createRouteMatcher(["/feedback(.*)"]);
@@ -20,25 +30,19 @@ const isWorldBankRoute = createRouteMatcher(["/world_bank(.*)"]);
 const isDmoRoute = createRouteMatcher(["/dmo(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // Meta webhook verification has no Clerk session. Skip auth entirely and
+  // let the route validate WHATSAPP_VERIFY_TOKEN itself.
+  if (isWhatsAppWebhookRoute(req)) {
+    return NextResponse.next();
+  }
+
   const session = await auth();
   const role = session?.sessionClaims?.metadata?.role;
   const staffStream = session?.sessionClaims?.metadata?.staffStream;
 
   // If not authenticated, redirect to home (except for public routes)
   if (!session) {
-    const pathname = req.nextUrl.pathname;
-    const isPublic =
-      pathname === "/" ||
-      pathname.startsWith("/sign-in") ||
-      pathname.startsWith("/sign-up") ||
-      pathname.startsWith("/api/contact") ||
-      pathname.startsWith("/api/whatsapp") ||
-      pathname === "/scores" ||
-      pathname.startsWith("/scores/") ||
-      pathname === "/tracker" ||
-      pathname.startsWith("/tracker/");
-
-    if (!isPublic) {
+    if (!isPublicRoute(req)) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
@@ -109,5 +113,8 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)", "/(api|trpc)(.*)"]
+  matcher: [
+    "/((?!_next|api/whatsapp/webhook|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api(?!/whatsapp/webhook)|trpc)(.*)",
+  ],
 };
