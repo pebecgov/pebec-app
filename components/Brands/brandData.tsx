@@ -20,7 +20,7 @@ const brandData: Brand[] = [{
   href: "/reforms?expand=E",
   image: "/images/brand/brand-light-03.svg",
   imageLight: "/images/brand/brand-dark-03.svg",
-  tooltip: "Getting Credit"
+  tooltip: "Access to Credit"
 }, {
   id: 0.5,
   name: "Client",
