@@ -46,7 +46,7 @@ export const reforms: Reform[] = [{
   description: "Strengthening legal frameworks to ensure smooth contract enforcement.",
   image: "contracts.svg"
 }, {
-  title: "Getting Credit",
+  title: "Access to Credit",
   category: "Finance",
   description: "Easier access to loans and credit facilities for small and medium-sized businesses.",
   image: "credit.svg"

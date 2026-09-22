@@ -34,17 +34,27 @@ export function SummaryHeader({
   score,
   maxScore,
   scoreLabel,
+  notScoredYet = false,
+  hideStatus = false,
 }: {
   backHref: string;
   backLabel: string;
   abbreviation?: string;
   title: string;
   description?: string;
-  status: ScoreStatus;
+  status: ScoreStatus | null;
   score: number;
   maxScore: number;
   scoreLabel: string;
+  notScoredYet?: boolean;
+  /** Public tracker: hide band labels like "Requires Intervention". */
+  hideStatus?: boolean;
 }) {
+  // Incomplete overall: show "Not scored yet" badge, but keep a running total if any points exist.
+  const showIncompleteBadge = notScoredYet || !status;
+  const showRunningTotal = !showIncompleteBadge || score > 0;
+  const progressColor = hideStatus || !status ? "green" : status.color;
+
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
       <div className="h-2 bg-gradient-to-r from-[#006B3F] to-[#008B52]" />
@@ -71,16 +81,30 @@ export function SummaryHeader({
             </div>
             {description && <p className="text-gray-500 mt-2">{description}</p>}
           </div>
-          <StatusBadge status={status} size="lg" />
+          {showIncompleteBadge ? (
+            <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+              Not scored fully
+            </span>
+          ) : hideStatus ? null : (
+            <StatusBadge status={status} size="lg" />
+          )}
         </div>
 
         <div className="mt-6 bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-200">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">{scoreLabel}</span>
-            <span className="text-2xl font-bold text-[#006B3F]">{formatScorePair(score, maxScore)}</span>
+            {showRunningTotal ? (
+              <span className="text-2xl font-bold text-[#006B3F]">{formatScorePair(score, maxScore)}</span>
+            ) : (
+              <span className="text-lg font-semibold text-gray-500">Not scored fully</span>
+            )}
           </div>
           <p className="text-xs text-gray-500 mb-3">Assessment year {SCORE_YEAR}</p>
-          <ProgressBar score={score} maxScore={maxScore} color={status.color} size="lg" />
+          {showRunningTotal ? (
+            <ProgressBar score={score} maxScore={maxScore} color={progressColor} size="lg" />
+          ) : (
+            <p className="text-sm text-gray-500">Scores will appear here once all indicators are assessed.</p>
+          )}
         </div>
       </div>
     </header>
@@ -91,10 +115,13 @@ export function MetricBreakdown({
   title,
   hint,
   metrics,
+  hideStatus = false,
 }: {
   title: string;
   hint?: string;
   metrics: MetricItem[];
+  /** Public tracker: hide band labels like "Requires Intervention". */
+  hideStatus?: boolean;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -116,11 +143,20 @@ export function MetricBreakdown({
           {metrics.map((metric, index) => {
             const isExpanded = expanded === metric.name;
             const isExempted = metric.exempted === true;
-            const isNotScored = !isExempted && metric.scored === false;
-            const status = isNotScored
-              ? null
-              : getScoreStatus(metric.score, metric.maxScore);
-            const hasDetails = (metric.details?.length ?? 0) > 0;
+            const details = metric.details || [];
+            const hasDetails = details.length > 0;
+            const hasScoredDetails = details.some((detail) => detail.scored === true);
+            const allDetailsScored =
+              hasDetails && details.every((detail) => detail.scored === true);
+            // Incomplete metrics stay "Not scored yet" — never a band label like Requires Intervention.
+            const showAsNotScored =
+              !isExempted && (metric.scored !== true || (hasDetails && !allDetailsScored));
+            const status =
+              showAsNotScored || isExempted
+                ? null
+                : getScoreStatus(metric.score, metric.maxScore);
+            const progressColor = hideStatus || !status ? "green" : status.color;
+            const showPartialProgress = showAsNotScored && (hasScoredDetails || metric.score > 0);
 
             return (
               <div
@@ -166,11 +202,11 @@ export function MetricBreakdown({
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not in BFA total
                       </span>
-                    ) : isNotScored ? (
+                    ) : showAsNotScored ? (
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 border border-gray-200">
                         Not scored yet
                       </span>
-                    ) : status ? (
+                    ) : !hideStatus && status ? (
                       <StatusBadge status={status} size="sm" />
                     ) : null}
                   </div>
@@ -178,14 +214,19 @@ export function MetricBreakdown({
                     <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       Programme exemption — this metric is excluded from the overall BFA score and maximum.
                     </p>
-                  ) : isNotScored ? (
+                  ) : showAsNotScored && !showPartialProgress ? (
                     <p className={`text-sm text-gray-500 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       Not scored yet — this is not a zero score.
                     </p>
                   ) : (
                     <div className={`flex items-center gap-4 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       <div className="flex-1 max-w-md">
-                        <ProgressBar score={metric.score} maxScore={metric.maxScore} color={status!.color} size="sm" />
+                        <ProgressBar
+                          score={metric.score}
+                          maxScore={metric.maxScore}
+                          color={progressColor}
+                          size="sm"
+                        />
                       </div>
                       <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
                         {formatPoints(metric.score)}
@@ -210,7 +251,7 @@ export function MetricBreakdown({
                           <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
                             {isExempted
                               ? "Exempted"
-                              : isNotScored || detail.scored === false
+                              : detail.scored !== true
                                 ? "Not scored yet"
                                 : detail.maxScore !== undefined
                                   ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`

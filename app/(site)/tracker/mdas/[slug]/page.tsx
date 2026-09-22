@@ -91,7 +91,6 @@ export default function MdaSummaryPage() {
     );
   }
 
-  const status = getScoreStatus(selected.finalScore, selected.maxPossibleScore);
   const abbreviation = getMdaAbbreviation(selected.mdaName);
   const excluded = selected.excludedMetrics || [];
   const rosterEntry = matchBeepaTrackerRosterEntry(selected.mdaName, abbreviation);
@@ -138,6 +137,13 @@ export default function MdaSummaryPage() {
       };
     });
 
+  const fullyScored = metrics
+    .filter((metric) => !metric.exempted)
+    .every((metric) => metric.scored === true);
+  const status = fullyScored
+    ? getScoreStatus(selected.finalScore, selected.maxPossibleScore)
+    : null;
+
   return (
     <div>
       <SummaryHeader
@@ -150,6 +156,7 @@ export default function MdaSummaryPage() {
         score={selected.finalScore}
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
+        notScoredYet={!fullyScored}
       />
       {beepaExempted && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">

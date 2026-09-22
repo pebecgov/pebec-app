@@ -66,7 +66,7 @@ const scoreMappings = {
 - Crisis Resilience and Business Continuity
 - Contract Enforcement and Commercial Dispute Resolution
 - Market Access and Competition
-- Getting Credit
+- Access to Credit
 - Export-Import Facilitation
 - Interstate Trade
 - Paying Taxes (New)

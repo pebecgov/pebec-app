@@ -64,7 +64,6 @@ export default function StateSummaryPage() {
     );
   }
 
-  const status = getScoreStatus(selected.totalScore, selected.maxScore);
   const yearIndicatorMaxScores = getIndicatorMaxScoresForYear(SCORE_YEAR);
   const metrics = Object.entries(getIndicatorsForYear(SCORE_YEAR)).map(([key, config]) => {
     const data = selected.indicators?.[key];
@@ -78,16 +77,22 @@ export default function StateSummaryPage() {
       };
     });
     const scoredSubCount = details.filter((detail) => detail.scored).length;
-    const isIndicatorScored = scoredSubCount > 0;
+    const isIndicatorFullyScored = details.length > 0 && scoredSubCount === details.length;
 
     return {
       name: config.name,
-      score: data?.score ?? 0,
+      score: scoredSubCount > 0 ? (data?.score ?? 0) : 0,
       maxScore: yearIndicatorMaxScores[key] ?? 0,
-      scored: isIndicatorScored,
+      // Only mark complete when every sub-indicator is saved.
+      scored: isIndicatorFullyScored,
       details,
     };
   });
+
+  const fullyScored = metrics.every((metric) => metric.scored === true);
+  const status = fullyScored
+    ? getScoreStatus(selected.totalScore, selected.maxScore)
+    : null;
 
   return (
     <div>
@@ -100,6 +105,7 @@ export default function StateSummaryPage() {
         score={selected.totalScore}
         maxScore={selected.maxScore}
         scoreLabel="Overall Business Climate Score"
+        notScoredYet={!fullyScored}
       />
       <MetricBreakdown
         title="Business Climate Indicators"

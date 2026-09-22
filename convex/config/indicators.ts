@@ -106,7 +106,7 @@ const indicators2025 = {
     },
   },
   getting_credit: {
-    name: "Getting Credit (12%)",
+    name: "Access to Credit (12%)",
     subIndicators: {
       state_microfinance_banks: {
         label: "State Microfinance Banks (6%)",
@@ -462,7 +462,7 @@ const indicators2026 = {
     },
   },
   getting_credit: {
-    name: "Getting Credit (12%)",
+    name: "Access to Credit (12%)",
     subIndicators: {
       state_microfinance_banks: {
         label: "State Microfinance Banks (6%)",
