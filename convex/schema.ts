@@ -168,6 +168,23 @@ export default defineSchema({
     updatedBy: v.id("users")
   }).index("byYear", ["year"]).index("byYearMda", ["year", "mdaName"]),
 
+  /**
+   * Admin-controlled public tracker badge for a metric in a scoring period.
+   * fullyScored=false → show "Not scored fully" even when partial scores exist.
+   */
+  bfa_metric_tracker_status: defineTable({
+    year: v.number(),
+    scoringPeriod: v.string(),
+    metricKey: v.string(), // e.g. "mystery", "others:itemId", "sla"
+    metricLabel: v.string(),
+    fullyScored: v.boolean(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  })
+    .index("byPeriod", ["scoringPeriod"])
+    .index("byPeriodAndMetric", ["scoringPeriod", "metricKey"])
+    .index("byYear", ["year"]),
+
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
     mdaId: v.id("mdas"),

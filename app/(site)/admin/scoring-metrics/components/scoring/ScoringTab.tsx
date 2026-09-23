@@ -25,6 +25,7 @@ import DynamicBonusesCard from './DynamicBonusesCard';
 import BeepaCsvImportCard from './BeepaCsvImportCard';
 import BulkTransparencyCard from './BulkTransparencyCard';
 import MdaScoringMatrix from './MdaScoringMatrix';
+import TrackerMetricStatusPanel from './TrackerMetricStatusPanel';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -1176,7 +1177,13 @@ export default function ScoringTab({
 
                 {scoringMode === "matrix" ? (
                     useDynamicConfig ? (
-                        <MdaScoringMatrix scoringPeriod={scoringPeriod} year={scoringYear} />
+                        <div className="space-y-4">
+                            <TrackerMetricStatusPanel
+                                year={scoringYear}
+                                scoringPeriod={scoringPeriod}
+                            />
+                            <MdaScoringMatrix scoringPeriod={scoringPeriod} year={scoringYear} />
+                        </div>
                     ) : (
                         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm">
                             Matrix scoring is available for 2026+ dynamic configuration. Switch the scoring year to 2026, or use One MDA for 2025.
@@ -1184,6 +1191,12 @@ export default function ScoringTab({
                     )
                 ) : (
                 <>
+                {useDynamicConfig && (
+                    <TrackerMetricStatusPanel
+                        year={scoringYear}
+                        scoringPeriod={scoringPeriod}
+                    />
+                )}
                 {/* Header Section */}
                 <div className="flex flex-col gap-4">
                     <MDASelector
