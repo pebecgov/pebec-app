@@ -29,7 +29,7 @@ interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
-  metricScores?: Record<string, { score: number; max: number; scored?: boolean }>;
+  metricScores?: Record<string, { score: number; max: number; scored?: boolean; complete?: boolean }>;
   othersBreakdown?: Array<{
     itemId: string;
     itemName: string;
@@ -127,11 +127,13 @@ export default function MdaSummaryPage() {
         (isBeepaMetric && beepaExempted);
       const scored = selected.metricScores?.[metric.key];
       const isScored = scored?.scored === true;
+      const isComplete = isScored && scored?.complete !== false;
       return {
         name: metric.label,
         score: exempted ? 0 : (scored?.score ?? 0),
         maxScore: scored?.max ?? metric.max,
         scored: exempted ? true : isScored,
+        complete: exempted ? true : isComplete,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         exempted,
       };
@@ -139,7 +141,7 @@ export default function MdaSummaryPage() {
 
   const fullyScored = metrics
     .filter((metric) => !metric.exempted)
-    .every((metric) => metric.scored === true);
+    .every((metric) => metric.scored === true && metric.complete !== false);
   const status = fullyScored
     ? getScoreStatus(selected.finalScore, selected.maxPossibleScore)
     : null;

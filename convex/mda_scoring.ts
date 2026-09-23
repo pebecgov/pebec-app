@@ -2368,10 +2368,35 @@ export const getAllMdaSavedDataForDashboard = query({
       const avgScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / dataList.length;
       const avgPercentage = dataList.reduce((sum, d) => sum + (d.percentage || 0), 0) / dataList.length;
 
+      // Complete only when every configured question for the chosen type has a rating
+      // on every saved period row (so MDAs don't treat a partial save as final).
+      const complete = dataList.every((d) => {
+        const typeId = d.mysteryType;
+        const typeQuestions = uniqueMysteryQuestions.filter((q) => q.typeId === typeId);
+        if (typeQuestions.length === 0) {
+          // No config to compare — treat as complete if a score was saved.
+          return true;
+        }
+        const ratings = (d.ratings || {}) as Record<string, unknown>;
+        return typeQuestions.every((q) =>
+          Object.prototype.hasOwnProperty.call(ratings, q.questionId)
+        );
+      });
+
+      const typeMax = (() => {
+        const typeId = dataList[0]?.mysteryType;
+        if (!typeId) return mysteryTotal;
+        const sum = uniqueMysteryQuestions
+          .filter((q) => q.typeId === typeId)
+          .reduce((s, q) => s + (q.weight || 0), 0);
+        return sum > 0 ? sum : mysteryTotal;
+      })();
+
       mdaDataMap[mdaName].mysteryShopping = {
         score: avgScore,
         percentage: avgPercentage,
-        maxPossibleScore: 20
+        maxPossibleScore: typeMax,
+        complete,
       };
     });
 
