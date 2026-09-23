@@ -185,11 +185,11 @@
     ]
   },
   {
-    "agency": "Central Bank of Nigeria – National Collateral Agency",
+    "agency": "Central Bank of Nigeria",
     "recommendations": [
-      "CBN–NCR should establish and enforce a formal SLA tracking and monthly reporting process, requiring all SLA data and performance reports to be completed and uploaded on the last Friday of every month, with clear internal ownership and management oversight to address the current absence of SLA data and reporting.",
-      "CBN–NCR should integrate SLA monitoring into its existing digital service platforms, to ensure service performance is automatically captured, validated, and reported without reliance on ad-hoc manual processes.",
-      "CBN–NCR should activate accountability mechanisms by fully onboarding and using the ReportGov platform, to complement its strong customer service performance with transparent complaint tracking and resolution reporting."
+      "CBN should establish and enforce a formal SLA tracking and monthly reporting process, requiring all SLA data and performance reports to be completed and uploaded on the last Friday of every month, with clear internal ownership and management oversight to address the current absence of SLA data and reporting.",
+      "CBN should integrate SLA monitoring into its existing digital service platforms, to ensure service performance is automatically captured, validated, and reported without reliance on ad-hoc manual processes.",
+      "CBN should activate accountability mechanisms by fully onboarding and using the ReportGov platform, to complement its strong customer service performance with transparent complaint tracking and resolution reporting."
     ]
   },
   {
@@ -397,7 +397,7 @@
     ]
   },
   {
-    "agency": "Nigerian Investment Promotion Council",
+    "agency": "Nigerian Investment Promotion Commission",
     "recommendations": [
       "NIPC should institutionalise a year-round SLA performance management and reporting framework, ensuring consistent SLA data capture and timely submission of monthly performance reports across all months, rather than isolated periods of compliance.",
       "NIPC should restore and actively manage its public communication channels, particularly phone lines, to ensure that enquiries from prospective investors are acknowledged and responded to within defined service timelines.",

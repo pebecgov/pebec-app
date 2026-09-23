@@ -317,19 +317,41 @@ export default defineSchema({
     phone: v.string(),
     step: v.union(
       v.literal("idle"),
+      v.literal("collect_language"),
+      v.literal("awaiting_complaint"),
+      v.literal("collect_zone"),
       v.literal("collect_name"),
       v.literal("collect_state"),
       v.literal("collect_mda"),
       v.literal("confirm_mda"),
       v.literal("collect_title"),
-      v.literal("collect_description")
+      v.literal("collect_description"),
+      v.literal("collect_incident_date"),
+      v.literal("follow_up_select"),
+      v.literal("follow_up_ticket"),
+      v.literal("follow_up_view"),
+      v.literal("follow_up_reply"),
+      v.literal("follow_up_attach"),
+      v.literal("collect_evidence")
+    ),
+    language: v.optional(
+      v.union(
+        v.literal("en"),
+        v.literal("ha"),
+        v.literal("ig"),
+        v.literal("yo")
+      )
     ),
     draft: v.object({
       fullName: v.optional(v.string()),
+      zone: v.optional(v.string()),
       state: v.optional(v.string()),
       assignedMDA: v.optional(v.string()),
       mdaMatches: v.optional(v.array(v.string())),
-      title: v.optional(v.string())
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      fileIds: v.optional(v.array(v.id("_storage"))),
+      incidentDate: v.optional(v.number()),
     }),
     activeTicketId: v.optional(v.id("tickets")),
     lastInboundAt: v.number(),
@@ -1211,7 +1233,7 @@ export default defineSchema({
     value: v.string(), // descriptive string selected from form
     score: v.float64(), // numeric score derived from value mapping
     linkToSource: v.optional(v.string()), // optional link to source/documentation
-    year: v.number(), // Assessment year (e.g., 2025, 2026)
+    year: v.optional(v.number()), // Assessment year (e.g., 2025, 2026); optional for older documents
     createdAt: v.number()
   }).index("byState", ["state"]).index("byIndicator", ["indicator"]).index("bySubIndicator", ["subIndicator"]).index("byYear", ["year"]).index("byStateAndIndicator", ["state", "indicator"]).index("byStateIndicatorSubIndicator", ["state", "indicator", "subIndicator"]).index("byYearStateIndicatorSubIndicator", ["year", "state", "indicator", "subIndicator"]).index("byYearAndState", ["year", "state"]).index("byYearAndIndicator", ["year", "indicator"]).index("byCreatedAt", ["createdAt"]),
   // SLA Data Storage
@@ -1577,4 +1599,49 @@ export default defineSchema({
     .index("by_category", ["category", "createdAt"])
     .index("by_action", ["action", "createdAt"])
     .index("by_actor", ["actorUserId", "createdAt"]),
+
+  company_asset_types: defineTable({
+    name: v.string(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_name", ["name"]),
+
+  company_assets: defineTable({
+    typeId: v.id("company_asset_types"),
+    serialNumber: v.string(),
+    serialNormalized: v.string(),
+    label: v.optional(v.string()),
+    status: v.union(v.literal("available"), v.literal("issued")),
+    currentHolderUserId: v.optional(v.id("users")),
+    currentHolderName: v.optional(v.string()),
+    currentIssueId: v.optional(v.id("company_asset_issues")),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_type", ["typeId"])
+    .index("by_status", ["status"])
+    .index("by_holder", ["currentHolderUserId"])
+    .index("by_serial", ["serialNormalized"]),
+
+  company_asset_issues: defineTable({
+    assetId: v.id("company_assets"),
+    userId: v.optional(v.id("users")),
+    staffName: v.string(),
+    dateIssued: v.string(),
+    issueRemark: v.optional(v.string()),
+    dateReturned: v.optional(v.string()),
+    returnRemark: v.optional(v.string()),
+    isReturned: v.boolean(),
+    undertakingStorageId: v.optional(v.id("_storage")),
+    undertakingFileName: v.optional(v.string()),
+    issuedBy: v.id("users"),
+    issuedByName: v.string(),
+    returnedBy: v.optional(v.id("users")),
+    returnedByName: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_asset", ["assetId"])
+    .index("by_user", ["userId"])
+    .index("by_user_and_returned", ["userId", "isReturned"]),
 });

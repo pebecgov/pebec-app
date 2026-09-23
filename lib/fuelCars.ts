@@ -3,7 +3,8 @@ export const FUEL_CAR_KEYS = [
   "hilux",
   "highlander",
   "bus",
-  "camry"
+  "camry",
+  "prado"
 ] as const;
 
 export type FuelCarKey = (typeof FUEL_CAR_KEYS)[number];
@@ -13,7 +14,8 @@ export const FUEL_CARS: { key: FuelCarKey; label: string }[] = [
   { key: "hilux", label: "Toyota Hilux" },
   { key: "highlander", label: "Toyota HighLander" },
   { key: "bus", label: "Toyota Bus" },
-  { key: "camry", label: "Toyota Camry" }
+  { key: "camry", label: "Toyota Camry" },
+  { key: "prado", label: "Toyota Prado" }
 ];
 
 export function fuelCarLabel(key?: FuelCarKey | null): string {

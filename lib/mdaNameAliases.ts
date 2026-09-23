@@ -19,6 +19,35 @@ export const MDA_RENAMES = [
       "jrb",
     ],
   },
+  {
+    // Display as CBN only — keep the same mdas._id; tickets already link by ID.
+    canonicalName: "CBN - Central Bank of Nigeria",
+    canonicalAbbr: "CBN",
+    aliases: [
+      "cbn",
+      "central bank of nigeria",
+      "cbn ncr",
+      "cbn - ncr",
+      "national collateral registry",
+      "national collateral agency",
+      "central bank of nigeria national collateral agency",
+      "central bank of nigeria - national collateral agency",
+      "cbn - ncr - central bank of nigeria - national collateral agency",
+      "cbn - ncr - central bank of nigeria – national collateral agency",
+    ],
+  },
+  {
+    // Council → Commission; keep the same mdas._id.
+    canonicalName: "NIPC - Nigerian Investment Promotion Commission",
+    canonicalAbbr: "NIPC",
+    aliases: [
+      "nipc",
+      "nigerian investment promotion council",
+      "nigerian investment promotion commission",
+      "nipc - nigerian investment promotion council",
+      "nipc - nigerian investment promotion commission",
+    ],
+  },
 ] as const;
 
 function normalizeAliasKey(value: string): string {

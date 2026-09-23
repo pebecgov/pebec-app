@@ -16,7 +16,8 @@ const carKeyValidator = v.union(
   v.literal("hilux"),
   v.literal("highlander"),
   v.literal("bus"),
-  v.literal("camry")
+  v.literal("camry"),
+  v.literal("prado")
 );
 
 function todayYyyyMmDd(): string {
