@@ -24,6 +24,7 @@ import DynamicPenaltiesCard from './DynamicPenaltiesCard';
 import DynamicBonusesCard from './DynamicBonusesCard';
 import BeepaCsvImportCard from './BeepaCsvImportCard';
 import BulkTransparencyCard from './BulkTransparencyCard';
+import MdaScoringMatrix from './MdaScoringMatrix';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -77,6 +78,7 @@ export default function ScoringTab({
 
     // --- State ---
     const [selectedMda, setSelectedMda] = useState('');
+    const [scoringMode, setScoringMode] = useState<"matrix" | "single">("matrix");
 
     // Scoring Data States
     const [notes, setNotes] = useState('');
@@ -1144,6 +1146,44 @@ export default function ScoringTab({
     return (
         <div className="w-full flex flex-col items-center justify-center">
             <div className="w-full flex flex-col gap-5">
+                <div>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Score MDAs</h2>
+                    <p className="text-sm text-gray-600 mb-4">
+                        Use the matrix for fast bulk scoring (Others &amp; Mystery Shopping). Fall back to one-MDA forms when you need SLA, reports, or a full walkthrough.
+                    </p>
+                    <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 mb-2">
+                        {(
+                            [
+                                { id: "matrix" as const, label: "Matrix (fast)" },
+                                { id: "single" as const, label: "One MDA" },
+                            ] as const
+                        ).map((mode) => (
+                            <button
+                                key={mode.id}
+                                type="button"
+                                onClick={() => setScoringMode(mode.id)}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                    scoringMode === mode.id
+                                        ? "bg-white text-gray-900 shadow-sm"
+                                        : "text-gray-600 hover:text-gray-900"
+                                }`}
+                            >
+                                {mode.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {scoringMode === "matrix" ? (
+                    useDynamicConfig ? (
+                        <MdaScoringMatrix scoringPeriod={scoringPeriod} year={scoringYear} />
+                    ) : (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm">
+                            Matrix scoring is available for 2026+ dynamic configuration. Switch the scoring year to 2026, or use One MDA for 2025.
+                        </div>
+                    )
+                ) : (
+                <>
                 {/* Header Section */}
                 <div className="flex flex-col gap-4">
                     <MDASelector
@@ -1418,6 +1458,8 @@ export default function ScoringTab({
                     selectedMda={selectedMda}
                     hasScore={mdaScoringStatus?.hasScore}
                 />
+                </>
+                )}
             </div>
 
             {/* Modals */}

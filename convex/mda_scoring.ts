@@ -3491,6 +3491,284 @@ export const getOthersData = query({
   }
 });
 
+/** All MDA others rows for one scoring period (matrix hydrate). */
+export const getAllOthersDataForPeriod = query({
+  args: {
+    scoringPeriod: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      mdaName: v.string(),
+      values: v.any(),
+      scores: v.any(),
+      totalScore: v.number(),
+    })
+  ),
+  handler: async (ctx, { scoringPeriod }) => {
+    const rows = await ctx.db
+      .query("saved_others_data")
+      .withIndex("byPeriod", (q) => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+    return rows.map((row) => ({
+      mdaName: row.mdaName,
+      values: row.values ?? {},
+      scores: row.scores ?? {},
+      totalScore: row.totalScore ?? 0,
+    }));
+  },
+});
+
+/**
+ * Batch upsert others metric cells for the MDA matrix UI.
+ * Each cell is one item value for one MDA; scores/totals are recomputed per MDA.
+ */
+export const bulkSaveOthersMatrixCells = mutation({
+  args: {
+    scoringPeriod: v.string(),
+    year: v.number(),
+    cells: v.array(
+      v.object({
+        mdaName: v.string(),
+        itemId: v.string(),
+        /** "yes" | "no" for yes_no, or numeric string for scale_1_10 */
+        value: v.string(),
+      })
+    ),
+  },
+  returns: v.object({
+    saved: v.number(),
+    mdasTouched: v.number(),
+  }),
+  handler: async (ctx, { scoringPeriod, year, cells }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized");
+    }
+
+    const items = await ctx.db
+      .query("transparency_items")
+      .withIndex("byYearAndActive", (q) => q.eq("year", year).eq("isActive", true))
+      .collect();
+    const itemById = new Map(items.map((item) => [item.itemId, item]));
+
+    const byMda = new Map<string, Array<{ itemId: string; value: string }>>();
+    for (const cell of cells) {
+      if (!cell.value) continue;
+      const list = byMda.get(cell.mdaName) ?? [];
+      list.push({ itemId: cell.itemId, value: cell.value });
+      byMda.set(cell.mdaName, list);
+    }
+
+    let saved = 0;
+    for (const [mdaName, mdaCells] of byMda) {
+      const existing = await ctx.db
+        .query("saved_others_data")
+        .withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
+        .first();
+
+      const values: Record<string, boolean | number> = {
+        ...((existing?.values as Record<string, boolean | number> | undefined) ?? {}),
+      };
+
+      for (const cell of mdaCells) {
+        const item = itemById.get(cell.itemId);
+        if (!item) continue;
+        const answerType = item.answerType ?? "yes_no";
+        if (answerType === "yes_no") {
+          values[cell.itemId] = cell.value === "yes" || cell.value === "true" || cell.value === "1";
+        } else {
+          const num = Number(cell.value);
+          values[cell.itemId] = Number.isFinite(num) ? Math.min(10, Math.max(0, num)) : 0;
+        }
+        saved += 1;
+      }
+
+      const scores: Record<string, number> = {};
+      let totalScore = 0;
+      for (const item of items) {
+        const value = values[item.itemId];
+        let itemScore = 0;
+        if ((item.answerType ?? "yes_no") === "yes_no") {
+          itemScore = value === true ? item.weight : 0;
+        } else {
+          const numValue = typeof value === "number" ? value : 0;
+          itemScore = (numValue / 10) * item.weight;
+        }
+        scores[item.itemId] = itemScore;
+        totalScore += itemScore;
+      }
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          values,
+          scores,
+          totalScore,
+          updatedAt: Date.now(),
+        });
+      } else {
+        await ctx.db.insert("saved_others_data", {
+          mdaName,
+          scoringPeriod,
+          values,
+          scores,
+          totalScore,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    return { saved, mdasTouched: byMda.size };
+  },
+});
+
+/** All mystery shopping rows for one scoring period (matrix hydrate). */
+export const getAllMysteryDataForPeriod = query({
+  args: {
+    scoringPeriod: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      mdaName: v.string(),
+      mysteryType: v.string(),
+      ratings: v.any(),
+      totalScore: v.number(),
+      maxPossibleScore: v.number(),
+      percentage: v.number(),
+    })
+  ),
+  handler: async (ctx, { scoringPeriod }) => {
+    const rows = await ctx.db
+      .query("mda_mystery_shopping_data")
+      .withIndex("byPeriod", (q) => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+    return rows.map((row) => ({
+      mdaName: row.mdaName,
+      mysteryType: row.mysteryType,
+      ratings: row.ratings ?? {},
+      totalScore: row.totalScore ?? 0,
+      maxPossibleScore: row.maxPossibleScore ?? 0,
+      percentage: row.percentage ?? 0,
+    }));
+  },
+});
+
+/**
+ * Batch upsert mystery shopping question ratings for the MDA matrix UI.
+ * Saves one mystery type at a time; merges dirty ratings into each MDA row.
+ */
+export const bulkSaveMysteryMatrixCells = mutation({
+  args: {
+    scoringPeriod: v.string(),
+    year: v.number(),
+    mysteryType: v.string(),
+    cells: v.array(
+      v.object({
+        mdaName: v.string(),
+        questionId: v.string(),
+        /** Numeric rating as string */
+        value: v.string(),
+      })
+    ),
+  },
+  returns: v.object({
+    saved: v.number(),
+    mdasTouched: v.number(),
+  }),
+  handler: async (ctx, { scoringPeriod, year, mysteryType, cells }) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized");
+    }
+
+    const questions = await ctx.db
+      .query("mystery_shopping_questions")
+      .withIndex("byYearTypeAndActive", (q) =>
+        q.eq("year", year).eq("typeId", mysteryType).eq("isActive", true)
+      )
+      .collect();
+    if (questions.length === 0) {
+      throw new Error("No active mystery shopping questions for this type");
+    }
+
+    const byMda = new Map<string, Array<{ questionId: string; value: string }>>();
+    for (const cell of cells) {
+      if (!cell.value) continue;
+      const list = byMda.get(cell.mdaName) ?? [];
+      list.push({ questionId: cell.questionId, value: cell.value });
+      byMda.set(cell.mdaName, list);
+    }
+
+    const maxPossibleScore = questions.reduce((sum, q) => sum + (q.weight || 0), 0);
+
+    let saved = 0;
+    for (const [mdaName, mdaCells] of byMda) {
+      const existing = await ctx.db
+        .query("mda_mystery_shopping_data")
+        .withIndex("byMdaAndPeriod", (q) =>
+          q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)
+        )
+        .first();
+
+      const ratings: Record<string, number> = {
+        ...((existing?.ratings as Record<string, number> | undefined) ?? {}),
+      };
+
+      for (const cell of mdaCells) {
+        const num = Number(cell.value);
+        if (!Number.isFinite(num)) continue;
+        ratings[cell.questionId] = num;
+        saved += 1;
+      }
+
+      let weighted = 0;
+      let weightSum = 0;
+      for (const question of questions) {
+        const rating = ratings[question.questionId] ?? 0;
+        const weight = question.weight || 1;
+        weightSum += weight;
+        if (question.answerType === "scale_1_10") {
+          weighted += (rating / 10) * weight;
+        } else if (question.answerType === "yes_no") {
+          weighted += rating * weight;
+        } else {
+          weighted += (rating / 10) * weight;
+        }
+      }
+      const totalScore =
+        weightSum > 0 ? (weighted / weightSum) * maxPossibleScore : 0;
+      const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          mysteryType,
+          ratings,
+          totalScore,
+          maxPossibleScore,
+          percentage,
+          updatedAt: Date.now(),
+          updatedBy: user._id,
+        });
+      } else {
+        await ctx.db.insert("mda_mystery_shopping_data", {
+          mdaName,
+          scoringPeriod,
+          mysteryType,
+          ratings,
+          totalScore,
+          maxPossibleScore,
+          percentage,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          createdBy: user._id,
+          updatedBy: user._id,
+        });
+      }
+    }
+
+    return { saved, mdasTouched: byMda.size };
+  },
+});
+
 // Save Penalties Data
 export const savePenaltiesData = mutation({
   args: {

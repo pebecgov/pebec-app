@@ -68,6 +68,12 @@ export const RATING_OPTIONS = [
     { value: 5, label: 'EXCELLENT' }
 ];
 
+/** 0–10 range used when mystery / others config answerType is scale_1_10 */
+export const SCALE_1_10_OPTIONS = Array.from({ length: 11 }, (_, value) => ({
+    value,
+    label: String(value),
+}));
+
 export const YES_NO_OPTIONS = [
     { value: 0, label: 'No' },
     { value: 1, label: 'Yes' }

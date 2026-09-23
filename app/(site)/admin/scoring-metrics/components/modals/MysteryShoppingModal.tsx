@@ -1,5 +1,5 @@
 import React from 'react';
-import { RATING_OPTIONS, YES_NO_OPTIONS, HAS_REPORTGOV_QUESTIONS, NO_REPORTGOV_QUESTIONS } from '../../utils/constants';
+import { RATING_OPTIONS, YES_NO_OPTIONS, SCALE_1_10_OPTIONS, HAS_REPORTGOV_QUESTIONS, NO_REPORTGOV_QUESTIONS } from '../../utils/constants';
 
 interface MysteryShoppingModalProps {
     showModal: boolean;
@@ -14,6 +14,19 @@ interface MysteryShoppingModalProps {
     useDynamicConfig?: boolean;
     mysteryConfig?: any;
     maxPoints?: number;
+}
+
+function resolveQuestionAnswerType(question: {
+    answerType?: string;
+    questionType?: string;
+    type?: string;
+}): string {
+    // Config saves `answerType` (yes_no | scale_1_10). Legacy constants use `type` (yesno | rating).
+    return question.answerType || question.questionType || question.type || "yes_no";
+}
+
+function isScaleAnswerType(answerType: string): boolean {
+    return answerType === "scale_1_10" || answerType === "rating";
 }
 
 /**
@@ -40,14 +53,11 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
     let availableTypes: Array<{ value: string; label: string }> = [];
 
     if (useDynamicConfig && mysteryConfig && Array.isArray(mysteryConfig) && mysteryConfig.length > 0) {
-        // For 2026+: mysteryConfig is an array of types, each with questions
-        // Extract types from the array
         availableTypes = mysteryConfig.map((typeObj: any) => ({
             value: typeObj.typeId || typeObj.typeName,
             label: typeObj.typeName
         }));
 
-        // Find the selected type and get its questions
         const selectedTypeObj = mysteryConfig.find((t: any) =>
             (t.typeId || t.typeName) === mysteryType
         );
@@ -55,11 +65,9 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
         if (selectedTypeObj && selectedTypeObj.questions) {
             questions = selectedTypeObj.questions;
         } else {
-            // Default to first type's questions if selection doesn't match
             questions = mysteryConfig[0]?.questions || [];
         }
     } else {
-        // For 2025: Use hardcoded questions
         questions = mysteryType === 'hasReportGov' ? HAS_REPORTGOV_QUESTIONS : NO_REPORTGOV_QUESTIONS;
     }
 
@@ -76,7 +84,6 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
                 <div className="p-6">
                     <h2 className="text-2xl font-bold mb-6 text-center">Mystery Shopping Assessment</h2>
 
-                    {/* Type Selection - show for both 2025 and 2026+ if multiple types exist */}
                     {(!useDynamicConfig || (useDynamicConfig && availableTypes.length > 1)) && (
                         <div className="mb-6">
                             <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -84,7 +91,6 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
                             </label>
                             <div className="flex gap-4">
                                 {useDynamicConfig ? (
-                                    // For 2026+: Show types from config
                                     availableTypes.map((type) => (
                                         <label key={type.value} className="flex items-center">
                                             <input
@@ -99,7 +105,6 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
                                         </label>
                                     ))
                                 ) : (
-                                    // For 2025: Show hardcoded types
                                     <>
                                         <label className="flex items-center">
                                             <input
@@ -129,32 +134,39 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
                         </div>
                     )}
 
-                    {/* Questions */}
                     <div className="space-y-6">
                         {questions.map((question: any, index: number) => {
-                            // Support both legacy and dynamic question structure
                             const questionKey = question.key || question.questionId;
                             const questionLabel = question.label || question.questionText || question.questionName;
-                            const questionType = question.questionType || question.type;
+                            const answerType = resolveQuestionAnswerType(question);
+                            const isScale = isScaleAnswerType(answerType);
+                            const options =
+                                answerType === "scale_1_10"
+                                    ? SCALE_1_10_OPTIONS
+                                    : answerType === "rating"
+                                      ? RATING_OPTIONS
+                                      : YES_NO_OPTIONS;
 
                             return (
                                 <div key={questionKey} className="border border-gray-200 rounded-lg p-4">
                                     <h3 className="font-medium text-gray-900 mb-3">
                                         {index + 1}. {questionLabel}
                                     </h3>
-                                    <div className={`grid gap-2 ${questionType === 'rating' || questionType === 'scale_1_10' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2'}`}>
-                                        {(questionType === 'rating' || questionType === 'scale_1_10' ? RATING_OPTIONS : YES_NO_OPTIONS).map((option) => (
+                                    <div className={`grid gap-2 ${isScale ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-2'}`}>
+                                        {options.map((option) => (
                                             <label key={option.value} className="flex items-center p-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer">
                                                 <input
                                                     type="radio"
                                                     name={questionKey}
                                                     value={option.value}
                                                     checked={mysteryRatings[questionKey] === option.value}
-                                                    onChange={(e) => onRatingChange(questionKey, parseInt(e.target.value))}
+                                                    onChange={(e) => onRatingChange(questionKey, parseInt(e.target.value, 10))}
                                                     className="mr-2"
                                                 />
                                                 <span className="text-sm">
-                                                    {(questionType === 'rating' || questionType === 'scale_1_10') ? `${option.value} - ${option.label}` : option.label}
+                                                    {answerType === "rating"
+                                                        ? `${option.value} - ${option.label}`
+                                                        : option.label}
                                                 </span>
                                             </label>
                                         ))}
@@ -164,7 +176,6 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
                         })}
                     </div>
 
-                    {/* Score Display */}
                     <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                         <div className="text-center">
                             <h3 className="text-lg font-semibold text-blue-900 mb-2">Current Score</h3>
@@ -177,7 +188,6 @@ export const MysteryShoppingModal: React.FC<MysteryShoppingModalProps> = ({
                         </div>
                     </div>
 
-                    {/* Action Buttons */}
                     <div className="flex justify-center gap-4 mt-6">
                         <button
                             onClick={onClose}
