@@ -169,7 +169,7 @@ export default function MdaSummaryPage() {
           </div>
         </div>
       )}
-      <MetricBreakdown title="BFA Metrics" metrics={metrics} />
+      <MetricBreakdown title="BFA Metrics" metrics={metrics} hideStatus={!fullyScored} />
       {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}
