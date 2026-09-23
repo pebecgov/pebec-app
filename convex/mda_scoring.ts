@@ -2371,11 +2371,17 @@ export const getAllMdaSavedDataForDashboard = query({
       // Complete only when every configured question for the chosen type has a rating
       // on every saved period row (so MDAs don't treat a partial save as final).
       const complete = dataList.every((d) => {
-        const typeId = d.mysteryType;
-        const typeQuestions = uniqueMysteryQuestions.filter((q) => q.typeId === typeId);
+        const typeId = String(d.mysteryType || "");
+        let typeQuestions = uniqueMysteryQuestions.filter((q) => q.typeId === typeId);
+        // Fallback: some older rows store typeName instead of typeId
         if (typeQuestions.length === 0) {
-          // No config to compare — treat as complete if a score was saved.
-          return true;
+          typeQuestions = uniqueMysteryQuestions.filter(
+            (q) => String(q.typeId).toLowerCase() === typeId.toLowerCase()
+          );
+        }
+        if (typeQuestions.length === 0) {
+          // Can't verify against config — treat as NOT fully scored.
+          return false;
         }
         const ratings = (d.ratings || {}) as Record<string, unknown>;
         return typeQuestions.every((q) =>

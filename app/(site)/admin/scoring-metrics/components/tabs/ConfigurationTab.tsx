@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
@@ -14,6 +14,9 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
 import { mdasList } from "@/components/mdaList";
+import MetricJustificationsEditor, {
+    type JustificationMetricOption,
+} from "@/components/Admin/MetricJustificationsEditor";
 
 interface ConfigurationTabProps {
     currentYear: number;
@@ -85,11 +88,12 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
             {/* Configuration Tabs - Only show for 2026+ */}
             {selectedYear >= 2026 && (
                 <Tabs defaultValue="efficiency" className="w-full">
-                    <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                    <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                         <TabsTrigger value="efficiency">Efficiency Bundle</TabsTrigger>
                         <TabsTrigger value="others">Others</TabsTrigger>
                         <TabsTrigger value="penalties">Penalties</TabsTrigger>
                         <TabsTrigger value="bonuses">Bonuses</TabsTrigger>
+                        <TabsTrigger value="justifications">Justifications</TabsTrigger>
                         <TabsTrigger value="exclusions">Exclude MDA</TabsTrigger>
                     </TabsList>
 
@@ -130,6 +134,13 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
                         />
                     </TabsContent>
 
+                    <TabsContent value="justifications">
+                        <BfaJustificationsConfiguration
+                            year={selectedYear}
+                            config={configurations}
+                        />
+                    </TabsContent>
+
                     <TabsContent value="exclusions">
                         <MetricExclusionConfiguration
                             year={selectedYear}
@@ -140,6 +151,82 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
                 </Tabs>
             )}
         </div>
+    );
+}
+
+function BfaJustificationsConfiguration({
+    year,
+    config,
+}: {
+    year: number;
+    config: {
+        efficiencyPeriod?: {
+            slaPoints?: number;
+            reportGovPoints?: number;
+            reportSubmissionPoints?: number;
+            timelinessPoints?: number;
+        } | null;
+        mysteryShoppingTypes?: unknown[];
+        othersItems?: Array<{ itemId: string; itemName: string }>;
+        penaltyItems?: Array<{ penaltyId: string; penaltyName: string }>;
+        bonusItems?: Array<{ bonusId: string; bonusName: string }>;
+    } | null | undefined;
+}) {
+    const metrics = useMemo((): JustificationMetricOption[] => {
+        const list: JustificationMetricOption[] = [
+            { key: "sla", label: "SLA Compliance / Monthly Report Assessment", group: "Efficiency" },
+            { key: "mystery", label: "Mystery Shopping", group: "Efficiency" },
+            { key: "reportGov", label: "ReportGov", group: "Efficiency" },
+            { key: "reportSubmission", label: "Submission of Monthly Report", group: "Efficiency" },
+            { key: "timeliness", label: "Timely Submission of Monthly Report", group: "Efficiency" },
+        ];
+
+        for (const item of config?.othersItems || []) {
+            list.push({
+                key: `others:${item.itemId}`,
+                label: item.itemName,
+                group: "Others",
+            });
+        }
+
+        for (const item of config?.bonusItems || []) {
+            list.push({
+                key: `bonus:${item.bonusId}`,
+                label: item.bonusName,
+                group: "Bonuses",
+            });
+        }
+
+        for (const item of config?.penaltyItems || []) {
+            list.push({
+                key: `penalty:${item.penaltyId}`,
+                label: item.penaltyName,
+                group: "Penalties",
+            });
+        }
+
+        return list;
+    }, [config]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>BFA justifications</CardTitle>
+                <CardDescription>
+                    These explanations appear on each MDA&apos;s public tracker page under the matching metric,
+                    bonus, or penalty.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <MetricJustificationsEditor
+                    framework="bfa"
+                    year={year}
+                    metrics={metrics}
+                    title="Why each BFA metric is scored"
+                    description="Write the justification agencies should see. Leave blank and save to remove."
+                />
+            </CardContent>
+        </Card>
     );
 }
 
