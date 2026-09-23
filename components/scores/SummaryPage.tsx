@@ -17,6 +17,11 @@ export interface MetricItem {
   maxScore: number;
   /** False when this metric has not been saved yet (do not treat as a real zero). */
   scored?: boolean;
+  /**
+   * False when scoring has started but configured questions/items are not all done.
+   * Undefined means complete whenever scored is true (backwards compatible).
+   */
+  complete?: boolean;
   details?: { label: string; score: number; maxScore?: number; scored?: boolean }[];
   /** Optional category label shown next to the metric name (e.g. "Efficiency"). */
   badge?: string;
@@ -148,15 +153,24 @@ export function MetricBreakdown({
             const hasScoredDetails = details.some((detail) => detail.scored === true);
             const allDetailsScored =
               hasDetails && details.every((detail) => detail.scored === true);
-            // Incomplete metrics stay "Not scored yet" — never a band label like Requires Intervention.
-            const showAsNotScored =
-              !isExempted && (metric.scored !== true || (hasDetails && !allDetailsScored));
+            const hasAnyProgress =
+              hasScoredDetails || metric.score > 0 || metric.scored === true;
+            // Incomplete vs configured questions/details — never show a final band label.
+            const detailsIncomplete = hasDetails && !allDetailsScored;
+            const markedIncomplete = metric.complete === false;
+            const showAsInProgress =
+              !isExempted &&
+              hasAnyProgress &&
+              (markedIncomplete || detailsIncomplete || metric.scored !== true);
+            const showAsNotStarted =
+              !isExempted && !hasAnyProgress && metric.scored !== true;
+            const showAsNotScored = showAsInProgress || showAsNotStarted;
             const status =
               showAsNotScored || isExempted
                 ? null
                 : getScoreStatus(metric.score, metric.maxScore);
             const progressColor = hideStatus || !status ? "green" : status.color;
-            const showPartialProgress = showAsNotScored && (hasScoredDetails || metric.score > 0);
+            const showPartialProgress = showAsInProgress;
 
             return (
               <div
@@ -202,7 +216,11 @@ export function MetricBreakdown({
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not in BFA total
                       </span>
-                    ) : showAsNotScored ? (
+                    ) : showAsInProgress ? (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                        Not scored fully
+                      </span>
+                    ) : showAsNotStarted ? (
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 border border-gray-200">
                         Not scored yet
                       </span>
@@ -214,7 +232,7 @@ export function MetricBreakdown({
                     <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       Programme exemption — this metric is excluded from the overall BFA score and maximum.
                     </p>
-                  ) : showAsNotScored && !showPartialProgress ? (
+                  ) : showAsNotStarted ? (
                     <p className={`text-sm text-gray-500 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       Not scored yet — this is not a zero score.
                     </p>
@@ -234,6 +252,11 @@ export function MetricBreakdown({
                       <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
                     </div>
                   )}
+                  {showAsInProgress && showPartialProgress ? (
+                    <p className={`text-xs text-amber-800 mt-2 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                      Not scored fully — this is not the final score for this metric.
+                    </p>
+                  ) : null}
                 </div>
 
                 {isExpanded && hasDetails && (

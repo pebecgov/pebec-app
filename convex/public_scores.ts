@@ -260,16 +260,20 @@ function metricScoreFromDashboard(
   mda: Record<string, unknown>,
   key: string,
   frameworkMax: number
-): { score: number; max: number; scored: boolean } {
+): { score: number; max: number; scored: boolean; complete?: boolean } {
   const nested = (field: string, fallbackMax: number) => {
-    const bucket = mda[field] as { score?: number; maxPossibleScore?: number } | null | undefined;
+    const bucket = mda[field] as
+      | { score?: number; maxPossibleScore?: number; complete?: boolean }
+      | null
+      | undefined;
     if (!bucket) {
-      return { score: 0, max: fallbackMax, scored: false };
+      return { score: 0, max: fallbackMax, scored: false, complete: false };
     }
     return {
       score: roundScore(bucket.score || 0),
       max: bucket.maxPossibleScore || fallbackMax,
       scored: true,
+      complete: bucket.complete !== false,
     };
   };
 
@@ -287,7 +291,7 @@ function metricScoreFromDashboard(
     case "others": {
       const others = mda.others as { score?: number } | null | undefined;
       if (others && typeof others.score === "number") {
-        return { score: roundScore(others.score), max: frameworkMax, scored: true };
+        return { score: roundScore(others.score), max: frameworkMax, scored: true, complete: true };
       }
       const transparency = nested("transparency", 0);
       const stakeholder = nested("stakeholder", 0);
@@ -297,6 +301,7 @@ function metricScoreFromDashboard(
         score: roundScore(transparency.score + stakeholder.score + innovation.score),
         max: frameworkMax,
         scored,
+        complete: scored,
       };
     }
     case "transparency":
@@ -313,22 +318,23 @@ function metricScoreFromDashboard(
           values?: Record<string, boolean | number>;
         } | null | undefined;
         if (!others) {
-          return { score: 0, max: frameworkMax, scored: false };
+          return { score: 0, max: frameworkMax, scored: false, complete: false };
         }
         const hasScoreEntry =
           others.scores != null && Object.prototype.hasOwnProperty.call(others.scores, itemId);
         const hasValueEntry =
           others.values != null && Object.prototype.hasOwnProperty.call(others.values, itemId);
         if (!hasScoreEntry && !hasValueEntry) {
-          return { score: 0, max: frameworkMax, scored: false };
+          return { score: 0, max: frameworkMax, scored: false, complete: false };
         }
         return {
           score: roundScore(Number(others.scores?.[itemId]) || 0),
           max: frameworkMax,
           scored: true,
+          complete: true,
         };
       }
-      return { score: 0, max: frameworkMax, scored: false };
+      return { score: 0, max: frameworkMax, scored: false, complete: false };
     }
   }
 }
@@ -379,7 +385,7 @@ type PublicMdaRow = {
   finalScore: number;
   maxPossibleScore: number;
   percentage: number;
-  metricScores: Record<string, { score: number; max: number; scored: boolean }>;
+  metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }>;
   othersBreakdown: OthersBreakdownItem[];
   excludedMetrics: string[];
   applicableMetricCount: number;
@@ -424,7 +430,12 @@ const publicMdaScoresReturns = v.object({
       percentage: v.number(),
       metricScores: v.record(
         v.string(),
-        v.object({ score: v.number(), max: v.number(), scored: v.boolean() })
+        v.object({
+          score: v.number(),
+          max: v.number(),
+          scored: v.boolean(),
+          complete: v.optional(v.boolean()),
+        })
       ),
       othersBreakdown: othersBreakdownValidator,
       excludedMetrics: v.array(v.string()),
@@ -506,7 +517,7 @@ function buildPublicMdaRowFromDashboard(
       ...extraExcluded,
     ])
   );
-  const metricScores: Record<string, { score: number; max: number; scored: boolean }> = {};
+  const metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }> = {};
   for (const metric of frameworkMetrics) {
     metricScores[metric.key] = metricScoreFromDashboard(mda, metric.key, metric.max);
   }
@@ -549,9 +560,9 @@ function buildEmptyPublicMdaRow(
   const maxPossibleScore = frameworkMetrics
     .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
     .reduce((sum, metric) => sum + metric.max, 0);
-  const metricScores: Record<string, { score: number; max: number; scored: boolean }> = {};
+  const metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }> = {};
   for (const metric of frameworkMetrics) {
-    metricScores[metric.key] = { score: 0, max: metric.max, scored: false };
+    metricScores[metric.key] = { score: 0, max: metric.max, scored: false, complete: false };
   }
 
   return {
