@@ -42,6 +42,7 @@ export interface BfaFrameworkMetric {
   key: string;
   label: string;
   max: number;
+  justification?: string;
 }
 
 /** Status bands aligned with the BEEPA tracker. */

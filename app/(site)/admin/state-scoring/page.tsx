@@ -11,6 +11,9 @@ import StateScoringForm from "@/components/Admin/StateScoringForm";
 import StateScoringMatrix from "@/components/Admin/StateScoringMatrix";
 import BulkImportStateScores from "@/components/Admin/BulkImportStateScores";
 import StateAuditDownload from "@/components/Admin/StateAuditDownload";
+import MetricJustificationsEditor, {
+  type JustificationMetricOption,
+} from "@/components/Admin/MetricJustificationsEditor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -949,7 +952,27 @@ export default function StateScoringPage() {
   };
   
   const [activeTab, setActiveTab] = useState(getInitialTab());
-  const [scoringMode, setScoringMode] = useState<"matrix" | "single" | "excel">("matrix");
+  const [scoringMode, setScoringMode] = useState<"matrix" | "single" | "excel" | "justifications">("matrix");
+
+  const stateJustificationMetrics = useMemo((): JustificationMetricOption[] => {
+    const indicators = getIndicatorsForYear(CURRENT_INDICATOR_YEAR);
+    const list: JustificationMetricOption[] = [];
+    for (const [indicatorKey, config] of Object.entries(indicators)) {
+      list.push({
+        key: indicatorKey,
+        label: config.name,
+        group: config.name,
+      });
+      for (const [subKey, subConfig] of Object.entries(config.subIndicators)) {
+        list.push({
+          key: `${indicatorKey}:${subKey}`,
+          label: subConfig.label,
+          group: config.name,
+        });
+      }
+    }
+    return list;
+  }, []);
   const [selectedStateFilter, setSelectedStateFilter] = useState("");
   const [selectedIndicatorFilter, setSelectedIndicatorFilter] = useState("");
   const stateIndicatorScores = useQuery(
@@ -1166,12 +1189,13 @@ export default function StateScoringPage() {
                 Use the matrix for day-to-day scoring. Fall back to one-state forms or Excel when you need them.
               </p>
 
-              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 mb-6">
+              <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 mb-6 flex-wrap">
                 {(
                   [
                     { id: "matrix" as const, label: "Matrix (fast)" },
                     { id: "single" as const, label: "One state" },
                     { id: "excel" as const, label: "Excel import" },
+                    { id: "justifications" as const, label: "Justifications" },
                   ] as const
                 ).map((mode) => (
                   <button
@@ -1192,6 +1216,17 @@ export default function StateScoringPage() {
               {scoringMode === "matrix" && <StateScoringMatrix />}
               {scoringMode === "single" && <StateScoringForm />}
               {scoringMode === "excel" && <BulkImportStateScores />}
+              {scoringMode === "justifications" && (
+                <div className="rounded-xl border border-gray-200 bg-white p-6">
+                  <MetricJustificationsEditor
+                    framework="state"
+                    year={CURRENT_INDICATOR_YEAR}
+                    metrics={stateJustificationMetrics}
+                    title="State indicator justifications"
+                    description="These explanations appear on the public state tracker under each indicator and sub-indicator."
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

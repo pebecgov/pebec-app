@@ -1644,4 +1644,17 @@ export default defineSchema({
     .index("by_asset", ["assetId"])
     .index("by_user", ["userId"])
     .index("by_user_and_returned", ["userId", "isReturned"]),
+
+  // Admin-editable justifications shown on the public MDA/state trackers
+  metric_justifications: defineTable({
+    framework: v.union(v.literal("bfa"), v.literal("state")),
+    year: v.number(),
+    metricKey: v.string(), // e.g. "sla", "others:id", "bonus:id", "electricity:state_electricity_law"
+    metricLabel: v.string(),
+    justification: v.string(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  })
+    .index("byFrameworkYear", ["framework", "year"])
+    .index("byFrameworkYearMetric", ["framework", "year", "metricKey"]),
 });
