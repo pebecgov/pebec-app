@@ -275,15 +275,19 @@ export const calculateMysteryScore = (
 
     questions.forEach((question: any) => {
         const rating = mysteryRatings[question.key || question.questionId] || 0;
+        const answerType = question.answerType || question.questionType || question.type;
+        const weight = question.weight || 1;
 
-        if (question.type === 'rating' || question.questionType === 'scale_1_10') {
-            // Rating/Scale questions: scale 0-10 to 0-weight points each
-            const weight = question.weight || 1;
+        if (answerType === "scale_1_10") {
+            // Configured range: 0–10 maps onto question weight
             totalScore += (rating / 10) * weight;
+            maxPossibleScore += weight;
+        } else if (answerType === "rating") {
+            // Legacy 0–5 quality ratings
+            totalScore += (rating / 5) * weight;
             maxPossibleScore += weight;
         } else {
             // Yes/No questions: weight points for Yes (1), 0 for No (0)
-            const weight = question.weight || 1;
             totalScore += rating * weight;
             maxPossibleScore += weight;
         }

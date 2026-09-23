@@ -865,7 +865,7 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                                                             </SelectTrigger>
                                                             <SelectContent>
                                                                 <SelectItem value="yes_no">Yes / No</SelectItem>
-                                                                <SelectItem value="scale_1_10">Scale 1-10</SelectItem>
+                                                                <SelectItem value="scale_1_10">Range (0–10)</SelectItem>
                                                             </SelectContent>
                                                         </Select>
 
@@ -1395,7 +1395,7 @@ function OthersConfiguration({ year, othersItems }: any) {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="yes_no">Yes / No</SelectItem>
-                                            <SelectItem value="scale_1_10">Scale 1-10</SelectItem>
+                                            <SelectItem value="scale_1_10">Range (0–10)</SelectItem>
                                         </SelectContent>
                                     </Select>
 
