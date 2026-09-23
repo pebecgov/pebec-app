@@ -111,6 +111,7 @@ export default function StateSummaryPage() {
         title="Business Climate Indicators"
         hint="Click an indicator to view its sub-indicators"
         metrics={metrics}
+        hideStatus={!fullyScored}
       />
     </div>
   );
