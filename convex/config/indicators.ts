@@ -452,11 +452,9 @@ const indicators2026 = {
       industrial_zones: {
         label: "Industrial Zones (8%)",
         options: [
-          { value: "excellent", label: "Excellent (8)", score: 8 },
-          { value: "very_good", label: "Very Good (6)", score: 6 },
-          { value: "good", label: "Good (4)", score: 4 },
-          { value: "fair", label: "Fair (2)", score: 2 },
-          { value: "poor", label: "Poor (0)", score: 0 },
+          { value: "eight", label: "8 pts", score: 8 },
+          { value: "four", label: "4 pts", score: 4 },
+          { value: "one", label: "1 pt", score: 1 },
         ],
       },
     },
