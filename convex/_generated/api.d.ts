@@ -53,6 +53,7 @@ import type * as mda_scoring from "../mda_scoring.js";
 import type * as media from "../media.js";
 import type * as meetings from "../meetings.js";
 import type * as messages from "../messages.js";
+import type * as metric_justifications from "../metric_justifications.js";
 import type * as migrations_backfillUserSearchText from "../migrations/backfillUserSearchText.js";
 import type * as migrations_cleanupGettingCredit from "../migrations/cleanupGettingCredit.js";
 import type * as migrations_cleanupInfrastructure from "../migrations/cleanupInfrastructure.js";
@@ -163,6 +164,7 @@ declare const fullApi: ApiFromModules<{
   media: typeof media;
   meetings: typeof meetings;
   messages: typeof messages;
+  metric_justifications: typeof metric_justifications;
   "migrations/backfillUserSearchText": typeof migrations_backfillUserSearchText;
   "migrations/cleanupGettingCredit": typeof migrations_cleanupGettingCredit;
   "migrations/cleanupInfrastructure": typeof migrations_cleanupInfrastructure;
