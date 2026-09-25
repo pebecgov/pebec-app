@@ -465,23 +465,15 @@ const indicators2026 = {
       state_microfinance_banks: {
         label: "State Microfinance Banks (6%)",
         options: [
-          { value: "excellent", label: "Excellent (6)", score: 6 },
-          { value: "good", label: "Good (5)", score: 5 },
-          { value: "fair", label: "Fair (4)", score: 4 },
-          { value: "poor", label: "Poor (3)", score: 3 },
-          { value: "very_poor", label: "Very Poor (2)", score: 2 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       access_federal_financial_institutions: {
         label: "Access to Federal Financial Institutions (6%)",
         options: [
-          { value: "excellent", label: "Excellent (6)", score: 6 },
-          { value: "good", label: "Good (5)", score: 5 },
-          { value: "fair", label: "Fair (4)", score: 4 },
-          { value: "poor", label: "Poor (3)", score: 3 },
-          { value: "very_poor", label: "Very Poor (2)", score: 2 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
