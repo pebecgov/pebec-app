@@ -23,7 +23,7 @@ export const members: Member[] = [{
 }, {
   id: 2,
   name: "Dr. Jumoke Oduwole",
-  title: "Honorable Minister Trade and Investment, Vice-Chair",
+  title: "Honourable Minister of Industry, Trade and Investment, Vice-Chair",
   image: "/images/members/member2.png",
   socials: {
     facebook: "#",
@@ -142,9 +142,9 @@ export const members: Member[] = [{
   }
 }, {
   id: 14,
-  name: "H. E. Amb. Yusuf Maitama Tuggar, OON",
+  name: "Bianca Odumegwu-Ojukwu",
   title: "Honourable Minister of Foreign Affairs",
-  image: "/images/members/yusuf.png",
+  image: "/images/members/bianca.png",
   socials: {
     facebook: "#",
     twitter: "#",
@@ -222,9 +222,9 @@ export const members: Member[] = [{
   }
 }, {
   id: 22,
-  name: "Chief Adebayo Adelabu",
+  name: "Joseph Olasunkanmi Tegbe, FCA, FCTI",
   title: "Honourable Minister of Power",
-  image: "/images/members/abelabu.png",
+  image: "/images/members/tegbe.jpg",
   socials: {
     facebook: "#",
     twitter: "#",

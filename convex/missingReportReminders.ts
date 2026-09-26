@@ -49,14 +49,14 @@ function buildMissingReportReminderEmail({
         <p>Please log in to your Reform Champion dashboard and upload the missing compliance report(s) as soon as possible.</p>
         <div style="text-align: center; margin: 28px 0;">
           <a href="https://www.pebec.gov.ng/reform_champion/reports"
-             style="display: inline-block; padding: 12px 20px; background-color: #2D8B10; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+             style="display: inline-block; padding: 12px 20px; background-color: #007D53; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
             Go to Reform Champion Dashboard
           </a>
         </div>
         <p style="color: #666; font-size: 14px;">If you have already submitted, please disregard this message.</p>
       </div>
       <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px;">
-        <p>© ${new Date().getFullYear()} PEBEC Secretariat. | <a href="https://www.pebec.gov.ng" style="color: #2D8B10; text-decoration: none;">Visit Website</a></p>
+        <p>© ${new Date().getFullYear()} PEBEC Secretariat. | <a href="https://www.pebec.gov.ng" style="color: #007D53; text-decoration: none;">Visit Website</a></p>
       </div>
     </div>
   `;

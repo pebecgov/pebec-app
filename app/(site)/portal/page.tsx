@@ -136,7 +136,7 @@ export default function Portal() {
               onClick={() => handleTabChange(tab.id)}
               className={`flex flex-col items-center flex-1 min-w-0 py-4 px-2 font-medium ${
                 activeTab === tab.id
-                  ? "text-[#2D8B10] border-b-2 border-[#2D8B10] font-semibold"
+                  ? "text-[#007D53] border-b-2 border-[#007D53] font-semibold"
                   : "text-gray-500"
               }`}
             >

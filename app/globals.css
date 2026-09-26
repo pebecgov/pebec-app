@@ -943,7 +943,7 @@ button {
 
 
 .list-decimal li::marker {
-  color: #22c55e; /* Tailwind green-500 */
+  color: #007D53; /* Official government green */
   font-weight: bold;
 }
 

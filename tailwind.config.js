@@ -31,10 +31,27 @@ module.exports = {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))'
         },
-        primaryho: '#1B5E20',
-        meta: '#4CAF50',
+        primaryho: '#006643',
+        meta: '#33A576',
         waterloo: '#000000',
-        greenwaterloo: '#2D8B10',
+        greenwaterloo: '#007D53',
+        // Official Federal Government of Nigeria green (#007D53) and a scale
+        // derived from it, replacing Tailwind's default green palette so every
+        // `green-*` utility on the site uses the official colour.
+        green: {
+          50: '#E6F4EE',
+          100: '#CCE9DD',
+          200: '#99D2BB',
+          300: '#66BC98',
+          400: '#33A576',
+          500: '#1A9164',
+          600: '#007D53',
+          700: '#006643',
+          800: '#004E34',
+          900: '#003724',
+          950: '#002316',
+          DEFAULT: '#007D53',
+        },
         manatee: '#000000',
         alabaster: '#F1F8E9',
         zumthor: '#E8F5E9',
