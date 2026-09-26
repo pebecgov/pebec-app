@@ -123,7 +123,7 @@ const Header = () => {
           <ul className="pointer-events-auto flex space-x-6 text-gray-700 dark:text-white text-[15px] font-medium">
             { }
             <li>
-              <a href="/" className={`hover:text-[#2D8B10] dark:hover:text-gray-300 ${pathUrl === "/" ? "text-[#2D8B10] font-semibold" : ""}`}>
+              <a href="/" className={`hover:text-[#007D53] dark:hover:text-gray-300 ${pathUrl === "/" ? "text-[#007D53] font-semibold" : ""}`}>
                 Home
               </a>
             </li>
@@ -137,7 +137,7 @@ const Header = () => {
               hoverTimeout = setTimeout(() => setActiveDropdown(null), 150);
             }}>
               { }
-              <button className="flex items-center gap-1 hover:text-[#2D8B10]">
+              <button className="flex items-center gap-1 hover:text-[#007D53]">
                 About Us <IoChevronDownOutline className="text-gray-500 text-lg" />
               </button>
 
@@ -210,7 +210,7 @@ const Header = () => {
             }} onMouseLeave={() => {
               hoverTimeout = setTimeout(() => setActiveDropdown(null), 150);
             }}>
-              <button className="flex items-center gap-1 hover:text-[#2D8B10]">
+              <button className="flex items-center gap-1 hover:text-[#007D53]">
                 Resources <IoChevronDownOutline className="text-gray-500 text-lg" />
               </button>
 
@@ -244,7 +244,7 @@ const Header = () => {
                   path: "/tracker/mdas",
                   icon: MdAnalytics
                 } ].map((item, key) => <Link key={key} href={item.path} className="flex items-center gap-3 p-3 rounded-md hover:bg-gray-100">
-                  <item.icon className="text-[#2D8B10] text-lg" />
+                  <item.icon className="text-[#007D53] text-lg" />
                   <div>
                     <p className="text-sm font-semibold">{item.title}</p>
                     {item.title !== "Tracker" && (
@@ -256,13 +256,13 @@ const Header = () => {
             </li>
 
             <li>
-              <a href="/portal" className={`hover:text-[#2D8B10] dark:hover:text-gray-300 ${pathUrl === "/portal" ? "text-[#2D8B10] font-semibold" : ""}`}>
+              <a href="/portal" className={`hover:text-[#007D53] dark:hover:text-gray-300 ${pathUrl === "/portal" ? "text-[#007D53] font-semibold" : ""}`}>
                 ePortal
               </a>
             </li>
 
             <li>
-              <a href="/events" className={`hover:text-[#2D8B10] dark:hover:text-gray-300 ${pathUrl === "/events" ? "text-[#2D8B10] font-semibold" : ""}`}>
+              <a href="/events" className={`hover:text-[#007D53] dark:hover:text-gray-300 ${pathUrl === "/events" ? "text-[#007D53] font-semibold" : ""}`}>
                 Events
               </a>
             </li>
@@ -276,7 +276,7 @@ const Header = () => {
           <div className="flex items-center gap-2 lg:hidden">
             <button onClick={handleReportGovClick} className="flex items-center rounded-full bg-[#FF3226] text-white text-xs font-bold px-2.5 py-1.5">
               reportgov
-              <span className="ml-1 bg-[#2D8B10] text-white text-[10px] px-1 py-0.5 rounded">
+              <span className="ml-1 bg-[#007D53] text-white text-[10px] px-1 py-0.5 rounded">
                 .ng
               </span>
             </button>
@@ -353,7 +353,7 @@ const Header = () => {
           <div className="flex overflow-hidden text-sm font-semibold rounded-full shadow-md">
             <button onClick={handleReportGovClick} className="bg-[#FF3226] hover:bg-[#e02c21] text-white flex items-center gap-1 px-4 py-2 transition duration-200">
               reportgov
-              <span className="bg-[#2D8B10] text-white px-1.5 py-0.5 text-[10px] rounded">
+              <span className="bg-[#007D53] text-white px-1.5 py-0.5 text-[10px] rounded">
                 .ng
               </span>
             </button>
