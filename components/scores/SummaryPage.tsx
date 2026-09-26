@@ -342,19 +342,39 @@ export function ScoreAdjustments({
           {bonuses.length === 0 ? (
             <p className="text-sm text-gray-500">No bonus items configured for this year.</p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {bonuses.map((item) => (
-                <li key={item.name} className="text-sm">
+                <li
+                  key={item.name}
+                  className={
+                    item.applied
+                      ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm"
+                      : "rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-3 text-sm"
+                  }
+                >
                   <div className="flex items-center justify-between gap-3">
-                    <span className={item.applied ? "text-gray-900 font-medium" : "text-gray-500"}>
-                      {item.name}
-                    </span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={item.applied ? "font-semibold text-emerald-950" : "text-gray-500"}>
+                        {item.name}
+                      </span>
+                      <span
+                        className={
+                          item.applied
+                            ? "inline-flex items-center rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-medium text-white"
+                            : "inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                        }
+                      >
+                        {item.applied ? "Awarded" : "Not applied"}
+                      </span>
+                    </div>
                     <span className={item.applied ? "font-semibold text-emerald-700 shrink-0" : "text-gray-400 shrink-0"}>
                       {item.applied ? `+${formatPoints(item.value)}` : "0"}
                     </span>
                   </div>
                   {item.justification ? (
-                    <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{item.justification}</p>
+                    <p className={`mt-1.5 leading-relaxed ${item.applied ? "text-emerald-950/80" : "text-gray-400"}`}>
+                      {item.justification}
+                    </p>
                   ) : null}
                 </li>
               ))}
@@ -369,19 +389,39 @@ export function ScoreAdjustments({
           {penalties.length === 0 ? (
             <p className="text-sm text-gray-500">No penalty items configured for this year.</p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {penalties.map((item) => (
-                <li key={item.name} className="text-sm">
+                <li
+                  key={item.name}
+                  className={
+                    item.applied
+                      ? "rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm"
+                      : "rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-3 text-sm"
+                  }
+                >
                   <div className="flex items-center justify-between gap-3">
-                    <span className={item.applied ? "text-gray-900 font-medium" : "text-gray-500"}>
-                      {item.name}
-                    </span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={item.applied ? "font-semibold text-rose-950" : "text-gray-500"}>
+                        {item.name}
+                      </span>
+                      <span
+                        className={
+                          item.applied
+                            ? "inline-flex items-center rounded-full bg-rose-700 px-2 py-0.5 text-[11px] font-medium text-white"
+                            : "inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                        }
+                      >
+                        {item.applied ? "Deducted" : "Not applied"}
+                      </span>
+                    </div>
                     <span className={item.applied ? "font-semibold text-rose-700 shrink-0" : "text-gray-400 shrink-0"}>
                       {item.applied ? `-${formatPoints(Math.abs(item.value))}` : "0"}
                     </span>
                   </div>
                   {item.justification ? (
-                    <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{item.justification}</p>
+                    <p className={`mt-1.5 leading-relaxed ${item.applied ? "text-rose-950/80" : "text-gray-400"}`}>
+                      {item.justification}
+                    </p>
                   ) : null}
                 </li>
               ))}
