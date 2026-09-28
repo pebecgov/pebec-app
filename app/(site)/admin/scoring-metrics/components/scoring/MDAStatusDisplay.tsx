@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AlertTriangle, Ban, CheckCircle2 } from 'lucide-react';
 
 interface MDAStatusDisplayProps {
     selectedMda: string;
@@ -40,17 +41,17 @@ export default function MDAStatusDisplay({
                 ? 'bg-green-50 border-green-200'
                 : 'bg-yellow-50 border-yellow-200'
             }`}>
-            <h3 className={`text-sm font-semibold mb-2 ${hasScoreForPeriod
+            <h3 className={`text-sm font-semibold mb-2 flex items-center gap-1.5 ${hasScoreForPeriod
                 ? 'text-red-800'
                 : isActive
                     ? 'text-green-800'
                     : 'text-yellow-800'
                 }`}>
                 {hasScoreForPeriod
-                    ? '🚫 MDA Already Scored for This Period'
+                    ? <><Ban className="h-4 w-4" />MDA Already Scored for This Period</>
                     : isActive
-                        ? '✅ MDA Active on Platform'
-                        : '⚠️ MDA Not Active on Platform'
+                        ? <><CheckCircle2 className="h-4 w-4" />MDA Active on Platform</>
+                        : <><AlertTriangle className="h-4 w-4" />MDA Not Active on Platform</>
                 }
             </h3>
             <div className={`text-xs space-y-1 ${hasScoreForPeriod

@@ -1,13 +1,37 @@
+"use node";
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import {
   performFallbackHeaderMatching,
   internalProcessSlaData,
+  isLikelyNonSpreadsheetFile,
+  nonSpreadsheetFileMessage,
   processExcelBufferFull,
+  sanitizeRowsForConvex,
+  type ProcessingQuality,
 } from "../lib/mdaReportProcessing";
+
+type ProcessMonthlyReportResult =
+  | {
+      success: true;
+      results: Record<string, unknown>[];
+      overallPercentage: number | null;
+      processingQuality: ProcessingQuality;
+      validRowCount: number;
+      totalRowCount: number;
+      message: string;
+    }
+  | {
+      success: false;
+      reason: string;
+      message: string;
+      validRowCount?: number;
+      totalRowCount?: number;
+    };
 
 export const matchHeaders = action({
   args: {
@@ -71,7 +95,8 @@ export const processSlaData = action({
         data.length > 0
           ? Object.keys(data[0] as Record<string, unknown>)
           : undefined;
-      return internalProcessSlaData(data, headerMapping, headers);
+      const result = internalProcessSlaData(data, headerMapping, headers);
+      return { ...result, processedData: sanitizeRowsForConvex(result.processedData) };
     } catch (error) {
       console.error("Data processing error:", error);
       return {
@@ -93,31 +118,17 @@ export const processMonthlyReportFromDB = action({
     year: v.number(),
   },
   returns: v.any(),
-  handler: async (ctx, { mdaName, month, year }) => {
+  handler: async (ctx, { mdaName, month, year }): Promise<ProcessMonthlyReportResult> => {
     try {
-      const monthlyReports: Array<{
-        month: string;
-        year: number;
-        submitted: boolean;
-        reports?: Array<{ fileId?: string }>;
-      }> = await ctx.runQuery(api.mda_scoring.getRealMonthlyReports, {
+      const report: { fileId?: Id<"_storage">; fileName?: string } | null = await ctx.runQuery(internal.mda_scoring.getMonthlyReportFileRef, {
         mdaName,
-        scoringPeriod: String(year),
+        month,
+        year,
       });
 
-      const targetDate = new Date(year, month, 1);
-      const targetMonthName = targetDate.toLocaleString("default", { month: "long" });
+      const targetMonthName = new Date(year, month, 1).toLocaleString("default", { month: "long" });
 
-      const targetReportData = monthlyReports.find(
-        (r) => r.month === targetMonthName && r.year === year
-      );
-
-      if (
-        !targetReportData ||
-        !targetReportData.submitted ||
-        !targetReportData.reports ||
-        targetReportData.reports.length === 0
-      ) {
+      if (!report) {
         return {
           success: false,
           reason: "not_found",
@@ -125,8 +136,7 @@ export const processMonthlyReportFromDB = action({
         };
       }
 
-      const report = targetReportData.reports[0];
-      if (!report?.fileId) {
+      if (!report.fileId) {
         return {
           success: false,
           reason: "no_file",
@@ -134,7 +144,15 @@ export const processMonthlyReportFromDB = action({
         };
       }
 
-      const fileUrl: string | null = await ctx.storage.getUrl(report.fileId as never);
+      if (isLikelyNonSpreadsheetFile(report.fileName)) {
+        return {
+          success: false,
+          reason: "unsupported_format",
+          message: nonSpreadsheetFileMessage(report.fileName),
+        };
+      }
+
+      const fileUrl: string | null = await ctx.storage.getUrl(report.fileId);
       if (!fileUrl) {
         return { success: false, reason: "url_error", message: "Could not generate file URL" };
       }
@@ -149,20 +167,25 @@ export const processMonthlyReportFromDB = action({
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      const parsed = processExcelBufferFull(arrayBuffer);
+      const parsed = processExcelBufferFull(arrayBuffer, report.fileName);
 
       if (!parsed.ok) {
         return {
           success: false,
           reason: parsed.failureType,
           message: parsed.failureDetail,
+          validRowCount: parsed.validRowCount,
+          totalRowCount: parsed.totalRowCount,
         };
       }
 
       return {
         success: true,
-        results: parsed.processedData,
+        results: sanitizeRowsForConvex(parsed.processedData),
         overallPercentage: parsed.overallPercentage,
+        processingQuality: parsed.processingQuality,
+        validRowCount: parsed.validRowCount,
+        totalRowCount: parsed.totalRowCount,
         message: `Successfully processed ${targetMonthName}`,
       };
     } catch (error) {

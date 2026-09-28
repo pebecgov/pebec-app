@@ -240,6 +240,11 @@ export const ReportGovRankingModal: React.FC<ReportGovRankingModalProps> = ({
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 {item.resolutionRate.toFixed(1)}% ({item.resolvedTickets}/{item.totalTickets})
+                                                {typeof item.adjustedResolutionRate === 'number' && (
+                                                    <div className="text-xs text-blue-600">
+                                                        Adjusted: {item.adjustedResolutionRate.toFixed(1)}%
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 {item.averageResponseTime.toFixed(1)}h

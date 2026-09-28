@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { TrendingDown } from 'lucide-react';
 
 interface Bottom10TableProps {
     processDashboardMdaData: (filter: 'all' | 'withData', ministryFilter: 'all' | 'ministries-only' | 'without-ministries') => any[];
@@ -127,7 +128,10 @@ export default function Bottom10Table({
 
     return (
         <div className="bg-white p-5 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 text-center">📉 Bottom 10</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center justify-center gap-2">
+                <TrendingDown className="h-5 w-5 text-red-500" />
+                Bottom 10
+            </h3>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-red-50">

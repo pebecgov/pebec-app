@@ -1,14 +1,25 @@
 'use client';
 
 import React, { useState } from 'react';
+import { AlertTriangle, CheckCircle2, XCircle, Zap } from 'lucide-react';
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import { MenuItem, Select } from "@mui/material";
-import * as XLSX from "xlsx";
+import {
+    isLikelyNonSpreadsheetFile,
+    nonSpreadsheetFileMessage,
+    processExcelBufferFull,
+    sanitizeRowsForConvex,
+} from '@/lib/mdaReportProcessing';
+import { formatFailureType } from '@/lib/ingestionMatrix';
 import { getMonthsForPeriod } from '../../utils/helpers';
-import { MonthlySlaData } from '../../utils/types';
+import { MonthlySlaData, SlaFileCheck } from '../../utils/types';
 import { ResultTable } from '../tables/ResultTable';
+
+type FileCheckOutcome =
+    | { ok: true; results: any[]; overallPercentage: number | null; check: SlaFileCheck }
+    | { ok: false; check: SlaFileCheck };
 
 // ... imports
 interface MonthlySLAModalProps {
@@ -42,9 +53,63 @@ export default function MonthlySLAModal({
     const [viewResults, setViewResults] = useState<any[]>([]);
     const [viewOverallPercentage, setViewOverallPercentage] = useState<number | null>(null);
 
-    const matchHeaders = useAction(api.ai_helper_scoring.matchHeaders);
-    const processSlaData = useAction(api.ai_helper_scoring.processSlaData);
     const processMonthlyReportFromDB = useAction(api.ai_helper_scoring.processMonthlyReportFromDB);
+
+    // Files that fail the date check are not scored
+    const toMonthEntry = (outcome: FileCheckOutcome, file: File | null): MonthlySlaData[string] => ({
+        method: 'file',
+        file,
+        rating: 0,
+        results: outcome.ok ? outcome.results : [],
+        overallPercentage: outcome.ok ? outcome.overallPercentage : null,
+        score: outcome.ok && outcome.overallPercentage ? (outcome.overallPercentage / 100) * pointsPerMonth : 0,
+        check: outcome.check,
+    });
+
+    const checkUploadedFile = async (file: File): Promise<FileCheckOutcome> => {
+        if (isLikelyNonSpreadsheetFile(file.name)) {
+            return {
+                ok: false,
+                check: { status: 'failed', failureType: 'unsupported_format', message: nonSpreadsheetFileMessage(file.name) },
+            };
+        }
+        const parsed = processExcelBufferFull(await file.arrayBuffer(), file.name);
+        if (!parsed.ok) {
+            return {
+                ok: false,
+                check: {
+                    status: 'failed',
+                    failureType: parsed.failureType,
+                    message: parsed.failureDetail,
+                    validRows: parsed.validRowCount,
+                    totalRows: parsed.totalRowCount,
+                },
+            };
+        }
+        return {
+            ok: true,
+            results: sanitizeRowsForConvex(parsed.processedData),
+            overallPercentage: parsed.overallPercentage,
+            check: { status: parsed.processingQuality === 'partial_success' ? 'partial_success' : 'success', validRows: parsed.validRowCount, totalRows: parsed.totalRowCount },
+        };
+    };
+
+    const handleFileUpload = async (file: File, monthKey: string, monthName: string) => {
+        setProcessingMonthlyFiles(prev => ({ ...prev, [monthKey]: true }));
+        try {
+            const outcome = await checkUploadedFile(file);
+            setMonthlySlaData(prev => ({ ...prev, [monthKey]: toMonthEntry(outcome, file) }));
+            if (outcome.ok) {
+                toast.success(`${monthName} processed`);
+            } else {
+                toast.error(`${monthName}: file failed the check and was not scored`);
+            }
+        } catch (error) {
+            toast.error(`Error: ${(error as Error).message}`);
+        } finally {
+            setProcessingMonthlyFiles(prev => ({ ...prev, [monthKey]: false }));
+        }
+    };
 
     const handleAutoProcess = async () => {
         if (!mdaName) {
@@ -75,25 +140,33 @@ export default function MonthlySLAModal({
                 });
 
                 if (result.success) {
-                    setMonthlySlaData(prev => ({
-                        ...prev,
-                        [monthKey]: {
-                            method: 'file',
-                            file: null, // No file object on client
-                            rating: 0,
-                            overallPercentage: result.overallPercentage,
-                            results: result.results,
-                            score: result.overallPercentage ? (result.overallPercentage / 100) * pointsPerMonth : 0
-                        }
-                    }));
+                    const outcome: FileCheckOutcome = {
+                        ok: true,
+                        results: result.results ?? [],
+                        overallPercentage: result.overallPercentage ?? null,
+                        check: {
+                            status: result.processingQuality === 'partial_success' ? 'partial_success' : 'success',
+                            validRows: result.validRowCount,
+                            totalRows: result.totalRowCount,
+                        },
+                    };
+                    setMonthlySlaData(prev => ({ ...prev, [monthKey]: toMonthEntry(outcome, null) }));
                     processedCount++;
+                } else if (result.reason === 'not_found' || result.reason === 'no_file') {
+                    skippedCount++;
                 } else {
-                    if (result.reason === 'not_found' || result.reason === 'no_file') {
-                        skippedCount++;
-                    } else {
-                        failCount++;
-                        console.warn(`Failed to process ${month.monthName}: ${result.message}`);
-                    }
+                    const outcome: FileCheckOutcome = {
+                        ok: false,
+                        check: {
+                            status: 'failed',
+                            failureType: result.reason,
+                            message: result.message,
+                            validRows: result.validRowCount,
+                            totalRows: result.totalRowCount,
+                        },
+                    };
+                    setMonthlySlaData(prev => ({ ...prev, [monthKey]: toMonthEntry(outcome, null) }));
+                    failCount++;
                 }
             } catch (error) {
                 console.error(`Error processing ${month.monthName}:`, error);
@@ -169,7 +242,8 @@ export default function MonthlySLAModal({
                                     </>
                                 ) : (
                                     <>
-                                        ⚡ Auto-Process All
+                                        <Zap className="h-4 w-4" />
+                                        Auto-Process All
                                     </>
                                 )}
                             </button>
@@ -182,7 +256,7 @@ export default function MonthlySLAModal({
                                 className={`flex items-center justify-center gap-2 w-full px-4 py-2 rounded text-white text-sm font-medium transition-colors ${isAutoProcessing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                                     }`}
                             >
-                                {isAutoProcessing ? 'Processing...' : '⚡ Auto-Process All'}
+                                {isAutoProcessing ? 'Processing...' : <><Zap className="h-4 w-4" />Auto-Process All</>}
                             </button>
                         </div>
                     </div>
@@ -248,7 +322,8 @@ export default function MonthlySLAModal({
                                                                 method: 'rating',
                                                                 file: null,
                                                                 results: [],
-                                                                overallPercentage: null
+                                                                overallPercentage: null,
+                                                                check: undefined
                                                             }
                                                         } as any));
                                                     }}
@@ -265,99 +340,13 @@ export default function MonthlySLAModal({
                                                 type="file"
                                                 onChange={(e) => {
                                                     const file = e.target.files?.[0];
-                                                    if (file) {
-                                                        setProcessingMonthlyFiles(prev => ({ ...prev, [monthKey]: true }));
-
-                                                        const reader = new FileReader();
-                                                        reader.onload = async (event) => {
-                                                            try {
-                                                                const data = new Uint8Array(event.target?.result as ArrayBuffer);
-                                                                const workbook = XLSX.read(data, { type: 'array' });
-                                                                const firstSheetName = workbook.SheetNames[0];
-                                                                const firstSheet = workbook.Sheets[firstSheetName];
-
-                                                                // Convert to array of arrays first to find the header row
-                                                                const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
-
-                                                                // Find header row index
-                                                                let headerRowIndex = 0;
-                                                                const searchKeywords = ['CUSTOMER', 'SERVICE', 'DATE', 'PHONE', 'COST', 'AMOUNT', 'EMAIL', 'ADDRESS'];
-
-                                                                // Scan first 20 rows or total rows if less
-                                                                let maxMatches = 0;
-
-                                                                for (let i = 0; i < Math.min(rawData.length, 20); i++) {
-                                                                    const row = rawData[i];
-                                                                    let matchCount = 0;
-
-                                                                    // Count keyword matches in this row
-                                                                    row.forEach((cell: any) => {
-                                                                        if (!cell) return;
-                                                                        const cellStr = String(cell).toUpperCase();
-                                                                        if (searchKeywords.some(keyword => cellStr.includes(keyword))) {
-                                                                            matchCount++;
-                                                                        }
-                                                                    });
-
-                                                                    // Update if this row has more matches
-                                                                    // We use > so in case of tie, we keep the first one (usually top one is summary if few matches)
-                                                                    // But actually, we want the most robust one.
-                                                                    if (matchCount > maxMatches) {
-                                                                        maxMatches = matchCount;
-                                                                        headerRowIndex = i;
-                                                                    }
-                                                                }
-
-                                                                // Re-parse with correct range
-                                                                const jsonData = XLSX.utils.sheet_to_json(firstSheet, {
-                                                                    range: headerRowIndex,
-                                                                    defval: "" // Default value for empty cells
-                                                                });
-
-                                                                if (jsonData.length === 0) {
-                                                                    toast.error("No data found in the Excel file");
-                                                                    setProcessingMonthlyFiles(prev => ({ ...prev, [monthKey]: false }));
-                                                                    return;
-                                                                }
-
-                                                                const headers = Object.keys(jsonData[0] as Record<string, any>);
-                                                                const headerResult = await matchHeaders({ headers, data: jsonData });
-                                                                if (!headerResult.success) toast.warning("⚠️ AI header matching failed");
-
-                                                                const processResult = await processSlaData({
-                                                                    data: jsonData,
-                                                                    headerMapping: headerResult.headerMapping as any
-                                                                });
-
-                                                                if (processResult.success) {
-                                                                    setMonthlySlaData(prev => ({
-                                                                        ...prev,
-                                                                        [monthKey]: {
-                                                                            method: 'file',
-                                                                            file: file,
-                                                                            rating: 0,
-                                                                            overallPercentage: processResult.overallPercentage,
-                                                                            results: processResult.processedData,
-                                                                            score: processResult.overallPercentage ? (processResult.overallPercentage / 100) * pointsPerMonth : 0
-                                                                        }
-                                                                    }));
-                                                                    toast.success(`✅ ${monthName} processed`);
-                                                                } else {
-                                                                    toast.error(`Processing failed: ${processResult.error}`);
-                                                                }
-                                                            } catch (error) {
-                                                                toast.error(`Error: ${(error as Error).message}`);
-                                                            } finally {
-                                                                setProcessingMonthlyFiles(prev => ({ ...prev, [monthKey]: false }));
-                                                            }
-                                                        };
-                                                        reader.readAsArrayBuffer(file);
-                                                    }
+                                                    e.target.value = '';
+                                                    if (file) void handleFileUpload(file, monthKey, monthName);
                                                 }}
-                                                accept=".xlsx, .xls"
+                                                accept=".xlsx, .xls, .xlsm, .csv"
                                                 className="w-full text-sm"
                                             />
-                                            <div className="text-xs text-gray-500">Excel files only</div>
+                                            <div className="text-xs text-gray-500">Excel or CSV files only</div>
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
@@ -395,10 +384,15 @@ export default function MonthlySLAModal({
                                             <>
                                                 <div className="text-sm font-medium">
                                                     Score: {monthData.method === 'file'
-                                                        ? (monthData.overallPercentage !== null ? `${monthData.overallPercentage.toFixed(1)}%` : 'N/A')
+                                                        ? (monthData.overallPercentage !== null
+                                                            ? `${monthData.overallPercentage.toFixed(1)}%`
+                                                            : monthData.check?.status === 'failed' ? 'Not scored' : 'N/A')
                                                         : `${((monthData.rating / 10) * pointsPerMonth).toFixed(1)}/${pointsPerMonth.toFixed(1)}`
                                                     }
                                                 </div>
+                                                {monthData.method === 'file' && monthData.check && (
+                                                    <FileCheckSummary check={monthData.check} />
+                                                )}
                                                 {monthData.method === 'file' && monthData.results && monthData.results.length > 0 && (
                                                     <>
                                                         <div className="text-xs text-gray-600 mt-1">
@@ -486,6 +480,36 @@ export default function MonthlySLAModal({
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+function FileCheckSummary({ check }: { check: SlaFileCheck }) {
+    const rowsText = check.totalRows ? `${check.validRows ?? 0}/${check.totalRows} rows with valid dates` : null;
+
+    if (check.status === 'failed') {
+        return (
+            <div className="mt-2 text-left text-xs text-red-700 space-y-1">
+                <div className="flex items-center gap-1 font-medium">
+                    <XCircle className="h-3.5 w-3.5 shrink-0" />
+                    Failed: {formatFailureType(check.failureType ?? 'unknown')}
+                </div>
+                {rowsText && <div>{rowsText}</div>}
+                {check.message && (
+                    <details>
+                        <summary className="cursor-pointer text-red-600">Why?</summary>
+                        <p className="mt-1 max-h-32 overflow-y-auto break-words text-gray-700">{check.message}</p>
+                    </details>
+                )}
+            </div>
+        );
+    }
+
+    const isPartial = check.status === 'partial_success';
+    return (
+        <div className={`mt-2 flex items-center justify-center gap-1 text-xs ${isPartial ? 'text-amber-700' : 'text-green-700'}`}>
+            {isPartial ? <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> : <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+            {isPartial ? 'Partial' : 'Dates OK'}{rowsText ? ` · ${rowsText}` : ''}
         </div>
     );
 }

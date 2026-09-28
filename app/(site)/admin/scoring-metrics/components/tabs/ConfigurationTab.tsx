@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
+import { Plus, Trash2, GripVertical, Save, Loader2, AlertTriangle, Check, Zap, Unlock, ClipboardList } from "lucide-react";
 import { mdasList } from "@/components/mdaList";
 import MetricJustificationsEditor, {
     type JustificationMetricOption,
@@ -438,6 +438,7 @@ function EfficiencyConfiguration({ year, config }: any) {
     const [reportSubmissionPoints, setReportSubmissionPoints] = useState(config?.reportSubmissionPoints || 2);
     const [reportGovPoints, setReportGovPoints] = useState(config?.reportGovPoints || 20);
     const [timelinessPoints, setTimelinessPoints] = useState(config?.timelinessPoints || 3);
+    const [reportGovMinimumThreshold, setReportGovMinimumThreshold] = useState<number>(config?.reportGovMinimumThreshold ?? 5);
     const [isSaving, setIsSaving] = useState(false);
 
     const saveEfficiencyPeriod = useMutation(api.scoring_config.saveEfficiencyPeriod);
@@ -473,6 +474,7 @@ function EfficiencyConfiguration({ year, config }: any) {
                 slaPoints,
                 reportSubmissionPoints,
                 reportGovPoints,
+                reportGovMinimumThreshold,
                 timelinessPoints
             });
             toast.success("Efficiency period configuration saved!");
@@ -612,6 +614,24 @@ function EfficiencyConfiguration({ year, config }: any) {
                                 className="w-full"
                             />
                         </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t">
+                        <Label className="text-xs">Report Gov Minimum Threshold (MT)</Label>
+                        <Input
+                            type="number"
+                            min={0}
+                            value={reportGovMinimumThreshold}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setReportGovMinimumThreshold(isNaN(val) || val < 0 ? 0 : val);
+                            }}
+                            className="w-40"
+                        />
+                        <p className="text-xs text-gray-500">
+                            Resolution rate per MDA = ((CR × RR) + (MT × ARR)) / (CR + MT), where CR is complaints received by the MDA,
+                            RR is the MDA&apos;s resolution rate and ARR is the resolution rate across all MDAs in this efficiency period.
+                        </p>
                     </div>
                 </div>
 
@@ -852,7 +872,8 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                             </p>
                             {isEqualDistribution && (
                                 <div className="mt-2 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
-                                    ⚡ Equal Distribution Mode Active - Points automatically divided among all questions
+                                    <Zap className="h-3.5 w-3.5 shrink-0" />
+                                    Equal Distribution Mode Active - Points automatically divided among all questions
                                 </div>
                             )}
                         </div>
@@ -904,15 +925,17 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                                 {/* Budget Warning */}
                                 {type.questions?.length > 0 && (
                                     <div className="space-y-2">
-                                        <div className={`text-sm px-3 py-2 rounded ${isOverBudget ? 'bg-red-100 text-red-800 border border-red-300' :
+                                        <div className={`text-sm px-3 py-2 rounded flex items-center gap-1.5 ${isOverBudget ? 'bg-red-100 text-red-800 border border-red-300' :
                                             isUnderBudget ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
                                                 'bg-green-100 text-green-800 border border-green-300'
                                             }`}>
-                                            <strong>Budget:</strong> {typeTotal} / {totalMysteryPoints} points {
-                                                isOverBudget ? '⚠️ Over budget!' :
-                                                    isUnderBudget ? '⚠️ Under budget' :
-                                                        '✓ Exact match!'
-                                            }
+                                            <strong>Budget:</strong> {typeTotal} / {totalMysteryPoints} points
+                                            {isOverBudget || isUnderBudget ? (
+                                                <AlertTriangle className="h-4 w-4" />
+                                            ) : (
+                                                <Check className="h-4 w-4" />
+                                            )}
+                                            {isOverBudget ? 'Over budget!' : isUnderBudget ? 'Under budget' : 'Exact match!'}
                                         </div>
 
                                         <Button
@@ -922,9 +945,9 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                                             className="w-full"
                                         >
                                             {isEqualDistribution ? (
-                                                <>🔓 Switch to Manual Point Setting</>
+                                                <><Unlock className="h-4 w-4 mr-2" />Switch to Manual Point Setting</>
                                             ) : (
-                                                <>⚡ Divide {totalMysteryPoints} Points Equally</>
+                                                <><Zap className="h-4 w-4 mr-2" />Divide {totalMysteryPoints} Points Equally</>
                                             )}
                                         </Button>
                                     </div>
@@ -1057,7 +1080,8 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                         className="px-4"
                         title="Load examples based on actual BFA mystery shopping data"
                     >
-                        📋 Load BFA Examples
+                        <ClipboardList className="h-4 w-4 mr-2" />
+                        Load BFA Examples
                     </Button>
                 </div>
 
