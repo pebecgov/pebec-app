@@ -583,6 +583,8 @@ export const getMonthlyReportFileRef = internalQuery({
   },
 });
 
+const WAT_OFFSET_MS = 60 * 60 * 1000;
+
 type RealMonthlyReportEntry = {
   month: string;
   year: number;
@@ -770,13 +772,8 @@ async function loadRealMonthlyReports(
         return matchesByDate;
       });
 
-      // Calculate deadline (last Friday of the month)
-      const lastDay = new Date(year, month + 1, 0);
-      const lastFriday = new Date(lastDay);
-      while (lastFriday.getDay() !== 5) { // 5 = Friday
-        lastFriday.setDate(lastFriday.getDate() - 1);
-      }
-      const deadline = lastFriday.getTime();
+      // On time if submitted before the reporting month ends (midnight WAT, UTC+1); after that it is late
+      const deadline = Date.UTC(year, month + 1, 1) - WAT_OFFSET_MS - 1;
 
       // Check if any report was submitted
       const submitted = monthReports.length > 0;
