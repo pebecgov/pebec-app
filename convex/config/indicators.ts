@@ -511,18 +511,15 @@ const indicators2026 = {
       gis: {
         label: "GIS (3%)",
         options: [
-          { value: "excellent", label: "Excellent (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (3)", score: 3 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       automated: {
         label: "Automated (7%)",
         options: [
-          { value: "fully-automated", label: "Fully automated (7)", score: 7 },
-          { value: "hybrid", label: "Hybrid (4)", score: 4 },
-          { value: "manual", label: "Manual (0)", score: 0 },
+          { value: "yes", label: "Yes (7)", score: 7 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
