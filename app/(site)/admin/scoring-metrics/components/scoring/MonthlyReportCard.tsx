@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
+import { Check, X } from 'lucide-react';
 import { getMonthsForPeriod } from '../../utils/helpers';
 import ScoreActionButtons from './ScoreActionButtons';
+import MetricStatusBadge from './MetricStatusBadge';
 
 interface MonthlyReportCardProps {
     isLoading: boolean;
@@ -43,16 +45,7 @@ export default function MonthlyReportCard({
                         <h2 className="text-lg font-semibold">Monthly Report Submission</h2>
                         <p className="text-sm text-gray-600">Track submission of monthly reports</p>
                     </div>
-                    {isLoading && (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                            🔄 Loading...
-                        </span>
-                    )}
-                    {!isLoading && isSaved && (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            💾 Saved
-                        </span>
-                    )}
+                    <MetricStatusBadge isLoading={isLoading} isSaved={isSaved} />
                 </div>
                 <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                     {maxPoints} Points
@@ -144,8 +137,8 @@ export default function MonthlyReportCard({
                             : 'bg-red-100 text-red-800'
                             }`}>
                             <div className="font-medium">{monthName}</div>
-                            <div className="text-xs">
-                                {isSubmitted ? '✓' : '✗'}
+                            <div className="flex justify-center">
+                                {isSubmitted ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                             </div>
                         </div>
                     );

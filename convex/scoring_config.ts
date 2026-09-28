@@ -96,9 +96,13 @@ export const saveEfficiencyPeriod = mutation({
         slaPoints: v.number(),
         reportSubmissionPoints: v.number(),
         reportGovPoints: v.number(),
+        reportGovMinimumThreshold: v.optional(v.number()),
         timelinessPoints: v.number()
     },
     handler: async (ctx, args) => {
+        if (args.reportGovMinimumThreshold !== undefined && args.reportGovMinimumThreshold < 0) {
+            throw new Error("Report Gov minimum threshold cannot be negative");
+        }
         const user = await getCurrentUserOrThrow(ctx);
 
         const existing = await ctx.db.query("efficiency_periods")
@@ -116,6 +120,7 @@ export const saveEfficiencyPeriod = mutation({
                 slaPoints: args.slaPoints,
                 reportSubmissionPoints: args.reportSubmissionPoints,
                 reportGovPoints: args.reportGovPoints,
+                reportGovMinimumThreshold: args.reportGovMinimumThreshold,
                 timelinessPoints: args.timelinessPoints,
                 updatedAt: Date.now()
             });

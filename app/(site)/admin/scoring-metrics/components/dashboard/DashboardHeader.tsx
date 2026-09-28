@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Download } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BulkPdfDownloader } from '@/components/Admin/BulkPdfDownloader';
 
@@ -131,7 +132,8 @@ export default function DashboardHeader({
                         disabled={!liveDashboardData?.data || !Array.isArray(liveDashboardData.data) || liveDashboardData.data.length === 0}
                         className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap h-10"
                     >
-                        📥 Download PDF
+                        <Download className="h-4 w-4" />
+                        Download PDF
                     </button>
                     <BulkPdfDownloader
                         mdaData={processDashboardMdaData(mdaFilter, ministryFilter)}

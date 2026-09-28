@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
-import type { Id, TableNames } from "./_generated/dataModel";
+import { internalQuery, mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import { resolveReportPeriod } from "../lib/reportPeriod";
@@ -556,7 +556,48 @@ export const getRealMonthlyReports = query({
     mdaName: v.optional(v.string()),
     scoringPeriod: v.optional(v.string())
   },
-  handler: async (ctx, { mdaName, scoringPeriod }) => {
+  handler: async (ctx, args) => loadRealMonthlyReports(ctx, args),
+});
+
+// Returns only the file reference, so actions don't receive the embedded report data
+export const getMonthlyReportFileRef = internalQuery({
+  args: {
+    mdaName: v.string(),
+    month: v.number(),
+    year: v.number(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      fileId: v.optional(v.id("_storage")),
+      fileName: v.optional(v.string()),
+    })
+  ),
+  handler: async (ctx, { mdaName, month, year }) => {
+    const monthlyData = await loadRealMonthlyReports(ctx, { mdaName, scoringPeriod: String(year) });
+    const monthName = new Date(year, month, 1).toLocaleString("default", { month: "long" });
+    const entry = monthlyData.find((m) => m.month === monthName && m.year === year);
+    const report = entry?.submitted ? entry.reports[0] : undefined;
+    if (!report) return null;
+    return { fileId: report.fileId, fileName: report.fileName };
+  },
+});
+
+type RealMonthlyReportEntry = {
+  month: string;
+  year: number;
+  deadline: number;
+  submittedDate: number | null;
+  submitted: boolean;
+  onTime: boolean;
+  reportCount: number;
+  reports: Doc<"submitted_reports">[];
+};
+
+async function loadRealMonthlyReports(
+  ctx: QueryCtx,
+  { mdaName, scoringPeriod }: { mdaName?: string; scoringPeriod?: string }
+): Promise<RealMonthlyReportEntry[]> {
     // Get all submitted reports from reform champions for the specified MDA
     let allReports;
     if (mdaName) {
@@ -687,7 +728,7 @@ export const getRealMonthlyReports = query({
     }
 
     // Group reports by month and year based on scoring period
-    const monthlyData = [];
+    const monthlyData: RealMonthlyReportEntry[] = [];
 
     // Debug: Log the scoring period and filtering results
     // console.log('getRealMonthlyReports - Scoring Period:', scoringPeriod);
@@ -740,7 +781,7 @@ export const getRealMonthlyReports = query({
       // Check if any report was submitted
       const submitted = monthReports.length > 0;
       const submittedDate = submitted ? monthReports[0].submittedAt : null;
-      const onTime = submitted && submittedDate && submittedDate <= deadline;
+      const onTime = submittedDate !== null && submittedDate <= deadline;
 
       monthlyData.push({
         month: monthName,
@@ -755,8 +796,7 @@ export const getRealMonthlyReports = query({
     }
 
     return monthlyData;
-  }
-});
+}
 
 // Get past scoring data for averaging
 export const getPastScoringData = query({
@@ -882,11 +922,54 @@ function getMonthNumber(monthName: string): number {
 }
 
 // Get period-specific ticket data for MDA scoring
+const DEFAULT_REPORTGOV_MINIMUM_THRESHOLD = 5;
+
+/**
+ * ((CR × RR) + (MT × ARR)) / (CR + MT), pulling MDAs with few complaints towards the system average.
+ * MDAs with no complaints get 0.
+ */
+function calculateAdjustedResolutionRate({
+  complaintsReceived,
+  resolutionRate,
+  minimumThreshold,
+  systemAverageResolutionRate,
+}: {
+  complaintsReceived: number;
+  resolutionRate: number;
+  minimumThreshold: number;
+  systemAverageResolutionRate: number;
+}): number {
+  if (complaintsReceived <= 0 || resolutionRate <= 0) return 0;
+  return (
+    (complaintsReceived * resolutionRate + minimumThreshold * systemAverageResolutionRate) /
+    (complaintsReceived + minimumThreshold)
+  );
+}
+
 export const getPeriodTicketData = query({
   args: {
     mdaName: v.string(),
     scoringPeriod: v.string()
   },
+  returns: v.union(
+    v.null(),
+    v.object({
+      totalTickets: v.number(),
+      resolvedTickets: v.number(),
+      resolutionRate: v.number(),
+      averageResponseTime: v.number(),
+      averageResolutionTime: v.number(),
+      systemTotalTickets: v.union(v.number(), v.null()),
+      systemResolvedTickets: v.union(v.number(), v.null()),
+      systemAverageResolutionRate: v.union(v.number(), v.null()),
+      minimumThreshold: v.union(v.number(), v.null()),
+      adjustedResolutionRate: v.union(v.number(), v.null()),
+      period: v.string(),
+      startDate: v.number(),
+      endDate: v.number(),
+      dateRange: v.object({ start: v.string(), end: v.string() }),
+    })
+  ),
   handler: async (ctx, { mdaName, scoringPeriod }) => {
     // First get the MDA ID from the name using flexible matching
     const mda = await findMdaByName(ctx, mdaName);
@@ -906,11 +989,12 @@ export const getPeriodTicketData = query({
 
     // Check for dynamic efficiency period configuration for 2026+
     let usedDynamicPeriod = false;
-    if (targetYear >= 2026) {
-      const efficiencyConfig = await ctx.db.query("efficiency_periods")
+    const efficiencyConfig = targetYear >= 2026
+      ? await ctx.db.query("efficiency_periods")
         .withIndex("byYear", q => q.eq("year", targetYear))
-        .first();
-
+        .first()
+      : null;
+    if (targetYear >= 2026) {
       if (efficiencyConfig) {
         const startMonth = getMonthNumber(efficiencyConfig.startMonth);
         const endMonth = getMonthNumber(efficiencyConfig.endMonth);
@@ -988,12 +1072,41 @@ export const getPeriodTicketData = query({
       ? resolutionTimes.reduce((sum, time) => sum + time, 0) / resolutionTimes.length
       : 0;
 
+    let systemTotalTickets: number | null = null;
+    let systemResolvedTickets: number | null = null;
+    let systemAverageResolutionRate: number | null = null;
+    let minimumThreshold: number | null = null;
+    let adjustedResolutionRate: number | null = null;
+
+    if (targetYear >= 2026) {
+      const systemTickets = (await ctx.db.query("tickets")
+        .withIndex("byCreatedAt", q => q.gte("createdAt", startDate).lte("createdAt", endDate))
+        .collect())
+        .filter(t => t.assignedMDA !== undefined);
+
+      systemTotalTickets = systemTickets.length;
+      systemResolvedTickets = systemTickets.filter(t => t.status === "resolved" || t.status === "closed").length;
+      systemAverageResolutionRate = systemTotalTickets > 0 ? (systemResolvedTickets / systemTotalTickets) * 100 : 0;
+      minimumThreshold = efficiencyConfig?.reportGovMinimumThreshold ?? DEFAULT_REPORTGOV_MINIMUM_THRESHOLD;
+      adjustedResolutionRate = calculateAdjustedResolutionRate({
+        complaintsReceived: totalTickets,
+        resolutionRate,
+        minimumThreshold,
+        systemAverageResolutionRate,
+      });
+    }
+
     return {
       totalTickets,
       resolvedTickets,
       resolutionRate,
       averageResponseTime,
       averageResolutionTime,
+      systemTotalTickets,
+      systemResolvedTickets,
+      systemAverageResolutionRate,
+      minimumThreshold,
+      adjustedResolutionRate,
       period: scoringPeriod,
       startDate,
       endDate,
@@ -1402,11 +1515,14 @@ export const saveReportGovData = mutation({
     averageResponseTime: v.number(),
     averageResolutionTime: v.number(),
     resolutionRate: v.number(),
+    adjustedResolutionRate: v.optional(v.number()),
+    systemAverageResolutionRate: v.optional(v.number()),
+    minimumThreshold: v.optional(v.number()),
     score: v.number(),
     isManual: v.boolean(),
     isSkipped: v.optional(v.boolean())
   },
-  handler: async (ctx, { mdaName, scoringPeriod, totalTickets, resolvedTickets, averageResponseTime, averageResolutionTime, resolutionRate, score, isManual, isSkipped }) => {
+  handler: async (ctx, { mdaName, scoringPeriod, totalTickets, resolvedTickets, averageResponseTime, averageResolutionTime, resolutionRate, adjustedResolutionRate, systemAverageResolutionRate, minimumThreshold, score, isManual, isSkipped }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
     // Check if Report Gov data already exists for this MDA and period
@@ -1422,6 +1538,9 @@ export const saveReportGovData = mutation({
         averageResponseTime,
         averageResolutionTime,
         resolutionRate,
+        adjustedResolutionRate,
+        systemAverageResolutionRate,
+        minimumThreshold,
         score,
         isManual,
         isSkipped: isSkipped ?? false,
@@ -1438,6 +1557,9 @@ export const saveReportGovData = mutation({
         averageResponseTime,
         averageResolutionTime,
         resolutionRate,
+        adjustedResolutionRate,
+        systemAverageResolutionRate,
+        minimumThreshold,
         score,
         isManual,
         isSkipped: isSkipped ?? false,
