@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
+import { BarChart3 } from 'lucide-react';
 import ScoreActionButtons from './ScoreActionButtons';
+import MetricStatusBadge from './MetricStatusBadge';
 
 interface MysteryShoppingCardProps {
     isLoading: boolean;
@@ -33,24 +35,16 @@ export default function MysteryShoppingCard({
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold">Mystery Shopping</h2>
-                    {isLoading && (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                            🔄 Loading...
-                        </span>
-                    )}
-                    {!isLoading && isSaved && (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            💾 Saved
-                        </span>
-                    )}
+                    <MetricStatusBadge isLoading={isLoading} isSaved={isSaved} />
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowRanking(true)}
-                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                        className="inline-flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
                         title="View all MDAs ranked by Mystery Shopping score"
                     >
-                        📊 Rankings
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Rankings
                     </button>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                         {maxPoints} Points

@@ -24,11 +24,14 @@ import {
 } from "./mda_scoring";
 import {
   buildMonthlyReportData,
+  calculateAdjustedResolutionRate,
   computeReportGovScore,
   computeTicketStats,
   filterReportsToWindow,
+  loadSystemResolutionContext,
   proportionalScore,
   resolveScoringWindow,
+  type SystemResolutionContext,
 } from "./utils/efficiencyScoring";
 
 export const AUTOMATIC_EFFICIENCY_METRICS = ["reportSubmission", "timeliness", "reportGov"] as const;
@@ -162,6 +165,14 @@ export const runAutomaticEfficiencyScoring = mutation({
     const points = await resolvePoints(ctx, reportWindow.targetYear);
     const totalMonths = reportWindow.monthsToCheck.length;
 
+    // 2026+: the adjusted resolution rate pulls low-volume MDAs toward the
+    // system average. The system figures are the same for every MDA in the
+    // period, so load them once per chunk.
+    const useAdjustedRate = metrics.has("reportGov") && ticketWindow.targetYear >= 2026;
+    const system: SystemResolutionContext | null = useAdjustedRate
+      ? await loadSystemResolutionContext(ctx, ticketWindow.targetYear, ticketWindow.startDate, ticketWindow.endDate)
+      : null;
+
     const exclusionRows = await ctx.db
       .query("mda_metric_exclusions")
       .withIndex("byYear", (q) => q.eq("year", reportWindow.targetYear))
@@ -281,10 +292,20 @@ export const runAutomaticEfficiencyScoring = mutation({
                 .collect()
             : [];
           const stats = computeTicketStats(tickets, ticketWindow.startDate, ticketWindow.endDate);
-          const newScore = round2(computeReportGovScore(stats, points.reportGov));
-          const detail = mda
-            ? `${stats.totalTickets} tickets, ${stats.resolvedTickets} resolved (${stats.resolutionRate.toFixed(0)}%)`
-            : "MDA not on platform — no tickets";
+          const adjustedResolutionRate = system
+            ? calculateAdjustedResolutionRate({
+                complaintsReceived: stats.totalTickets,
+                resolutionRate: stats.resolutionRate,
+                minimumThreshold: system.minimumThreshold,
+                systemAverageResolutionRate: system.systemAverageResolutionRate,
+              })
+            : null;
+          const newScore = round2(computeReportGovScore({ ...stats, adjustedResolutionRate }, points.reportGov));
+          const detail = !mda
+            ? "MDA not on platform — no tickets"
+            : adjustedResolutionRate !== null
+              ? `${stats.totalTickets} tickets, ${stats.resolvedTickets} resolved (${stats.resolutionRate.toFixed(0)}% → adj. ${adjustedResolutionRate.toFixed(0)}%)`
+              : `${stats.totalTickets} tickets, ${stats.resolvedTickets} resolved (${stats.resolutionRate.toFixed(0)}%)`;
 
           if (!dryRun) {
             const payload = {
@@ -293,6 +314,9 @@ export const runAutomaticEfficiencyScoring = mutation({
               averageResponseTime: stats.averageResponseTime,
               averageResolutionTime: stats.averageResolutionTime,
               resolutionRate: stats.resolutionRate,
+              adjustedResolutionRate: adjustedResolutionRate ?? undefined,
+              systemAverageResolutionRate: system?.systemAverageResolutionRate,
+              minimumThreshold: system?.minimumThreshold,
               score: newScore,
               isManual: false,
               isSkipped: false,

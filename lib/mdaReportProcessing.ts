@@ -144,11 +144,49 @@ function buildSheetScanFromHeaderRow(
   };
 }
 
+const MAX_SHEET_ROWS = 20000;
+const MAX_SHEET_COLUMNS = 150;
+
+/**
+ * Excel files often declare a range far beyond the real data (formatting down to row 1,048,576
+ * or column XFD). Filling that range with blanks exhausts memory, so shrink it to occupied cells.
+ */
+function clampSheetToUsedRange(sheet: XLSX.WorkSheet): void {
+  const declared = sheet["!ref"];
+  if (!declared) return;
+  const start = XLSX.utils.decode_range(declared).s;
+
+  let maxRow = -1;
+  let maxCol = -1;
+  for (const address of Object.keys(sheet)) {
+    if (address.startsWith("!")) continue;
+    const cell = sheet[address] as XLSX.CellObject | undefined;
+    if (!cell || cell.v === undefined || cell.v === null || cell.v === "") continue;
+    const { r, c } = XLSX.utils.decode_cell(address);
+    if (r > maxRow) maxRow = r;
+    if (c > maxCol) maxCol = c;
+  }
+
+  if (maxRow < start.r || maxCol < start.c) {
+    sheet["!ref"] = XLSX.utils.encode_range({ s: start, e: start });
+    return;
+  }
+
+  sheet["!ref"] = XLSX.utils.encode_range({
+    s: start,
+    e: {
+      r: Math.min(maxRow, start.r + MAX_SHEET_ROWS - 1),
+      c: Math.min(maxCol, start.c + MAX_SHEET_COLUMNS - 1),
+    },
+  });
+}
+
 function extractSheetData(
   sheet: XLSX.WorkSheet,
   sheetName: string,
   sheetIndex: number
 ): SheetScanResult | null {
+  clampSheetToUsedRange(sheet);
   const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" }) as unknown[][];
   if (rawData.length === 0) return null;
 
@@ -1213,6 +1251,32 @@ export function internalProcessSlaData(
   };
 }
 
+/** Convex field names must be non-empty, printable ASCII and must not start with "$". */
+export function toConvexSafeFieldName(key: string): string {
+  const safe = key
+    .replace(/₦/g, "NGN")
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/^\$+/, "")
+    .trim();
+  return safe || "Column";
+}
+
+export function sanitizeRowsForConvex<T extends Record<string, unknown>>(
+  rows: T[]
+): Record<string, unknown>[] {
+  return rows.map((row) => {
+    const safeRow: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      const base = toConvexSafeFieldName(key);
+      let name = base;
+      for (let n = 2; name in safeRow; n++) name = `${base} (${n})`;
+      safeRow[name] = value;
+    }
+    return safeRow;
+  });
+}
+
 export function detectHeaderRowIndex(rawData: unknown[][]): { headerRowIndex: number; maxMatches: number } {
   let headerRowIndex = 0;
   let maxMatches = 0;
@@ -1360,7 +1424,12 @@ export function processExcelBufferFull(
       skippedBlankRowCount?: number;
     }) {
   try {
-    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: "array" });
+    const workbook = XLSX.read(new Uint8Array(arrayBuffer), {
+      type: "array",
+      cellHTML: false,
+      cellFormula: false,
+      cellStyles: false,
+    });
     if (workbook.SheetNames.length === 0) {
       return { ok: false, failureType: "empty_file", failureDetail: "Excel file has no sheets" };
     }

@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
+import { BarChart3, CalendarDays } from 'lucide-react';
 import ScoreActionButtons from './ScoreActionButtons';
+import MetricStatusBadge from './MetricStatusBadge';
 
 interface ReportGovCardProps {
     isLoading: boolean;
@@ -14,6 +16,7 @@ interface ReportGovCardProps {
     ticketResolutionData: any;
     reportgovRate: number;
     setReportgovRate: (val: number) => void;
+    scoreBreakdown: { resolutionRate: number; responseTime: number; resolutionTime: number };
 
     handleSave: () => void;
     handleClear?: () => void;
@@ -35,6 +38,7 @@ export default function ReportGovCard({
     ticketResolutionData,
     reportgovRate,
     setReportgovRate,
+    scoreBreakdown,
     handleSave,
     handleClear,
     selectedMda,
@@ -46,59 +50,56 @@ export default function ReportGovCard({
     // Local state for toggling manual input (removed)
     const [useManual, setUseManual] = React.useState(false);
     const periodYear = scoringPeriod.match(/\d{4}/)?.[0] || String(currentYear);
+    const adjustedResolutionRate: number | null = ticketResolutionData?.adjustedResolutionRate ?? null;
+    const totalTickets: number = ticketResolutionData?.totalTickets || 0;
+    const resolvedTickets: number = ticketResolutionData?.resolvedTickets || 0;
+    const averageResponseTime: number = ticketResolutionData?.averageResponseTime || 0;
+    const averageResolutionTime: number = ticketResolutionData?.averageResolutionTime || 0;
 
-    // Logic to determine data source text
-    const getDataSourceText = () => {
-        const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
-        const isActive = mdasWithScores?.find(m =>
-            m.name === selectedMda ||
-            (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
-            m.name.includes(selectedMda) ||
-            (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
-        );
-        return isActive
-            ? (periodTicketData ? 'Period-specific' : 'Overall MDA data')
-            : 'MDA not active on platform';
-    };
+    const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
+    const isActiveOnPlatform = !!mdasWithScores?.find(m =>
+        m.name === selectedMda ||
+        (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
+        m.name.includes(selectedMda) ||
+        (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
+    );
 
-    const getPeriodDataText = () => {
-        const selectedMdaFromList = mdasList.find(m => m.name === selectedMda);
-        const isActive = mdasWithScores?.find(m =>
-            m.name === selectedMda ||
-            (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
-            m.name.includes(selectedMda) ||
-            (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
-        );
-        return isActive
-            ? (periodTicketData ?
-                `${periodTicketData.totalTickets} tickets, ${periodTicketData.resolvedTickets} resolved` :
-                'No period data available')
-            : 'No data found';
-    };
+    const formatMonth = (timestamp: number) =>
+        new Date(timestamp).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    const periodLabel = periodTicketData?.startDate && periodTicketData?.endDate
+        ? `${formatMonth(periodTicketData.startDate)} – ${formatMonth(periodTicketData.endDate)}`
+        : scoringPeriod.includes("1st Half") ? `Jan – Jun ${periodYear}`
+            : scoringPeriod.includes("2nd Half") ? `Jul – Dec ${periodYear}`
+                : scoringPeriod;
+
+    const formatHours = (hours: number) => (hours > 0 ? `${hours.toFixed(1)} hrs` : '—');
+
+    const rows = [
+        {
+            label: 'Resolution Rate',
+            value: `${(adjustedResolutionRate ?? ticketResolutionData?.resolutionRate ?? 0).toFixed(1)}%`,
+            points: scoreBreakdown.resolutionRate,
+            max: maxPoints * 0.4667,
+        },
+        { label: 'Avg Response Time', value: formatHours(averageResponseTime), points: scoreBreakdown.responseTime, max: maxPoints * 0.20 },
+        { label: 'Avg Resolution Time', value: formatHours(averageResolutionTime), points: scoreBreakdown.resolutionTime, max: maxPoints * 0.3333 },
+    ];
 
     return (
         <div className="bg-gray-100/50 p-4 rounded-lg">
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold">Report Gov Resolution</h2>
-                    {isLoading && (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                            🔄 Loading...
-                        </span>
-                    )}
-                    {!isLoading && isSaved && (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            💾 Saved
-                        </span>
-                    )}
+                    <MetricStatusBadge isLoading={isLoading} isSaved={isSaved} />
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowRanking(true)}
-                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                        className="inline-flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
                         title="View all MDAs ranked by Report Gov Resolution score"
                     >
-                        📊 Rankings
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Rankings
                     </button>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                         {maxPoints} Points
@@ -136,28 +137,32 @@ export default function ReportGovCard({
                 </label>
             </div>
 
-            <div className="text-sm mb-3">
-                <p className="text-xs text-blue-600 mb-2">
-                    📅 Evaluating: {scoringPeriod.includes("1st Half") ? `Jan-Jun ${periodYear}` :
-                        scoringPeriod.includes("2nd Half") ? `Jul-Dec ${periodYear}` : "All Periods"}
-                </p>
-                <p>Total Tickets: {ticketResolutionData?.totalTickets || 0}</p>
-                <p>Resolved: {ticketResolutionData?.resolvedTickets || 0}</p>
-                <p>Resolution Rate: {(ticketResolutionData?.resolutionRate || 0).toFixed(1)}%</p>
-                <p className="text-xs text-gray-500">
-                    Data Source: {getDataSourceText()}
-                </p>
-                <p className="text-xs text-gray-500">
-                    Period Data: {getPeriodDataText()}
-                </p>
-                <p>Avg Response Time: {(ticketResolutionData?.averageResponseTime || 0).toFixed(1)} hours</p>
-                <p>Avg Resolution Time: {(ticketResolutionData?.averageResolutionTime || 0).toFixed(1)} hours</p>
-                <p className="text-xs text-gray-500 mt-2">
-                    <strong>Score Breakdown (Total: {maxPoints} pts):</strong><br />
-                    • Resolution Rate ({(maxPoints * 0.4667).toFixed(1)} pts)<br />
-                    • Response Time ({(maxPoints * 0.20).toFixed(1)} pts)<br />
-                    • Resolution Time ({(maxPoints * 0.3333).toFixed(1)} pts)
-                </p>
+            <div className="text-sm mb-3 space-y-3">
+                <div className="flex justify-between text-xs text-gray-600">
+                    <span className="inline-flex items-center gap-1">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        {periodLabel}
+                    </span>
+                    <span>{totalTickets} tickets · {resolvedTickets} resolved</span>
+                </div>
+
+                {selectedMda && !isActiveOnPlatform && (
+                    <p className="text-xs text-amber-700">This MDA is not active on the platform, so it has no tickets.</p>
+                )}
+
+                <table className="w-full text-sm">
+                    <tbody>
+                        {rows.map(row => (
+                            <tr key={row.label} className="border-b border-gray-200 last:border-0">
+                                <td className="py-1.5">{row.label}</td>
+                                <td className="py-1.5 text-right text-gray-600">{row.value}</td>
+                                <td className="py-1.5 text-right font-medium w-28">
+                                    {row.points.toFixed(2)} / {row.max.toFixed(1)}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
 
             <ScoreActionButtons
@@ -168,8 +173,8 @@ export default function ReportGovCard({
                 isSaved={isSaved}
             />
 
-            <div className="text-center mt-3">
-                Score: {reportgovRate.toFixed(2)}/{maxPoints}
+            <div className="text-center mt-3 font-semibold">
+                Score: {reportgovRate.toFixed(2)} / {maxPoints}
             </div>
         </div>
     );

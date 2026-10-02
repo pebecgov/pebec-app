@@ -134,14 +134,14 @@ export type MonthlyReportEntry<T> = {
   reports: T[];
 };
 
-/** Deadline for a month's report: the last Friday of that month. */
-export function lastFridayOf(year: number, month: number): number {
-  const lastDay = new Date(year, month + 1, 0);
-  const lastFriday = new Date(lastDay);
-  while (lastFriday.getDay() !== 5) {
-    lastFriday.setDate(lastFriday.getDate() - 1);
-  }
-  return lastFriday.getTime();
+const WAT_OFFSET_MS = 60 * 60 * 1000;
+
+/**
+ * Deadline for a month's report: midnight West Africa Time (UTC+1) at the end
+ * of the reporting month. Anything submitted after that is late.
+ */
+export function monthEndDeadlineWAT(year: number, month: number): number {
+  return Date.UTC(year, month + 1, 1) - WAT_OFFSET_MS - 1;
 }
 
 /**
@@ -177,10 +177,10 @@ export function buildMonthlyReportData<T extends ReportLike>(
       );
     });
 
-    const deadline = lastFridayOf(year, month);
+    const deadline = monthEndDeadlineWAT(year, month);
     const submitted = monthReports.length > 0;
     const submittedDate = submitted ? monthReports[0].submittedAt : null;
-    const onTime = submitted && submittedDate !== null && submittedDate <= deadline;
+    const onTime = submittedDate !== null && submittedDate <= deadline;
 
     monthlyData.push({
       month: monthName,
@@ -239,15 +239,99 @@ export function computeTicketStats(tickets: TicketLike[], startDate: number, end
   };
 }
 
+export const DEFAULT_REPORTGOV_MINIMUM_THRESHOLD = 5;
+
 /**
- * Report Gov Resolution score. Weights: resolution rate 46.67%, response time
- * 20%, resolution time 33.33% of `reportGovPoints`, each on a tiered scale.
+ * Adjusted resolution rate (2026+):
+ *   ((CR × RR) + (MT × ARR)) / (CR + MT)
+ * pulls MDAs with few complaints towards the system average. MDAs with no
+ * complaints, or nothing resolved, get 0.
  */
-export function computeReportGovScore(
-  stats: Pick<TicketStats, "totalTickets" | "resolutionRate" | "averageResponseTime" | "averageResolutionTime">,
-  reportGovPoints: number,
-): number {
-  const { totalTickets, resolutionRate, averageResponseTime, averageResolutionTime } = stats;
+export function calculateAdjustedResolutionRate({
+  complaintsReceived,
+  resolutionRate,
+  minimumThreshold,
+  systemAverageResolutionRate,
+}: {
+  complaintsReceived: number;
+  resolutionRate: number;
+  minimumThreshold: number;
+  systemAverageResolutionRate: number;
+}): number {
+  if (complaintsReceived <= 0 || resolutionRate <= 0) return 0;
+  return (
+    (complaintsReceived * resolutionRate + minimumThreshold * systemAverageResolutionRate) /
+    (complaintsReceived + minimumThreshold)
+  );
+}
+
+export type SystemResolutionContext = {
+  systemTotalTickets: number;
+  systemResolvedTickets: number;
+  systemAverageResolutionRate: number;
+  minimumThreshold: number;
+};
+
+/**
+ * System-wide resolution figures for the adjusted-rate formula (2026+): all
+ * tickets assigned to any MDA and created inside the window, plus the configured
+ * minimum threshold. Compute once and reuse across MDAs when scoring in bulk.
+ */
+export async function loadSystemResolutionContext(
+  ctx: QueryCtx | MutationCtx,
+  targetYear: number,
+  startDate: number,
+  endDate: number,
+): Promise<SystemResolutionContext> {
+  const [systemTickets, efficiencyConfig] = await Promise.all([
+    ctx.db
+      .query("tickets")
+      .withIndex("byCreatedAt", (q) => q.gte("createdAt", startDate).lte("createdAt", endDate))
+      .collect(),
+    ctx.db
+      .query("efficiency_periods")
+      .withIndex("byYear", (q) => q.eq("year", targetYear))
+      .first(),
+  ]);
+  const assigned = systemTickets.filter((t) => t.assignedMDA !== undefined);
+  const systemTotalTickets = assigned.length;
+  const systemResolvedTickets = assigned.filter((t) => t.status === "resolved" || t.status === "closed").length;
+  return {
+    systemTotalTickets,
+    systemResolvedTickets,
+    systemAverageResolutionRate: systemTotalTickets > 0 ? (systemResolvedTickets / systemTotalTickets) * 100 : 0,
+    minimumThreshold: efficiencyConfig?.reportGovMinimumThreshold ?? DEFAULT_REPORTGOV_MINIMUM_THRESHOLD,
+  };
+}
+
+export type ReportGovInput = Pick<
+  TicketStats,
+  "totalTickets" | "resolvedTickets" | "resolutionRate" | "averageResponseTime" | "averageResolutionTime"
+> & {
+  /** Set (non-null) for 2026+; when present the resolution-rate points are proportional to it. */
+  adjustedResolutionRate?: number | null;
+};
+
+export type ReportGovBreakdown = {
+  resolutionRate: number;
+  responseTime: number;
+  resolutionTime: number;
+  total: number;
+};
+
+/**
+ * Report Gov Resolution score with its component breakdown.
+ * Weights: resolution rate 46.67%, response time 20%, resolution time 33.33%
+ * of `reportGovPoints`.
+ *
+ * Resolution-rate points: when `adjustedResolutionRate` is provided (2026+),
+ * points are proportional to it and an MDA with nothing resolved earns none.
+ * Otherwise (2025) the legacy 7-tier ladder applies. Response and resolution
+ * time are always tiered.
+ */
+export function computeReportGovBreakdown(stats: ReportGovInput, reportGovPoints: number): ReportGovBreakdown {
+  const { totalTickets, resolvedTickets, resolutionRate, averageResponseTime, averageResolutionTime } = stats;
+  const adjusted = stats.adjustedResolutionRate ?? null;
 
   const maxResRatePoints = reportGovPoints * 0.4667;
   const maxResponsePoints = reportGovPoints * 0.2;
@@ -258,8 +342,10 @@ export function computeReportGovScore(
   let resolutionTimeScore = 0;
 
   if (totalTickets > 0) {
-    // Resolution rate: 7 tiers
-    if (resolutionRate >= 100) resRateScore = maxResRatePoints;
+    if (adjusted !== null) {
+      resRateScore =
+        resolvedTickets > 0 ? maxResRatePoints * (Math.min(Math.max(adjusted, 0), 100) / 100) : 0;
+    } else if (resolutionRate >= 100) resRateScore = maxResRatePoints;
     else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
     else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
     else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
@@ -284,7 +370,17 @@ export function computeReportGovScore(
     }
   }
 
-  return Math.min(resRateScore + responseScore + resolutionTimeScore, reportGovPoints);
+  return {
+    resolutionRate: resRateScore,
+    responseTime: responseScore,
+    resolutionTime: resolutionTimeScore,
+    total: Math.min(resRateScore + responseScore + resolutionTimeScore, reportGovPoints),
+  };
+}
+
+/** Convenience wrapper returning only the capped total. */
+export function computeReportGovScore(stats: ReportGovInput, reportGovPoints: number): number {
+  return computeReportGovBreakdown(stats, reportGovPoints).total;
 }
 
 /** Proportional score: (hits / total) × points, 0 when there are no months. */

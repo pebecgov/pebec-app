@@ -27,7 +27,7 @@ import BulkTransparencyCard from './BulkTransparencyCard';
 import MdaScoringMatrix from './MdaScoringMatrix';
 import TrackerMetricStatusPanel from './TrackerMetricStatusPanel';
 import BulkEfficiencyCard from './BulkEfficiencyCard';
-import { computeReportGovScore } from '@/convex/utils/efficiencyScoring';
+import { computeReportGovBreakdown } from '@/convex/utils/efficiencyScoring';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -108,6 +108,7 @@ export default function ScoringTab({
 
     // ReportGov State
     const [reportgovRate, setReportgovRate] = useState(0);
+    const [reportGovBreakdown, setReportGovBreakdown] = useState({ resolutionRate: 0, responseTime: 0, resolutionTime: 0 });
     const [skipReportGov, setSkipReportGov] = useState(false);
 
     // Monthly Report State
@@ -334,6 +335,7 @@ export default function ScoringTab({
             setMysteryRatings({});
             setTransparencyItems({ serviceLevelPublishing: false });
             setReportgovRate(0);
+            setReportGovBreakdown({ resolutionRate: 0, responseTime: 0, resolutionTime: 0 });
             setSkipReportGov(false);
             setManualMonthlyReports({});
             setUseManualMonthlyReports(false);
@@ -356,10 +358,16 @@ export default function ScoringTab({
         }
     }, [savedSLAData]);
 
-    // Populate Automated ReportGov Data (same tiered formula the bulk "run all" uses)
+    // Populate Automated ReportGov Data (same formula the bulk "run all" uses)
     useEffect(() => {
         if (ticketResolutionData) {
-            setReportgovRate(computeReportGovScore(ticketResolutionData, reportGovPoints));
+            const breakdown = computeReportGovBreakdown(ticketResolutionData, reportGovPoints);
+            setReportGovBreakdown({
+                resolutionRate: breakdown.resolutionRate,
+                responseTime: breakdown.responseTime,
+                resolutionTime: breakdown.resolutionTime,
+            });
+            setReportgovRate(breakdown.total);
         }
     }, [ticketResolutionData, reportGovPoints]);
 
@@ -374,7 +382,7 @@ export default function ScoringTab({
                 // instead of using the saved score, to ensure it reflects current data/config.
                 // setReportgovRate(savedReportGovData.score); 
             }
-            toast.success(`📊 Loaded saved Report Gov data for ${selectedMda}`);
+            toast.success(`Loaded saved Report Gov data for ${selectedMda}`);
         }
     }, [savedReportGovData, selectedMda, scoringPeriod, isLoadingReportGovData]);
 
@@ -384,7 +392,7 @@ export default function ScoringTab({
             const data = savedMysteryShoppingData as any;
             setMysteryType((data.mysteryType || data.type));
             setMysteryRatings(data.ratings || {});
-            toast.success(`🛍️ Loaded saved Mystery Shopping data for ${selectedMda}`);
+            toast.success(`Loaded saved Mystery Shopping data for ${selectedMda}`);
         }
     }, [savedMysteryShoppingData, selectedMda, scoringPeriod, isLoadingMysteryShoppingData]);
 
@@ -404,7 +412,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingControversialData && savedControversialData && selectedMda) {
             setIsControversial(savedControversialData.isControversial || false);
-            toast.success(`⚠️ Loaded saved Controversial data for ${selectedMda}`);
+            toast.success(`Loaded saved Controversial data for ${selectedMda}`);
         }
     }, [savedControversialData, selectedMda, scoringPeriod, isLoadingControversialData]);
 
@@ -413,7 +421,7 @@ export default function ScoringTab({
         if (!isLoadingToutingRentseekingData && savedToutingRentseekingData && selectedMda) {
             const data = savedToutingRentseekingData as any;
             setIsTouting(data.isToutingRentseeking ?? data.isTouting ?? false);
-            toast.success(`🚫 Loaded saved Touting & Rentseeking data for ${selectedMda}`);
+            toast.success(`Loaded saved Touting & Rentseeking data for ${selectedMda}`);
         }
     }, [savedToutingRentseekingData, selectedMda, scoringPeriod, isLoadingToutingRentseekingData]);
 
@@ -421,7 +429,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingInnovationData && savedInnovationData && selectedMda) {
             setIsInnovation(savedInnovationData.isInnovative || false);
-            toast.success(`💡 Loaded saved Innovation data for ${selectedMda}`);
+            toast.success(`Loaded saved Innovation data for ${selectedMda}`);
         }
     }, [savedInnovationData, selectedMda, scoringPeriod, isLoadingInnovationData]);
 
@@ -429,7 +437,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingStakeholderData && savedStakeholderData && selectedMda) {
             setStakeholderRate(savedStakeholderData.rate || 0);
-            toast.success(`👥 Loaded saved Stakeholder Engagement data for ${selectedMda}`);
+            toast.success(`Loaded saved Stakeholder Engagement data for ${selectedMda}`);
         }
     }, [savedStakeholderData, selectedMda, scoringPeriod, isLoadingStakeholderData]);
 
@@ -441,7 +449,7 @@ export default function ScoringTab({
             setTransparencyItems({
                 serviceLevelPublishing: savedTransparencyData.responses?.serviceLevelPublishing || false,
             });
-            toast.success(`🔍 Loaded saved Transparency data for ${selectedMda}`);
+            toast.success(`Loaded saved Transparency data for ${selectedMda}`);
         }
     }, [savedTransparencyData, selectedMda, scoringPeriod, isLoadingTransparencyData]);
 
@@ -450,7 +458,7 @@ export default function ScoringTab({
         if (!isLoadingMonthlyReportData && savedMonthlyReportData && selectedMda) {
             setUseManualMonthlyReports(savedMonthlyReportData.useManual || false);
             setManualMonthlyReports(savedMonthlyReportData.manualMonthlyReports || {});
-            toast.success(`📅 Loaded saved Monthly Report Submission data for ${selectedMda}`);
+            toast.success(`Loaded saved Monthly Report Submission data for ${selectedMda}`);
         }
     }, [savedMonthlyReportData, selectedMda, scoringPeriod, isLoadingMonthlyReportData]);
 
@@ -459,7 +467,7 @@ export default function ScoringTab({
         if (!isLoadingTimelinessData && savedTimelinessData && selectedMda) {
             setUseManualTimeliness(savedTimelinessData.useManual || false);
             setManualTimeliness(savedTimelinessData.manualTimeliness || {});
-            toast.success(`⏰ Loaded saved Timeliness data for ${selectedMda}`);
+            toast.success(`Loaded saved Timeliness data for ${selectedMda}`);
         }
     }, [savedTimelinessData, selectedMda, scoringPeriod, isLoadingTimelinessData]);
 
@@ -467,7 +475,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingOthersData && savedOthersData && selectedMda && useDynamicConfig) {
             setOthersValues(savedOthersData.values || {});
-            // toast.success(`📊 Loaded saved Others data for ${selectedMda}`);
+            // toast.success(`Loaded saved Others data for ${selectedMda}`);
         }
     }, [savedOthersData, selectedMda, scoringPeriod, isLoadingOthersData, useDynamicConfig]);
 
@@ -475,7 +483,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingPenaltiesData && savedPenaltiesData && selectedMda && useDynamicConfig) {
             setPenaltyValues(savedPenaltiesData.values || {});
-            // toast.success(`⚠️ Loaded saved Penalties data for ${selectedMda}`);
+            // toast.success(`Loaded saved Penalties data for ${selectedMda}`);
         }
     }, [savedPenaltiesData, selectedMda, scoringPeriod, isLoadingPenaltiesData, useDynamicConfig]);
 
@@ -718,10 +726,14 @@ export default function ScoringTab({
         if (!selectedMda) return;
         try {
             const stats = calculateMonthlySlaScore();
+            // Browser File objects can't be stored in Convex
+            const serializableSlaData = Object.fromEntries(
+                Object.entries(monthlySlaData).map(([key, entry]) => [key, { ...entry, file: null }])
+            );
             await saveSLAData({
                 mdaName: selectedMda,
                 scoringPeriod,
-                monthlySlaData: monthlySlaData,
+                monthlySlaData: serializableSlaData,
                 totalScore: stats.totalScore,
                 monthsWithData: stats.monthsWithData,
                 totalMonths: stats.totalMonths,
@@ -919,6 +931,9 @@ export default function ScoringTab({
                 averageResponseTime: ticketResolutionData?.averageResponseTime || 0,
                 averageResolutionTime: ticketResolutionData?.averageResolutionTime || 0,
                 resolutionRate: ticketResolutionData?.resolutionRate || 0,
+                adjustedResolutionRate: ticketResolutionData?.adjustedResolutionRate ?? undefined,
+                systemAverageResolutionRate: ticketResolutionData?.systemAverageResolutionRate ?? undefined,
+                minimumThreshold: ticketResolutionData?.minimumThreshold ?? undefined,
                 score: (ticketResolutionData as any)?.score || reportgovRate
             };
 
@@ -1268,6 +1283,7 @@ export default function ScoringTab({
                             ticketResolutionData={ticketResolutionData || { totalTickets: 0, resolvedTickets: 0, resolutionRate: 0, averageResponseTime: 0, averageResolutionTime: 0, score: 0 }}
                             reportgovRate={reportgovRate}
                             setReportgovRate={setReportgovRate}
+                            scoreBreakdown={reportGovBreakdown}
                             handleSave={handleSaveReportGov}
                             handleClear={() => handleClearMetric("reportGov", () => setSkipReportGov(false))}
                             selectedMda={selectedMda}

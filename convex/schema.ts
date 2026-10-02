@@ -312,7 +312,7 @@ export default defineSchema({
     processedAt: v.optional(v.number()),
     source: v.optional(v.union(v.literal("web"), v.literal("whatsapp"))),
     whatsappPhone: v.optional(v.string())
-  }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]).index("byWhatsappPhone", ["whatsappPhone"]),
+  }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]).index("byWhatsappPhone", ["whatsappPhone"]).index("byCreatedAt", ["createdAt"]),
   whatsapp_sessions: defineTable({
     phone: v.string(),
     step: v.union(
@@ -1260,6 +1260,10 @@ export default defineSchema({
     averageResponseTime: v.number(),
     averageResolutionTime: v.number(),
     resolutionRate: v.number(),
+    // 2026+: ((CR × RR) + (MT × ARR)) / (CR + MT)
+    adjustedResolutionRate: v.optional(v.number()),
+    systemAverageResolutionRate: v.optional(v.number()),
+    minimumThreshold: v.optional(v.number()),
     score: v.number(),
     isManual: v.boolean(),
     isSkipped: v.optional(v.boolean()),
@@ -1420,6 +1424,7 @@ export default defineSchema({
     slaPoints: v.number(), // e.g., 5
     reportSubmissionPoints: v.number(), // e.g., 2
     reportGovPoints: v.optional(v.number()), // e.g., 20 (Report Governance Resolution)
+    reportGovMinimumThreshold: v.optional(v.number()), // MT in the adjusted resolution rate formula, defaults to 5
     timelinessPoints: v.number(), // e.g., 3
     isActive: v.boolean(),
     createdAt: v.number(),
