@@ -26,6 +26,8 @@ import BeepaCsvImportCard from './BeepaCsvImportCard';
 import BulkTransparencyCard from './BulkTransparencyCard';
 import MdaScoringMatrix from './MdaScoringMatrix';
 import TrackerMetricStatusPanel from './TrackerMetricStatusPanel';
+import BulkEfficiencyCard from './BulkEfficiencyCard';
+import { computeReportGovScore } from '@/convex/utils/efficiencyScoring';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -354,76 +356,10 @@ export default function ScoringTab({
         }
     }, [savedSLAData]);
 
-    // Populate Automated ReportGov Data
+    // Populate Automated ReportGov Data (same tiered formula the bulk "run all" uses)
     useEffect(() => {
         if (ticketResolutionData) {
-            const { resolutionRate, averageResponseTime, averageResolutionTime, totalTickets } = ticketResolutionData;
-
-            // Weights logic
-            // Resolution Rate: 46.67% of total
-            // Response Time: 20% of total
-            // Resolution Time: 33.33% of total
-
-            const maxResRatePoints = reportGovPoints * 0.4667;
-            const maxResponsePoints = reportGovPoints * 0.20;
-            const maxResolutionTimePoints = reportGovPoints * 0.3333;
-
-
-
-            let resRateScore = 0;
-            let responseScore = 0;
-            let resolutionTimeScore = 0;
-
-            if (totalTickets > 0) {
-                // Resolution Rate Scoring (Based on 7 tiers)
-                // >= 100% : 7/7
-                // 90-99%  : 6/7
-                // 80-89%  : 5/7
-                // 70-79%  : 4/7
-                // 60-69%  : 3/7
-                // 50-59%  : 2/7
-                // 40-49%  : 1/7
-                // < 40%   : 0
-                if (resolutionRate >= 100) resRateScore = maxResRatePoints * (7 / 7);
-                else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
-                else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
-                else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
-                else if (resolutionRate >= 60) resRateScore = maxResRatePoints * (3 / 7);
-                else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
-                else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
-                else resRateScore = 0;
-
-                // Response Time Scoring (Base 3 tiers)
-                // <= 24h : 3/3
-                // <= 48h : 2/3
-                // <= 72h : 1/3
-                if (averageResponseTime > 0) {
-                    if (averageResponseTime <= 24) responseScore = maxResponsePoints * (3 / 3);
-                    else if (averageResponseTime <= 48) responseScore = maxResponsePoints * (2 / 3);
-                    else if (averageResponseTime <= 72) responseScore = maxResponsePoints * (1 / 3);
-                    else responseScore = 0;
-                }
-
-                // Resolution Time Scoring (Base 5 tiers)
-                // <= 48h  : 5/5
-                // <= 72h  : 4/5
-                // <= 96h  : 3/5
-                // <= 120h : 2/5
-                // <= 144h : 1/5
-                if (averageResolutionTime > 0) {
-                    if (averageResolutionTime <= 48) resolutionTimeScore = maxResolutionTimePoints * (5 / 5);
-                    else if (averageResolutionTime <= 72) resolutionTimeScore = maxResolutionTimePoints * (4 / 5);
-                    else if (averageResolutionTime <= 96) resolutionTimeScore = maxResolutionTimePoints * (3 / 5);
-                    else if (averageResolutionTime <= 120) resolutionTimeScore = maxResolutionTimePoints * (2 / 5);
-                    else if (averageResolutionTime <= 144) resolutionTimeScore = maxResolutionTimePoints * (1 / 5);
-                    else resolutionTimeScore = 0;
-                }
-            }
-
-
-
-            const totalScore = resRateScore + responseScore + resolutionTimeScore;
-            setReportgovRate(Math.min(totalScore, reportGovPoints));
+            setReportgovRate(computeReportGovScore(ticketResolutionData, reportGovPoints));
         }
     }, [ticketResolutionData, reportGovPoints]);
 
@@ -1182,6 +1118,10 @@ export default function ScoringTab({
                                 year={scoringYear}
                                 scoringPeriod={scoringPeriod}
                             />
+                            <BulkEfficiencyCard
+                                scoringPeriod={scoringPeriod}
+                                mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                            />
                             <MdaScoringMatrix scoringPeriod={scoringPeriod} year={scoringYear} />
                         </div>
                     ) : (
@@ -1243,6 +1183,10 @@ export default function ScoringTab({
                 {/* --- Efficiency Section --- */}
                 <div className="w-full space-y-4">
                     <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Efficiency & Compliance</h3>
+                    <BulkEfficiencyCard
+                        scoringPeriod={scoringPeriod}
+                        mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                    />
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <SLAMetricCard
                             isLoadingSLAData={!!selectedMda && savedSLAData === undefined}

@@ -6,8 +6,15 @@ import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import { resolveReportPeriod } from "../lib/reportPeriod";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
+import {
+  buildMonthlyReportData,
+  computeTicketStats,
+  filterReportsToWindow,
+  getMonthNumber,
+  resolveScoringWindow,
+} from "./utils/efficiencyScoring";
 
-function normalizeMdaKey(name: string) {
+export function normalizeMdaKey(name: string) {
   return String(name || "")
     .toLowerCase()
     .replace(/[–—]/g, "-")
@@ -15,7 +22,7 @@ function normalizeMdaKey(name: string) {
     .trim();
 }
 
-function splitMdaNameForMatch(name: string) {
+export function splitMdaNameForMatch(name: string) {
   const normalized = normalizeMdaKey(name);
   const parts = normalized.split(" - ").map((p) => p.trim()).filter(Boolean);
   if (parts.length >= 2) {
@@ -24,7 +31,7 @@ function splitMdaNameForMatch(name: string) {
   return { fullName: normalized };
 }
 
-function buildExclusionLookup(entries: Array<{ mdaName: string; excludedMetrics: string[] }>) {
+export function buildExclusionLookup(entries: Array<{ mdaName: string; excludedMetrics: string[] }>) {
   const map = new Map<string, Set<string>>();
   for (const entry of entries) {
     const excluded = new Set(entry.excludedMetrics || []);
@@ -42,7 +49,7 @@ function buildExclusionLookup(entries: Array<{ mdaName: string; excludedMetrics:
 }
 
 // Helper function to find MDA by flexible name matching
-async function findMdaByName(ctx: any, mdaName: string) {
+export async function findMdaByName(ctx: any, mdaName: string) {
   const canonical = canonicalizeMdaName(mdaName);
 
   let mda = await ctx.db.query("mdas")
@@ -578,183 +585,16 @@ export const getRealMonthlyReports = query({
         .collect();
     }
 
-    // Filter reports by the selected scoring period BEFORE processing
-    let filteredReports = allReports;
-    let monthsToCheck: { month: number; year: number }[] = [];
-
-    // Default current date info
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
-
-    if (scoringPeriod) {
-      // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
-      const yearMatch = scoringPeriod.match(/\d{4}/);
-      const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
-
-      let startDate: number = 0;
-      let endDate: number = 0;
-
-      // Check for dynamic efficiency period configuration for 2026+
-      let usedDynamicPeriod = false;
-      if (targetYear >= 2026) {
-        const efficiencyConfig = await ctx.db.query("efficiency_periods")
-          .withIndex("byYear", q => q.eq("year", targetYear))
-          .first();
-
-        if (efficiencyConfig) {
-          const startMonth = getMonthNumber(efficiencyConfig.startMonth);
-          const endMonth = getMonthNumber(efficiencyConfig.endMonth);
-
-          // Start date: 1st day of start month in start year
-          startDate = new Date(efficiencyConfig.startYear, startMonth, 1).getTime();
-
-          // End date: Last day of end month in end year
-          endDate = new Date(efficiencyConfig.endYear, endMonth + 1, 0, 23, 59, 59).getTime();
-
-          // Generate monthsToCheck based on config
-          const monthNames = ["January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"];
-
-          let iterYear = efficiencyConfig.startYear;
-          let iterMonth = startMonth;
-
-          for (let i = 0; i < (efficiencyConfig.totalMonths || 12); i++) {
-            monthsToCheck.push({ month: iterMonth, year: iterYear });
-            iterMonth++;
-            if (iterMonth > 11) {
-              iterMonth = 0;
-              iterYear++;
-            }
-          }
-
-          usedDynamicPeriod = true;
-        }
-      }
-
-      if (!usedDynamicPeriod) {
-        if (scoringPeriod.includes("1st Half")) {
-          startDate = new Date(targetYear, 0, 1).getTime(); // January 1
-          endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
-
-          // January to June of target year
-          monthsToCheck = [
-            { month: 0, year: targetYear }, { month: 1, year: targetYear },
-            { month: 2, year: targetYear }, { month: 3, year: targetYear },
-            { month: 4, year: targetYear }, { month: 5, year: targetYear }
-          ];
-        } else if (scoringPeriod.includes("2nd Half")) {
-          startDate = new Date(targetYear, 6, 1).getTime();  // July 1
-          endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
-
-          // July to December of target year
-          monthsToCheck = [
-            { month: 6, year: targetYear }, { month: 7, year: targetYear },
-            { month: 8, year: targetYear }, { month: 9, year: targetYear },
-            { month: 10, year: targetYear }, { month: 11, year: targetYear }
-          ];
-        } else if (scoringPeriod === String(targetYear)) {
-          // Full Year
-          startDate = new Date(targetYear, 0, 1).getTime();
-          endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
-
-          // All months of target year
-          for (let month = 0; month <= 11; month++) {
-            monthsToCheck.push({ month, year: targetYear });
-          }
-        } else {
-          // Default: From January to current month
-          startDate = new Date(targetYear, 0, 1).getTime();
-          endDate = new Date(targetYear, currentMonth + 1, 0, 23, 59, 59).getTime();
-
-          for (let month = 0; month <= currentMonth; month++) {
-            monthsToCheck.push({ month, year: targetYear });
-          }
-        }
-      }
-
-      // Filter reports by reporting period within the scoring window
-      filteredReports = allReports.filter(report => {
-        const period = resolveReportPeriod(report);
-        if (period) {
-          return monthsToCheck.some(
-            (m) => m.month === period.month && m.year === period.year
-          );
-        }
-        const reportDate = report.submittedAt;
-        return reportDate >= startDate && reportDate <= endDate;
-      });
+    // Without a scoring period there are no months to evaluate (matches prior behaviour).
+    if (!scoringPeriod) {
+      return buildMonthlyReportData(allReports, []);
     }
 
-    // Group reports by month and year based on scoring period
-    const monthlyData = [];
-
-    // Debug: Log the scoring period and filtering results
-    // console.log('getRealMonthlyReports - Scoring Period:', scoringPeriod);
-    // console.log('getRealMonthlyReports - Filtered reports:', filteredReports.length);
-
-    // Track which reports have been assigned to a month by name (to avoid duplicates)
-    const reportsAssignedByName = new Set<string>();
-
-    const extractReportTargetMonthYear = (report: any): { month: number; year: number } | null => {
-      return resolveReportPeriod(report);
-    };
-
-    // Process each month in the scoring period
-    for (const { month, year } of monthsToCheck) {
-      const checkDate = new Date(year, month, 1);
-      const monthName = checkDate.toLocaleString('default', { month: 'long' });
-
-      // Find reports for this month/year - prioritize name matching over date
-      const monthReports = filteredReports.filter(report => {
-        const reportId = report._id;
-        const reportDate = new Date(report.submittedAt);
-
-        // First check by report/file month-year interpretation.
-        const parsedTarget = extractReportTargetMonthYear(report);
-        const matchesByName =
-          parsedTarget !== null &&
-          parsedTarget.month === month &&
-          parsedTarget.year === year;
-        if (matchesByName && !reportsAssignedByName.has(reportId)) {
-          reportsAssignedByName.add(reportId);
-          return true;
-        }
-
-        // If not matched by name, check by submission date (and not already assigned by name to another month)
-        const matchesByDate = !reportsAssignedByName.has(reportId) &&
-          reportDate.getMonth() === month &&
-          reportDate.getFullYear() === year;
-
-        return matchesByDate;
-      });
-
-      // Calculate deadline (last Friday of the month)
-      const lastDay = new Date(year, month + 1, 0);
-      const lastFriday = new Date(lastDay);
-      while (lastFriday.getDay() !== 5) { // 5 = Friday
-        lastFriday.setDate(lastFriday.getDate() - 1);
-      }
-      const deadline = lastFriday.getTime();
-
-      // Check if any report was submitted
-      const submitted = monthReports.length > 0;
-      const submittedDate = submitted ? monthReports[0].submittedAt : null;
-      const onTime = submitted && submittedDate && submittedDate <= deadline;
-
-      monthlyData.push({
-        month: monthName,
-        year: year,
-        deadline: deadline,
-        submittedDate: submittedDate,
-        submitted: submitted,
-        onTime: onTime,
-        reportCount: monthReports.length,
-        reports: monthReports
-      });
-    }
-
-    return monthlyData;
+    // Resolve the scoring window (dynamic 2026+ config, half-year, full year, or
+    // Jan→current month) and keep only reports inside it.
+    const window = await resolveScoringWindow(ctx, scoringPeriod, "yearToDate");
+    const filteredReports = filterReportsToWindow(allReports, window);
+    return buildMonthlyReportData(filteredReports, window.monthsToCheck);
   }
 });
 
@@ -871,16 +711,6 @@ export const getYearlyScoringData = query({
   }
 });
 
-// Helper to convert month name to number (0-11)
-function getMonthNumber(monthName: string): number {
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  const index = months.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
-  return index !== -1 ? index : 0; // Default to January if invalid
-}
-
 // Get period-specific ticket data for MDA scoring
 export const getPeriodTicketData = query({
   args: {
@@ -895,98 +725,19 @@ export const getPeriodTicketData = query({
       return null;
     }
 
-    // Calculate date range based on scoring period
-    const currentYear = new Date().getFullYear();
-    let startDate: number = 0;
-    let endDate: number = 0;
+    const { startDate, endDate } = await resolveScoringWindow(ctx, scoringPeriod, "currentMonth");
 
-    // Extract year from scoring period (e.g., "1st Half 2024" -> 2024)
-    const yearMatch = scoringPeriod.match(/\d{4}/);
-    const targetYear = yearMatch ? parseInt(yearMatch[0]) : currentYear;
-
-    // Check for dynamic efficiency period configuration for 2026+
-    let usedDynamicPeriod = false;
-    if (targetYear >= 2026) {
-      const efficiencyConfig = await ctx.db.query("efficiency_periods")
-        .withIndex("byYear", q => q.eq("year", targetYear))
-        .first();
-
-      if (efficiencyConfig) {
-        const startMonth = getMonthNumber(efficiencyConfig.startMonth);
-        const endMonth = getMonthNumber(efficiencyConfig.endMonth);
-
-        // Start date: 1st day of start month in start year
-        startDate = new Date(efficiencyConfig.startYear, startMonth, 1).getTime();
-
-        // End date: Last day of end month in end year
-        // logic: day 0 of next month gives last day of current month
-        endDate = new Date(efficiencyConfig.endYear, endMonth + 1, 0, 23, 59, 59).getTime();
-
-        usedDynamicPeriod = true;
-      }
-    }
-
-    if (!usedDynamicPeriod) {
-      if (scoringPeriod.includes("1st Half")) {
-        startDate = new Date(targetYear, 0, 1).getTime(); // January 1
-        endDate = new Date(targetYear, 5, 30, 23, 59, 59).getTime();   // June 30 end of day
-      } else if (scoringPeriod.includes("2nd Half")) {
-        startDate = new Date(targetYear, 6, 1).getTime();  // July 1
-        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();  // December 31 end of day
-      } else if (scoringPeriod === String(targetYear)) {
-        // Full Year
-        startDate = new Date(targetYear, 0, 1).getTime();
-        endDate = new Date(targetYear, 11, 31, 23, 59, 59).getTime();
-      } else {
-        // Default - use current month
-        const now = new Date();
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
-      }
-    }
-
-    // Get all tickets for this MDA first
     const allTickets = await ctx.db.query("tickets")
       .withIndex("byMDA", q => q.eq("assignedMDA", mda._id))
       .collect();
 
-    // Filter tickets by date range in memory (more flexible and accurate)
-    const filteredTickets = allTickets.filter(ticket =>
-      ticket.createdAt >= startDate && ticket.createdAt <= endDate
-    );
-
-    // Debug logging
-    console.log(`MDA: ${mdaName}, Period: ${scoringPeriod}`);
-    console.log(`Target Year: ${targetYear}, Dynamic: ${usedDynamicPeriod}`);
-    console.log(`Date Range: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`);
-    console.log(`Total tickets for MDA: ${allTickets.length}`);
-    console.log(`Filtered tickets for period: ${filteredTickets.length}`);
-    console.log(`Sample ticket dates:`, allTickets.slice(0, 3).map(t => ({
-      id: t._id,
-      createdAt: new Date(t.createdAt).toLocaleDateString(),
-      status: t.status
-    })));
-
-    const totalTickets = filteredTickets.length;
-    const resolvedTickets = filteredTickets.filter(t => t.status === "resolved" || t.status === "closed").length;
-    const resolutionRate = totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0;
-
-    // Calculate average response and resolution times
-    const responseTimes = filteredTickets
-      .filter(t => t.firstResponseAt)
-      .map(t => (t.firstResponseAt! - t.createdAt) / (1000 * 60 * 60));
-
-    const resolutionTimes = filteredTickets
-      .filter(t => t.status === "resolved" || t.status === "closed")
-      .map(t => (t.updatedAt - t.createdAt) / (1000 * 60 * 60));
-
-    const averageResponseTime = responseTimes.length > 0
-      ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
-      : 0;
-
-    const averageResolutionTime = resolutionTimes.length > 0
-      ? resolutionTimes.reduce((sum, time) => sum + time, 0) / resolutionTimes.length
-      : 0;
+    const {
+      totalTickets,
+      resolvedTickets,
+      resolutionRate,
+      averageResponseTime,
+      averageResolutionTime,
+    } = computeTicketStats(allTickets, startDate, endDate);
 
     return {
       totalTickets,
