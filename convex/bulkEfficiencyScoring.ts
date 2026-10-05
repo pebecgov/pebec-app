@@ -16,6 +16,7 @@ import type { MutationCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
+import { mdaMatchKey } from "./lib/resolveMda";
 import {
   buildExclusionLookup,
   findMdaByName,
@@ -190,7 +191,8 @@ export const runAutomaticEfficiencyScoring = mutation({
         .filter((q) => q.eq(q.field("role"), "reform_champion"))
         .collect();
       for (const report of filterReportsToWindow(allReports, reportWindow)) {
-        const key = report.mdaName ?? "";
+        const key = mdaMatchKey(report.mdaName ?? "");
+        if (!key) continue;
         const bucket = reportsByMda.get(key);
         if (bucket) bucket.push(report);
         else reportsByMda.set(key, [report]);
@@ -208,8 +210,9 @@ export const runAutomaticEfficiencyScoring = mutation({
 
       // ---- Monthly Report Submission & Deadline Compliance ----
       if (needsReports) {
+        const reportKey = mdaMatchKey(actualMdaName) || mdaMatchKey(mdaName);
         const monthly = buildMonthlyReportData(
-          reportsByMda.get(actualMdaName) ?? [],
+          (reportKey ? reportsByMda.get(reportKey) : undefined) ?? [],
           reportWindow.monthsToCheck,
         );
         const submitted = monthly.filter((m) => m.submitted).length;

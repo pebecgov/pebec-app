@@ -1,5 +1,6 @@
 import type { MutationCtx } from "../_generated/server";
 import type { Doc } from "../_generated/dataModel";
+import { canonicalizeMdaName } from "../../lib/mdaNameAliases";
 import { PORTS_CUSTOMS_MDAS } from "../whatsapp/portsCustoms";
 
 function normalizeMdaKey(name: string): string {
@@ -25,6 +26,14 @@ function coreMdaName(name: string): string {
   return normalizeMdaKey(name);
 }
 
+/**
+ * Stable match key so "NAMA - Nigerian Airspace Management Agency" and
+ * "Nigerian Airspace Management Agency" land in the same bucket.
+ */
+export function mdaMatchKey(name: string): string {
+  return coreMdaName(canonicalizeMdaName(name || ""));
+}
+
 function abbreviationOf(name: string): string | null {
   const dashParts = name.split(/\s*-\s*/).map((part) => part.trim()).filter(Boolean);
   if (dashParts.length >= 2 && looksLikeAbbreviation(dashParts[0])) {
@@ -39,17 +48,20 @@ function abbreviationOf(name: string): string | null {
 }
 
 export function mdaNamesMatch(left: string, right: string): boolean {
-  const leftNorm = normalizeMdaKey(left);
-  const rightNorm = normalizeMdaKey(right);
+  const leftCanon = canonicalizeMdaName(left || "");
+  const rightCanon = canonicalizeMdaName(right || "");
+
+  const leftNorm = normalizeMdaKey(leftCanon);
+  const rightNorm = normalizeMdaKey(rightCanon);
   if (!leftNorm || !rightNorm) return false;
   if (leftNorm === rightNorm) return true;
 
-  const leftCore = coreMdaName(left);
-  const rightCore = coreMdaName(right);
+  const leftCore = coreMdaName(leftCanon);
+  const rightCore = coreMdaName(rightCanon);
   if (leftCore && rightCore && leftCore === rightCore) return true;
 
-  const leftAbbr = abbreviationOf(left);
-  const rightAbbr = abbreviationOf(right);
+  const leftAbbr = abbreviationOf(leftCanon);
+  const rightAbbr = abbreviationOf(rightCanon);
   if (leftAbbr && rightAbbr && leftAbbr === rightAbbr) return true;
 
   return false;
