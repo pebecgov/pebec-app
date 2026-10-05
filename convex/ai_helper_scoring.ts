@@ -167,7 +167,14 @@ export const processMonthlyReportFromDB = action({
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      const parsed = processExcelBufferFull(arrayBuffer, report.fileName);
+      // End of the report month (or today if still in that month) — used for
+      // pending completion half-credit while the expected timeline is open.
+      const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
+      const asOfDate = monthEnd.getTime() > Date.now() ? new Date() : monthEnd;
+      const parsed = processExcelBufferFull(arrayBuffer, report.fileName, {
+        scoringMode: true,
+        asOfDate,
+      });
 
       if (!parsed.ok) {
         return {

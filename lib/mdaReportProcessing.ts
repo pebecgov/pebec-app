@@ -6,6 +6,7 @@ import {
   SUCCESS_VALID_ROW_PERCENT,
 } from "./bfaProcessingConfig";
 import {
+  DATE_ISSUE_LABELS,
   DATE_ISSUE_SAMPLE_LIMIT,
   enrichFailureDetailWithMetadata,
   formatDateIssueSummary,
@@ -304,6 +305,22 @@ function missingColumnsDetail(mapping: SlaHeaderMapping): string {
 
 function excelLayoutFailure(detail: string): ProcessExcelFailure {
   return { ok: false, failureType: "unsupported_format", failureDetail: detail };
+}
+
+/** Compact human-readable summary of why rows failed (for file-level messages). */
+function summariseScoringFailureReasons(samples: DateIssueSample[]): string {
+  if (samples.length === 0) return "no detailed row reasons available";
+  const counts = new Map<DateIssueReason, number>();
+  for (const sample of samples) {
+    for (const issue of sample.issues) {
+      counts.set(issue, (counts.get(issue) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([reason, count]) => `${DATE_ISSUE_LABELS[reason]} (${count})`)
+    .join("; ");
 }
 
 export type ProcessingQuality = "success" | "partial_success" | "failed";
@@ -1090,13 +1107,51 @@ function calculatePerformance(actualDays: number | null, expectedDays: number | 
   return Math.max(0, 100 - daysOver * 0.5);
 }
 
+/** Completion cells that mean "not finished yet" rather than a real date. */
+export function isPendingCompletionValue(value: unknown): boolean {
+  const raw = formatRawCellValue(value).toLowerCase().trim();
+  if (!raw) return false;
+  const normalized = raw
+    .replace(/[._]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (
+    normalized === "nil" ||
+    normalized === "n/a" ||
+    normalized === "na" ||
+    normalized === "not applicable" ||
+    normalized === "not yet approved" ||
+    normalized === "not yet" ||
+    normalized === "pending" ||
+    normalized === "ongoing" ||
+    normalized === "in progress" ||
+    normalized === "-" ||
+    normalized === "--"
+  );
+}
+
+export type SlaProcessingOptions = {
+  /**
+   * Scoring path (bulk SLA / Configure Monthly SLA):
+   * - pending completion (NIL / N/A / Not yet approved) within timeline → 50%
+   * - succeed if at least one row scores (no 20% minimum)
+   * Ingestion quality checks leave this off.
+   */
+  scoringMode?: boolean;
+  /** Reference date for “has the timeline passed yet?” (defaults to now). */
+  asOfDate?: Date;
+};
+
 function classifyRowDateIssues(
   submissionDate: unknown,
   completionDate: unknown,
   timelineStr: unknown,
-  availabilityValue?: unknown
+  availabilityValue?: unknown,
+  options?: SlaProcessingOptions
 ): DateIssueReason[] {
   const issues: DateIssueReason[] = [];
+  const scoringMode = options?.scoringMode === true;
+  const asOfDate = options?.asOfDate ?? new Date();
 
   const submissionRaw = formatRawCellValue(submissionDate);
   const completionRaw = formatRawCellValue(completionDate);
@@ -1108,12 +1163,6 @@ function classifyRowDateIssues(
     issues.push("unparseable_submission_date");
   }
 
-  if (!completionRaw) {
-    issues.push("missing_completion_date");
-  } else if (!parseSmartDate(completionDate)) {
-    issues.push("unparseable_completion_date");
-  }
-
   const timelineBroken =
     timelineRaw !== "" &&
     isBrokenSubmissionDerivedTimeline(timelineStr, submissionDate);
@@ -1121,15 +1170,37 @@ function classifyRowDateIssues(
     availabilityValue !== undefined ? parseTimeline(availabilityValue) : null;
   const timelineParsed =
     timelineRaw && !timelineBroken ? parseTimeline(timelineStr) : null;
+  const expectedDays =
+    timelineParsed !== null
+      ? timelineParsed
+      : availabilityParsed !== null
+        ? availabilityParsed
+        : null;
 
   if (!timelineRaw && availabilityParsed === null) {
     issues.push("missing_timeline");
-  } else if (timelineParsed === null && availabilityParsed === null) {
+  } else if (expectedDays === null) {
     issues.push("unparseable_timeline");
   }
 
+  const pendingCompletion = scoringMode && isPendingCompletionValue(completionDate);
   const parsedSubmission = parseSmartDate(submissionDate);
   const parsedCompletion = parseSmartDate(completionDate);
+
+  if (pendingCompletion) {
+    if (parsedSubmission && expectedDays !== null) {
+      const daysSoFar = calculateWorkingDays(submissionDate, asOfDate);
+      if (daysSoFar !== null && daysSoFar > expectedDays) {
+        issues.push("pending_completion_timeline_exceeded");
+      }
+      // Still within timeline → not a failure; row scores at half points.
+    }
+  } else if (!completionRaw) {
+    issues.push("missing_completion_date");
+  } else if (!parsedCompletion) {
+    issues.push("unparseable_completion_date");
+  }
+
   if (
     parsedSubmission &&
     parsedCompletion &&
@@ -1146,7 +1217,8 @@ function classifyRowDateIssues(
 function collectDateIssueSamples(
   data: Record<string, unknown>[],
   headerMapping: SlaHeaderMapping,
-  availabilityHeader: string | null
+  availabilityHeader: string | null,
+  options?: SlaProcessingOptions
 ): { samples: DateIssueSample[]; totalCount: number } {
   const allSamples: DateIssueSample[] = [];
 
@@ -1164,7 +1236,8 @@ function collectDateIssueSamples(
       submissionDate,
       completionDate,
       timelineStr,
-      availabilityValue
+      availabilityValue,
+      options
     );
     if (issues.length === 0) return;
 
@@ -1187,10 +1260,14 @@ function collectDateIssueSamples(
 export function internalProcessSlaData(
   data: Record<string, unknown>[],
   headerMapping: SlaHeaderMapping,
-  headers?: string[]
+  headers?: string[],
+  options?: SlaProcessingOptions
 ) {
   const availabilityHeader =
     headers?.length ? findAvailabilityCodeHeader(headers) : null;
+  const scoringMode = options?.scoringMode === true;
+  const asOfDate = options?.asOfDate ?? new Date();
+  let pendingHalfCreditRows = 0;
 
   const processedData = data.map((row) => {
     const submissionDate = headerMapping.DATE_OF_SUBMISSION
@@ -1201,13 +1278,46 @@ export function internalProcessSlaData(
       : null;
     const timelineStr = headerMapping.EXPECTED_TIMELINE ? row[headerMapping.EXPECTED_TIMELINE] : null;
 
-    const actualDays = calculateWorkingDays(submissionDate, completionDate);
     const expectedDays = resolveExpectedTimelineDays(
       row,
       headerMapping,
       submissionDate,
       availabilityHeader
     );
+    const parsedSubmission = parseSmartDate(submissionDate);
+    const pendingCompletion = scoringMode && isPendingCompletionValue(completionDate);
+
+    // Scoring mode: NIL / N/A / Not yet approved → half credit while timeline still open.
+    if (pendingCompletion && parsedSubmission && expectedDays !== null) {
+      const daysSoFar = calculateWorkingDays(submissionDate, asOfDate);
+      if (daysSoFar !== null && daysSoFar <= expectedDays) {
+        pendingHalfCreditRows++;
+        return {
+          ...row,
+          "DATE OF SUBMISSION": formatDateValue(submissionDate),
+          "DATE OF COMPLETION": formatRawCellValue(completionDate) || "Pending",
+          "EXPECTED TIMELINE": timelineStr,
+          "ACTUAL WORKING DAYS": daysSoFar,
+          STATUS: "Pending (within timeline — half credit)",
+          "DAYS OVER": 0,
+          "PERFORMANCE %": "50.00%",
+        };
+      }
+      // Timeline already passed with no real completion → not scored.
+      return {
+        ...row,
+        "DATE OF SUBMISSION": formatDateValue(submissionDate),
+        "DATE OF COMPLETION": formatRawCellValue(completionDate) || "Pending",
+        "EXPECTED TIMELINE": timelineStr,
+        "ACTUAL WORKING DAYS": daysSoFar,
+        STATUS: "Pending (timeline exceeded — not scored)",
+        "DAYS OVER":
+          daysSoFar === null ? null : Math.max(0, daysSoFar - expectedDays),
+        "PERFORMANCE %": "N/A",
+      };
+    }
+
+    const actualDays = calculateWorkingDays(submissionDate, completionDate);
     const performancePercentage = calculatePerformance(actualDays, expectedDays);
 
     let status = "Invalid Dates";
@@ -1236,8 +1346,12 @@ export function internalProcessSlaData(
   }, 0);
 
   const overallPercentage = validRows.length > 0 ? totalPercentage / validRows.length : null;
-  const invalidDateRowCount = processedData.filter((row) => row.STATUS === "Invalid Dates").length;
-  const dateIssues = collectDateIssueSamples(data, headerMapping, availabilityHeader);
+  const invalidDateRowCount = processedData.filter(
+    (row) =>
+      row.STATUS === "Invalid Dates" ||
+      row.STATUS === "Pending (timeline exceeded — not scored)"
+  ).length;
+  const dateIssues = collectDateIssueSamples(data, headerMapping, availabilityHeader, options);
 
   return {
     processedData,
@@ -1245,6 +1359,7 @@ export function internalProcessSlaData(
     totalRows: data.length,
     validRows: validRows.length,
     invalidDateRowCount,
+    pendingHalfCreditRows,
     dateIssueSamples: dateIssues.samples,
     dateIssueTotalCount: dateIssues.totalCount,
     success: true as const,
@@ -1379,9 +1494,10 @@ function attachDateIssuesToMetadata(
 
 export function processExcelBuffer(
   arrayBuffer: ArrayBuffer,
-  fileName?: string
+  fileName?: string,
+  options?: SlaProcessingOptions
 ): ProcessExcelBufferResult {
-  const full = processExcelBufferFull(arrayBuffer, fileName);
+  const full = processExcelBufferFull(arrayBuffer, fileName, options);
   if (!full.ok) return full;
   return {
     ok: true,
@@ -1398,7 +1514,8 @@ export function processExcelBuffer(
 
 export function processExcelBufferFull(
   arrayBuffer: ArrayBuffer,
-  fileName?: string
+  fileName?: string,
+  options?: SlaProcessingOptions
 ):
   | ({
       ok: true;
@@ -1411,6 +1528,7 @@ export function processExcelBufferFull(
       processingQuality: ProcessingQuality;
       validRowPercent: number;
       skippedBlankRowCount: number;
+      pendingHalfCreditRows?: number;
     })
   | ({
       ok: false;
@@ -1463,27 +1581,42 @@ export function processExcelBufferFull(
       };
     }
 
-    const processResult = internalProcessSlaData(dataRows, sheet.mapping, sheet.headers);
+    const processResult = internalProcessSlaData(
+      dataRows,
+      sheet.mapping,
+      sheet.headers,
+      options
+    );
     const metadataWithDates = attachDateIssuesToMetadata(
       sheet.metadata,
       processResult.dateIssueSamples,
       processResult.dateIssueTotalCount
     );
     const validRowPercent = computeValidRowPercent(processResult.validRows, processResult.totalRows);
-    const processingQuality = classifyProcessingQuality(
-      processResult.validRows,
-      processResult.totalRows
-    );
+    const scoringMode = options?.scoringMode === true;
+
+    // Scoring: any scored row is enough (no 20% floor). Ingestion keeps the quality gate.
+    const processingQuality: ProcessingQuality = scoringMode
+      ? processResult.validRows > 0
+        ? validRowPercent >= SUCCESS_VALID_ROW_PERCENT
+          ? "success"
+          : "partial_success"
+        : "failed"
+      : classifyProcessingQuality(processResult.validRows, processResult.totalRows);
 
     if (processingQuality === "failed") {
+      const reasonLines = summariseScoringFailureReasons(processResult.dateIssueSamples);
       const sampleHint =
         processResult.dateIssueSamples.length > 0
-          ? ` See date failure report for ${processResult.dateIssueTotalCount} row(s) with details.`
+          ? ` Common reasons: ${reasonLines}`
           : "";
       const failureType =
         processResult.validRows === 0 ? "unparseable_dates" : "insufficient_valid_rows";
-      const baseDetail =
-        processResult.validRows === 0
+      const baseDetail = scoringMode
+        ? processResult.validRows === 0
+          ? `None of the ${processResult.totalRows} data row(s) could be scored. Rows need a date of submission and an expected timeline; completion may be a real date or a pending placeholder (NIL / N/A / Not yet approved) while the timeline is still open.${sampleHint}`
+          : `Not enough usable rows to score this file (${processResult.validRows}/${processResult.totalRows}).${sampleHint}`
+        : processResult.validRows === 0
           ? `All ${processResult.totalRows} data row(s) have invalid or missing dates.${sampleHint}`
           : `Only ${validRowPercent.toFixed(1)}% of rows (${processResult.validRows}/${processResult.totalRows}) have valid dates — below the ${MIN_VALID_ROW_PERCENT}% minimum for a passing file.${sampleHint}`;
 
@@ -1500,9 +1633,17 @@ export function processExcelBufferFull(
       };
     }
 
+    const halfCreditNote =
+      scoringMode && processResult.pendingHalfCreditRows > 0
+        ? `${processResult.pendingHalfCreditRows} row(s) with pending completion (NIL / N/A / Not yet approved) scored at half credit because the timeline had not been exceeded.`
+        : undefined;
     const partialNote =
       processingQuality === "partial_success"
-        ? `${validRowPercent.toFixed(1)}% of rows valid (${processResult.validRows}/${processResult.totalRows}) — below ${SUCCESS_VALID_ROW_PERCENT}% full-success threshold.`
+        ? `${validRowPercent.toFixed(1)}% of rows scored (${processResult.validRows}/${processResult.totalRows})${
+            scoringMode
+              ? " — file still accepted for scoring."
+              : ` — below ${SUCCESS_VALID_ROW_PERCENT}% full-success threshold.`
+          }`
         : undefined;
 
     return {
@@ -1512,12 +1653,13 @@ export function processExcelBufferFull(
       invalidDateRowCount: processResult.invalidDateRowCount,
       overallPercentage: processResult.overallPercentage,
       processedData: processResult.processedData,
+      pendingHalfCreditRows: processResult.pendingHalfCreditRows,
       metadata: {
         ...metadataWithDates,
         skippedBlankRowCount,
         validRowPercent,
         processingQuality,
-        partialSuccessNote: partialNote,
+        partialSuccessNote: [partialNote, halfCreditNote].filter(Boolean).join(" ") || undefined,
       },
       processingQuality,
       validRowPercent,

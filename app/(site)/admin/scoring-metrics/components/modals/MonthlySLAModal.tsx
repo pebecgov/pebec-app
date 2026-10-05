@@ -73,7 +73,9 @@ export default function MonthlySLAModal({
                 check: { status: 'failed', failureType: 'unsupported_format', message: nonSpreadsheetFileMessage(file.name) },
             };
         }
-        const parsed = processExcelBufferFull(await file.arrayBuffer(), file.name);
+        const parsed = processExcelBufferFull(await file.arrayBuffer(), file.name, {
+            scoringMode: true,
+        });
         if (!parsed.ok) {
             return {
                 ok: false,
