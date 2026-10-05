@@ -18,7 +18,8 @@ export type DateIssueReason =
   | "unparseable_completion_date"
   | "completion_before_submission"
   | "missing_timeline"
-  | "unparseable_timeline";
+  | "unparseable_timeline"
+  | "pending_completion_timeline_exceeded";
 
 export type DateIssueSample = {
   /** 1-based row index in the data table (below header row) */
@@ -62,7 +63,8 @@ export const dateIssueReasonValidator = v.union(
   v.literal("unparseable_completion_date"),
   v.literal("completion_before_submission"),
   v.literal("missing_timeline"),
-  v.literal("unparseable_timeline")
+  v.literal("unparseable_timeline"),
+  v.literal("pending_completion_timeline_exceeded")
 );
 
 export const dateIssueSampleValidator = v.object({
@@ -108,13 +110,18 @@ export const ingestionProcessingMetadataValidator = v.object({
 });
 
 export const DATE_ISSUE_LABELS: Record<DateIssueReason, string> = {
-  missing_submission_date: "Submission date missing",
-  unparseable_submission_date: "Submission date unparseable",
-  missing_completion_date: "Completion date missing",
-  unparseable_completion_date: "Completion date unparseable",
-  completion_before_submission: "Completion before submission",
-  missing_timeline: "Expected timeline missing",
-  unparseable_timeline: "Expected timeline unparseable",
+  missing_submission_date: "No date of submission — this row cannot be scored",
+  unparseable_submission_date:
+    "Date of submission could not be read (not a recognisable date)",
+  missing_completion_date: "No date of completion — this row cannot be scored",
+  unparseable_completion_date:
+    "Date of completion could not be read (not a recognisable date, and not a pending placeholder like NIL / N/A / Not yet approved)",
+  completion_before_submission: "Completion date is earlier than the submission date",
+  missing_timeline: "No expected timeline in the spreadsheet — this row cannot be scored",
+  unparseable_timeline:
+    "Expected timeline could not be read (needs a number of days, e.g. 40 or “5 days”)",
+  pending_completion_timeline_exceeded:
+    "Completion is still pending (NIL / N/A / Not yet approved) but the expected timeline has already passed",
 };
 
 export function formatDateIssueSummary(issues: DateIssueReason[]): string {

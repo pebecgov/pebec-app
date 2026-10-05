@@ -58,7 +58,7 @@ const FAILURE_LABELS: Record<string, string> = {
   completion_date_column_missing: "Completion date column missing",
   timeline_column_missing: "Timeline column missing",
   unparseable_dates: "Unparseable dates (all rows)",
-  insufficient_valid_rows: "Too few valid rows (<20%)",
+  insufficient_valid_rows: "Too few usable rows to process",
   empty_file: "Empty file",
   unsupported_format: "Excel layout mismatch (wrong sheet or headers)",
   processing_timeout: "Processing timed out",

@@ -27,6 +27,7 @@ import BulkTransparencyCard from './BulkTransparencyCard';
 import MdaScoringMatrix from './MdaScoringMatrix';
 import TrackerMetricStatusPanel from './TrackerMetricStatusPanel';
 import BulkEfficiencyCard from './BulkEfficiencyCard';
+import BulkSLACard from './BulkSLACard';
 import { computeReportGovBreakdown } from '@/convex/utils/efficiencyScoring';
 
 // Modals
@@ -1137,6 +1138,10 @@ export default function ScoringTab({
                                 scoringPeriod={scoringPeriod}
                                 mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
                             />
+                            <BulkSLACard
+                                scoringPeriod={scoringPeriod}
+                                mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                            />
                             <MdaScoringMatrix scoringPeriod={scoringPeriod} year={scoringYear} />
                         </div>
                     ) : (
@@ -1199,6 +1204,10 @@ export default function ScoringTab({
                 <div className="w-full space-y-4">
                     <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Efficiency & Compliance</h3>
                     <BulkEfficiencyCard
+                        scoringPeriod={scoringPeriod}
+                        mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                    />
+                    <BulkSLACard
                         scoringPeriod={scoringPeriod}
                         mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
                     />

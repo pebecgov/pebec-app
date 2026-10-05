@@ -20,6 +20,8 @@ import type * as beepaImport from "../beepaImport.js";
 import type * as bulkEfficiencyScoring from "../bulkEfficiencyScoring.js";
 import type * as bulkImportStateScores from "../bulkImportStateScores.js";
 import type * as bulkNationwideTourScores from "../bulkNationwideTourScores.js";
+import type * as bulkSlaScoring from "../bulkSlaScoring.js";
+import type * as bulkSlaScoringActions from "../bulkSlaScoringActions.js";
 import type * as bulkTransparencyUpdate from "../bulkTransparencyUpdate.js";
 import type * as business_letters from "../business_letters.js";
 import type * as calendar from "../calendar.js";
@@ -133,6 +135,8 @@ declare const fullApi: ApiFromModules<{
   bulkEfficiencyScoring: typeof bulkEfficiencyScoring;
   bulkImportStateScores: typeof bulkImportStateScores;
   bulkNationwideTourScores: typeof bulkNationwideTourScores;
+  bulkSlaScoring: typeof bulkSlaScoring;
+  bulkSlaScoringActions: typeof bulkSlaScoringActions;
   bulkTransparencyUpdate: typeof bulkTransparencyUpdate;
   business_letters: typeof business_letters;
   calendar: typeof calendar;

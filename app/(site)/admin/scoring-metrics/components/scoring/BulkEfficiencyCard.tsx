@@ -34,7 +34,11 @@ type RunSummary = {
 const METRIC_OPTIONS: Array<{ key: Metric; label: string; hint: string }> = [
   { key: "reportSubmission", label: "Monthly Report Submission", hint: "from reform-champion report uploads" },
   { key: "timeliness", label: "Deadline Compliance", hint: "reports submitted by the last Friday of the month" },
-  { key: "reportGov", label: "Report Gov Resolution", hint: "from ReportGov ticket resolution and response times" },
+  {
+    key: "reportGov",
+    label: "Report Gov Resolution",
+    hint: "from ReportGov tickets — MDAs with no tickets are auto-skipped (normalized)",
+  },
 ];
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -172,8 +176,9 @@ export default function BulkEfficiencyCard({ scoringPeriod, mdaNames }: Props) {
         <p className="text-xs text-gray-600">
           Computes and saves the data-driven Efficiency metrics for all{" "}
           <strong>{uniqueMdaNames.length} MDAs</strong> in <strong>{scoringPeriod}</strong>, exactly as if you
-          opened each MDA and pressed Save. SLA and Mystery Shopping need manual input and are not included.
-          Use <em>Preview</em> first to see the scores without saving.
+          opened each MDA and pressed Save. MDAs with no ReportGov tickets are set to Skip (0 points) so their
+          percentage is normalized without that metric. SLA has its own bulk runner below; Mystery Shopping stays
+          manual. Use <em>Preview</em> first to see the scores without saving.
         </p>
 
         <div className="grid gap-2 sm:grid-cols-3">
