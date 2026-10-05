@@ -6,6 +6,7 @@ import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import { resolveReportPeriod } from "../lib/reportPeriod";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
+import { mdaNamesMatch } from "./lib/resolveMda";
 import {
   buildMonthlyReportData,
   calculateAdjustedResolutionRate,
@@ -69,6 +70,9 @@ export async function findMdaByName(ctx: any, mdaName: string) {
 
   const allMdas = await ctx.db.query("mdas").collect();
   mda = allMdas.find((m: any) => canonicalizeMdaName(m.name) === canonical);
+  if (mda) return mda;
+
+  mda = allMdas.find((m: any) => mdaNamesMatch(m.name, mdaName));
   if (mda) return mda;
 
   mda = allMdas.find((m: any) => {
@@ -610,15 +614,25 @@ async function loadRealMonthlyReports(
     // Get all submitted reports from reform champions for the specified MDA
     let allReports: Doc<"submitted_reports">[];
     if (mdaName) {
-      // Find the MDA using flexible matching to get the correct name
+      // Find the MDA using flexible matching (optional — many MDAs without
+      // ReportGov agents are not in the `mdas` table at all).
       const mda = await findMdaByName(ctx, mdaName);
-      const actualMdaName = mda ? mda.name : mdaName;
+      const nameCandidates = [mdaName, mda?.name].filter(
+        (name): name is string => !!name
+      );
 
-      // Get all reports for the specific MDA, then filter by role
-      allReports = await ctx.db.query("submitted_reports")
+      // Match flexibly: uploads often store "NAMA - Nigerian Airspace…" while
+      // the scoring selector uses just "Nigerian Airspace Management Agency".
+      const reformReports = await ctx.db.query("submitted_reports")
         .withIndex("byDate", q => q.gte("submittedAt", 0))
-        .filter(q => q.eq(q.field("role"), "reform_champion") && q.eq(q.field("mdaName"), actualMdaName))
+        .filter(q => q.eq(q.field("role"), "reform_champion"))
         .collect();
+
+      allReports = reformReports.filter(
+        (report) =>
+          !!report.mdaName &&
+          nameCandidates.some((candidate) => mdaNamesMatch(candidate, report.mdaName!))
+      );
     } else {
       // Get all reports for the current user
       const user = await getCurrentUserOrThrow(ctx);
