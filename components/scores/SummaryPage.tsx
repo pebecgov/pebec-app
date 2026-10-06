@@ -35,6 +35,15 @@ export interface MetricItem {
   badge?: string;
   /** Programme exemption: metric is shown but not included in the BFA total. */
   exempted?: boolean;
+  /**
+   * Plain-language problems for this metric (e.g. SLA months that failed or
+   * were not submitted). Shown to agencies on the public tracker.
+   */
+  issues?: {
+    label: string;
+    message: string;
+    kind: "failed" | "missing" | "partial";
+  }[];
 }
 
 export function SummaryHeader({
@@ -136,7 +145,10 @@ export function MetricBreakdown({
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
 }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(() => {
+    const withIssues = metrics.find((m) => (m.issues?.length ?? 0) > 0);
+    return withIssues?.name ?? null;
+  });
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -154,10 +166,13 @@ export function MetricBreakdown({
       ) : (
         <div className="space-y-4">
           {metrics.map((metric, index) => {
-            const isExpanded = expanded === metric.name;
             const isExempted = metric.exempted === true;
             const details = metric.details || [];
+            const issues = metric.issues || [];
             const hasDetails = details.length > 0;
+            const hasIssues = issues.length > 0;
+            const isExpandable = hasDetails || hasIssues;
+            const isExpanded = expanded === metric.name;
             const hasScoredDetails = details.some((detail) => detail.scored === true);
             const allDetailsScored =
               hasDetails && details.every((detail) => detail.scored === true);
@@ -186,12 +201,12 @@ export function MetricBreakdown({
                 className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden hover:shadow-lg transition-shadow"
               >
                 <div
-                  className={`p-5 ${hasDetails ? "cursor-pointer hover:bg-gray-50" : ""} transition-colors`}
-                  onClick={() => hasDetails && setExpanded(isExpanded ? null : metric.name)}
+                  className={`p-5 ${isExpandable ? "cursor-pointer hover:bg-gray-50" : ""} transition-colors`}
+                  onClick={() => isExpandable && setExpanded(isExpanded ? null : metric.name)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      {hasDetails && (
+                      {isExpandable && (
                         <button type="button" className="text-gray-400 hover:text-gray-600 p-1">
                           <svg
                             className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -211,6 +226,11 @@ export function MetricBreakdown({
                         {metric.badge ? (
                           <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                             {metric.badge}
+                          </span>
+                        ) : null}
+                        {hasIssues ? (
+                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                            {issues.length} month{issues.length === 1 ? "" : "s"} need attention
                           </span>
                         ) : null}
                         {isExempted ? (
@@ -261,16 +281,59 @@ export function MetricBreakdown({
                     </div>
                   )}
                   {showAsInProgress && showPartialProgress ? (
-                    <p className={`text-xs text-amber-800 mt-2 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                    <p className={`text-xs text-amber-800 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Not scored fully — this is not the final score for this metric.
                     </p>
                   ) : null}
                   {metric.justification ? (
-                    <p className={`text-sm text-gray-600 mt-2 leading-relaxed ${hasDetails ? "ml-9" : "ml-0"}`}>
+                    <p className={`text-sm text-gray-600 mt-2 leading-relaxed ${isExpandable ? "ml-9" : "ml-0"}`}>
                       {metric.justification}
                     </p>
                   ) : null}
+                  {!isExpanded && hasIssues ? (
+                    <p className={`text-xs text-amber-800 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
+                      Open for month-by-month guidance on what to fix and resubmit.
+                    </p>
+                  ) : null}
                 </div>
+
+                {isExpanded && hasIssues && (
+                  <div className="border-t border-amber-200 bg-amber-50/60">
+                    <div className="px-5 py-3 border-b border-amber-200">
+                      <h4 className="text-sm font-semibold text-amber-950">
+                        Months that need attention
+                      </h4>
+                      <p className="text-xs text-amber-900/80 mt-0.5">
+                        These months did not earn a full SLA score. Fix the issue below and resubmit the Excel report for that month.
+                      </p>
+                    </div>
+                    <ul className="divide-y divide-amber-100">
+                      {issues.map((issue) => (
+                        <li key={`${issue.label}-${issue.kind}`} className="px-5 py-4">
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className="text-sm font-semibold text-gray-900">{issue.label}</span>
+                            <span
+                              className={
+                                issue.kind === "missing"
+                                  ? "inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-700"
+                                  : issue.kind === "partial"
+                                    ? "inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-950"
+                                    : "inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800"
+                              }
+                            >
+                              {issue.kind === "missing"
+                                ? "Not submitted"
+                                : issue.kind === "partial"
+                                  ? "Partially scored"
+                                  : "Could not score"}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 leading-relaxed">{issue.message}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {isExpanded && hasDetails && (
                   <div className="border-t border-gray-200">
