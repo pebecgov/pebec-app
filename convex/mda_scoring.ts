@@ -2297,11 +2297,42 @@ export const getAllMdaSavedDataForDashboard = query({
         return sum > 0 ? sum : mysteryTotal;
       })();
 
+      // Per-question contribution for the public tracker (from the latest/full-year row).
+      const primaryMystery = dataList.find((d) => d.scoringPeriod === fullYearPeriod) || dataList[0];
+      const mysteryTypeId = String(primaryMystery?.mysteryType || "");
+      let typeQuestions = uniqueMysteryQuestions.filter((q) => q.typeId === mysteryTypeId);
+      if (typeQuestions.length === 0 && mysteryTypeId) {
+        typeQuestions = uniqueMysteryQuestions.filter(
+          (q) => String(q.typeId).toLowerCase() === mysteryTypeId.toLowerCase()
+        );
+      }
+      const ratings = (primaryMystery?.ratings || {}) as Record<string, number>;
+      const weightSum = typeQuestions.reduce((s, q) => s + (q.weight || 0), 0);
+      const questionLines =
+        weightSum > 0
+          ? typeQuestions
+              .slice()
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+              .map((q) => {
+                const rating = Number(ratings[q.questionId]) || 0;
+                const weight = q.weight || 0;
+                const contribution =
+                  q.answerType === "yes_no" ? rating * weight : (rating / 10) * weight;
+                const score = (contribution / weightSum) * typeMax;
+                return {
+                  label: q.questionText || q.questionId,
+                  score,
+                  maxPoints: (weight / weightSum) * typeMax,
+                };
+              })
+          : [];
+
       mdaDataMap[mdaName].mysteryShopping = {
         score: avgScore,
         percentage: avgPercentage,
         maxPossibleScore: typeMax,
         complete,
+        questionLines,
       };
     });
 
@@ -2517,11 +2548,18 @@ export const getAllMdaSavedDataForDashboard = query({
         avgScore = (firstHalf.score || 0) / 2;
       }
 
+      const adjustedResolutionRate =
+        fullYear?.adjustedResolutionRate ??
+        firstHalf?.adjustedResolutionRate ??
+        secondHalf?.adjustedResolutionRate ??
+        null;
+
       mdaDataMap[mdaName].reportGovResolution = {
         score: avgScore,
         totalTickets: totalTickets,
         resolvedTickets: resolvedTickets,
         resolutionRate: totalTickets > 0 ? (resolvedTickets / totalTickets) * 100 : 0,
+        adjustedResolutionRate,
         averageResponseTime: avgResponseTime,
         averageResolutionTime: avgResolutionTime,
         maxPossibleScore: 15,
@@ -2571,14 +2609,20 @@ export const getAllMdaSavedDataForDashboard = query({
         const pointsPerMonth = mrMaxPoints / mrTotalMonths;
         score = monthsWithData * pointsPerMonth;
       } else {
-        score = dataList[0]?.score || 0;
-        monthsWithData = score > 0 ? Math.round((score / (mrMaxPoints / mrTotalMonths))) : 0;
+        const primary = dataList.find((d) => d.scoringPeriod === fullYearPeriod) || dataList[0];
+        score = primary?.score || 0;
+        monthsWithData =
+          typeof primary?.monthsWithData === "number"
+            ? primary.monthsWithData
+            : score > 0
+              ? Math.round(score / (mrMaxPoints / mrTotalMonths))
+              : 0;
       }
 
       mdaDataMap[mdaName].monthlyReport = {
         score: score,
         monthsWithData: monthsWithData,
-        totalMonths: mrTotalMonths,
+        totalMonths: dataList[0]?.totalMonths || mrTotalMonths,
         maxPossibleScore: mrMaxPoints
       };
     });
@@ -2621,14 +2665,20 @@ export const getAllMdaSavedDataForDashboard = query({
         const pointsPerMonth = tMaxPoints / tTotalMonths;
         score = monthsWithData * pointsPerMonth;
       } else {
-        score = dataList[0]?.score || 0;
-        monthsWithData = score > 0 ? Math.round((score / (tMaxPoints / tTotalMonths))) : 0;
+        const primary = dataList.find((d) => d.scoringPeriod === fullYearPeriod) || dataList[0];
+        score = primary?.score || 0;
+        monthsWithData =
+          typeof primary?.monthsWithData === "number"
+            ? primary.monthsWithData
+            : score > 0
+              ? Math.round(score / (tMaxPoints / tTotalMonths))
+              : 0;
       }
 
       mdaDataMap[mdaName].timeliness = {
         score: score,
         monthsWithData: monthsWithData,
-        totalMonths: tTotalMonths,
+        totalMonths: dataList[0]?.totalMonths || tTotalMonths,
         maxPossibleScore: tMaxPoints
       };
     });

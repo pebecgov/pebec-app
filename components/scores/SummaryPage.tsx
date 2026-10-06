@@ -44,6 +44,16 @@ export interface MetricItem {
     message: string;
     kind: "failed" | "missing" | "partial";
   }[];
+  /**
+   * How the decimal score was calculated (e.g. 11/13 on time × 4 pts = 3.38).
+   */
+  scoreBreakdown?: {
+    label: string;
+    value?: string;
+    points?: number;
+    maxPoints?: number;
+    explanation: string;
+  }[];
 }
 
 export function SummaryHeader({
@@ -169,9 +179,11 @@ export function MetricBreakdown({
             const isExempted = metric.exempted === true;
             const details = metric.details || [];
             const issues = metric.issues || [];
+            const scoreBreakdown = metric.scoreBreakdown || [];
             const hasDetails = details.length > 0;
             const hasIssues = issues.length > 0;
-            const isExpandable = hasDetails || hasIssues;
+            const hasScoreBreakdown = scoreBreakdown.length > 0;
+            const isExpandable = hasDetails || hasIssues || hasScoreBreakdown;
             const isExpanded = expanded === metric.name;
             const hasScoredDetails = details.some((detail) => detail.scored === true);
             const allDetailsScored =
@@ -257,15 +269,15 @@ export function MetricBreakdown({
                     ) : null}
                   </div>
                   {isExempted ? (
-                    <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                    <p className={`text-sm text-gray-600 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Programme exemption — this metric is excluded from the overall BFA score and maximum.
                     </p>
                   ) : showAsNotStarted ? (
-                    <p className={`text-sm text-gray-500 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                    <p className={`text-sm text-gray-500 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Not scored yet — this is not a zero score.
                     </p>
                   ) : (
-                    <div className={`flex items-center gap-4 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                    <div className={`flex items-center gap-4 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       <div className="flex-1 max-w-md">
                         <ProgressBar
                           score={metric.score}
@@ -295,7 +307,43 @@ export function MetricBreakdown({
                       Open for month-by-month guidance on what to fix and resubmit.
                     </p>
                   ) : null}
+                  {!isExpanded && hasScoreBreakdown && !hasIssues ? (
+                    <p className={`text-xs text-gray-500 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
+                      Open to see how this score was calculated.
+                    </p>
+                  ) : null}
                 </div>
+
+                {isExpanded && hasScoreBreakdown && (
+                  <div className="border-t border-gray-200 bg-slate-50/80">
+                    <div className="px-5 py-3 border-b border-gray-200">
+                      <h4 className="text-sm font-semibold text-gray-900">How this score was calculated</h4>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Plain-language breakdown so agencies can see why they received this score.
+                      </p>
+                    </div>
+                    <ul className="divide-y divide-gray-100">
+                      {scoreBreakdown.map((line, lineIndex) => (
+                        <li key={`${line.label}-${lineIndex}`} className="px-5 py-4">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+                            <span className="text-sm font-semibold text-gray-900">{line.label}</span>
+                            <div className="flex items-center gap-2 text-sm">
+                              {line.value ? (
+                                <span className="text-gray-600">{line.value}</span>
+                              ) : null}
+                              {line.points !== undefined && line.maxPoints !== undefined ? (
+                                <span className="font-semibold text-gray-900">
+                                  {formatPoints(line.points)} / {formatPoints(line.maxPoints)}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-700 leading-relaxed">{line.explanation}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {isExpanded && hasIssues && (
                   <div className="border-t border-amber-200 bg-amber-50/60">

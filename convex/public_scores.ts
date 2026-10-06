@@ -14,6 +14,10 @@ import {
   getOverallMaxScoreForYear,
 } from "./config/indicators";
 import { STATE_LIST, normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
+import {
+  buildMdaMetricScoreBreakdowns,
+  type ScoreBreakdownLine,
+} from "../lib/bfaScoreBreakdowns";
 
 // Helper function for grade calculation
 function gradeFromPercentage(percentage: number): string {
@@ -368,7 +372,13 @@ type ScoringYearConfig = {
     timelinessPoints?: number;
   } | null;
   mysteryShoppingTypes?: Array<{ questions?: Array<{ weight?: number }> }>;
-  othersItems?: Array<{ itemId: string; itemName: string; weight: number; order?: number }>;
+  othersItems?: Array<{
+    itemId: string;
+    itemName: string;
+    weight: number;
+    order?: number;
+    answerType?: string;
+  }>;
   innovationItems?: Array<{ weight?: number }>;
   stakeholderItems?: Array<{ weight?: number }>;
   penaltyItems?: Array<{ penaltyId: string; penaltyName: string; penaltyValue: number }>;
@@ -402,6 +412,8 @@ type PublicMdaRow = {
     kind: "failed" | "missing" | "partial";
     message: string;
   }>;
+  /** How each metric score was calculated (for MDAs on the public tracker). */
+  scoreBreakdowns: Record<string, ScoreBreakdownLine[]>;
   lastUpdated: number;
   rank: number;
 };
@@ -437,6 +449,14 @@ const slaMonthIssueValidator = v.object({
   message: v.string(),
 });
 
+const scoreBreakdownLineValidator = v.object({
+  label: v.string(),
+  value: v.optional(v.string()),
+  points: v.optional(v.number()),
+  maxPoints: v.optional(v.number()),
+  explanation: v.string(),
+});
+
 const publicMdaScoresReturns = v.object({
   mdas: v.array(
     v.object({
@@ -461,6 +481,7 @@ const publicMdaScoresReturns = v.object({
       penaltyValues: v.record(v.string(), v.boolean()),
       bonusValues: v.record(v.string(), v.boolean()),
       slaMonthIssues: v.array(slaMonthIssueValidator),
+      scoreBreakdowns: v.record(v.string(), v.array(scoreBreakdownLineValidator)),
       lastUpdated: v.number(),
       rank: v.number(),
     })
@@ -540,7 +561,13 @@ function buildPublicMdaRowFromDashboard(
   mda: Record<string, unknown>,
   displayName: string,
   frameworkMetrics: FrameworkMetric[],
-  othersItems: Array<{ itemId: string; itemName: string; weight: number; order?: number }>,
+  othersItems: Array<{
+    itemId: string;
+    itemName: string;
+    weight: number;
+    order?: number;
+    answerType?: string;
+  }>,
   extraExcluded: string[] = [],
   trackerStatusByKey: Record<string, boolean> = {}
 ): PublicMdaRow {
@@ -601,6 +628,7 @@ function buildPublicMdaRowFromDashboard(
     penaltyValues: penalties?.values || {},
     bonusValues: bonuses?.values || {},
     slaMonthIssues: Array.isArray(slaBucket?.monthIssues) ? slaBucket.monthIssues : [],
+    scoreBreakdowns: buildMdaMetricScoreBreakdowns(mda, othersItems),
     lastUpdated: Number(mda.lastUpdated) || Date.now(),
     rank: 0,
   };
@@ -637,6 +665,7 @@ function buildEmptyPublicMdaRow(
     penaltyValues: {},
     bonusValues: {},
     slaMonthIssues: [],
+    scoreBreakdowns: {},
     lastUpdated: Date.now(),
     rank: 0,
   };
