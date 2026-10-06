@@ -54,6 +54,21 @@ export interface MetricItem {
     maxPoints?: number;
     explanation: string;
   }[];
+  /**
+   * Month tiles — Timeliness / Monthly Report / SLA.
+   * SLA tiles can include points, %, and a plain-language message.
+   */
+  monthStatuses?: {
+    monthKey: string;
+    monthLabel: string;
+    status: "on_time" | "late" | "missing" | "scored" | "failed" | "partial";
+    /** For Monthly Report Submission: show "Submitted" instead of "On Time". */
+    labelMode?: "timeliness" | "submission" | "sla";
+    points?: number;
+    maxPoints?: number;
+    percentage?: number | null;
+    message?: string;
+  }[];
 }
 
 export function SummaryHeader({
@@ -180,10 +195,13 @@ export function MetricBreakdown({
             const details = metric.details || [];
             const issues = metric.issues || [];
             const scoreBreakdown = metric.scoreBreakdown || [];
+            const monthStatuses = metric.monthStatuses || [];
             const hasDetails = details.length > 0;
             const hasIssues = issues.length > 0;
             const hasScoreBreakdown = scoreBreakdown.length > 0;
-            const isExpandable = hasDetails || hasIssues || hasScoreBreakdown;
+            const hasMonthStatuses = monthStatuses.length > 0;
+            // Score math is always shown inline; expand is only for SLA issues / sub-indicators.
+            const isExpandable = hasDetails || hasIssues;
             const isExpanded = expanded === metric.name;
             const hasScoredDetails = details.some((detail) => detail.scored === true);
             const allDetailsScored =
@@ -302,48 +320,122 @@ export function MetricBreakdown({
                       {metric.justification}
                     </p>
                   ) : null}
+                  {hasScoreBreakdown || hasMonthStatuses ? (
+                    <div
+                      className={`mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 ${
+                        isExpandable ? "ml-9" : "ml-0"
+                      }`}
+                    >
+                      {hasScoreBreakdown ? (
+                        <>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            How this score was calculated
+                          </p>
+                          <ul className="space-y-2.5">
+                            {scoreBreakdown.map((line, lineIndex) => (
+                              <li key={`${line.label}-${lineIndex}`}>
+                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                  <span className="text-sm font-medium text-gray-900">{line.label}</span>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    {line.value ? (
+                                      <span className="text-gray-600">{line.value}</span>
+                                    ) : null}
+                                    {line.points !== undefined && line.maxPoints !== undefined ? (
+                                      <span className="font-semibold text-gray-900">
+                                        {formatPoints(line.points)} / {formatPoints(line.maxPoints)}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-700 leading-relaxed mt-0.5">
+                                  {line.explanation}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {hasMonthStatuses ? (
+                        <div className={hasScoreBreakdown ? "mt-3 pt-3 border-t border-slate-200" : ""}>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            Month by month
+                          </p>
+                          <div
+                            className={
+                              monthStatuses.some((m) => m.labelMode === "sla")
+                                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"
+                                : "grid grid-cols-2 sm:grid-cols-4 gap-2"
+                            }
+                          >
+                            {monthStatuses.map((month) => {
+                              const isSubmission = month.labelMode === "submission";
+                              const isSla = month.labelMode === "sla";
+                              const tone =
+                                month.status === "on_time" || month.status === "scored"
+                                  ? "bg-green-100 text-green-900 border-green-200"
+                                  : month.status === "late" || month.status === "partial"
+                                    ? "bg-yellow-100 text-yellow-950 border-yellow-200"
+                                    : month.status === "failed"
+                                      ? "bg-rose-100 text-rose-900 border-rose-200"
+                                      : "bg-red-100 text-red-900 border-red-200";
+                              const statusLabel =
+                                month.status === "scored"
+                                  ? "Scored"
+                                  : month.status === "on_time"
+                                    ? isSubmission
+                                      ? "Submitted"
+                                      : "On Time"
+                                    : month.status === "late"
+                                      ? "Late"
+                                      : month.status === "partial"
+                                        ? "Partially scored"
+                                        : month.status === "failed"
+                                          ? "Could not score"
+                                          : isSubmission
+                                            ? "Not submitted"
+                                            : "Not submitted";
+                              return (
+                                <div
+                                  key={month.monthKey}
+                                  className={`p-2.5 rounded-md text-xs border ${tone} ${
+                                    isSla ? "text-left" : "text-center"
+                                  }`}
+                                >
+                                  <div className="flex flex-wrap items-baseline justify-between gap-1">
+                                    <span className="font-semibold">{month.monthLabel}</span>
+                                    {isSla &&
+                                    month.points !== undefined &&
+                                    month.maxPoints !== undefined ? (
+                                      <span className="font-semibold">
+                                        {formatPoints(month.points)} / {formatPoints(month.maxPoints)} pts
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className={isSla ? "mt-0.5" : ""}>
+                                    {statusLabel}
+                                    {isSla && month.percentage != null
+                                      ? ` · ${formatPoints(month.percentage)}%`
+                                      : null}
+                                  </div>
+                                  {isSla && month.message ? (
+                                    <p className="mt-1.5 text-[11px] leading-relaxed opacity-90">
+                                      {month.message}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {!isExpanded && hasIssues ? (
                     <p className={`text-xs text-amber-800 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Open for month-by-month guidance on what to fix and resubmit.
                     </p>
                   ) : null}
-                  {!isExpanded && hasScoreBreakdown && !hasIssues ? (
-                    <p className={`text-xs text-gray-500 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
-                      Open to see how this score was calculated.
-                    </p>
-                  ) : null}
                 </div>
-
-                {isExpanded && hasScoreBreakdown && (
-                  <div className="border-t border-gray-200 bg-slate-50/80">
-                    <div className="px-5 py-3 border-b border-gray-200">
-                      <h4 className="text-sm font-semibold text-gray-900">How this score was calculated</h4>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Plain-language breakdown so agencies can see why they received this score.
-                      </p>
-                    </div>
-                    <ul className="divide-y divide-gray-100">
-                      {scoreBreakdown.map((line, lineIndex) => (
-                        <li key={`${line.label}-${lineIndex}`} className="px-5 py-4">
-                          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
-                            <span className="text-sm font-semibold text-gray-900">{line.label}</span>
-                            <div className="flex items-center gap-2 text-sm">
-                              {line.value ? (
-                                <span className="text-gray-600">{line.value}</span>
-                              ) : null}
-                              {line.points !== undefined && line.maxPoints !== undefined ? (
-                                <span className="font-semibold text-gray-900">
-                                  {formatPoints(line.points)} / {formatPoints(line.maxPoints)}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-700 leading-relaxed">{line.explanation}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
 
                 {isExpanded && hasIssues && (
                   <div className="border-t border-amber-200 bg-amber-50/60">

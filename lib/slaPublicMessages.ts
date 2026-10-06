@@ -218,3 +218,110 @@ export function mergeMonthlySlaData(
   }
   return merged;
 }
+
+export type SlaMonthStatus = {
+  monthKey: string;
+  monthLabel: string;
+  /** scored = earned points; failed/partial/missing need attention */
+  status: "scored" | "failed" | "partial" | "missing";
+  /** Points this month contributed toward the SLA total */
+  points: number;
+  /** Max points this month can contribute */
+  maxPoints: number;
+  /** File compliance % when scored from Excel */
+  percentage: number | null;
+  /** Plain-language note (especially for failed / partial / missing) */
+  message: string;
+};
+
+/**
+ * Full month-by-month SLA picture for the public tracker (every expected month).
+ * More detailed than admin's simple green/grey grid: includes points, %, and why.
+ */
+export function buildSlaMonthStatuses(
+  monthlySlaData: Record<string, SlaMonthEntry> | null | undefined,
+  expectedMonths: SlaMonthInput[],
+  slaMaxPoints: number,
+): SlaMonthStatus[] {
+  const totalMonths = expectedMonths.length > 0 ? expectedMonths.length : 12;
+  const maxPointsPerMonth = totalMonths > 0 ? slaMaxPoints / totalMonths : 0;
+  const data = monthlySlaData && typeof monthlySlaData === "object" ? monthlySlaData : {};
+
+  return expectedMonths.map((month) => {
+    const entry = data[month.monthKey] as SlaMonthEntry | undefined;
+    const monthLabel = `${month.monthName} ${month.year}`;
+    const check = entry?.check ?? null;
+    const status = check?.status;
+
+    if (!entry) {
+      return {
+        monthKey: month.monthKey,
+        monthLabel,
+        status: "missing" as const,
+        points: 0,
+        maxPoints: round2(maxPointsPerMonth),
+        percentage: null,
+        message: plainSlaFailureMessage(null, "missing"),
+      };
+    }
+
+    if (status === "failed" || (entry.method === "file" && entry.overallPercentage == null && !isScoredMonth(entry))) {
+      return {
+        monthKey: month.monthKey,
+        monthLabel,
+        status: "failed" as const,
+        points: 0,
+        maxPoints: round2(maxPointsPerMonth),
+        percentage: null,
+        message: plainSlaFailureMessage(check, "failed"),
+      };
+    }
+
+    if (status === "partial_success") {
+      const rawScore = typeof entry.score === "number" ? entry.score : 0;
+      const points = (rawScore / 5) * maxPointsPerMonth;
+      return {
+        monthKey: month.monthKey,
+        monthLabel,
+        status: "partial" as const,
+        points: round2(points),
+        maxPoints: round2(maxPointsPerMonth),
+        percentage:
+          typeof entry.overallPercentage === "number" ? round2(entry.overallPercentage) : null,
+        message: plainSlaFailureMessage(check, "partial"),
+      };
+    }
+
+    if (isScoredMonth(entry)) {
+      const rawScore = typeof entry.score === "number" ? entry.score : 0;
+      const points = (rawScore / 5) * maxPointsPerMonth;
+      return {
+        monthKey: month.monthKey,
+        monthLabel,
+        status: "scored" as const,
+        points: round2(points),
+        maxPoints: round2(maxPointsPerMonth),
+        percentage:
+          typeof entry.overallPercentage === "number" ? round2(entry.overallPercentage) : null,
+        message:
+          typeof entry.overallPercentage === "number"
+            ? `Excel scored at ${round2(entry.overallPercentage)}% compliance → ${round2(points)} of ${round2(maxPointsPerMonth)} points for this month.`
+            : `This month earned ${round2(points)} of ${round2(maxPointsPerMonth)} points.`,
+      };
+    }
+
+    return {
+      monthKey: month.monthKey,
+      monthLabel,
+      status: "missing" as const,
+      points: 0,
+      maxPoints: round2(maxPointsPerMonth),
+      percentage: null,
+      message: plainSlaFailureMessage(null, "missing"),
+    };
+  });
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}

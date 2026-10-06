@@ -18,6 +18,12 @@ import {
 } from "@/lib/scoreTracker";
 import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
 import { matchBeepaTrackerRosterEntry } from "@/lib/beepaTrackerRoster";
+import {
+  mysteryScoreBreakdown,
+  proportionalMonthsBreakdown,
+  slaScoreBreakdown,
+  type ScoreBreakdownLine,
+} from "@/lib/bfaScoreBreakdowns";
 
 interface AdjustmentItem {
   id: string;
@@ -30,7 +36,18 @@ interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
-  metricScores?: Record<string, { score: number; max: number; scored?: boolean; complete?: boolean }>;
+  metricScores?: Record<
+    string,
+    {
+      score: number;
+      max: number;
+      scored?: boolean;
+      complete?: boolean;
+      monthsWithData?: number;
+      totalMonths?: number;
+      percentage?: number;
+    }
+  >;
   othersBreakdown?: Array<{
     itemId: string;
     itemName: string;
@@ -58,6 +75,25 @@ interface MdaScoreData {
       explanation: string;
     }>
   >;
+  efficiencyMonthStatuses?: Record<
+    string,
+    Array<{
+      monthKey: string;
+      monthLabel: string;
+      status: "on_time" | "late" | "missing";
+      submitted: boolean;
+      onTime: boolean;
+    }>
+  >;
+  slaMonthStatuses?: Array<{
+    monthKey: string;
+    monthLabel: string;
+    status: "scored" | "failed" | "partial" | "missing";
+    points: number;
+    maxPoints: number;
+    percentage: number | null;
+    message: string;
+  }>;
   rank: number;
 }
 
@@ -153,14 +189,87 @@ export default function MdaSummaryPage() {
               kind: issue.kind,
             }))
           : undefined;
-      const breakdown =
-        !exempted && isScored
-          ? selected.scoreBreakdowns?.[metric.key]
-          : undefined;
+      const scoreValue = exempted ? 0 : (scored?.score ?? 0);
+      const maxValue = scored?.max ?? metric.max;
+      const showBreakdown = !exempted && (isScored || scoreValue > 0);
+      let breakdown: ScoreBreakdownLine[] | undefined = showBreakdown
+        ? selected.scoreBreakdowns?.[metric.key]
+        : undefined;
+
+      // Fallback if the API omitted scoreBreakdowns (stale client/deploy) but we
+      // still have enough month/score facts to explain the decimal.
+      if (showBreakdown && (!breakdown || breakdown.length === 0) && scored) {
+        const totalMonths = scored.totalMonths ?? 13;
+        const hits =
+          typeof scored.monthsWithData === "number"
+            ? scored.monthsWithData
+            : maxValue > 0
+              ? Math.round((scoreValue / maxValue) * totalMonths)
+              : 0;
+        if (metric.key === "timeliness") {
+          breakdown = proportionalMonthsBreakdown({
+            hits,
+            totalMonths,
+            score: scoreValue,
+            maxPoints: maxValue,
+            hitLabel: "on time",
+          });
+        } else if (metric.key === "reportSubmission") {
+          breakdown = proportionalMonthsBreakdown({
+            hits,
+            totalMonths,
+            score: scoreValue,
+            maxPoints: maxValue,
+            hitLabel: "submitted",
+          });
+        } else if (metric.key === "sla") {
+          breakdown = slaScoreBreakdown({
+            monthsWithData: hits,
+            totalMonths,
+            score: scoreValue,
+            maxPoints: maxValue,
+          });
+        } else if (metric.key === "mystery") {
+          breakdown = mysteryScoreBreakdown({
+            score: scoreValue,
+            maxPoints: maxValue,
+            percentage:
+              scored.percentage ??
+              (maxValue > 0 ? (scoreValue / maxValue) * 100 : 0),
+          });
+        }
+      }
+
+      const monthStatuses =
+        showBreakdown && metric.key === "sla" && (selected.slaMonthStatuses?.length ?? 0) > 0
+          ? selected.slaMonthStatuses!.map((month) => ({
+              monthKey: month.monthKey,
+              monthLabel: month.monthLabel,
+              status: month.status,
+              labelMode: "sla" as const,
+              points: month.points,
+              maxPoints: month.maxPoints,
+              percentage: month.percentage,
+              message: month.message,
+            }))
+          : showBreakdown &&
+              (metric.key === "timeliness" || metric.key === "reportSubmission") &&
+              (selected.efficiencyMonthStatuses?.[metric.key]?.length ?? 0) > 0
+            ? selected.efficiencyMonthStatuses![metric.key]!.map((month) => ({
+                monthKey: month.monthKey,
+                monthLabel: month.monthLabel,
+                status: month.status,
+                labelMode:
+                  metric.key === "reportSubmission"
+                    ? ("submission" as const)
+                    : ("timeliness" as const),
+              }))
+            : undefined;
+
       return {
         name: metric.label,
-        score: exempted ? 0 : (scored?.score ?? 0),
-        maxScore: scored?.max ?? metric.max,
+        score: scoreValue,
+        maxScore: maxValue,
         scored: exempted ? true : isScored,
         complete: exempted ? true : isComplete,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
@@ -168,6 +277,7 @@ export default function MdaSummaryPage() {
         exempted,
         issues: slaIssues && slaIssues.length > 0 ? slaIssues : undefined,
         scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
+        monthStatuses,
       };
     });
 
@@ -205,7 +315,7 @@ export default function MdaSummaryPage() {
       )}
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Open a metric to see how the score was calculated. SLA also lists months that need attention."
+        hint="Each metric shows how the score was calculated. SLA includes a full month-by-month breakdown."
         metrics={metrics}
         hideStatus={!fullyScored}
       />
