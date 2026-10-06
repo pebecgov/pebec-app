@@ -182,14 +182,6 @@ export default function MdaSummaryPage() {
       const scored = selected.metricScores?.[metric.key];
       const isScored = scored?.scored === true;
       const isComplete = isScored && scored?.complete !== false;
-      const slaIssues =
-        metric.key === "sla" && !exempted
-          ? (selected.slaMonthIssues || []).map((issue) => ({
-              label: issue.monthLabel,
-              message: issue.message,
-              kind: issue.kind,
-            }))
-          : undefined;
       const scoreValue = exempted ? 0 : (scored?.score ?? 0);
       let maxValue = scored?.max ?? metric.max;
       if (isBeepaMetric && !exempted) {
@@ -197,7 +189,7 @@ export default function MdaSummaryPage() {
       }
       const showDetail = !exempted && (isScored || scoreValue > 0);
 
-      // Explanations only for Report Gov + BEEPA (Super MDAs out of 10, others out of 9).
+      // Public tracker detail only for Report Gov + BEEPA.
       let breakdown: ScoreBreakdownLine[] | undefined;
       if (showDetail && metric.key === "reportGov") {
         breakdown = selected.scoreBreakdowns?.reportGov;
@@ -211,32 +203,6 @@ export default function MdaSummaryPage() {
           });
       }
 
-      const monthStatuses =
-        showDetail && metric.key === "sla" && (selected.slaMonthStatuses?.length ?? 0) > 0
-          ? selected.slaMonthStatuses!.map((month) => ({
-              monthKey: month.monthKey,
-              monthLabel: month.monthLabel,
-              status: month.status,
-              labelMode: "sla" as const,
-              points: month.points,
-              maxPoints: month.maxPoints,
-              percentage: month.percentage,
-              message: month.message,
-            }))
-          : showDetail &&
-              (metric.key === "timeliness" || metric.key === "reportSubmission") &&
-              (selected.efficiencyMonthStatuses?.[metric.key]?.length ?? 0) > 0
-            ? selected.efficiencyMonthStatuses![metric.key]!.map((month) => ({
-                monthKey: month.monthKey,
-                monthLabel: month.monthLabel,
-                status: month.status,
-                labelMode:
-                  metric.key === "reportSubmission"
-                    ? ("submission" as const)
-                    : ("timeliness" as const),
-              }))
-            : undefined;
-
       return {
         name: metric.label,
         score: isBeepaMetric && !exempted ? Math.min(scoreValue, beepaMax) : scoreValue,
@@ -247,10 +213,7 @@ export default function MdaSummaryPage() {
         // Admin metric justifications stay in admin scoring only — not on the public tracker.
         justification: undefined,
         exempted,
-        issues: slaIssues && slaIssues.length > 0 ? slaIssues : undefined,
-        // Score math only for Report Gov + BEEPA; month grids for SLA / reports / timeliness.
         scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
-        monthStatuses,
       };
     });
 
@@ -288,7 +251,7 @@ export default function MdaSummaryPage() {
       )}
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Report Gov and BEEPA show how scores are graded. SLA, Monthly Report, and Timeliness show month-by-month status."
+        hint="Report Gov and BEEPA show how scores are graded."
         metrics={metrics}
         hideStatus={!fullyScored}
       />
