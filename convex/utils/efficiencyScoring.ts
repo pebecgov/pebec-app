@@ -321,21 +321,25 @@ export type ReportGovBreakdown = {
 
 /**
  * Report Gov Resolution score with its component breakdown.
- * Weights: resolution rate 46.67%, response time 20%, resolution time 33.33%
- * of `reportGovPoints`.
+ * Weights (of `reportGovPoints`):
+ *   - resolution rate 75%
+ *   - response time 10%
+ *   - resolution time 15%
  *
  * Resolution-rate points: when `adjustedResolutionRate` is provided (2026+),
  * points are proportional to it and an MDA with nothing resolved earns none.
- * Otherwise (2025) the legacy 7-tier ladder applies. Response and resolution
- * time are always tiered.
+ * Otherwise (2025) the legacy 7-tier ladder applies.
+ *
+ * Response and resolution time are binary: ≤72 hours → full component points,
+ * otherwise 0 (no intermediate tiers).
  */
 export function computeReportGovBreakdown(stats: ReportGovInput, reportGovPoints: number): ReportGovBreakdown {
   const { totalTickets, resolvedTickets, resolutionRate, averageResponseTime, averageResolutionTime } = stats;
   const adjusted = stats.adjustedResolutionRate ?? null;
 
-  const maxResRatePoints = reportGovPoints * 0.4667;
-  const maxResponsePoints = reportGovPoints * 0.2;
-  const maxResolutionTimePoints = reportGovPoints * 0.3333;
+  const maxResRatePoints = reportGovPoints * 0.75;
+  const maxResponsePoints = reportGovPoints * 0.1;
+  const maxResolutionTimePoints = reportGovPoints * 0.15;
 
   let resRateScore = 0;
   let responseScore = 0;
@@ -353,20 +357,14 @@ export function computeReportGovBreakdown(stats: ReportGovInput, reportGovPoints
     else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
     else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
 
-    // Response time: 3 tiers
-    if (averageResponseTime > 0) {
-      if (averageResponseTime <= 24) responseScore = maxResponsePoints;
-      else if (averageResponseTime <= 48) responseScore = maxResponsePoints * (2 / 3);
-      else if (averageResponseTime <= 72) responseScore = maxResponsePoints * (1 / 3);
+    // Response time: pass/fail at 72h
+    if (averageResponseTime > 0 && averageResponseTime <= 72) {
+      responseScore = maxResponsePoints;
     }
 
-    // Resolution time: 5 tiers
-    if (averageResolutionTime > 0) {
-      if (averageResolutionTime <= 48) resolutionTimeScore = maxResolutionTimePoints;
-      else if (averageResolutionTime <= 72) resolutionTimeScore = maxResolutionTimePoints * (4 / 5);
-      else if (averageResolutionTime <= 96) resolutionTimeScore = maxResolutionTimePoints * (3 / 5);
-      else if (averageResolutionTime <= 120) resolutionTimeScore = maxResolutionTimePoints * (2 / 5);
-      else if (averageResolutionTime <= 144) resolutionTimeScore = maxResolutionTimePoints * (1 / 5);
+    // Resolution time: pass/fail at 72h
+    if (averageResolutionTime > 0 && averageResolutionTime <= 72) {
+      resolutionTimeScore = maxResolutionTimePoints;
     }
   }
 

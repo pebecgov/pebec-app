@@ -79,10 +79,22 @@ export default function ReportGovCard({
             label: 'Resolution Rate',
             value: `${(adjustedResolutionRate ?? ticketResolutionData?.resolutionRate ?? 0).toFixed(1)}%`,
             points: scoreBreakdown.resolutionRate,
-            max: maxPoints * 0.4667,
+            max: maxPoints * 0.75,
         },
-        { label: 'Avg Response Time', value: formatHours(averageResponseTime), points: scoreBreakdown.responseTime, max: maxPoints * 0.20 },
-        { label: 'Avg Resolution Time', value: formatHours(averageResolutionTime), points: scoreBreakdown.resolutionTime, max: maxPoints * 0.3333 },
+        {
+            label: 'Avg Response Time',
+            value: formatHours(averageResponseTime),
+            points: scoreBreakdown.responseTime,
+            max: maxPoints * 0.1,
+            hint: '≤72 hrs for full points',
+        },
+        {
+            label: 'Avg Resolution Time',
+            value: formatHours(averageResolutionTime),
+            points: scoreBreakdown.resolutionTime,
+            max: maxPoints * 0.15,
+            hint: '≤72 hrs for full points',
+        },
     ];
 
     return (
@@ -154,7 +166,12 @@ export default function ReportGovCard({
                     <tbody>
                         {rows.map(row => (
                             <tr key={row.label} className="border-b border-gray-200 last:border-0">
-                                <td className="py-1.5">{row.label}</td>
+                                <td className="py-1.5">
+                                    <div>{row.label}</div>
+                                    {"hint" in row && row.hint ? (
+                                        <div className="text-[11px] text-gray-500">{row.hint}</div>
+                                    ) : null}
+                                </td>
                                 <td className="py-1.5 text-right text-gray-600">{row.value}</td>
                                 <td className="py-1.5 text-right font-medium w-28">
                                     {row.points.toFixed(2)} / {row.max.toFixed(1)}
