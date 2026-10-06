@@ -745,26 +745,41 @@ function buildPublicMdaRowFromDashboard(
       return sum + metric.max;
     }, 0);
 
-  // If dashboard total still assumes BEEPA=10 for a standard MDA, nudge the public max down.
+  // Prefer dashboard max (includes skips/exclusions); floor at framework max
+  // (already BEEPA Super=/10 vs standard=/9). Only correct a stale +1 if the
+  // dashboard still assumed BEEPA=10 for a non–Super MDA.
   let maxPossibleScore = Number(mda.maxPossiblePoints) || maxFromFramework || 100;
   if (
     beepaKey &&
     !isMetricExcluded(excludedMetrics, beepaKey) &&
     !isSuperMda &&
-    beepaMax === BEEPA_STANDARD_MDA_MAX
+    beepaMax === BEEPA_STANDARD_MDA_MAX &&
+    maxFromFramework > 0 &&
+    maxPossibleScore === maxFromFramework + (BEEPA_SUPER_MDA_MAX - BEEPA_STANDARD_MDA_MAX)
   ) {
-    const dashboardAssumedBeepa = BEEPA_SUPER_MDA_MAX;
-    if (maxPossibleScore >= dashboardAssumedBeepa) {
-      maxPossibleScore = maxPossibleScore - (dashboardAssumedBeepa - beepaMax);
-    }
+    maxPossibleScore = maxFromFramework;
   }
   maxPossibleScore = Math.max(maxPossibleScore, maxFromFramework);
 
+  // Forever sync: header total = sum of the same metric cells the UI shows
+  // (+ signed penalties/bonuses), not a separately stored dashboard total that
+  // could drift when BEEPA is capped or live auto-metrics refresh.
+  let metricsSum = 0;
+  for (const metric of frameworkMetrics) {
+    if (isMetricExcluded(excludedMetrics, metric.key)) continue;
+    metricsSum += metricScores[metric.key]?.score || 0;
+  }
+  const penaltyRaw = Number(penalties?.score) || 0;
+  const bonusRaw = Number(bonuses?.score) || 0;
+  const finalScore = roundScore(metricsSum + penaltyRaw + bonusRaw);
+  const percentage =
+    maxPossibleScore > 0 ? roundScore((finalScore / maxPossibleScore) * 100) : 0;
+
   return {
     mdaName: displayName,
-    finalScore: roundScore(Number(mda.totalScore) || 0),
+    finalScore,
     maxPossibleScore,
-    percentage: roundScore(Number(mda.totalPercentage) || 0),
+    percentage,
     metricScores,
     othersBreakdown,
     excludedMetrics,
