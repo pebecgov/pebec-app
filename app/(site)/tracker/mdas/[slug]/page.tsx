@@ -17,13 +17,12 @@ import {
   type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
 import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
-import { matchBeepaTrackerRosterEntry } from "@/lib/beepaTrackerRoster";
 import {
-  mysteryScoreBreakdown,
-  proportionalMonthsBreakdown,
-  slaScoreBreakdown,
-  type ScoreBreakdownLine,
-} from "@/lib/bfaScoreBreakdowns";
+  beepaMaxPointsForMda,
+  isSuperBeepaMda,
+  matchBeepaTrackerRosterEntry,
+} from "@/lib/beepaTrackerRoster";
+import { beepaScoreBreakdown, type ScoreBreakdownLine } from "@/lib/bfaScoreBreakdowns";
 
 interface AdjustmentItem {
   id: string;
@@ -150,6 +149,8 @@ export default function MdaSummaryPage() {
   const beepaExempted =
     rosterEntry?.beepaExempted === true ||
     excluded.some((key) => key === "others" || key.startsWith("others:"));
+  const isSuperMda = isSuperBeepaMda(selected.mdaName, abbreviation);
+  const beepaMax = beepaMaxPointsForMda(selected.mdaName, abbreviation);
   const reports =
     (reportData?.mdas || []).find(
       (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
@@ -190,58 +191,28 @@ export default function MdaSummaryPage() {
             }))
           : undefined;
       const scoreValue = exempted ? 0 : (scored?.score ?? 0);
-      const maxValue = scored?.max ?? metric.max;
-      const showBreakdown = !exempted && (isScored || scoreValue > 0);
-      let breakdown: ScoreBreakdownLine[] | undefined = showBreakdown
-        ? selected.scoreBreakdowns?.[metric.key]
-        : undefined;
+      let maxValue = scored?.max ?? metric.max;
+      if (isBeepaMetric && !exempted) {
+        maxValue = beepaMax;
+      }
+      const showDetail = !exempted && (isScored || scoreValue > 0);
 
-      // Fallback if the API omitted scoreBreakdowns (stale client/deploy) but we
-      // still have enough month/score facts to explain the decimal.
-      if (showBreakdown && (!breakdown || breakdown.length === 0) && scored) {
-        const totalMonths = scored.totalMonths ?? 13;
-        const hits =
-          typeof scored.monthsWithData === "number"
-            ? scored.monthsWithData
-            : maxValue > 0
-              ? Math.round((scoreValue / maxValue) * totalMonths)
-              : 0;
-        if (metric.key === "timeliness") {
-          breakdown = proportionalMonthsBreakdown({
-            hits,
-            totalMonths,
-            score: scoreValue,
-            maxPoints: maxValue,
-            hitLabel: "on time",
+      // Explanations only for Report Gov + BEEPA (Super MDAs out of 10, others out of 9).
+      let breakdown: ScoreBreakdownLine[] | undefined;
+      if (showDetail && metric.key === "reportGov") {
+        breakdown = selected.scoreBreakdowns?.reportGov;
+      } else if (showDetail && isBeepaMetric) {
+        breakdown =
+          selected.scoreBreakdowns?.[metric.key] ??
+          beepaScoreBreakdown({
+            score: Math.min(scoreValue, beepaMax),
+            maxPoints: beepaMax,
+            isSuperMda,
           });
-        } else if (metric.key === "reportSubmission") {
-          breakdown = proportionalMonthsBreakdown({
-            hits,
-            totalMonths,
-            score: scoreValue,
-            maxPoints: maxValue,
-            hitLabel: "submitted",
-          });
-        } else if (metric.key === "sla") {
-          breakdown = slaScoreBreakdown({
-            monthsWithData: hits,
-            totalMonths,
-            score: scoreValue,
-            maxPoints: maxValue,
-          });
-        } else if (metric.key === "mystery") {
-          breakdown = mysteryScoreBreakdown({
-            score: scoreValue,
-            maxPoints: maxValue,
-            percentage:
-              scored.percentage ??
-              (maxValue > 0 ? (scoreValue / maxValue) * 100 : 0),
-          });
-        }
       }
 
       const monthStatuses =
-        showBreakdown && metric.key === "sla" && (selected.slaMonthStatuses?.length ?? 0) > 0
+        showDetail && metric.key === "sla" && (selected.slaMonthStatuses?.length ?? 0) > 0
           ? selected.slaMonthStatuses!.map((month) => ({
               monthKey: month.monthKey,
               monthLabel: month.monthLabel,
@@ -252,7 +223,7 @@ export default function MdaSummaryPage() {
               percentage: month.percentage,
               message: month.message,
             }))
-          : showBreakdown &&
+          : showDetail &&
               (metric.key === "timeliness" || metric.key === "reportSubmission") &&
               (selected.efficiencyMonthStatuses?.[metric.key]?.length ?? 0) > 0
             ? selected.efficiencyMonthStatuses![metric.key]!.map((month) => ({
@@ -268,7 +239,7 @@ export default function MdaSummaryPage() {
 
       return {
         name: metric.label,
-        score: scoreValue,
+        score: isBeepaMetric && !exempted ? Math.min(scoreValue, beepaMax) : scoreValue,
         maxScore: maxValue,
         scored: exempted ? true : isScored,
         complete: exempted ? true : isComplete,
@@ -315,7 +286,7 @@ export default function MdaSummaryPage() {
       )}
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Each metric shows how the score was calculated. SLA includes a full month-by-month breakdown."
+        hint="Report Gov and BEEPA show how scores are graded. SLA, Monthly Report, and Timeliness show month-by-month status."
         metrics={metrics}
         hideStatus={!fullyScored}
       />

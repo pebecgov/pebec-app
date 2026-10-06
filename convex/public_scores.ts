@@ -3,7 +3,11 @@ import { query } from "./_generated/server";
 import { api } from "./_generated/api";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
 import {
+  BEEPA_STANDARD_MDA_MAX,
+  BEEPA_SUPER_MDA_MAX,
   BEEPA_TRACKER_ROSTER,
+  beepaMaxPointsForMda,
+  isSuperBeepaMda,
   matchBeepaTrackerRosterEntry,
   type BeepaTrackerRosterEntry,
 } from "../lib/beepaTrackerRoster";
@@ -597,7 +601,8 @@ const publicMdaScoresReturns = v.object({
 function buildOthersBreakdown(
   mda: Record<string, unknown>,
   othersItems: Array<{ itemId: string; itemName: string; weight: number; order?: number }>,
-  excludedMetrics: string[]
+  excludedMetrics: string[],
+  displayName: string
 ): OthersBreakdownItem[] {
   const others = mda.others as
     | { scores?: Record<string, number>; values?: Record<string, boolean | number> }
@@ -605,16 +610,26 @@ function buildOthersBreakdown(
     | undefined;
   const scores = others?.scores || {};
   const fullyExcluded = excludedMetrics.includes("others");
+  const beepaMax = beepaMaxPointsForMda(displayName);
 
   return [...othersItems]
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .filter((item) => !fullyExcluded && !excludedMetrics.includes(`others:${item.itemId}`))
-    .map((item) => ({
-      itemId: item.itemId,
-      itemName: item.itemName,
-      score: roundScore(Number(scores[item.itemId]) || 0),
-      max: item.weight,
-    }));
+    .map((item) => {
+      const nameKey = String(item.itemName || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+      const isBeepa = nameKey === "beepa" || nameKey.includes("beepa");
+      const max = isBeepa ? beepaMax : item.weight;
+      const score = Math.min(roundScore(Number(scores[item.itemId]) || 0), max);
+      return {
+        itemId: item.itemId,
+        itemName: item.itemName,
+        score,
+        max,
+      };
+    });
 }
 
 function findBeepaExclusionKey(
@@ -629,6 +644,12 @@ function findBeepaExclusionKey(
     return key === "beepa" || key.includes("beepa");
   });
   return beepa ? `others:${beepa.itemId}` : null;
+}
+
+function findBeepaMetricKey(
+  othersItems: Array<{ itemId: string; itemName: string }>
+): string | null {
+  return findBeepaExclusionKey(othersItems);
 }
 
 function buildPublicMdaRowFromDashboard(
@@ -651,9 +672,19 @@ function buildPublicMdaRowFromDashboard(
       ...extraExcluded,
     ])
   );
+  const beepaKey = findBeepaMetricKey(othersItems);
+  const isSuperMda = isSuperBeepaMda(displayName);
+  const beepaMax = beepaMaxPointsForMda(displayName);
   const metricScores: Record<string, MetricScoreCell> = {};
   for (const metric of frameworkMetrics) {
-    const base = metricScoreFromDashboard(mda, metric.key, metric.max);
+    const frameworkMax =
+      beepaKey && metric.key === beepaKey ? beepaMax : metric.max;
+    const base = metricScoreFromDashboard(mda, metric.key, frameworkMax);
+    // Cap BEEPA display max (and score if it somehow exceeds) for non–Super MDAs.
+    if (beepaKey && metric.key === beepaKey) {
+      base.max = beepaMax;
+      if (base.score > beepaMax) base.score = beepaMax;
+    }
     if (Object.prototype.hasOwnProperty.call(trackerStatusByKey, metric.key)) {
       const adminFullyScored = trackerStatusByKey[metric.key] === true;
       const hasProgress = base.scored || base.score > 0;
@@ -676,7 +707,12 @@ function buildPublicMdaRowFromDashboard(
 
   const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
   const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
-  const othersBreakdown = buildOthersBreakdown(mda, othersItems, excludedMetrics);
+  const othersBreakdown = buildOthersBreakdown(
+    mda,
+    othersItems,
+    excludedMetrics,
+    displayName
+  );
   const slaBucket = mda.sla as
     | {
         monthIssues?: PublicMdaRow["slaMonthIssues"];
@@ -704,12 +740,30 @@ function buildPublicMdaRowFromDashboard(
 
   const maxFromFramework = frameworkMetrics
     .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
-    .reduce((sum, metric) => sum + metric.max, 0);
+    .reduce((sum, metric) => {
+      if (beepaKey && metric.key === beepaKey) return sum + beepaMax;
+      return sum + metric.max;
+    }, 0);
+
+  // If dashboard total still assumes BEEPA=10 for a standard MDA, nudge the public max down.
+  let maxPossibleScore = Number(mda.maxPossiblePoints) || maxFromFramework || 100;
+  if (
+    beepaKey &&
+    !isMetricExcluded(excludedMetrics, beepaKey) &&
+    !isSuperMda &&
+    beepaMax === BEEPA_STANDARD_MDA_MAX
+  ) {
+    const dashboardAssumedBeepa = BEEPA_SUPER_MDA_MAX;
+    if (maxPossibleScore >= dashboardAssumedBeepa) {
+      maxPossibleScore = maxPossibleScore - (dashboardAssumedBeepa - beepaMax);
+    }
+  }
+  maxPossibleScore = Math.max(maxPossibleScore, maxFromFramework);
 
   return {
     mdaName: displayName,
     finalScore: roundScore(Number(mda.totalScore) || 0),
-    maxPossibleScore: Number(mda.maxPossiblePoints) || maxFromFramework || 100,
+    maxPossibleScore,
     percentage: roundScore(Number(mda.totalPercentage) || 0),
     metricScores,
     othersBreakdown,
@@ -722,7 +776,10 @@ function buildPublicMdaRowFromDashboard(
     penaltyValues: penalties?.values || {},
     bonusValues: bonuses?.values || {},
     slaMonthIssues: Array.isArray(slaBucket?.monthIssues) ? slaBucket.monthIssues : [],
-    scoreBreakdowns: buildMdaMetricScoreBreakdowns(mda, othersItems),
+    scoreBreakdowns: buildMdaMetricScoreBreakdowns(mda, othersItems, {
+      isSuperMda,
+      beepaMaxPoints: beepaMax,
+    }),
     efficiencyMonthStatuses,
     slaMonthStatuses,
     lastUpdated: Number(mda.lastUpdated) || Date.now(),
