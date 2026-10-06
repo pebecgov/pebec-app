@@ -5,6 +5,7 @@ import {
   getScoreStatus,
   getStatusColorClasses,
   formatPoints,
+  formatPercentageValue,
   type RankingRow,
   type ScoreStatus,
   type StatusColor,
@@ -107,13 +108,17 @@ export function EntityCard({
   extraLabel,
   onClick,
   hideStatus = false,
+  showAsPercentage = false,
 }: {
   row: RankingRow;
   extraLabel: string;
   onClick: () => void;
   hideStatus?: boolean;
+  showAsPercentage?: boolean;
 }) {
   const status = getScoreStatus(row.score, row.maxScore);
+  const pct =
+    row.percentage ?? (row.maxScore > 0 ? (row.score / row.maxScore) * 100 : 0);
 
   return (
     <div
@@ -137,6 +142,18 @@ export function EntityCard({
               </span>
             )}
             <h3 className="text-base font-semibold text-gray-900 leading-tight">{row.name}</h3>
+            {row.badges && row.badges.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {row.badges.map((badge) => (
+                  <span
+                    key={badge}
+                    className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-900 border border-amber-200"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -151,7 +168,9 @@ export function EntityCard({
         ) : (
           <StatusBadge status={status} size="sm" />
         )}
-        <span className="text-lg font-bold text-[#006B3F]">{formatPoints(row.score)}</span>
+        <span className="text-lg font-bold text-[#006B3F]">
+          {showAsPercentage ? formatPercentageValue(pct) : formatPoints(row.score)}
+        </span>
       </div>
       {!hideStatus && (
         <p className="mt-3 text-xs text-gray-500">

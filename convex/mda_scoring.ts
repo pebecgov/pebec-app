@@ -2696,7 +2696,9 @@ export const getAllMdaSavedDataForDashboard = query({
 
       const effectiveSlaScore = isExcluded("sla") ? 0 : slaScore;
       const effectiveMysteryScore = isExcluded("mystery") ? 0 : mysteryScore;
-      const effectiveReportGovScore = isExcluded("reportGov") ? 0 : reportGovResScore;
+      // Skip removes ReportGov from both numerator and max (same as one-MDA final score).
+      const effectiveReportGovScore =
+        isExcluded("reportGov") || mda.reportGovResolution?.isSkipped ? 0 : reportGovResScore;
       const effectiveMonthlyReportScore = isExcluded("reportSubmission") ? 0 : monthlyReportScore;
       const effectiveTimelinessScore = isExcluded("timeliness") ? 0 : timelinessScore;
       let effectiveOthersScore = isExcluded("others") ? 0 : othersScore;

@@ -18,6 +18,7 @@ interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
+  percentage?: number;
   applicableMetricCount?: number;
   rank: number;
 }
@@ -47,6 +48,9 @@ export default function MdaScoresPage() {
     if (!mdaData) return undefined;
     return (mdaData.mdas as MdaScoreData[]).map((mda) => {
       const reports = reportByMda.get(canonicalizeMdaName(mda.mdaName));
+      const percentage =
+        mda.percentage ??
+        (mda.maxPossibleScore > 0 ? (mda.finalScore / mda.maxPossibleScore) * 100 : 0);
       return {
         id: mda.mdaName,
         rank: mda.rank,
@@ -54,6 +58,7 @@ export default function MdaScoresPage() {
         abbreviation: getMdaAbbreviation(mda.mdaName),
         score: mda.finalScore,
         maxScore: mda.maxPossibleScore,
+        percentage,
         extra:
           SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && reports.submitted > 0
             ? `${reports.submitted}/${reports.due}`
@@ -76,6 +81,7 @@ export default function MdaScoresPage() {
       emptyMessage="No MDA scoring data is available for 2026 yet."
       hideStatusDistribution
       hideStatusColumn
+      showAsPercentage
     />
   );
 }

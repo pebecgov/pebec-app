@@ -30,6 +30,7 @@ interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
+  percentage?: number;
   metricScores?: Record<string, { score: number; max: number; scored?: boolean; complete?: boolean }>;
   othersBreakdown?: Array<{
     itemId: string;
@@ -38,6 +39,8 @@ interface MdaScoreData {
     max: number;
   }>;
   excludedMetrics?: string[];
+  reportGovSkipped?: boolean;
+  reportGovExcluded?: boolean;
   penaltyScore?: number;
   bonusScore?: number;
   penaltyValues?: Record<string, boolean>;
@@ -109,12 +112,25 @@ export default function MdaSummaryPage() {
     "reportSubmission",
     "timeliness",
   ]);
+
+  const reportGovSkipped = selected.reportGovSkipped === true;
+  const reportGovExcluded = selected.reportGovExcluded === true || excluded.includes("reportGov");
+  const overallMax = selected.maxPossibleScore > 0 ? selected.maxPossibleScore : 100;
+
+  const headerBadges: string[] = [];
+  if (reportGovSkipped) headerBadges.push("ReportGov skipped — not in total");
+  if (reportGovExcluded) headerBadges.push("ReportGov excluded — not in total");
+
   const metrics = frameworkMetrics
     .filter((metric) => {
+      const isReportGovOmitted =
+        metric.key === "reportGov" && (reportGovSkipped || reportGovExcluded);
+      // Always show ReportGov when skipped/excluded so the public can see the indicator.
+      if (isReportGovOmitted) return true;
+
       const isOthersExempted =
         metric.key.startsWith("others:") &&
         (excluded.includes(metric.key) || excluded.includes("others") || beepaExempted);
-      // Keep exempted Others items (e.g. BEEPA) visible; hide other excluded metrics.
       if (isOthersExempted) return true;
       if (excluded.includes(metric.key)) return false;
       return true;
@@ -126,23 +142,43 @@ export default function MdaSummaryPage() {
         (metric.key.startsWith("others:") &&
           (excluded.includes(metric.key) || excluded.includes("others"))) ||
         (isBeepaMetric && beepaExempted);
+      const omittedReason =
+        metric.key === "reportGov"
+          ? reportGovSkipped
+            ? ("skipped" as const)
+            : reportGovExcluded
+              ? ("excluded" as const)
+              : undefined
+          : undefined;
       const scored = selected.metricScores?.[metric.key];
       const isScored = scored?.scored === true;
       const isComplete = isScored && scored?.complete !== false;
+      const maxScore = scored?.max ?? metric.max;
+      // Weight of this metric within this MDA's overall max (after skips/exclusions).
+      // Omitted metrics are not part of the denominator.
+      const weightOfTotalPct =
+        omittedReason || exempted
+          ? undefined
+          : overallMax > 0
+            ? (maxScore / overallMax) * 100
+            : undefined;
+
       return {
         name: metric.label,
-        score: exempted ? 0 : (scored?.score ?? 0),
-        maxScore: scored?.max ?? metric.max,
-        scored: exempted ? true : isScored,
-        complete: exempted ? true : isComplete,
+        score: exempted || omittedReason ? 0 : (scored?.score ?? 0),
+        maxScore,
+        scored: exempted || omittedReason ? true : isScored,
+        complete: exempted || omittedReason ? true : isComplete,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         justification: metric.justification,
         exempted,
+        omittedReason,
+        weightOfTotalPct,
       };
     });
 
   const fullyScored = metrics
-    .filter((metric) => !metric.exempted)
+    .filter((metric) => !metric.exempted && !metric.omittedReason)
     .every((metric) => metric.scored === true && metric.complete !== false);
   const status = fullyScored
     ? getScoreStatus(selected.finalScore, selected.maxPossibleScore)
@@ -161,6 +197,8 @@ export default function MdaSummaryPage() {
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
         notScoredYet={!fullyScored}
+        showAsPercentage
+        badges={headerBadges}
       />
       {beepaExempted && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -173,7 +211,13 @@ export default function MdaSummaryPage() {
           </div>
         </div>
       )}
-      <MetricBreakdown title="BFA Metrics" hint="Why each metric is scored (set by PEBEC admin)" metrics={metrics} hideStatus={!fullyScored} />
+      <MetricBreakdown
+        title="BFA Metrics"
+        hint="Each metric shows % achieved and what share of the overall score it is worth"
+        metrics={metrics}
+        hideStatus={!fullyScored}
+        showAsPercentage
+      />
       {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}

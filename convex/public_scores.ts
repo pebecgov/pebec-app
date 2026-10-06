@@ -390,6 +390,10 @@ type PublicMdaRow = {
   metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }>;
   othersBreakdown: OthersBreakdownItem[];
   excludedMetrics: string[];
+  /** ReportGov was set to Skip (0 points) — removed from this MDA's max. */
+  reportGovSkipped: boolean;
+  /** ReportGov metric is excluded for this MDA in config. */
+  reportGovExcluded: boolean;
   applicableMetricCount: number;
   penaltyScore: number;
   bonusScore: number;
@@ -441,6 +445,8 @@ const publicMdaScoresReturns = v.object({
       ),
       othersBreakdown: othersBreakdownValidator,
       excludedMetrics: v.array(v.string()),
+      reportGovSkipped: v.boolean(),
+      reportGovExcluded: v.boolean(),
       applicableMetricCount: v.number(),
       penaltyScore: v.number(),
       bonusScore: v.number(),
@@ -562,20 +568,56 @@ function buildPublicMdaRowFromDashboard(
   const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
   const othersBreakdown = buildOthersBreakdown(mda, othersItems, excludedMetrics);
 
+  const reportGovExcluded = isMetricExcluded(excludedMetrics, "reportGov");
+  const reportGovBucket = mda.reportGovResolution as { isSkipped?: boolean } | null | undefined;
+  const reportGovSkipped = !reportGovExcluded && reportGovBucket?.isSkipped === true;
+
+  // Skipped / excluded ReportGov must not look like a scored zero in the breakdown.
+  if (reportGovSkipped || reportGovExcluded) {
+    const reportGovMax =
+      frameworkMetrics.find((metric) => metric.key === "reportGov")?.max ??
+      metricScores.reportGov?.max ??
+      0;
+    metricScores.reportGov = {
+      score: 0,
+      max: reportGovMax,
+      scored: true,
+      complete: true,
+    };
+  }
+
   const maxFromFramework = frameworkMetrics
     .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
     .reduce((sum, metric) => sum + metric.max, 0);
 
+  // Prefer dashboard max (already shrinks for skip/exclusions); fall back to framework sum.
+  let maxPossibleScore = Number(mda.maxPossiblePoints) || maxFromFramework || 100;
+  if (reportGovSkipped && !Number(mda.maxPossiblePoints)) {
+    const reportGovMax = frameworkMetrics.find((m) => m.key === "reportGov")?.max ?? 0;
+    maxPossibleScore = Math.max(0, maxFromFramework - reportGovMax);
+  }
+
+  const finalScore = roundScore(Number(mda.totalScore) || 0);
+  const percentageFromDashboard = roundScore(Number(mda.totalPercentage) || 0);
+  const percentage =
+    percentageFromDashboard > 0 || finalScore === 0
+      ? percentageFromDashboard
+      : maxPossibleScore > 0
+        ? roundScore((finalScore / maxPossibleScore) * 100)
+        : 0;
+
   return {
     mdaName: displayName,
-    finalScore: roundScore(Number(mda.totalScore) || 0),
-    maxPossibleScore: Number(mda.maxPossiblePoints) || maxFromFramework || 100,
-    percentage: roundScore(Number(mda.totalPercentage) || 0),
+    finalScore,
+    maxPossibleScore,
+    percentage,
     metricScores,
     othersBreakdown,
     excludedMetrics,
+    reportGovSkipped,
+    reportGovExcluded,
     applicableMetricCount: frameworkMetrics.filter(
-      (metric) => !isMetricExcluded(excludedMetrics, metric.key)
+      (metric) => !isMetricExcluded(excludedMetrics, metric.key) && !(metric.key === "reportGov" && reportGovSkipped)
     ).length,
     penaltyScore: roundScore(Math.abs(penalties?.score || 0)),
     bonusScore: roundScore(Math.abs(bonuses?.score || 0)),
@@ -609,6 +651,8 @@ function buildEmptyPublicMdaRow(
     metricScores,
     othersBreakdown: [],
     excludedMetrics,
+    reportGovSkipped: false,
+    reportGovExcluded: isMetricExcluded(excludedMetrics, "reportGov"),
     applicableMetricCount: frameworkMetrics.filter(
       (metric) => !isMetricExcluded(excludedMetrics, metric.key)
     ).length,
@@ -731,9 +775,9 @@ export const getPublicMdaScores = query({
             );
           }
           return buildEmptyPublicMdaRow(entry, frameworkMetrics, beepaExclusionKey);
-        }).sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
+        }).sort((a, b) => b.percentage - a.percentage || b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
 
-        const scoredMdas = withDenseTiedRanks(sortedRosterMdas, (mda) => mda.finalScore);
+        const scoredMdas = withDenseTiedRanks(sortedRosterMdas, (mda) => mda.percentage);
 
         const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
         const hasAnyScore = scoredMdas.some((mda) => mda.finalScore > 0);
@@ -776,9 +820,9 @@ export const getPublicMdaScores = query({
             trackerStatusByKey
           )
         )
-        .sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
+        .sort((a, b) => b.percentage - a.percentage || b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
 
-      const scoredMdas = withDenseTiedRanks(sortedLegacyMdas, (mda) => mda.finalScore);
+      const scoredMdas = withDenseTiedRanks(sortedLegacyMdas, (mda) => mda.percentage);
 
       const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
 

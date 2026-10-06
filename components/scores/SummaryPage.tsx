@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  formatPercentage,
+  formatPercentageValue,
   formatPoints,
-  formatScorePair,
   getScoreStatus,
   SCORE_YEAR,
   type ScoreStatus,
@@ -35,6 +36,13 @@ export interface MetricItem {
   badge?: string;
   /** Programme exemption: metric is shown but not included in the BFA total. */
   exempted?: boolean;
+  /** ReportGov (or similar) skipped / excluded from this MDA's max. */
+  omittedReason?: "skipped" | "excluded";
+  /**
+   * How much of this MDA's overall max this metric is worth
+   * (e.g. 40 pts of 100 → 40%).
+   */
+  weightOfTotalPct?: number;
 }
 
 export function SummaryHeader({
@@ -49,6 +57,8 @@ export function SummaryHeader({
   scoreLabel,
   notScoredYet = false,
   hideStatus = false,
+  showAsPercentage = false,
+  badges,
 }: {
   backHref: string;
   backLabel: string;
@@ -62,11 +72,15 @@ export function SummaryHeader({
   notScoredYet?: boolean;
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
+  /** Show overall as % of this MDA's max (hide raw points). */
+  showAsPercentage?: boolean;
+  badges?: string[];
 }) {
   // Incomplete overall: show "Not scored yet" badge, but keep a running total if any points exist.
   const showIncompleteBadge = notScoredYet || !status;
   const showRunningTotal = !showIncompleteBadge || score > 0;
   const progressColor = hideStatus || !status ? "green" : status.color;
+  const overallPct = maxScore > 0 ? (score / maxScore) * 100 : 0;
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
@@ -93,6 +107,18 @@ export function SummaryHeader({
               <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
             </div>
             {description && <p className="text-gray-500 mt-2">{description}</p>}
+            {badges && badges.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {badges.map((badge) => (
+                  <span
+                    key={badge}
+                    className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           {showIncompleteBadge ? (
             <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full bg-gray-100 text-gray-700 border border-gray-200">
@@ -107,7 +133,9 @@ export function SummaryHeader({
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700">{scoreLabel}</span>
             {showRunningTotal ? (
-              <span className="text-2xl font-bold text-[#006B3F]">{formatScorePair(score, maxScore)}</span>
+              <span className="text-2xl font-bold text-[#006B3F]">
+                {showAsPercentage ? formatPercentageValue(overallPct) : `${formatPoints(score)} / ${formatPoints(maxScore)}`}
+              </span>
             ) : (
               <span className="text-lg font-semibold text-gray-500">Not scored fully</span>
             )}
@@ -129,12 +157,15 @@ export function MetricBreakdown({
   hint,
   metrics,
   hideStatus = false,
+  showAsPercentage = false,
 }: {
   title: string;
   hint?: string;
   metrics: MetricItem[];
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
+  /** Show metric achievement % and weight-of-total % instead of raw points. */
+  showAsPercentage?: boolean;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -156,6 +187,7 @@ export function MetricBreakdown({
           {metrics.map((metric, index) => {
             const isExpanded = expanded === metric.name;
             const isExempted = metric.exempted === true;
+            const isOmitted = metric.omittedReason === "skipped" || metric.omittedReason === "excluded";
             const details = metric.details || [];
             const hasDetails = details.length > 0;
             const hasScoredDetails = details.some((detail) => detail.scored === true);
@@ -168,17 +200,26 @@ export function MetricBreakdown({
             const markedIncomplete = metric.complete === false;
             const showAsInProgress =
               !isExempted &&
+              !isOmitted &&
               hasAnyProgress &&
               (markedIncomplete || detailsIncomplete || metric.scored !== true);
             const showAsNotStarted =
-              !isExempted && !hasAnyProgress && metric.scored !== true;
+              !isExempted && !isOmitted && !hasAnyProgress && metric.scored !== true;
             const showAsNotScored = showAsInProgress || showAsNotStarted;
             const status =
-              showAsNotScored || isExempted
+              showAsNotScored || isExempted || isOmitted
                 ? null
                 : getScoreStatus(metric.score, metric.maxScore);
             const progressColor = hideStatus || !status ? "green" : status.color;
             const showPartialProgress = showAsInProgress;
+            const achievementPct =
+              metric.maxScore > 0 ? (metric.score / metric.maxScore) * 100 : 0;
+            const omittedLabel =
+              metric.omittedReason === "skipped"
+                ? "ReportGov skipped"
+                : metric.omittedReason === "excluded"
+                  ? "ReportGov excluded"
+                  : null;
 
             return (
               <div
@@ -218,9 +259,14 @@ export function MetricBreakdown({
                             Exempted
                           </span>
                         ) : null}
+                        {omittedLabel ? (
+                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                            {omittedLabel}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
-                    {isExempted ? (
+                    {isExempted || isOmitted ? (
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not in BFA total
                       </span>
@@ -234,16 +280,51 @@ export function MetricBreakdown({
                       </span>
                     ) : !hideStatus && status ? (
                       <StatusBadge status={status} size="sm" />
+                    ) : showAsPercentage && !showAsNotScored ? (
+                      <span className="text-sm font-bold text-[#006B3F]">
+                        {formatPercentageValue(achievementPct)}
+                      </span>
                     ) : null}
                   </div>
                   {isExempted ? (
                     <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       Programme exemption — this metric is excluded from the overall BFA score and maximum.
                     </p>
+                  ) : isOmitted ? (
+                    <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                      {metric.omittedReason === "skipped"
+                        ? "ReportGov was set to Skip for this MDA — it is removed from their maximum so the overall percentage is calculated on the remaining metrics."
+                        : "ReportGov is excluded for this MDA — it is removed from their maximum so the overall percentage is calculated on the remaining metrics."}
+                    </p>
                   ) : showAsNotStarted ? (
                     <p className={`text-sm text-gray-500 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       Not scored yet — this is not a zero score.
                     </p>
+                  ) : showAsPercentage ? (
+                    <div className={`space-y-2 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 max-w-md">
+                          <ProgressBar
+                            score={metric.score}
+                            maxScore={metric.maxScore}
+                            color={progressColor}
+                            size="sm"
+                          />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900 min-w-[4.5rem] text-right">
+                          {formatPercentageValue(achievementPct)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {formatPercentageValue(achievementPct)} of this metric
+                        {metric.weightOfTotalPct !== undefined ? (
+                          <>
+                            {" "}
+                            · worth {formatPercentageValue(metric.weightOfTotalPct)} of overall
+                          </>
+                        ) : null}
+                      </p>
+                    </div>
                   ) : (
                     <div className={`flex items-center gap-4 ${hasDetails ? "ml-9" : "ml-0"}`}>
                       <div className="flex-1 max-w-md">
@@ -292,12 +373,14 @@ export function MetricBreakdown({
                             ) : null}
                           </div>
                           <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
-                            {isExempted
-                              ? "Exempted"
+                            {isExempted || isOmitted
+                              ? "Not in total"
                               : detail.scored !== true
                                 ? "Not scored yet"
                                 : detail.maxScore !== undefined
-                                  ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
+                                  ? showAsPercentage
+                                    ? formatPercentage(detail.score, detail.maxScore)
+                                    : `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
                                   : formatPoints(detail.score)}
                           </div>
                         </div>

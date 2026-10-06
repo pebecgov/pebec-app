@@ -1,6 +1,6 @@
 "use client";
 
-import { formatPoints, getScoreStatus, type RankingRow } from "@/lib/scoreTracker";
+import { formatPercentageValue, formatPoints, getScoreStatus, type RankingRow } from "@/lib/scoreTracker";
 import { ProgressBar, RankBadge, StatusBadge } from "./primitives";
 
 interface RankingTableProps {
@@ -8,6 +8,8 @@ interface RankingTableProps {
   extraColumnHeader: string;
   onRowClick: (row: RankingRow) => void;
   hideStatusColumn?: boolean;
+  /** When true, Score column shows percentage (MDA tracker). */
+  showAsPercentage?: boolean;
 }
 
 export function RankingTable({
@@ -15,6 +17,7 @@ export function RankingTable({
   extraColumnHeader,
   onRowClick,
   hideStatusColumn = false,
+  showAsPercentage = false,
 }: RankingTableProps) {
   if (rows.length === 0) {
     return (
@@ -46,6 +49,9 @@ export function RankingTable({
           <tbody className="divide-y divide-gray-100">
             {rows.map((row, index) => {
               const status = hideStatusColumn ? null : getScoreStatus(row.score, row.maxScore);
+              const pct =
+                row.percentage ??
+                (row.maxScore > 0 ? (row.score / row.maxScore) * 100 : 0);
               return (
                 <tr
                   key={row.id}
@@ -60,9 +66,23 @@ export function RankingTable({
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-gray-900">{row.name}</div>
                     {row.abbreviation && <div className="text-sm text-gray-500">{row.abbreviation}</div>}
+                    {row.badges && row.badges.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {row.badges.map((badge) => (
+                          <span
+                            key={badge}
+                            className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-50 text-amber-900 border border-amber-200"
+                          >
+                            {badge}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-semibold text-gray-900">{formatPoints(row.score)}</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {showAsPercentage ? formatPercentageValue(pct) : formatPoints(row.score)}
+                    </span>
                   </td>
                   {!hideStatusColumn && status && (
                     <td className="px-6 py-4 w-40">

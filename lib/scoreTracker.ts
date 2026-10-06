@@ -34,8 +34,12 @@ export interface RankingRow {
   abbreviation?: string;
   score: number;
   maxScore: number;
+  /** When set, list/cards show this % instead of raw points. */
+  percentage?: number;
   extra: string | number;
   href: string;
+  /** e.g. ReportGov skipped or excluded from this MDA's total. */
+  badges?: string[];
 }
 
 export interface BfaFrameworkMetric {
@@ -66,6 +70,25 @@ export function formatPoints(score: number): string {
 
 export function formatScorePair(score: number, maxScore: number): string {
   return `${formatPoints(score)} / ${formatPoints(maxScore)}`;
+}
+
+/** Percentage of max, rounded sensibly for display (e.g. 87.5%). */
+export function formatPercentage(score: number, maxScore: number): string {
+  if (maxScore <= 0) return "0%";
+  const pct = (score / maxScore) * 100;
+  return formatPercentageValue(pct);
+}
+
+export function formatPercentageValue(pct: number): string {
+  if (!Number.isFinite(pct)) return "0%";
+  const clamped = Math.min(Math.max(pct, 0), 100);
+  if (Number.isInteger(clamped)) return `${clamped}%`;
+  return `${clamped.toFixed(1)}%`;
+}
+
+export function scoreToPercentage(score: number, maxScore: number): number {
+  if (maxScore <= 0) return 0;
+  return Math.round((score / maxScore) * 1000) / 10;
 }
 
 export function getStatusColorClasses(color: StatusColor): {

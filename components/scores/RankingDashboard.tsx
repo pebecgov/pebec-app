@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LayoutGrid, List, Search } from "lucide-react";
-import { SCORE_YEAR, formatPoints, type RankingRow } from "@/lib/scoreTracker";
+import { SCORE_YEAR, formatPercentageValue, formatPoints, type RankingRow } from "@/lib/scoreTracker";
 import { RankingTable } from "./RankingTable";
 import { StatusDistribution } from "./StatusDistribution";
 import {
@@ -31,6 +31,8 @@ interface RankingDashboardProps {
   hideStatusDistribution?: boolean;
   /** Hide status badges in table/cards (MDA tracker). */
   hideStatusColumn?: boolean;
+  /** Show overall score as % of that MDA's max (MDA tracker). */
+  showAsPercentage?: boolean;
 }
 
 export function RankingDashboard({
@@ -45,6 +47,7 @@ export function RankingDashboard({
   emptyMessage,
   hideStatusDistribution = false,
   hideStatusColumn = false,
+  showAsPercentage = false,
 }: RankingDashboardProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>("ranking");
@@ -63,7 +66,12 @@ export function RankingDashboard({
 
   const averageScore =
     filteredRows.length > 0
-      ? filteredRows.reduce((sum, row) => sum + row.score, 0) / filteredRows.length
+      ? filteredRows.reduce((sum, row) => {
+          if (showAsPercentage) {
+            return sum + (row.percentage ?? (row.maxScore > 0 ? (row.score / row.maxScore) * 100 : 0));
+          }
+          return sum + row.score;
+        }, 0) / filteredRows.length
       : 0;
 
   return (
@@ -110,7 +118,7 @@ export function RankingDashboard({
               />
               <StatCard
                 title="Average Score"
-                value={formatPoints(averageScore)}
+                value={showAsPercentage ? formatPercentageValue(averageScore) : formatPoints(averageScore)}
                 subtitle={searchQuery ? `Across ${filteredRows.length} matching results` : `Across all ${entityLabel.toLowerCase()}s`}
                 icon={
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,6 +205,7 @@ export function RankingDashboard({
               rows={filteredRows}
               extraColumnHeader={extraColumnHeader}
               hideStatusColumn={hideStatusColumn}
+              showAsPercentage={showAsPercentage}
               onRowClick={(row) => router.push(row.href)}
             />
           ) : (
@@ -207,6 +216,7 @@ export function RankingDashboard({
                   row={row}
                   extraLabel={extraCardLabel}
                   hideStatus={hideStatusColumn}
+                  showAsPercentage={showAsPercentage}
                   onClick={() => router.push(row.href)}
                 />
               ))}
