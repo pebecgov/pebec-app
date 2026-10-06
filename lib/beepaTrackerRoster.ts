@@ -7,9 +7,18 @@ export type BeepaTrackerRosterEntry = {
   abbreviation: string;
   /** Programme-exempted from BEEPA (BFA recalculated without BEEPA). */
   beepaExempted: boolean;
+  /**
+   * Super MDAs are graded out of 10 on BEEPA; all other assessed MDAs out of 9.
+   * (Recognised Super MDAs under the BEEPA framework.)
+   */
+  superMda?: boolean;
   /** Extra names/abbrs used when matching dashboard / import rows. */
   aliases?: string[];
 };
+
+/** BEEPA max points: Super MDAs = 10, everyone else = 9. */
+export const BEEPA_SUPER_MDA_MAX = 10;
+export const BEEPA_STANDARD_MDA_MAX = 9;
 
 function normalizeKey(value: string): string {
   return String(value || "")
@@ -22,10 +31,10 @@ function normalizeKey(value: string): string {
 
 /** 53 assessed + 5 exempted (BOA removed) = 58. */
 export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
-  { name: "Nigeria Customs Service", abbreviation: "NCS" },
-  { name: "Nigerian Ports Authority", abbreviation: "NPA" },
-  { name: "National Information Technology Development Agency", abbreviation: "NITDA" },
-  { name: "National Pension Commission", abbreviation: "PENCOM" },
+  { name: "Nigeria Customs Service", abbreviation: "NCS", superMda: true },
+  { name: "Nigerian Ports Authority", abbreviation: "NPA", superMda: true },
+  { name: "National Information Technology Development Agency", abbreviation: "NITDA", superMda: true },
+  { name: "National Pension Commission", abbreviation: "PENCOM", superMda: true },
   { name: "Nigeria Agricultural Quarantine Service", abbreviation: "NAQS" },
   { name: "Nigeria Immigration Service", abbreviation: "NIS" },
   { name: "Nigerian Communications Commission", abbreviation: "NCC" },
@@ -164,10 +173,21 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
   name: entry.name,
   abbreviation: entry.abbreviation,
   beepaExempted: entry.beepaExempted === true,
+  superMda: entry.superMda === true,
   aliases: entry.aliases,
 }));
 
 export const BEEPA_TRACKER_ROSTER_COUNT = BEEPA_TRACKER_ROSTER.length;
+
+export function beepaMaxPointsForMda(mdaName: string, abbreviation?: string | null): number {
+  const entry = matchBeepaTrackerRosterEntry(mdaName, abbreviation);
+  if (entry?.superMda) return BEEPA_SUPER_MDA_MAX;
+  return BEEPA_STANDARD_MDA_MAX;
+}
+
+export function isSuperBeepaMda(mdaName: string, abbreviation?: string | null): boolean {
+  return matchBeepaTrackerRosterEntry(mdaName, abbreviation)?.superMda === true;
+}
 
 export function matchBeepaTrackerRosterEntry(
   mdaName: string,

@@ -296,7 +296,34 @@ export function othersItemBreakdown(args: {
   ];
 }
 
-/** Build all BFA metric breakdown maps from a dashboard MDA row. */
+export function beepaScoreBreakdown(args: {
+  score: number;
+  maxPoints: number;
+  isSuperMda: boolean;
+  rawValue?: boolean | number | null;
+}): ScoreBreakdownLine[] {
+  const { score, maxPoints, isSuperMda, rawValue } = args;
+  const scaleNote =
+    typeof rawValue === "number"
+      ? ` Scale rating recorded: ${rawValue} / 10.`
+      : "";
+  return [
+    {
+      label: "BEEPA grading",
+      value: isSuperMda ? "Super MDA — out of 10" : "Standard MDA — out of 9",
+      points: round2(score),
+      maxPoints: round2(maxPoints),
+      explanation: isSuperMda
+        ? `Only Super MDAs are graded out of 10 on BEEPA. This agency is a Super MDA, so its BEEPA maximum is ${round2(maxPoints)} points. Score: ${round2(score)} / ${round2(maxPoints)}.${scaleNote}`
+        : `Only Super MDAs are graded out of 10 on BEEPA. All other MDAs are graded out of 9. This agency’s BEEPA maximum is ${round2(maxPoints)} points. Score: ${round2(score)} / ${round2(maxPoints)}.${scaleNote}`,
+    },
+  ];
+}
+
+/**
+ * Public tracker explanations — only Report Gov and BEEPA (by product request).
+ * Month grids for SLA / Timeliness / Monthly Report are attached separately.
+ */
 export function buildMdaMetricScoreBreakdowns(
   mda: Record<string, unknown>,
   othersItems: Array<{
@@ -305,39 +332,9 @@ export function buildMdaMetricScoreBreakdowns(
     weight: number;
     answerType?: string;
   }> = [],
+  options: { isSuperMda?: boolean; beepaMaxPoints?: number } = {},
 ): Record<string, ScoreBreakdownLine[]> {
   const out: Record<string, ScoreBreakdownLine[]> = {};
-
-  const sla = mda.sla as
-    | { score?: number; monthsWithData?: number; totalMonths?: number; maxPossibleScore?: number }
-    | null
-    | undefined;
-  if (sla) {
-    out.sla = slaScoreBreakdown({
-      monthsWithData: sla.monthsWithData ?? 0,
-      totalMonths: sla.totalMonths ?? 12,
-      score: sla.score ?? 0,
-      maxPoints: sla.maxPossibleScore ?? 5,
-    });
-  }
-
-  const mystery = mda.mysteryShopping as
-    | {
-        score?: number;
-        percentage?: number;
-        maxPossibleScore?: number;
-        questionLines?: Array<{ label: string; score: number; maxPoints: number }>;
-      }
-    | null
-    | undefined;
-  if (mystery) {
-    out.mystery = mysteryScoreBreakdown({
-      score: mystery.score ?? 0,
-      maxPoints: mystery.maxPossibleScore ?? 0,
-      percentage: mystery.percentage ?? 0,
-      questionLines: mystery.questionLines,
-    });
-  }
 
   const reportGov = mda.reportGovResolution as
     | {
@@ -367,34 +364,6 @@ export function buildMdaMetricScoreBreakdowns(
     });
   }
 
-  const monthly = mda.monthlyReport as
-    | { score?: number; monthsWithData?: number; totalMonths?: number; maxPossibleScore?: number }
-    | null
-    | undefined;
-  if (monthly) {
-    out.reportSubmission = proportionalMonthsBreakdown({
-      hits: monthly.monthsWithData ?? 0,
-      totalMonths: monthly.totalMonths ?? 12,
-      score: monthly.score ?? 0,
-      maxPoints: monthly.maxPossibleScore ?? 2,
-      hitLabel: "submitted",
-    });
-  }
-
-  const timeliness = mda.timeliness as
-    | { score?: number; monthsWithData?: number; totalMonths?: number; maxPossibleScore?: number }
-    | null
-    | undefined;
-  if (timeliness) {
-    out.timeliness = proportionalMonthsBreakdown({
-      hits: timeliness.monthsWithData ?? 0,
-      totalMonths: timeliness.totalMonths ?? 12,
-      score: timeliness.score ?? 0,
-      maxPoints: timeliness.maxPossibleScore ?? 3,
-      hitLabel: "on time",
-    });
-  }
-
   const others = mda.others as
     | {
         scores?: Record<string, number>;
@@ -404,16 +373,25 @@ export function buildMdaMetricScoreBreakdowns(
     | undefined;
   if (others) {
     for (const item of othersItems) {
+      const nameKey = String(item.itemName || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+      const isBeepa = nameKey === "beepa" || nameKey.includes("beepa");
+      if (!isBeepa) continue;
       const hasScore =
         others.scores != null && Object.prototype.hasOwnProperty.call(others.scores, item.itemId);
       const hasValue =
         others.values != null && Object.prototype.hasOwnProperty.call(others.values, item.itemId);
       if (!hasScore && !hasValue) continue;
-      out[`others:${item.itemId}`] = othersItemBreakdown({
+      const beepaMax =
+        options.beepaMaxPoints ??
+        (options.isSuperMda ? 10 : 9);
+      out[`others:${item.itemId}`] = beepaScoreBreakdown({
         score: Number(others.scores?.[item.itemId]) || 0,
-        maxPoints: item.weight,
+        maxPoints: beepaMax,
+        isSuperMda: options.isSuperMda === true,
         rawValue: others.values?.[item.itemId] ?? null,
-        answerType: item.answerType,
       });
     }
   }
