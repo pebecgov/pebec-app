@@ -244,9 +244,11 @@ export default function MdaSummaryPage() {
         scored: exempted ? true : isScored,
         complete: exempted ? true : isComplete,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
-        justification: metric.justification,
+        // Admin metric justifications stay in admin scoring only — not on the public tracker.
+        justification: undefined,
         exempted,
         issues: slaIssues && slaIssues.length > 0 ? slaIssues : undefined,
+        // Score math only for Report Gov + BEEPA; month grids for SLA / reports / timeliness.
         scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
         monthStatuses,
       };
