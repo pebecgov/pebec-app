@@ -452,11 +452,9 @@ const indicators2026 = {
       industrial_zones: {
         label: "Industrial Zones (8%)",
         options: [
-          { value: "excellent", label: "Excellent (8)", score: 8 },
-          { value: "very_good", label: "Very Good (6)", score: 6 },
-          { value: "good", label: "Good (4)", score: 4 },
-          { value: "fair", label: "Fair (2)", score: 2 },
-          { value: "poor", label: "Poor (0)", score: 0 },
+          { value: "eight", label: "8 pts", score: 8 },
+          { value: "four", label: "4 pts", score: 4 },
+          { value: "one", label: "1 pt", score: 1 },
         ],
       },
     },
@@ -467,23 +465,15 @@ const indicators2026 = {
       state_microfinance_banks: {
         label: "State Microfinance Banks (6%)",
         options: [
-          { value: "excellent", label: "Excellent (6)", score: 6 },
-          { value: "good", label: "Good (5)", score: 5 },
-          { value: "fair", label: "Fair (4)", score: 4 },
-          { value: "poor", label: "Poor (3)", score: 3 },
-          { value: "very_poor", label: "Very Poor (2)", score: 2 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       access_federal_financial_institutions: {
         label: "Access to Federal Financial Institutions (6%)",
         options: [
-          { value: "excellent", label: "Excellent (6)", score: 6 },
-          { value: "good", label: "Good (5)", score: 5 },
-          { value: "fair", label: "Fair (4)", score: 4 },
-          { value: "poor", label: "Poor (3)", score: 3 },
-          { value: "very_poor", label: "Very Poor (2)", score: 2 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
@@ -521,18 +511,15 @@ const indicators2026 = {
       gis: {
         label: "GIS (3%)",
         options: [
-          { value: "excellent", label: "Excellent (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (3)", score: 3 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       automated: {
         label: "Automated (7%)",
         options: [
-          { value: "fully-automated", label: "Fully automated (7)", score: 7 },
-          { value: "hybrid", label: "Hybrid (4)", score: 4 },
-          { value: "manual", label: "Manual (0)", score: 0 },
+          { value: "yes", label: "Yes (7)", score: 7 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },

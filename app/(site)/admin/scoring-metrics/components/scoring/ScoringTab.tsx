@@ -25,6 +25,10 @@ import DynamicBonusesCard from './DynamicBonusesCard';
 import BeepaCsvImportCard from './BeepaCsvImportCard';
 import BulkTransparencyCard from './BulkTransparencyCard';
 import MdaScoringMatrix from './MdaScoringMatrix';
+import TrackerMetricStatusPanel from './TrackerMetricStatusPanel';
+import BulkEfficiencyCard from './BulkEfficiencyCard';
+import BulkSLACard from './BulkSLACard';
+import { computeReportGovBreakdown } from '@/convex/utils/efficiencyScoring';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -105,6 +109,7 @@ export default function ScoringTab({
 
     // ReportGov State
     const [reportgovRate, setReportgovRate] = useState(0);
+    const [reportGovBreakdown, setReportGovBreakdown] = useState({ resolutionRate: 0, responseTime: 0, resolutionTime: 0 });
     const [skipReportGov, setSkipReportGov] = useState(false);
 
     // Monthly Report State
@@ -331,6 +336,7 @@ export default function ScoringTab({
             setMysteryRatings({});
             setTransparencyItems({ serviceLevelPublishing: false });
             setReportgovRate(0);
+            setReportGovBreakdown({ resolutionRate: 0, responseTime: 0, resolutionTime: 0 });
             setSkipReportGov(false);
             setManualMonthlyReports({});
             setUseManualMonthlyReports(false);
@@ -353,76 +359,16 @@ export default function ScoringTab({
         }
     }, [savedSLAData]);
 
-    // Populate Automated ReportGov Data
+    // Populate Automated ReportGov Data (same formula the bulk "run all" uses)
     useEffect(() => {
         if (ticketResolutionData) {
-            const { resolutionRate, averageResponseTime, averageResolutionTime, totalTickets } = ticketResolutionData;
-
-            // Weights logic
-            // Resolution Rate: 46.67% of total
-            // Response Time: 20% of total
-            // Resolution Time: 33.33% of total
-
-            const maxResRatePoints = reportGovPoints * 0.4667;
-            const maxResponsePoints = reportGovPoints * 0.20;
-            const maxResolutionTimePoints = reportGovPoints * 0.3333;
-
-
-
-            let resRateScore = 0;
-            let responseScore = 0;
-            let resolutionTimeScore = 0;
-
-            if (totalTickets > 0) {
-                // Resolution Rate Scoring (Based on 7 tiers)
-                // >= 100% : 7/7
-                // 90-99%  : 6/7
-                // 80-89%  : 5/7
-                // 70-79%  : 4/7
-                // 60-69%  : 3/7
-                // 50-59%  : 2/7
-                // 40-49%  : 1/7
-                // < 40%   : 0
-                if (resolutionRate >= 100) resRateScore = maxResRatePoints * (7 / 7);
-                else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
-                else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
-                else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
-                else if (resolutionRate >= 60) resRateScore = maxResRatePoints * (3 / 7);
-                else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
-                else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
-                else resRateScore = 0;
-
-                // Response Time Scoring (Base 3 tiers)
-                // <= 24h : 3/3
-                // <= 48h : 2/3
-                // <= 72h : 1/3
-                if (averageResponseTime > 0) {
-                    if (averageResponseTime <= 24) responseScore = maxResponsePoints * (3 / 3);
-                    else if (averageResponseTime <= 48) responseScore = maxResponsePoints * (2 / 3);
-                    else if (averageResponseTime <= 72) responseScore = maxResponsePoints * (1 / 3);
-                    else responseScore = 0;
-                }
-
-                // Resolution Time Scoring (Base 5 tiers)
-                // <= 48h  : 5/5
-                // <= 72h  : 4/5
-                // <= 96h  : 3/5
-                // <= 120h : 2/5
-                // <= 144h : 1/5
-                if (averageResolutionTime > 0) {
-                    if (averageResolutionTime <= 48) resolutionTimeScore = maxResolutionTimePoints * (5 / 5);
-                    else if (averageResolutionTime <= 72) resolutionTimeScore = maxResolutionTimePoints * (4 / 5);
-                    else if (averageResolutionTime <= 96) resolutionTimeScore = maxResolutionTimePoints * (3 / 5);
-                    else if (averageResolutionTime <= 120) resolutionTimeScore = maxResolutionTimePoints * (2 / 5);
-                    else if (averageResolutionTime <= 144) resolutionTimeScore = maxResolutionTimePoints * (1 / 5);
-                    else resolutionTimeScore = 0;
-                }
-            }
-
-
-
-            const totalScore = resRateScore + responseScore + resolutionTimeScore;
-            setReportgovRate(Math.min(totalScore, reportGovPoints));
+            const breakdown = computeReportGovBreakdown(ticketResolutionData, reportGovPoints);
+            setReportGovBreakdown({
+                resolutionRate: breakdown.resolutionRate,
+                responseTime: breakdown.responseTime,
+                resolutionTime: breakdown.resolutionTime,
+            });
+            setReportgovRate(breakdown.total);
         }
     }, [ticketResolutionData, reportGovPoints]);
 
@@ -437,7 +383,7 @@ export default function ScoringTab({
                 // instead of using the saved score, to ensure it reflects current data/config.
                 // setReportgovRate(savedReportGovData.score); 
             }
-            toast.success(`📊 Loaded saved Report Gov data for ${selectedMda}`);
+            toast.success(`Loaded saved Report Gov data for ${selectedMda}`);
         }
     }, [savedReportGovData, selectedMda, scoringPeriod, isLoadingReportGovData]);
 
@@ -447,7 +393,7 @@ export default function ScoringTab({
             const data = savedMysteryShoppingData as any;
             setMysteryType((data.mysteryType || data.type));
             setMysteryRatings(data.ratings || {});
-            toast.success(`🛍️ Loaded saved Mystery Shopping data for ${selectedMda}`);
+            toast.success(`Loaded saved Mystery Shopping data for ${selectedMda}`);
         }
     }, [savedMysteryShoppingData, selectedMda, scoringPeriod, isLoadingMysteryShoppingData]);
 
@@ -467,7 +413,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingControversialData && savedControversialData && selectedMda) {
             setIsControversial(savedControversialData.isControversial || false);
-            toast.success(`⚠️ Loaded saved Controversial data for ${selectedMda}`);
+            toast.success(`Loaded saved Controversial data for ${selectedMda}`);
         }
     }, [savedControversialData, selectedMda, scoringPeriod, isLoadingControversialData]);
 
@@ -476,7 +422,7 @@ export default function ScoringTab({
         if (!isLoadingToutingRentseekingData && savedToutingRentseekingData && selectedMda) {
             const data = savedToutingRentseekingData as any;
             setIsTouting(data.isToutingRentseeking ?? data.isTouting ?? false);
-            toast.success(`🚫 Loaded saved Touting & Rentseeking data for ${selectedMda}`);
+            toast.success(`Loaded saved Touting & Rentseeking data for ${selectedMda}`);
         }
     }, [savedToutingRentseekingData, selectedMda, scoringPeriod, isLoadingToutingRentseekingData]);
 
@@ -484,7 +430,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingInnovationData && savedInnovationData && selectedMda) {
             setIsInnovation(savedInnovationData.isInnovative || false);
-            toast.success(`💡 Loaded saved Innovation data for ${selectedMda}`);
+            toast.success(`Loaded saved Innovation data for ${selectedMda}`);
         }
     }, [savedInnovationData, selectedMda, scoringPeriod, isLoadingInnovationData]);
 
@@ -492,7 +438,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingStakeholderData && savedStakeholderData && selectedMda) {
             setStakeholderRate(savedStakeholderData.rate || 0);
-            toast.success(`👥 Loaded saved Stakeholder Engagement data for ${selectedMda}`);
+            toast.success(`Loaded saved Stakeholder Engagement data for ${selectedMda}`);
         }
     }, [savedStakeholderData, selectedMda, scoringPeriod, isLoadingStakeholderData]);
 
@@ -504,7 +450,7 @@ export default function ScoringTab({
             setTransparencyItems({
                 serviceLevelPublishing: savedTransparencyData.responses?.serviceLevelPublishing || false,
             });
-            toast.success(`🔍 Loaded saved Transparency data for ${selectedMda}`);
+            toast.success(`Loaded saved Transparency data for ${selectedMda}`);
         }
     }, [savedTransparencyData, selectedMda, scoringPeriod, isLoadingTransparencyData]);
 
@@ -513,7 +459,7 @@ export default function ScoringTab({
         if (!isLoadingMonthlyReportData && savedMonthlyReportData && selectedMda) {
             setUseManualMonthlyReports(savedMonthlyReportData.useManual || false);
             setManualMonthlyReports(savedMonthlyReportData.manualMonthlyReports || {});
-            toast.success(`📅 Loaded saved Monthly Report Submission data for ${selectedMda}`);
+            toast.success(`Loaded saved Monthly Report Submission data for ${selectedMda}`);
         }
     }, [savedMonthlyReportData, selectedMda, scoringPeriod, isLoadingMonthlyReportData]);
 
@@ -522,7 +468,7 @@ export default function ScoringTab({
         if (!isLoadingTimelinessData && savedTimelinessData && selectedMda) {
             setUseManualTimeliness(savedTimelinessData.useManual || false);
             setManualTimeliness(savedTimelinessData.manualTimeliness || {});
-            toast.success(`⏰ Loaded saved Timeliness data for ${selectedMda}`);
+            toast.success(`Loaded saved Timeliness data for ${selectedMda}`);
         }
     }, [savedTimelinessData, selectedMda, scoringPeriod, isLoadingTimelinessData]);
 
@@ -530,7 +476,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingOthersData && savedOthersData && selectedMda && useDynamicConfig) {
             setOthersValues(savedOthersData.values || {});
-            // toast.success(`📊 Loaded saved Others data for ${selectedMda}`);
+            // toast.success(`Loaded saved Others data for ${selectedMda}`);
         }
     }, [savedOthersData, selectedMda, scoringPeriod, isLoadingOthersData, useDynamicConfig]);
 
@@ -538,7 +484,7 @@ export default function ScoringTab({
     useEffect(() => {
         if (!isLoadingPenaltiesData && savedPenaltiesData && selectedMda && useDynamicConfig) {
             setPenaltyValues(savedPenaltiesData.values || {});
-            // toast.success(`⚠️ Loaded saved Penalties data for ${selectedMda}`);
+            // toast.success(`Loaded saved Penalties data for ${selectedMda}`);
         }
     }, [savedPenaltiesData, selectedMda, scoringPeriod, isLoadingPenaltiesData, useDynamicConfig]);
 
@@ -781,10 +727,14 @@ export default function ScoringTab({
         if (!selectedMda) return;
         try {
             const stats = calculateMonthlySlaScore();
+            // Browser File objects can't be stored in Convex
+            const serializableSlaData = Object.fromEntries(
+                Object.entries(monthlySlaData).map(([key, entry]) => [key, { ...entry, file: null }])
+            );
             await saveSLAData({
                 mdaName: selectedMda,
                 scoringPeriod,
-                monthlySlaData: monthlySlaData,
+                monthlySlaData: serializableSlaData,
                 totalScore: stats.totalScore,
                 monthsWithData: stats.monthsWithData,
                 totalMonths: stats.totalMonths,
@@ -982,6 +932,9 @@ export default function ScoringTab({
                 averageResponseTime: ticketResolutionData?.averageResponseTime || 0,
                 averageResolutionTime: ticketResolutionData?.averageResolutionTime || 0,
                 resolutionRate: ticketResolutionData?.resolutionRate || 0,
+                adjustedResolutionRate: ticketResolutionData?.adjustedResolutionRate ?? undefined,
+                systemAverageResolutionRate: ticketResolutionData?.systemAverageResolutionRate ?? undefined,
+                minimumThreshold: ticketResolutionData?.minimumThreshold ?? undefined,
                 score: (ticketResolutionData as any)?.score || reportgovRate
             };
 
@@ -1176,7 +1129,21 @@ export default function ScoringTab({
 
                 {scoringMode === "matrix" ? (
                     useDynamicConfig ? (
-                        <MdaScoringMatrix scoringPeriod={scoringPeriod} year={scoringYear} />
+                        <div className="space-y-4">
+                            <TrackerMetricStatusPanel
+                                year={scoringYear}
+                                scoringPeriod={scoringPeriod}
+                            />
+                            <BulkEfficiencyCard
+                                scoringPeriod={scoringPeriod}
+                                mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                            />
+                            <BulkSLACard
+                                scoringPeriod={scoringPeriod}
+                                mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                            />
+                            <MdaScoringMatrix scoringPeriod={scoringPeriod} year={scoringYear} />
+                        </div>
                     ) : (
                         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm">
                             Matrix scoring is available for 2026+ dynamic configuration. Switch the scoring year to 2026, or use One MDA for 2025.
@@ -1184,6 +1151,12 @@ export default function ScoringTab({
                     )
                 ) : (
                 <>
+                {useDynamicConfig && (
+                    <TrackerMetricStatusPanel
+                        year={scoringYear}
+                        scoringPeriod={scoringPeriod}
+                    />
+                )}
                 {/* Header Section */}
                 <div className="flex flex-col gap-4">
                     <MDASelector
@@ -1230,6 +1203,14 @@ export default function ScoringTab({
                 {/* --- Efficiency Section --- */}
                 <div className="w-full space-y-4">
                     <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Efficiency & Compliance</h3>
+                    <BulkEfficiencyCard
+                        scoringPeriod={scoringPeriod}
+                        mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                    />
+                    <BulkSLACard
+                        scoringPeriod={scoringPeriod}
+                        mdaNames={(mdasList || []).map((mda: { name: string }) => mda.name)}
+                    />
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <SLAMetricCard
                             isLoadingSLAData={!!selectedMda && savedSLAData === undefined}
@@ -1311,6 +1292,7 @@ export default function ScoringTab({
                             ticketResolutionData={ticketResolutionData || { totalTickets: 0, resolvedTickets: 0, resolutionRate: 0, averageResponseTime: 0, averageResolutionTime: 0, score: 0 }}
                             reportgovRate={reportgovRate}
                             setReportgovRate={setReportgovRate}
+                            scoreBreakdown={reportGovBreakdown}
                             handleSave={handleSaveReportGov}
                             handleClear={() => handleClearMetric("reportGov", () => setSkipReportGov(false))}
                             selectedMda={selectedMda}

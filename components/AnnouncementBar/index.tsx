@@ -45,7 +45,7 @@ const AnnouncementBar = ({ onVisibilityChange }: AnnouncementBarProps) => {
     <div className="fixed top-0 left-0 right-0 z-[60]">
       {isVisible && (
         <div
-          className={`bg-gradient-to-r from-[#2D8B10] to-[#228B22] text-white shadow-md transition-all duration-500 ease-out ${
+          className={`bg-gradient-to-r from-[#007D53] to-[#006643] text-white shadow-md transition-all duration-500 ease-out ${
             isAnimating ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
           }`}
         >

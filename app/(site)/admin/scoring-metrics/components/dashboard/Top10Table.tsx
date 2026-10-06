@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Trophy } from 'lucide-react';
 
 interface Top10TableProps {
     processDashboardMdaData: (filter: 'all' | 'withData', ministryFilter: 'all' | 'ministries-only' | 'without-ministries') => any[];
@@ -127,7 +128,10 @@ export default function Top10Table({
 
     return (
         <div className="bg-white p-5 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 text-center">🏆 Top 10</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center justify-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Top 10
+            </h3>
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-green-50">

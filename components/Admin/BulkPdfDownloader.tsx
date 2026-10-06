@@ -5,6 +5,7 @@ import { useConvex } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
 import { toast } from 'sonner';
+import { Loader2, Package } from 'lucide-react';
 
 interface BulkPdfDownloaderProps {
     mdaData: any[];
@@ -88,12 +89,13 @@ export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
             >
                 {isDownloading ? (
                     <>
-                        <span className="animate-spin">⏳</span>
+                        <Loader2 className="h-4 w-4 animate-spin" />
                         Downloading... ({progress.current}/{progress.total})
                     </>
                 ) : (
                     <>
-                        📦 Download All PDFs
+                        <Package className="h-4 w-4" />
+                        Download All PDFs
                     </>
                 )}
             </button>

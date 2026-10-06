@@ -22,7 +22,15 @@ export interface MetricItem {
    * Undefined means complete whenever scored is true (backwards compatible).
    */
   complete?: boolean;
-  details?: { label: string; score: number; maxScore?: number; scored?: boolean }[];
+  details?: {
+    label: string;
+    score: number;
+    maxScore?: number;
+    scored?: boolean;
+    justification?: string;
+  }[];
+  /** Admin-authored rationale shown on the public tracker. */
+  justification?: string;
   /** Optional category label shown next to the metric name (e.g. "Efficiency"). */
   badge?: string;
   /** Programme exemption: metric is shown but not included in the BFA total. */
@@ -257,6 +265,11 @@ export function MetricBreakdown({
                       Not scored fully — this is not the final score for this metric.
                     </p>
                   ) : null}
+                  {metric.justification ? (
+                    <p className={`text-sm text-gray-600 mt-2 leading-relaxed ${hasDetails ? "ml-9" : "ml-0"}`}>
+                      {metric.justification}
+                    </p>
+                  ) : null}
                 </div>
 
                 {isExpanded && hasDetails && (
@@ -267,9 +280,16 @@ export function MetricBreakdown({
                     </div>
                     <div className="divide-y divide-gray-100">
                       {metric.details!.map((detail) => (
-                        <div key={detail.label} className="px-5 py-4 grid grid-cols-12 gap-4 items-center">
-                          <div className="col-span-7 text-sm text-gray-900 capitalize">
-                            {detail.label.replace(/_/g, " ")}
+                        <div key={detail.label} className="px-5 py-4 grid grid-cols-12 gap-4 items-start">
+                          <div className="col-span-7">
+                            <div className="text-sm text-gray-900 capitalize">
+                              {detail.label.replace(/_/g, " ")}
+                            </div>
+                            {detail.justification ? (
+                              <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">
+                                {detail.justification}
+                              </p>
+                            ) : null}
                           </div>
                           <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
                             {isExempted
@@ -300,8 +320,8 @@ export function ScoreAdjustments({
   bonusTotal,
   penaltyTotal,
 }: {
-  bonuses: { name: string; applied: boolean; value: number }[];
-  penalties: { name: string; applied: boolean; value: number }[];
+  bonuses: { name: string; applied: boolean; value: number; justification?: string }[];
+  penalties: { name: string; applied: boolean; value: number; justification?: string }[];
   bonusTotal: number;
   penaltyTotal: number;
 }) {
@@ -322,13 +342,40 @@ export function ScoreAdjustments({
           {bonuses.length === 0 ? (
             <p className="text-sm text-gray-500">No bonus items configured for this year.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {bonuses.map((item) => (
-                <li key={item.name} className="flex items-center justify-between text-sm">
-                  <span className={item.applied ? "text-gray-900" : "text-gray-500"}>{item.name}</span>
-                  <span className={item.applied ? "font-semibold text-emerald-700" : "text-gray-400"}>
-                    {item.applied ? `+${formatPoints(item.value)}` : "0"}
-                  </span>
+                <li
+                  key={item.name}
+                  className={
+                    item.applied
+                      ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm"
+                      : "rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-3 text-sm"
+                  }
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={item.applied ? "font-semibold text-emerald-950" : "text-gray-500"}>
+                        {item.name}
+                      </span>
+                      <span
+                        className={
+                          item.applied
+                            ? "inline-flex items-center rounded-full bg-emerald-700 px-2 py-0.5 text-[11px] font-medium text-white"
+                            : "inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                        }
+                      >
+                        {item.applied ? "Awarded" : "Not applied"}
+                      </span>
+                    </div>
+                    <span className={item.applied ? "font-semibold text-emerald-700 shrink-0" : "text-gray-400 shrink-0"}>
+                      {item.applied ? `+${formatPoints(item.value)}` : "0"}
+                    </span>
+                  </div>
+                  {item.justification ? (
+                    <p className={`mt-1.5 leading-relaxed ${item.applied ? "text-emerald-950/80" : "text-gray-400"}`}>
+                      {item.justification}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -342,13 +389,40 @@ export function ScoreAdjustments({
           {penalties.length === 0 ? (
             <p className="text-sm text-gray-500">No penalty items configured for this year.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {penalties.map((item) => (
-                <li key={item.name} className="flex items-center justify-between text-sm">
-                  <span className={item.applied ? "text-gray-900" : "text-gray-500"}>{item.name}</span>
-                  <span className={item.applied ? "font-semibold text-rose-700" : "text-gray-400"}>
-                    {item.applied ? `-${formatPoints(Math.abs(item.value))}` : "0"}
-                  </span>
+                <li
+                  key={item.name}
+                  className={
+                    item.applied
+                      ? "rounded-lg border border-rose-200 bg-rose-50 px-3 py-3 text-sm"
+                      : "rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-3 text-sm"
+                  }
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={item.applied ? "font-semibold text-rose-950" : "text-gray-500"}>
+                        {item.name}
+                      </span>
+                      <span
+                        className={
+                          item.applied
+                            ? "inline-flex items-center rounded-full bg-rose-700 px-2 py-0.5 text-[11px] font-medium text-white"
+                            : "inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                        }
+                      >
+                        {item.applied ? "Deducted" : "Not applied"}
+                      </span>
+                    </div>
+                    <span className={item.applied ? "font-semibold text-rose-700 shrink-0" : "text-gray-400 shrink-0"}>
+                      {item.applied ? `-${formatPoints(Math.abs(item.value))}` : "0"}
+                    </span>
+                  </div>
+                  {item.justification ? (
+                    <p className={`mt-1.5 leading-relaxed ${item.applied ? "text-rose-950/80" : "text-gray-400"}`}>
+                      {item.justification}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>

@@ -33,13 +33,13 @@ function buildReformChampionReportAckEmail({
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-      <div style="background-color: #2D8B10; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
+      <div style="background-color: #007D53; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
         <strong>Report Received</strong>
       </div>
       <div style="padding: 20px; color: #333;">
         <p style="font-size: 16px;">Dear <strong>${firstName}</strong>,</p>
         <p>PEBEC has received your monthly report submission.</p>
-        <div style="background-color: #f8f8f8; padding: 15px; border-left: 5px solid #2D8B10; margin: 15px 0;">
+        <div style="background-color: #f8f8f8; padding: 15px; border-left: 5px solid #007D53; margin: 15px 0;">
           <p style="margin: 0 0 8px;"><strong>Report:</strong> ${reportName}</p>
           ${mdaName ? `<p style="margin: 0 0 8px;"><strong>MDA:</strong> ${mdaName}</p>` : ""}
           <p style="margin: 0;"><strong>Submitted on:</strong> ${submittedOn}</p>
@@ -48,7 +48,7 @@ function buildReformChampionReportAckEmail({
         <p style="color: #666; font-size: 14px; margin-top: 24px;">Thank you for your submission.</p>
       </div>
       <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 12px; border-radius: 0 0 8px 8px;">
-        <p>© ${new Date().getFullYear()} PEBEC GOV. | <a href="https://www.pebec.gov.ng" style="color: #2D8B10; text-decoration: none;">Visit Website</a></p>
+        <p>© ${new Date().getFullYear()} PEBEC GOV. | <a href="https://www.pebec.gov.ng" style="color: #007D53; text-decoration: none;">Visit Website</a></p>
       </div>
     </div>
   `;

@@ -3,6 +3,15 @@ export type TransparencyItemsState = {
     serviceLevelPublishing: boolean;
 };
 
+// Result of the BFA file check (same rules as the ingestion status page)
+export type SlaFileCheck = {
+    status: 'success' | 'partial_success' | 'failed';
+    validRows?: number;
+    totalRows?: number;
+    failureType?: string;
+    message?: string;
+};
+
 // Monthly SLA data structure
 export type MonthlySlaData = {
     [key: string]: {
@@ -12,6 +21,7 @@ export type MonthlySlaData = {
         score: number;
         results: any[];
         overallPercentage: number | null;
+        check?: SlaFileCheck;
     }
 };
 

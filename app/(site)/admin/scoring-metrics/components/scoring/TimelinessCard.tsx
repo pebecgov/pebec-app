@@ -3,6 +3,7 @@
 import React from 'react';
 import { getMonthsForPeriod } from '../../utils/helpers';
 import ScoreActionButtons from './ScoreActionButtons';
+import MetricStatusBadge from './MetricStatusBadge';
 
 interface TimelinessCardProps {
     isLoading: boolean;
@@ -43,16 +44,7 @@ export default function TimelinessCard({
                         <h2 className="text-lg font-semibold">Deadline Compliance</h2>
                         <p className="text-sm text-gray-600">Track on-time submissions</p>
                     </div>
-                    {isLoading && (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                            🔄 Loading...
-                        </span>
-                    )}
-                    {!isLoading && isSaved && (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            💾 Saved
-                        </span>
-                    )}
+                    <MetricStatusBadge isLoading={isLoading} isSaved={isSaved} />
                 </div>
                 <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                     {maxPoints} Points

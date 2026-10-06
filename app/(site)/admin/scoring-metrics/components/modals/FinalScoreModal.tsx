@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AlertTriangle, BarChart3, History } from 'lucide-react';
 
 interface FinalScoreData {
     totalPercentage: number;
@@ -103,8 +104,9 @@ export default function FinalScoreModal({
 
                             {(skipReportGov || skipTransparency) && (
                                 <div className="mt-3 pt-3 border-t border-gray-200">
-                                    <p className="text-xs text-blue-600">
-                                        ⚠️ Optional metrics skipped - calculated out of {finalScoreData.maxPossiblePoints} points instead of 100
+                                    <p className="text-xs text-blue-600 flex items-center gap-1">
+                                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                        Optional metrics skipped - calculated out of {finalScoreData.maxPossiblePoints} points instead of 100
                                     </p>
                                 </div>
                             )}
@@ -112,8 +114,9 @@ export default function FinalScoreModal({
                             {/* Show averaging info if past data exists */}
                             {pastScoringData && (
                                 <div className="mt-3 pt-3 border-t border-gray-200">
-                                    <p className="text-xs text-blue-600">
-                                        ⚡ Scores include 30% weight from {pastScoringData.pastScores} previous periods
+                                    <p className="text-xs text-blue-600 flex items-center gap-1">
+                                        <History className="h-3.5 w-3.5 shrink-0" />
+                                        Scores include 30% weight from {pastScoringData.pastScores} previous periods
                                     </p>
                                 </div>
                             )}
@@ -130,8 +133,9 @@ export default function FinalScoreModal({
                                             finalScoreData.totalPercentage >= 60 ? 'D' : 'F'}</div>
                                 <div>Status: {finalScoreData.totalPercentage >= 70 ? 'Compliant' : 'Non-Compliant'}</div>
                                 {skipReportGov && (
-                                    <div className="text-xs text-blue-600">
-                                        📊 Adjusted calculation: {finalScoreData.maxPossiblePoints} points maximum
+                                    <div className="text-xs text-blue-600 flex items-center gap-1">
+                                        <BarChart3 className="h-3.5 w-3.5 shrink-0" />
+                                        Adjusted calculation: {finalScoreData.maxPossiblePoints} points maximum
                                     </div>
                                 )}
                             </div>

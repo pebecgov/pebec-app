@@ -175,6 +175,14 @@ type FrameworkMetric = {
   key: string;
   label: string;
   max: number;
+  justification?: string;
+};
+
+type AdjustmentItem = {
+  id: string;
+  name: string;
+  value: number;
+  justification?: string;
 };
 
 function buildBfaFrameworkMetrics(
@@ -352,12 +360,6 @@ function isMetricExcluded(excluded: string[] | undefined, key: string): boolean 
   return false;
 }
 
-type AdjustmentItem = {
-  id: string;
-  name: string;
-  value: number;
-};
-
 type ScoringYearConfig = {
   efficiencyPeriod?: {
     slaPoints?: number;
@@ -458,11 +460,26 @@ const publicMdaScoresReturns = v.object({
       key: v.string(),
       label: v.string(),
       max: v.number(),
+      justification: v.optional(v.string()),
     })
   ),
   adjustments: v.object({
-    penalties: v.array(v.object({ id: v.string(), name: v.string(), value: v.number() })),
-    bonuses: v.array(v.object({ id: v.string(), name: v.string(), value: v.number() })),
+    penalties: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        value: v.number(),
+        justification: v.optional(v.string()),
+      })
+    ),
+    bonuses: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        value: v.number(),
+        justification: v.optional(v.string()),
+      })
+    ),
   }),
   message: v.optional(v.string()),
 });
@@ -509,7 +526,8 @@ function buildPublicMdaRowFromDashboard(
   displayName: string,
   frameworkMetrics: FrameworkMetric[],
   othersItems: Array<{ itemId: string; itemName: string; weight: number; order?: number }>,
-  extraExcluded: string[] = []
+  extraExcluded: string[] = [],
+  trackerStatusByKey: Record<string, boolean> = {}
 ): PublicMdaRow {
   const excludedMetrics = Array.from(
     new Set([
@@ -519,7 +537,25 @@ function buildPublicMdaRowFromDashboard(
   );
   const metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }> = {};
   for (const metric of frameworkMetrics) {
-    metricScores[metric.key] = metricScoreFromDashboard(mda, metric.key, metric.max);
+    const base = metricScoreFromDashboard(mda, metric.key, metric.max);
+    if (Object.prototype.hasOwnProperty.call(trackerStatusByKey, metric.key)) {
+      const adminFullyScored = trackerStatusByKey[metric.key] === true;
+      const hasProgress = base.scored || base.score > 0;
+      if (adminFullyScored) {
+        metricScores[metric.key] = {
+          ...base,
+          scored: hasProgress,
+          complete: hasProgress,
+        };
+      } else if (hasProgress) {
+        // Admin: not fully scored — show running total + "Not scored fully" badge.
+        metricScores[metric.key] = { ...base, scored: true, complete: false };
+      } else {
+        metricScores[metric.key] = { ...base, scored: false, complete: false };
+      }
+    } else {
+      metricScores[metric.key] = base;
+    }
   }
 
   const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
@@ -613,27 +649,52 @@ export const getPublicMdaScores = query({
     const requestedYear = args.year || new Date().getFullYear();
 
     try {
-      const [dashboardResult, rawYearConfig] = await Promise.all([
+      const [dashboardResult, rawYearConfig, trackerStatuses, justificationMap] = await Promise.all([
         ctx.runQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, {
           year: requestedYear,
         }),
         ctx.runQuery(api.scoring_config.getAllConfigurationsForYear, {
           year: requestedYear,
         }),
+        ctx.runQuery(api.scoring_config.getMetricTrackerStatuses, {
+          scoringPeriod: String(requestedYear),
+        }),
+        ctx.runQuery(api.metric_justifications.getMap, {
+          framework: "bfa",
+          year: requestedYear,
+        }),
       ]);
 
+      const trackerStatusByKey: Record<string, boolean> = {};
+      for (const row of trackerStatuses) {
+        trackerStatusByKey[row.metricKey] = row.fullyScored;
+      }
       const yearConfig = (rawYearConfig ?? null) as ScoringYearConfig | null;
-      const frameworkMetrics = buildBfaFrameworkMetrics(requestedYear, yearConfig);
+      const frameworkMetrics = buildBfaFrameworkMetrics(requestedYear, yearConfig).map((metric) => ({
+        ...metric,
+        justification: justificationMap[metric.key] || undefined,
+      }));
+      // Default: Mystery + Others items are "not scored fully" until an admin marks them.
+      for (const metric of frameworkMetrics) {
+        if (
+          (metric.key === "mystery" || metric.key.startsWith("others:")) &&
+          !Object.prototype.hasOwnProperty.call(trackerStatusByKey, metric.key)
+        ) {
+          trackerStatusByKey[metric.key] = false;
+        }
+      }
       const adjustments = {
         penalties: (yearConfig?.penaltyItems || []).map((item) => ({
           id: item.penaltyId,
           name: item.penaltyName,
           value: item.penaltyValue,
+          justification: justificationMap[`penalty:${item.penaltyId}`] || undefined,
         })),
         bonuses: (yearConfig?.bonusItems || []).map((item) => ({
           id: item.bonusId,
           name: item.bonusName,
           value: item.bonusValue,
+          justification: justificationMap[`bonus:${item.bonusId}`] || undefined,
         })),
       };
       const dashboardData = ((dashboardResult as { data?: Array<Record<string, unknown>> } | null)?.data ||
@@ -665,7 +726,8 @@ export const getPublicMdaScores = query({
               entry.name,
               frameworkMetrics,
               othersItems,
-              extraExcluded
+              extraExcluded,
+              trackerStatusByKey
             );
           }
           return buildEmptyPublicMdaRow(entry, frameworkMetrics, beepaExclusionKey);
@@ -709,7 +771,9 @@ export const getPublicMdaScores = query({
             mda,
             canonicalizeMdaName(String(mda.mdaName)),
             frameworkMetrics,
-            othersItems
+            othersItems,
+            [],
+            trackerStatusByKey
           )
         )
         .sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));

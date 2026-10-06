@@ -17,7 +17,7 @@ const memberBadges = {
   "Abubakar Atiku Bagudu CON": "Budget",
   "Dr. Bosun Tijani": "Digital Economy",
   "Nyesom Wike CON": "FCT",
-  "H. E. Amb. Yusuf Maitama Tuggar, OON": "Foreign Affairs",
+  "Bianca Odumegwu-Ojukwu": "Foreign Affairs",
   "Alhaji Muhammad Idris": "Info & Orientation",
   "Honourable Olubunmi Tunji-Ojo": "Interior",
   "Chief Lateef Fagbemi SAN": "Justice",
@@ -25,7 +25,7 @@ const memberBadges = {
   "(Dr.) Senator Ibrahim Gaidam CON, FCNA, FCPA, FIMCN": "Police Affairs",
   "Senator Said Ahmed Alkali": "Transportation",
   "H.E. Senator (Engr) David Umahi CON": "Works",
-  "Chief Adebayo Adelabu": "Power"
+  "Joseph Olasunkanmi Tegbe, FCA, FCTI": "Power"
 };
 const PEBECMembers = () => {
   const [searchQuery, setSearchQuery] = useState("");

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { CalendarDays } from 'lucide-react';
 import { getMonthsForPeriod } from '../../utils/helpers';
 
 interface ScoringPeriodInfoProps {
@@ -17,8 +18,9 @@ export default function ScoringPeriodInfo({
 
     return (
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-            <h3 className="text-sm font-semibold text-green-800 mb-2">
-                📅 Scoring Period: {scoringPeriod}
+            <h3 className="text-sm font-semibold text-green-800 mb-2 flex items-center gap-1.5">
+                <CalendarDays className="h-4 w-4" />
+                Scoring Period: {scoringPeriod}
             </h3>
             <div className="text-xs text-green-700 space-y-1">
                 <p>Evaluating months: {months.map(m =>

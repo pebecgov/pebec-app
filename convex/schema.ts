@@ -168,6 +168,23 @@ export default defineSchema({
     updatedBy: v.id("users")
   }).index("byYear", ["year"]).index("byYearMda", ["year", "mdaName"]),
 
+  /**
+   * Admin-controlled public tracker badge for a metric in a scoring period.
+   * fullyScored=false → show "Not scored fully" even when partial scores exist.
+   */
+  bfa_metric_tracker_status: defineTable({
+    year: v.number(),
+    scoringPeriod: v.string(),
+    metricKey: v.string(), // e.g. "mystery", "others:itemId", "sla"
+    metricLabel: v.string(),
+    fullyScored: v.boolean(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  })
+    .index("byPeriod", ["scoringPeriod"])
+    .index("byPeriodAndMetric", ["scoringPeriod", "metricKey"])
+    .index("byYear", ["year"]),
+
   // New table for monthly report tracking
   mda_monthly_reports: defineTable({
     mdaId: v.id("mdas"),
@@ -295,7 +312,7 @@ export default defineSchema({
     processedAt: v.optional(v.number()),
     source: v.optional(v.union(v.literal("web"), v.literal("whatsapp"))),
     whatsappPhone: v.optional(v.string())
-  }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]).index("byWhatsappPhone", ["whatsappPhone"]),
+  }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]).index("byWhatsappPhone", ["whatsappPhone"]).index("byCreatedAt", ["createdAt"]),
   whatsapp_sessions: defineTable({
     phone: v.string(),
     step: v.union(
@@ -1243,6 +1260,10 @@ export default defineSchema({
     averageResponseTime: v.number(),
     averageResolutionTime: v.number(),
     resolutionRate: v.number(),
+    // 2026+: ((CR × RR) + (MT × ARR)) / (CR + MT)
+    adjustedResolutionRate: v.optional(v.number()),
+    systemAverageResolutionRate: v.optional(v.number()),
+    minimumThreshold: v.optional(v.number()),
     score: v.number(),
     isManual: v.boolean(),
     isSkipped: v.optional(v.boolean()),
@@ -1403,6 +1424,7 @@ export default defineSchema({
     slaPoints: v.number(), // e.g., 5
     reportSubmissionPoints: v.number(), // e.g., 2
     reportGovPoints: v.optional(v.number()), // e.g., 20 (Report Governance Resolution)
+    reportGovMinimumThreshold: v.optional(v.number()), // MT in the adjusted resolution rate formula, defaults to 5
     timelinessPoints: v.number(), // e.g., 3
     isActive: v.boolean(),
     createdAt: v.number(),
@@ -1627,4 +1649,17 @@ export default defineSchema({
     .index("by_asset", ["assetId"])
     .index("by_user", ["userId"])
     .index("by_user_and_returned", ["userId", "isReturned"]),
+
+  // Admin-editable justifications shown on the public MDA/state trackers
+  metric_justifications: defineTable({
+    framework: v.union(v.literal("bfa"), v.literal("state")),
+    year: v.number(),
+    metricKey: v.string(), // e.g. "sla", "others:id", "bonus:id", "electricity:state_electricity_law"
+    metricLabel: v.string(),
+    justification: v.string(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
+  })
+    .index("byFrameworkYear", ["framework", "year"])
+    .index("byFrameworkYearMetric", ["framework", "year", "metricKey"]),
 });

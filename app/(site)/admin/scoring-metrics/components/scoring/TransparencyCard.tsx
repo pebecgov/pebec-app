@@ -3,6 +3,7 @@
 import React from 'react';
 import { TransparencyItemsState } from '../../utils/types';
 import ScoreActionButtons from './ScoreActionButtons';
+import MetricStatusBadge from './MetricStatusBadge';
 
 interface TransparencyCardProps {
     isLoading: boolean;
@@ -36,16 +37,7 @@ export default function TransparencyCard({
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold">Transparency</h2>
-                    {isLoading && (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                            🔄 Loading...
-                        </span>
-                    )}
-                    {!isLoading && isSaved && (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            💾 Saved
-                        </span>
-                    )}
+                    <MetricStatusBadge isLoading={isLoading} isSaved={isSaved} />
                 </div>
                 <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                     10 Points

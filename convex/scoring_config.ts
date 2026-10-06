@@ -96,9 +96,13 @@ export const saveEfficiencyPeriod = mutation({
         slaPoints: v.number(),
         reportSubmissionPoints: v.number(),
         reportGovPoints: v.number(),
+        reportGovMinimumThreshold: v.optional(v.number()),
         timelinessPoints: v.number()
     },
     handler: async (ctx, args) => {
+        if (args.reportGovMinimumThreshold !== undefined && args.reportGovMinimumThreshold < 0) {
+            throw new Error("Report Gov minimum threshold cannot be negative");
+        }
         const user = await getCurrentUserOrThrow(ctx);
 
         const existing = await ctx.db.query("efficiency_periods")
@@ -116,6 +120,7 @@ export const saveEfficiencyPeriod = mutation({
                 slaPoints: args.slaPoints,
                 reportSubmissionPoints: args.reportSubmissionPoints,
                 reportGovPoints: args.reportGovPoints,
+                reportGovMinimumThreshold: args.reportGovMinimumThreshold,
                 timelinessPoints: args.timelinessPoints,
                 updatedAt: Date.now()
             });
@@ -680,4 +685,79 @@ export const debugConfigWeights = query({
             transparencyItemsCount: transparencyItems.length
         };
     }
+});
+
+// ============================================
+// PUBLIC TRACKER METRIC BADGE STATUS (admin toggles)
+// ============================================
+
+export const getMetricTrackerStatuses = query({
+  args: {
+    scoringPeriod: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      metricKey: v.string(),
+      metricLabel: v.string(),
+      fullyScored: v.boolean(),
+      updatedAt: v.number(),
+    })
+  ),
+  handler: async (ctx, { scoringPeriod }) => {
+    const rows = await ctx.db
+      .query("bfa_metric_tracker_status")
+      .withIndex("byPeriod", (q) => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+    return rows.map((row) => ({
+      metricKey: row.metricKey,
+      metricLabel: row.metricLabel,
+      fullyScored: row.fullyScored,
+      updatedAt: row.updatedAt,
+    }));
+  },
+});
+
+export const setMetricTrackerStatus = mutation({
+  args: {
+    year: v.number(),
+    scoringPeriod: v.string(),
+    metricKey: v.string(),
+    metricLabel: v.string(),
+    fullyScored: v.boolean(),
+  },
+  returns: v.object({ success: v.boolean() }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized");
+    }
+
+    const existing = await ctx.db
+      .query("bfa_metric_tracker_status")
+      .withIndex("byPeriodAndMetric", (q) =>
+        q.eq("scoringPeriod", args.scoringPeriod).eq("metricKey", args.metricKey)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        metricLabel: args.metricLabel,
+        fullyScored: args.fullyScored,
+        updatedAt: Date.now(),
+        updatedBy: user._id,
+      });
+    } else {
+      await ctx.db.insert("bfa_metric_tracker_status", {
+        year: args.year,
+        scoringPeriod: args.scoringPeriod,
+        metricKey: args.metricKey,
+        metricLabel: args.metricLabel,
+        fullyScored: args.fullyScored,
+        updatedAt: Date.now(),
+        updatedBy: user._id,
+      });
+    }
+
+    return { success: true };
+  },
 });

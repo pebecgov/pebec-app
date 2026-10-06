@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
@@ -12,8 +12,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, GripVertical, Save, Loader2 } from "lucide-react";
+import { Plus, Trash2, GripVertical, Save, Loader2, AlertTriangle, Check, Zap, Unlock, ClipboardList } from "lucide-react";
 import { mdasList } from "@/components/mdaList";
+import MetricJustificationsEditor, {
+    type JustificationMetricOption,
+} from "@/components/Admin/MetricJustificationsEditor";
 
 interface ConfigurationTabProps {
     currentYear: number;
@@ -85,11 +88,12 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
             {/* Configuration Tabs - Only show for 2026+ */}
             {selectedYear >= 2026 && (
                 <Tabs defaultValue="efficiency" className="w-full">
-                    <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+                    <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
                         <TabsTrigger value="efficiency">Efficiency Bundle</TabsTrigger>
                         <TabsTrigger value="others">Others</TabsTrigger>
                         <TabsTrigger value="penalties">Penalties</TabsTrigger>
                         <TabsTrigger value="bonuses">Bonuses</TabsTrigger>
+                        <TabsTrigger value="justifications">Justifications</TabsTrigger>
                         <TabsTrigger value="exclusions">Exclude MDA</TabsTrigger>
                     </TabsList>
 
@@ -130,6 +134,13 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
                         />
                     </TabsContent>
 
+                    <TabsContent value="justifications">
+                        <BfaJustificationsConfiguration
+                            year={selectedYear}
+                            config={configurations}
+                        />
+                    </TabsContent>
+
                     <TabsContent value="exclusions">
                         <MetricExclusionConfiguration
                             year={selectedYear}
@@ -140,6 +151,82 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
                 </Tabs>
             )}
         </div>
+    );
+}
+
+function BfaJustificationsConfiguration({
+    year,
+    config,
+}: {
+    year: number;
+    config: {
+        efficiencyPeriod?: {
+            slaPoints?: number;
+            reportGovPoints?: number;
+            reportSubmissionPoints?: number;
+            timelinessPoints?: number;
+        } | null;
+        mysteryShoppingTypes?: unknown[];
+        othersItems?: Array<{ itemId: string; itemName: string }>;
+        penaltyItems?: Array<{ penaltyId: string; penaltyName: string }>;
+        bonusItems?: Array<{ bonusId: string; bonusName: string }>;
+    } | null | undefined;
+}) {
+    const metrics = useMemo((): JustificationMetricOption[] => {
+        const list: JustificationMetricOption[] = [
+            { key: "sla", label: "SLA Compliance / Monthly Report Assessment", group: "Efficiency" },
+            { key: "mystery", label: "Mystery Shopping", group: "Efficiency" },
+            { key: "reportGov", label: "ReportGov", group: "Efficiency" },
+            { key: "reportSubmission", label: "Submission of Monthly Report", group: "Efficiency" },
+            { key: "timeliness", label: "Timely Submission of Monthly Report", group: "Efficiency" },
+        ];
+
+        for (const item of config?.othersItems || []) {
+            list.push({
+                key: `others:${item.itemId}`,
+                label: item.itemName,
+                group: "Others",
+            });
+        }
+
+        for (const item of config?.bonusItems || []) {
+            list.push({
+                key: `bonus:${item.bonusId}`,
+                label: item.bonusName,
+                group: "Bonuses",
+            });
+        }
+
+        for (const item of config?.penaltyItems || []) {
+            list.push({
+                key: `penalty:${item.penaltyId}`,
+                label: item.penaltyName,
+                group: "Penalties",
+            });
+        }
+
+        return list;
+    }, [config]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>BFA justifications</CardTitle>
+                <CardDescription>
+                    These explanations appear on each MDA&apos;s public tracker page under the matching metric,
+                    bonus, or penalty.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <MetricJustificationsEditor
+                    framework="bfa"
+                    year={year}
+                    metrics={metrics}
+                    title="Why each BFA metric is scored"
+                    description="Write the justification agencies should see. Leave blank and save to remove."
+                />
+            </CardContent>
+        </Card>
     );
 }
 
@@ -351,6 +438,7 @@ function EfficiencyConfiguration({ year, config }: any) {
     const [reportSubmissionPoints, setReportSubmissionPoints] = useState(config?.reportSubmissionPoints || 2);
     const [reportGovPoints, setReportGovPoints] = useState(config?.reportGovPoints || 20);
     const [timelinessPoints, setTimelinessPoints] = useState(config?.timelinessPoints || 3);
+    const [reportGovMinimumThreshold, setReportGovMinimumThreshold] = useState<number>(config?.reportGovMinimumThreshold ?? 5);
     const [isSaving, setIsSaving] = useState(false);
 
     const saveEfficiencyPeriod = useMutation(api.scoring_config.saveEfficiencyPeriod);
@@ -386,6 +474,7 @@ function EfficiencyConfiguration({ year, config }: any) {
                 slaPoints,
                 reportSubmissionPoints,
                 reportGovPoints,
+                reportGovMinimumThreshold,
                 timelinessPoints
             });
             toast.success("Efficiency period configuration saved!");
@@ -525,6 +614,24 @@ function EfficiencyConfiguration({ year, config }: any) {
                                 className="w-full"
                             />
                         </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t">
+                        <Label className="text-xs">Report Gov Minimum Threshold (MT)</Label>
+                        <Input
+                            type="number"
+                            min={0}
+                            value={reportGovMinimumThreshold}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setReportGovMinimumThreshold(isNaN(val) || val < 0 ? 0 : val);
+                            }}
+                            className="w-40"
+                        />
+                        <p className="text-xs text-gray-500">
+                            Resolution rate per MDA = ((CR × RR) + (MT × ARR)) / (CR + MT), where CR is complaints received by the MDA,
+                            RR is the MDA&apos;s resolution rate and ARR is the resolution rate across all MDAs in this efficiency period.
+                        </p>
                     </div>
                 </div>
 
@@ -765,7 +872,8 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                             </p>
                             {isEqualDistribution && (
                                 <div className="mt-2 flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
-                                    ⚡ Equal Distribution Mode Active - Points automatically divided among all questions
+                                    <Zap className="h-3.5 w-3.5 shrink-0" />
+                                    Equal Distribution Mode Active - Points automatically divided among all questions
                                 </div>
                             )}
                         </div>
@@ -817,15 +925,17 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                                 {/* Budget Warning */}
                                 {type.questions?.length > 0 && (
                                     <div className="space-y-2">
-                                        <div className={`text-sm px-3 py-2 rounded ${isOverBudget ? 'bg-red-100 text-red-800 border border-red-300' :
+                                        <div className={`text-sm px-3 py-2 rounded flex items-center gap-1.5 ${isOverBudget ? 'bg-red-100 text-red-800 border border-red-300' :
                                             isUnderBudget ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
                                                 'bg-green-100 text-green-800 border border-green-300'
                                             }`}>
-                                            <strong>Budget:</strong> {typeTotal} / {totalMysteryPoints} points {
-                                                isOverBudget ? '⚠️ Over budget!' :
-                                                    isUnderBudget ? '⚠️ Under budget' :
-                                                        '✓ Exact match!'
-                                            }
+                                            <strong>Budget:</strong> {typeTotal} / {totalMysteryPoints} points
+                                            {isOverBudget || isUnderBudget ? (
+                                                <AlertTriangle className="h-4 w-4" />
+                                            ) : (
+                                                <Check className="h-4 w-4" />
+                                            )}
+                                            {isOverBudget ? 'Over budget!' : isUnderBudget ? 'Under budget' : 'Exact match!'}
                                         </div>
 
                                         <Button
@@ -835,9 +945,9 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                                             className="w-full"
                                         >
                                             {isEqualDistribution ? (
-                                                <>🔓 Switch to Manual Point Setting</>
+                                                <><Unlock className="h-4 w-4 mr-2" />Switch to Manual Point Setting</>
                                             ) : (
-                                                <>⚡ Divide {totalMysteryPoints} Points Equally</>
+                                                <><Zap className="h-4 w-4 mr-2" />Divide {totalMysteryPoints} Points Equally</>
                                             )}
                                         </Button>
                                     </div>
@@ -970,7 +1080,8 @@ function MysteryShoppingConfiguration({ year, mysteryShoppingTypes }: any) {
                         className="px-4"
                         title="Load examples based on actual BFA mystery shopping data"
                     >
-                        📋 Load BFA Examples
+                        <ClipboardList className="h-4 w-4 mr-2" />
+                        Load BFA Examples
                     </Button>
                 </div>
 

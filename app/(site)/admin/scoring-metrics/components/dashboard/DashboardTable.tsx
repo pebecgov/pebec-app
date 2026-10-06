@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AlertTriangle, Download, Eye } from 'lucide-react';
 import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
 import { toast } from 'sonner';
@@ -394,7 +395,10 @@ export default function DashboardTable({
                                                             {mda.reportGovResolution.isSkipped ? (
                                                                 <div>
                                                                     <div className="font-semibold text-gray-400 line-through">0/{mda.reportGovResolution?.maxPossibleScore || 15}</div>
-                                                                    <div className="text-xs text-yellow-600 mt-1">⚠️ Skipped</div>
+                                                                    <div className="text-xs text-yellow-600 mt-1 inline-flex items-center gap-1">
+                                                                        <AlertTriangle className="h-3 w-3" />
+                                                                        Skipped
+                                                                    </div>
                                                                 </div>
                                                             ) : (
                                                                 <>
@@ -447,8 +451,9 @@ export default function DashboardTable({
                                                             {(mda.totalGrossScore || 0).toFixed(1)}
                                                         </span>
                                                         {mda.reportGovResolution?.isSkipped && (
-                                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded" title="Report Gov Resolution skipped - points normalized">
-                                                                ⚠️ Normalized
+                                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded inline-flex items-center gap-1" title="Report Gov Resolution skipped - points normalized">
+                                                                <AlertTriangle className="h-3 w-3" />
+                                                                Normalized
                                                             </span>
                                                         )}
                                                     </div>
@@ -555,9 +560,10 @@ export default function DashboardTable({
                                                         setViewDetailsRow(mda);
                                                         setIsLoadingDetails(true);
                                                     }}
-                                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs inline-flex items-center gap-1"
                                                 >
-                                                    👁️ View
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                    View
                                                 </button>
                                                 <button
                                                     onClick={async () => {
@@ -581,9 +587,10 @@ export default function DashboardTable({
                                                             setIsLoadingDetails(false);
                                                         }
                                                     }}
-                                                    className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs"
+                                                    className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-xs inline-flex items-center gap-1"
                                                 >
-                                                    📥 Download
+                                                    <Download className="h-3.5 w-3.5" />
+                                                    Download
                                                 </button>
                                             </div>
                                         </td>

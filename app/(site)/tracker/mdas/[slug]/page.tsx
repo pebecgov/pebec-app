@@ -23,6 +23,7 @@ interface AdjustmentItem {
   id: string;
   name: string;
   value: number;
+  justification?: string;
 }
 
 interface MdaScoreData {
@@ -135,6 +136,7 @@ export default function MdaSummaryPage() {
         scored: exempted ? true : isScored,
         complete: exempted ? true : isComplete,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
+        justification: metric.justification,
         exempted,
       };
     });
@@ -171,7 +173,7 @@ export default function MdaSummaryPage() {
           </div>
         </div>
       )}
-      <MetricBreakdown title="BFA Metrics" metrics={metrics} hideStatus={!fullyScored} />
+      <MetricBreakdown title="BFA Metrics" hint="Why each metric is scored (set by PEBEC admin)" metrics={metrics} hideStatus={!fullyScored} />
       {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}
@@ -184,11 +186,13 @@ export default function MdaSummaryPage() {
           name: item.name,
           applied: selected.bonusValues?.[item.id] === true,
           value: item.value,
+          justification: item.justification,
         }))}
         penalties={((mdaData.adjustments?.penalties || []) as AdjustmentItem[]).map((item) => ({
           name: item.name,
           applied: selected.penaltyValues?.[item.id] === true,
           value: item.value,
+          justification: item.justification,
         }))}
         bonusTotal={selected.bonusScore ?? 0}
         penaltyTotal={selected.penaltyScore ?? 0}

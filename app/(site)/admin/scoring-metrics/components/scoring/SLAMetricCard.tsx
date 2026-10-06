@@ -1,9 +1,11 @@
 'use client';
 
 import React from 'react';
+import { BarChart3, CalendarDays, Check } from 'lucide-react';
 import { getMonthsForPeriod } from '../../utils/helpers';
 import { MonthlySlaData } from '../../utils/types';
 import ScoreActionButtons from './ScoreActionButtons';
+import MetricStatusBadge from './MetricStatusBadge';
 
 interface SLAMetricCardProps {
     isLoadingSLAData: boolean;
@@ -56,24 +58,16 @@ export default function SLAMetricCard({
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold">Service Level Agreement</h2>
-                    {isLoadingSLAData && (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                            🔄 Loading...
-                        </span>
-                    )}
-                    {!isLoadingSLAData && savedSLAData && (
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                            💾 Saved
-                        </span>
-                    )}
+                    <MetricStatusBadge isLoading={isLoadingSLAData} isSaved={!!savedSLAData} />
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowSLARanking(true)}
-                        className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                        className="inline-flex items-center gap-1 bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded-md text-xs font-medium transition-colors"
                         title="View all MDAs ranked by SLA score"
                     >
-                        📊 Rankings
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Rankings
                     </button>
                     <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                         {maxPoints} Points
@@ -83,8 +77,9 @@ export default function SLAMetricCard({
 
             <div className="space-y-3">
                 <div className="text-center">
-                    <p className="text-sm text-gray-600 mb-4">
-                        📅 {scoringPeriod.includes("1st Half") ? `Jan-Jun ${periodYear}` :
+                    <p className="text-sm text-gray-600 mb-4 inline-flex items-center gap-1">
+                        <CalendarDays className="h-4 w-4" />
+                        {scoringPeriod.includes("1st Half") ? `Jan-Jun ${periodYear}` :
                             scoringPeriod.includes("2nd Half") ? `Jul-Dec ${periodYear}` : "All Periods"}
                     </p>
 
@@ -102,8 +97,8 @@ export default function SLAMetricCard({
                                     : 'bg-gray-100 text-gray-600 border-gray-300'
                                     }`}>
                                     <div className="font-medium">{monthName}</div>
-                                    <div className="text-xs">
-                                        {hasData ? `✓ ${pointsPerMonth.toFixed(1)}pts` : '0pts'}
+                                    <div className="text-xs inline-flex items-center gap-0.5">
+                                        {hasData ? <><Check className="h-3 w-3" />{pointsPerMonth.toFixed(1)}pts</> : '0pts'}
                                     </div>
                                 </div>
                             );

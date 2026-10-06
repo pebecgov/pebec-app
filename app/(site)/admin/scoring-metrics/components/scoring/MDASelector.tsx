@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Autocomplete, TextField } from '@mui/material';
+import { AlertTriangle, BarChart3, CheckCircle2 } from 'lucide-react';
 
 interface MDASelectorProps {
     selectedMda: string;
@@ -74,9 +75,16 @@ export default function MDASelector({
                         <span>
                             {option.abbreviation ? `${option.abbreviation} — ${option.name}` : option.name}
                         </span>
-                        <span className="shrink-0 text-xs text-gray-500">
-                            {option.isActive ? '✅' : '⚠️'}
-                            {option.hasScoreForPeriod ? ` 📊 ${option.grade || 'Scored'}` : ''}
+                        <span className="shrink-0 inline-flex items-center gap-1.5 text-xs text-gray-500">
+                            {option.isActive
+                                ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" aria-label="Active on platform" />
+                                : <AlertTriangle className="h-3.5 w-3.5 text-yellow-600" aria-label="Not active on platform" />}
+                            {option.hasScoreForPeriod && (
+                                <span className="inline-flex items-center gap-0.5">
+                                    <BarChart3 className="h-3.5 w-3.5" />
+                                    {option.grade || 'Scored'}
+                                </span>
+                            )}
                         </span>
                     </span>
                 </li>
