@@ -29,6 +29,7 @@ import TrackerMetricStatusPanel from './TrackerMetricStatusPanel';
 import BulkEfficiencyCard from './BulkEfficiencyCard';
 import BulkSLACard from './BulkSLACard';
 import { computeReportGovBreakdown } from '@/convex/utils/efficiencyScoring';
+import { computeSlaTotalFromMonthly } from '@/lib/slaScoreMath';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -495,31 +496,24 @@ export default function ScoringTab({
     }, [savedBonusesData, selectedMda, scoringPeriod, isLoadingBonusesData, useDynamicConfig]);
 
     // --- Calculators ---
+    // Same helper as dashboard + public tracker (`lib/slaScoreMath`) — do not fork.
     const calculateMonthlySlaScore = () => {
         const months = periodMonths;
         const totalMonths = months.length;
-        let monthsWithData = 0;
-        let totalScore = 0;
-
-        // Calculate points per month
         const pointsPerMonth = useDynamicConfig
             ? ((efficiencyConfig?.slaPoints ?? 30) / (efficiencyConfig?.totalMonths ?? 12))
             : 5; // 2025 default
-
-        months.forEach(month => {
-            const key = `${month.year}-${month.month}`;
-            const data = monthlySlaData[key];
-            if (data && (data.method === 'file' ? data.overallPercentage !== null : data.rating > 0)) {
-                monthsWithData++;
-                totalScore += data.score;
-            }
-        });
-
         const maxPossibleScore = useDynamicConfig
             ? (efficiencyConfig?.slaPoints ?? 30)
             : (totalMonths * pointsPerMonth); // 2025 fallback
 
-        const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+        const { totalScore, monthsWithData, percentage } = computeSlaTotalFromMonthly({
+            monthlySlaData,
+            monthKeys: months.map((month) => `${month.year}-${month.month}`),
+            pointsPerMonth,
+            slaMaxPoints: maxPossibleScore,
+        });
+
         return { totalScore, monthsWithData, totalMonths, percentage, maxPossibleScore, pointsPerMonth };
     };
 

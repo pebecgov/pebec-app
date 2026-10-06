@@ -189,9 +189,46 @@ export default function MdaSummaryPage() {
       }
       const showDetail = !exempted && (isScored || scoreValue > 0);
 
-      // Public tracker detail only for Report Gov + BEEPA.
+      // Public tracker detail: Report Gov + BEEPA breakdowns; SLA month grid.
       let breakdown: ScoreBreakdownLine[] | undefined;
-      if (showDetail && metric.key === "reportGov") {
+      let monthStatuses:
+        | Array<{
+            monthKey: string;
+            monthLabel: string;
+            status: "on_time" | "late" | "missing" | "scored" | "failed" | "partial";
+            labelMode?: "timeliness" | "submission" | "sla";
+            points?: number;
+            maxPoints?: number;
+            percentage?: number | null;
+            message?: string;
+          }>
+        | undefined;
+      let issues:
+        | Array<{
+            label: string;
+            message: string;
+            kind: "failed" | "missing" | "partial";
+          }>
+        | undefined;
+
+      if (!exempted && metric.key === "sla") {
+        if (showDetail) {
+          breakdown = selected.scoreBreakdowns?.sla;
+        }
+        if (selected.slaMonthStatuses && selected.slaMonthStatuses.length > 0) {
+          monthStatuses = selected.slaMonthStatuses.map((month) => ({
+            ...month,
+            labelMode: "sla" as const,
+          }));
+        }
+        if (selected.slaMonthIssues && selected.slaMonthIssues.length > 0) {
+          issues = selected.slaMonthIssues.map((issue) => ({
+            label: issue.monthLabel,
+            message: issue.message,
+            kind: issue.kind,
+          }));
+        }
+      } else if (showDetail && metric.key === "reportGov") {
         breakdown = selected.scoreBreakdowns?.reportGov;
       } else if (showDetail && isBeepaMetric) {
         breakdown =
@@ -214,6 +251,8 @@ export default function MdaSummaryPage() {
         justification: undefined,
         exempted,
         scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
+        monthStatuses,
+        issues,
       };
     });
 
@@ -251,7 +290,7 @@ export default function MdaSummaryPage() {
       )}
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Report Gov and BEEPA show how scores are graded."
+        hint="SLA shows month-by-month points; Report Gov and BEEPA explain how scores are graded."
         metrics={metrics}
         hideStatus={!fullyScored}
       />

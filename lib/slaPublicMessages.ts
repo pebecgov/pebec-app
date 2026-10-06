@@ -3,6 +3,11 @@
  * Kept free of jargon so agency staff know what to fix and resubmit.
  */
 
+import {
+  isSlaMonthScored,
+  slaMonthPoints,
+} from "./slaScoreMath";
+
 export type SlaIssueKind = "failed" | "missing" | "partial";
 
 export type SlaMonthIssue = {
@@ -114,10 +119,7 @@ export function plainSlaFailureMessage(
 }
 
 function isScoredMonth(entry: SlaMonthEntry | undefined): boolean {
-  if (!entry) return false;
-  if (entry.method === "file") return entry.overallPercentage != null;
-  if (entry.method === "rating") return (entry.rating ?? 0) > 0;
-  return (entry.score ?? 0) > 0 || entry.overallPercentage != null;
+  return isSlaMonthScored(entry);
 }
 
 /**
@@ -278,13 +280,12 @@ export function buildSlaMonthStatuses(
     }
 
     if (status === "partial_success") {
-      const rawScore = typeof entry.score === "number" ? entry.score : 0;
-      const points = (rawScore / 5) * maxPointsPerMonth;
+      const points = slaMonthPoints(entry, maxPointsPerMonth);
       return {
         monthKey: month.monthKey,
         monthLabel,
         status: "partial" as const,
-        points: round2(points),
+        points,
         maxPoints: round2(maxPointsPerMonth),
         percentage:
           typeof entry.overallPercentage === "number" ? round2(entry.overallPercentage) : null,
@@ -293,20 +294,19 @@ export function buildSlaMonthStatuses(
     }
 
     if (isScoredMonth(entry)) {
-      const rawScore = typeof entry.score === "number" ? entry.score : 0;
-      const points = (rawScore / 5) * maxPointsPerMonth;
+      const points = slaMonthPoints(entry, maxPointsPerMonth);
       return {
         monthKey: month.monthKey,
         monthLabel,
         status: "scored" as const,
-        points: round2(points),
+        points,
         maxPoints: round2(maxPointsPerMonth),
         percentage:
           typeof entry.overallPercentage === "number" ? round2(entry.overallPercentage) : null,
         message:
           typeof entry.overallPercentage === "number"
-            ? `Excel scored at ${round2(entry.overallPercentage)}% compliance → ${round2(points)} of ${round2(maxPointsPerMonth)} points for this month.`
-            : `This month earned ${round2(points)} of ${round2(maxPointsPerMonth)} points.`,
+            ? `Excel scored at ${round2(entry.overallPercentage)}% compliance → ${points} of ${round2(maxPointsPerMonth)} points for this month.`
+            : `This month earned ${points} of ${round2(maxPointsPerMonth)} points.`,
       };
     }
 

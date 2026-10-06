@@ -24,6 +24,12 @@ import {
   buildSlaMonthStatuses,
   mergeMonthlySlaData,
 } from "../lib/slaPublicMessages";
+import { computeSlaTotalFromMonthly } from "../lib/slaScoreMath";
+import {
+  BEEPA_STANDARD_MDA_MAX,
+  BEEPA_SUPER_MDA_MAX,
+  beepaMaxPointsForMda,
+} from "../lib/beepaTrackerRoster";
 
 export function normalizeMdaKey(name: string) {
   return String(name || "")
@@ -2202,14 +2208,9 @@ export const getAllMdaSavedDataForDashboard = query({
         }
       });
 
-      const totalMonthsWithData = allMonthKeys.size || dataList.reduce((sum, d) => sum + (d.monthsWithData || 0), 0);
-      const sumTotalScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0);
-      const maxPossibleRawScore = totalMonthsWithData * 5;
       const slaMaxPoints = efficiencyConfig?.slaPoints ?? 5;
       const slaTotalMonths = efficiencyConfig?.totalMonths ?? 12;
       const pointsPerMonth = slaMaxPoints / slaTotalMonths;
-      const maxPossibleScoreForMonths = totalMonthsWithData * pointsPerMonth;
-      const finalScore = totalMonthsWithData > 0 ? (sumTotalScore / maxPossibleRawScore) * maxPossibleScoreForMonths : 0;
 
       // Expected months for the scoring year (from efficiency period when configured).
       const expectedMonths: Array<{ month: number; year: number; monthName: string; monthKey: string }> = [];
@@ -2242,6 +2243,44 @@ export const getAllMdaSavedDataForDashboard = query({
       }
 
       const mergedMonthly = mergeMonthlySlaData(dataList);
+
+      // Same SLA total as admin ScoringTab / lib/slaScoreMath (month.score is
+      // already BFA points — never re-scale as if it were a 0–5 raw score).
+      const monthsToSum =
+        expectedMonths.length > 0
+          ? expectedMonths
+          : Object.keys(mergedMonthly)
+              .filter((k) => !k.startsWith("__"))
+              .map((monthKey) => {
+                const [y, m] = monthKey.split("-").map(Number);
+                return {
+                  month: m,
+                  year: y,
+                  monthName: MONTH_NAMES[m] ?? monthKey,
+                  monthKey,
+                };
+              });
+
+      let { totalScore: finalScore, monthsWithData: totalMonthsWithData } =
+        computeSlaTotalFromMonthly({
+          monthlySlaData: mergedMonthly,
+          monthKeys: monthsToSum.map((m) => m.monthKey),
+          pointsPerMonth,
+          slaMaxPoints,
+        });
+
+      if (totalMonthsWithData === 0) {
+        // Fallback: saved row total (already on the same points scale as admin).
+        const fullYear = dataList.find((d) => d.scoringPeriod === String(year));
+        const primary = fullYear || dataList[0];
+        finalScore = primary?.totalScore || 0;
+        totalMonthsWithData =
+          allMonthKeys.size ||
+          primary?.monthsWithData ||
+          dataList.reduce((sum, d) => sum + (d.monthsWithData || 0), 0);
+        finalScore = Math.min(Math.round(finalScore * 100) / 100, slaMaxPoints);
+      }
+
       const monthIssues = buildSlaMonthIssues(mergedMonthly, expectedMonths);
       const monthStatuses = buildSlaMonthStatuses(
         mergedMonthly,
@@ -2923,13 +2962,33 @@ export const getAllMdaSavedDataForDashboard = query({
       }
 
       // For 2026+, we expect one record per year usually, but if multiple (e.g. legacy halves?), average them.
-      // saved_others_data has totalScore.
-      const avgScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / dataList.length;
+      // Cap BEEPA to Super=/10 vs standard=/9 so dashboard + public tracker never diverge.
+      const primaryOthers = dataList[0];
+      const scores = { ...(primaryOthers?.scores || {}) } as Record<string, number>;
+      const beepaMax = beepaMaxPointsForMda(mdaName);
+      for (const item of uniqueTransparencyItems as Array<{ itemId: string; itemName?: string }>) {
+        const nameKey = String(item.itemName || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+        if (nameKey !== "beepa" && !nameKey.includes("beepa")) continue;
+        const raw = Number(scores[item.itemId]) || 0;
+        scores[item.itemId] = Math.min(raw, beepaMax);
+      }
+      const scoreFromItems = Object.values(scores).reduce(
+        (sum, value) => sum + (Number(value) || 0),
+        0,
+      );
+      const avgSaved =
+        dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / Math.max(dataList.length, 1);
+      const othersScore =
+        Object.keys(scores).length > 0 ? scoreFromItems : avgSaved;
 
       mdaDataMap[mdaName].others = {
-        score: avgScore,
-        scores: dataList[0]?.scores || {},
-        values: dataList[0]?.values || {}
+        score: Math.max(0, Math.round(othersScore * 100) / 100),
+        scores,
+        values: primaryOthers?.values || {},
+        beepaMax,
       };
     });
 
@@ -3072,6 +3131,18 @@ export const getAllMdaSavedDataForDashboard = query({
             return sum + (item.weight || 0);
           }, 0);
           maxPossiblePoints -= excludedOthersWeight;
+          // Config weights BEEPA at 10; non–Super MDAs are graded /9 on the tracker.
+          const hasBeepa = uniqueTransparencyItems.some((item: { itemName?: string; itemId: string }) => {
+            if (isOthersItemExcluded(item.itemId)) return false;
+            const nameKey = String(item.itemName || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, " ")
+              .trim();
+            return nameKey === "beepa" || nameKey.includes("beepa");
+          });
+          if (hasBeepa && beepaMaxPointsForMda(mda.mdaName) === BEEPA_STANDARD_MDA_MAX) {
+            maxPossiblePoints -= BEEPA_SUPER_MDA_MAX - BEEPA_STANDARD_MDA_MAX;
+          }
         }
       } else {
         // Legacy 2025 calculation
@@ -3102,15 +3173,29 @@ export const getAllMdaSavedDataForDashboard = query({
         excludedMetrics: Array.from(excludedMetrics),
         // Override nested maxPossibleScores if dynamic config exists
         sla: mda.sla ? { ...mda.sla, maxPossibleScore: efficiencyConfig?.slaPoints || 5 } : null,
+        // Preserve live totalMonths from report window — do not overwrite with
+        // efficiencyConfig.totalMonths (that was a source of admin/tracker drift).
         monthlyReport: mda.monthlyReport ? {
           ...mda.monthlyReport,
-          maxPossibleScore: efficiencyConfig?.reportSubmissionPoints || 2,
-          totalMonths: efficiencyConfig?.totalMonths || 12
+          maxPossibleScore:
+            efficiencyConfig?.reportSubmissionPoints ||
+            mda.monthlyReport.maxPossibleScore ||
+            2,
+          totalMonths:
+            mda.monthlyReport.totalMonths ??
+            efficiencyConfig?.totalMonths ??
+            12,
         } : null,
         timeliness: mda.timeliness ? {
           ...mda.timeliness,
-          maxPossibleScore: efficiencyConfig?.timelinessPoints || 3,
-          totalMonths: efficiencyConfig?.totalMonths || 12
+          maxPossibleScore:
+            efficiencyConfig?.timelinessPoints ||
+            mda.timeliness.maxPossibleScore ||
+            3,
+          totalMonths:
+            mda.timeliness.totalMonths ??
+            efficiencyConfig?.totalMonths ??
+            12,
         } : null,
         reportGovResolution: mda.reportGovResolution ? {
           ...mda.reportGovResolution,
