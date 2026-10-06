@@ -128,8 +128,8 @@ export function slaScoreBreakdown(args: {
       maxPoints: round2(maxPoints),
       explanation:
         monthsWithData > 0
-          ? `${monthsWithData} of ${totalMonths} months earned SLA points from a scored Excel file. Each month can contribute up to about ${pointsPerMonth} points, based on that month’s file score. Total: ${round2(score)} of ${round2(maxPoints)}.`
-          : `No months have earned SLA points yet out of ${totalMonths} in this period (maximum ${round2(maxPoints)} points).`,
+          ? `${monthsWithData} of ${totalMonths} months earned SLA points from a scored Excel file. Each month can contribute up to about ${pointsPerMonth} points, based on that month’s file compliance score. See the month grid below for every month’s points, percentage, and any problems. Total: ${round2(score)} of ${round2(maxPoints)}.`
+          : `No months have earned SLA points yet out of ${totalMonths} in this period (maximum ${round2(maxPoints)} points). See the month grid below for what is still missing.`,
     },
   ];
 }

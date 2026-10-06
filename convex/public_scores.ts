@@ -268,14 +268,32 @@ function buildBfaFrameworkMetrics(
   return metrics;
 }
 
+type MetricScoreCell = {
+  score: number;
+  max: number;
+  scored: boolean;
+  complete?: boolean;
+  /** For proportional month metrics / SLA — used for public score explanations. */
+  monthsWithData?: number;
+  totalMonths?: number;
+  percentage?: number;
+};
+
 function metricScoreFromDashboard(
   mda: Record<string, unknown>,
   key: string,
   frameworkMax: number
-): { score: number; max: number; scored: boolean; complete?: boolean } {
-  const nested = (field: string, fallbackMax: number) => {
+): MetricScoreCell {
+  const nested = (field: string, fallbackMax: number): MetricScoreCell => {
     const bucket = mda[field] as
-      | { score?: number; maxPossibleScore?: number; complete?: boolean }
+      | {
+          score?: number;
+          maxPossibleScore?: number;
+          complete?: boolean;
+          monthsWithData?: number;
+          totalMonths?: number;
+          percentage?: number;
+        }
       | null
       | undefined;
     if (!bucket) {
@@ -286,6 +304,10 @@ function metricScoreFromDashboard(
       max: bucket.maxPossibleScore || fallbackMax,
       scored: true,
       complete: bucket.complete !== false,
+      monthsWithData:
+        typeof bucket.monthsWithData === "number" ? bucket.monthsWithData : undefined,
+      totalMonths: typeof bucket.totalMonths === "number" ? bucket.totalMonths : undefined,
+      percentage: typeof bucket.percentage === "number" ? bucket.percentage : undefined,
     };
   };
 
@@ -397,7 +419,7 @@ type PublicMdaRow = {
   finalScore: number;
   maxPossibleScore: number;
   percentage: number;
-  metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }>;
+  metricScores: Record<string, MetricScoreCell>;
   othersBreakdown: OthersBreakdownItem[];
   excludedMetrics: string[];
   applicableMetricCount: number;
@@ -414,6 +436,30 @@ type PublicMdaRow = {
   }>;
   /** How each metric score was calculated (for MDAs on the public tracker). */
   scoreBreakdowns: Record<string, ScoreBreakdownLine[]>;
+  /**
+   * Month-by-month status for Monthly Report / Timeliness (same detail as admin).
+   * Keys: reportSubmission, timeliness.
+   */
+  efficiencyMonthStatuses: Record<
+    string,
+    Array<{
+      monthKey: string;
+      monthLabel: string;
+      status: "on_time" | "late" | "missing";
+      submitted: boolean;
+      onTime: boolean;
+    }>
+  >;
+  /** Full SLA month grid: points, %, and plain-language notes per month. */
+  slaMonthStatuses: Array<{
+    monthKey: string;
+    monthLabel: string;
+    status: "scored" | "failed" | "partial" | "missing";
+    points: number;
+    maxPoints: number;
+    percentage: number | null;
+    message: string;
+  }>;
   lastUpdated: number;
   rank: number;
 };
@@ -457,6 +503,29 @@ const scoreBreakdownLineValidator = v.object({
   explanation: v.string(),
 });
 
+const efficiencyMonthStatusValidator = v.object({
+  monthKey: v.string(),
+  monthLabel: v.string(),
+  status: v.union(v.literal("on_time"), v.literal("late"), v.literal("missing")),
+  submitted: v.boolean(),
+  onTime: v.boolean(),
+});
+
+const slaMonthStatusValidator = v.object({
+  monthKey: v.string(),
+  monthLabel: v.string(),
+  status: v.union(
+    v.literal("scored"),
+    v.literal("failed"),
+    v.literal("partial"),
+    v.literal("missing"),
+  ),
+  points: v.number(),
+  maxPoints: v.number(),
+  percentage: v.union(v.number(), v.null()),
+  message: v.string(),
+});
+
 const publicMdaScoresReturns = v.object({
   mdas: v.array(
     v.object({
@@ -471,6 +540,9 @@ const publicMdaScoresReturns = v.object({
           max: v.number(),
           scored: v.boolean(),
           complete: v.optional(v.boolean()),
+          monthsWithData: v.optional(v.number()),
+          totalMonths: v.optional(v.number()),
+          percentage: v.optional(v.number()),
         })
       ),
       othersBreakdown: othersBreakdownValidator,
@@ -482,6 +554,8 @@ const publicMdaScoresReturns = v.object({
       bonusValues: v.record(v.string(), v.boolean()),
       slaMonthIssues: v.array(slaMonthIssueValidator),
       scoreBreakdowns: v.record(v.string(), v.array(scoreBreakdownLineValidator)),
+      efficiencyMonthStatuses: v.record(v.string(), v.array(efficiencyMonthStatusValidator)),
+      slaMonthStatuses: v.array(slaMonthStatusValidator),
       lastUpdated: v.number(),
       rank: v.number(),
     })
@@ -577,7 +651,7 @@ function buildPublicMdaRowFromDashboard(
       ...extraExcluded,
     ])
   );
-  const metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }> = {};
+  const metricScores: Record<string, MetricScoreCell> = {};
   for (const metric of frameworkMetrics) {
     const base = metricScoreFromDashboard(mda, metric.key, metric.max);
     if (Object.prototype.hasOwnProperty.call(trackerStatusByKey, metric.key)) {
@@ -604,9 +678,29 @@ function buildPublicMdaRowFromDashboard(
   const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
   const othersBreakdown = buildOthersBreakdown(mda, othersItems, excludedMetrics);
   const slaBucket = mda.sla as
-    | { monthIssues?: PublicMdaRow["slaMonthIssues"] }
+    | {
+        monthIssues?: PublicMdaRow["slaMonthIssues"];
+        monthStatuses?: PublicMdaRow["slaMonthStatuses"];
+      }
     | null
     | undefined;
+  const monthlyBucket = mda.monthlyReport as
+    | { monthStatuses?: PublicMdaRow["efficiencyMonthStatuses"][string] }
+    | null
+    | undefined;
+  const timelinessBucket = mda.timeliness as
+    | { monthStatuses?: PublicMdaRow["efficiencyMonthStatuses"][string] }
+    | null
+    | undefined;
+
+  const efficiencyMonthStatuses: PublicMdaRow["efficiencyMonthStatuses"] = {};
+  if (Array.isArray(monthlyBucket?.monthStatuses) && monthlyBucket.monthStatuses.length > 0) {
+    efficiencyMonthStatuses.reportSubmission = monthlyBucket.monthStatuses;
+  }
+  if (Array.isArray(timelinessBucket?.monthStatuses) && timelinessBucket.monthStatuses.length > 0) {
+    efficiencyMonthStatuses.timeliness = timelinessBucket.monthStatuses;
+  }
+  const slaMonthStatuses = Array.isArray(slaBucket?.monthStatuses) ? slaBucket.monthStatuses : [];
 
   const maxFromFramework = frameworkMetrics
     .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
@@ -629,6 +723,8 @@ function buildPublicMdaRowFromDashboard(
     bonusValues: bonuses?.values || {},
     slaMonthIssues: Array.isArray(slaBucket?.monthIssues) ? slaBucket.monthIssues : [],
     scoreBreakdowns: buildMdaMetricScoreBreakdowns(mda, othersItems),
+    efficiencyMonthStatuses,
+    slaMonthStatuses,
     lastUpdated: Number(mda.lastUpdated) || Date.now(),
     rank: 0,
   };
@@ -644,7 +740,7 @@ function buildEmptyPublicMdaRow(
   const maxPossibleScore = frameworkMetrics
     .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
     .reduce((sum, metric) => sum + metric.max, 0);
-  const metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }> = {};
+  const metricScores: Record<string, MetricScoreCell> = {};
   for (const metric of frameworkMetrics) {
     metricScores[metric.key] = { score: 0, max: metric.max, scored: false, complete: false };
   }
@@ -666,6 +762,8 @@ function buildEmptyPublicMdaRow(
     bonusValues: {},
     slaMonthIssues: [],
     scoreBreakdowns: {},
+    efficiencyMonthStatuses: {},
+    slaMonthStatuses: [],
     lastUpdated: Date.now(),
     rank: 0,
   };

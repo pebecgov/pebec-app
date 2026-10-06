@@ -21,6 +21,7 @@ import {
 } from "./utils/efficiencyScoring";
 import {
   buildSlaMonthIssues,
+  buildSlaMonthStatuses,
   mergeMonthlySlaData,
 } from "../lib/slaPublicMessages";
 
@@ -2242,13 +2243,20 @@ export const getAllMdaSavedDataForDashboard = query({
 
       const mergedMonthly = mergeMonthlySlaData(dataList);
       const monthIssues = buildSlaMonthIssues(mergedMonthly, expectedMonths);
+      const monthStatuses = buildSlaMonthStatuses(
+        mergedMonthly,
+        expectedMonths,
+        slaMaxPoints,
+      );
 
       mdaDataMap[mdaName].sla = {
         score: finalScore,
         monthsWithData: totalMonthsWithData,
         totalMonths: slaTotalMonths,
         maxPossibleScore: slaMaxPoints,
+        pointsPerMonth,
         monthIssues,
+        monthStatuses,
       };
     });
 
@@ -2710,6 +2718,46 @@ export const getAllMdaSavedDataForDashboard = query({
       }
     }
 
+    const formatMonthLabel = (month: number, year: number) => {
+      const short = new Date(year, month, 1).toLocaleString("default", { month: "short" });
+      return `${short} ${year}`;
+    };
+
+    const monthStatusesFromLive = (
+      monthly: Array<{ month: string; year: number; submitted: boolean; onTime: boolean }>,
+    ) =>
+      monthly.map((m, i) => {
+        const fromWindow = reportWindow.monthsToCheck[i];
+        const monthIndex =
+          fromWindow?.month ??
+          MONTH_NAMES.findIndex((name) => name.toLowerCase() === m.month.toLowerCase());
+        const year = fromWindow?.year ?? m.year;
+        const month = monthIndex >= 0 ? monthIndex : 0;
+        const status = m.onTime ? "on_time" : m.submitted ? "late" : "missing";
+        return {
+          monthKey: `${year}-${month}`,
+          monthLabel: formatMonthLabel(month, year),
+          status: status as "on_time" | "late" | "missing",
+          submitted: m.submitted,
+          onTime: m.onTime,
+        };
+      });
+
+    const monthStatusesFromManual = (manualMap: Record<string, boolean> | undefined) => {
+      const map = manualMap && typeof manualMap === "object" ? manualMap : {};
+      return reportWindow.monthsToCheck.map(({ month, year }) => {
+        const monthKey = `${year}-${month}`;
+        const hit = map[monthKey] === true || map[`${year}-${String(month).padStart(2, "0")}`] === true;
+        return {
+          monthKey,
+          monthLabel: formatMonthLabel(month, year),
+          status: (hit ? "on_time" : "missing") as "on_time" | "late" | "missing",
+          submitted: hit,
+          onTime: hit,
+        };
+      });
+    };
+
     const liveReportStatsFor = (mdaName: string, rawName?: string) => {
       const key =
         mdaMatchKey(mdaName) ||
@@ -2719,7 +2767,12 @@ export const getAllMdaSavedDataForDashboard = query({
       const monthly = buildMonthlyReportData(reports, reportWindow.monthsToCheck);
       const submitted = monthly.filter((m) => m.submitted).length;
       const onTime = monthly.filter((m) => m.onTime).length;
-      return { submitted, onTime, totalMonths: reportTotalMonths };
+      return {
+        submitted,
+        onTime,
+        totalMonths: reportTotalMonths,
+        monthStatuses: monthStatusesFromLive(monthly),
+      };
     };
 
     const allEfficiencyMdaKeys = new Set([
@@ -2757,20 +2810,39 @@ export const getAllMdaSavedDataForDashboard = query({
       if (monthlyList.length > 0) {
         let monthsWithData = 0;
         let score = 0;
+        let monthStatuses:
+          | Array<{
+              monthKey: string;
+              monthLabel: string;
+              status: "on_time" | "late" | "missing";
+              submitted: boolean;
+              onTime: boolean;
+            }>
+          | undefined;
         if (monthlyManual) {
-          const allMonthKeys = new Set<string>();
+          const primary = monthlyList.find((d) => d.scoringPeriod === fullYearPeriod) || monthlyList[0];
+          const mergedManual: Record<string, boolean> = {};
           monthlyList.forEach((d) => {
             if (d.manualMonthlyReports && typeof d.manualMonthlyReports === "object") {
-              Object.keys(d.manualMonthlyReports).forEach((key) => {
-                if (d.manualMonthlyReports[key]) allMonthKeys.add(key);
-              });
+              Object.assign(mergedManual, d.manualMonthlyReports);
             }
           });
-          monthsWithData = allMonthKeys.size;
+          monthStatuses = monthStatusesFromManual(mergedManual).map((m) => ({
+            ...m,
+            // Submission metric: yes/no only (manual check = submitted).
+            status: m.submitted ? "on_time" : "missing",
+          }));
+          monthsWithData = monthStatuses.filter((m) => m.submitted).length;
           score = proportionalScore(monthsWithData, reportTotalMonths, mrMaxPoints);
+          void primary;
         } else if (liveStats) {
           monthsWithData = liveStats.submitted;
           score = proportionalScore(liveStats.submitted, liveStats.totalMonths, mrMaxPoints);
+          // For submission: treat late as still submitted (green "Submitted").
+          monthStatuses = liveStats.monthStatuses.map((m) => ({
+            ...m,
+            status: m.submitted ? ("on_time" as const) : ("missing" as const),
+          }));
         } else {
           const primary = monthlyList.find((d) => d.scoringPeriod === fullYearPeriod) || monthlyList[0];
           score = primary?.score || 0;
@@ -2786,26 +2858,36 @@ export const getAllMdaSavedDataForDashboard = query({
           monthsWithData,
           totalMonths: reportTotalMonths,
           maxPossibleScore: mrMaxPoints,
+          monthStatuses,
         };
       }
 
       if (timelinessList.length > 0) {
         let monthsWithData = 0;
         let score = 0;
+        let monthStatuses:
+          | Array<{
+              monthKey: string;
+              monthLabel: string;
+              status: "on_time" | "late" | "missing";
+              submitted: boolean;
+              onTime: boolean;
+            }>
+          | undefined;
         if (timelinessManual) {
-          const allMonthKeys = new Set<string>();
+          const mergedManual: Record<string, boolean> = {};
           timelinessList.forEach((d) => {
             if (d.manualTimeliness && typeof d.manualTimeliness === "object") {
-              Object.keys(d.manualTimeliness).forEach((key) => {
-                if (d.manualTimeliness[key]) allMonthKeys.add(key);
-              });
+              Object.assign(mergedManual, d.manualTimeliness);
             }
           });
-          monthsWithData = allMonthKeys.size;
+          monthStatuses = monthStatusesFromManual(mergedManual);
+          monthsWithData = monthStatuses.filter((m) => m.onTime).length;
           score = proportionalScore(monthsWithData, reportTotalMonths, tMaxPoints);
         } else if (liveStats) {
           monthsWithData = liveStats.onTime;
           score = proportionalScore(liveStats.onTime, liveStats.totalMonths, tMaxPoints);
+          monthStatuses = liveStats.monthStatuses;
         } else {
           const primary = timelinessList.find((d) => d.scoringPeriod === fullYearPeriod) || timelinessList[0];
           score = primary?.score || 0;
@@ -2821,6 +2903,7 @@ export const getAllMdaSavedDataForDashboard = query({
           monthsWithData,
           totalMonths: reportTotalMonths,
           maxPossibleScore: tMaxPoints,
+          monthStatuses,
         };
       }
     }
