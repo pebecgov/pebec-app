@@ -48,6 +48,16 @@ interface MdaScoreData {
     kind: "failed" | "missing" | "partial";
     message: string;
   }>;
+  scoreBreakdowns?: Record<
+    string,
+    Array<{
+      label: string;
+      value?: string;
+      points?: number;
+      maxPoints?: number;
+      explanation: string;
+    }>
+  >;
   rank: number;
 }
 
@@ -143,6 +153,10 @@ export default function MdaSummaryPage() {
               kind: issue.kind,
             }))
           : undefined;
+      const breakdown =
+        !exempted && isScored
+          ? selected.scoreBreakdowns?.[metric.key]
+          : undefined;
       return {
         name: metric.label,
         score: exempted ? 0 : (scored?.score ?? 0),
@@ -153,6 +167,7 @@ export default function MdaSummaryPage() {
         justification: metric.justification,
         exempted,
         issues: slaIssues && slaIssues.length > 0 ? slaIssues : undefined,
+        scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
       };
     });
 
@@ -190,7 +205,7 @@ export default function MdaSummaryPage() {
       )}
       <MetricBreakdown
         title="BFA Metrics"
-        hint="Why each metric is scored (set by PEBEC admin). Open SLA Compliance for month-by-month file issues."
+        hint="Open a metric to see how the score was calculated. SLA also lists months that need attention."
         metrics={metrics}
         hideStatus={!fullyScored}
       />
