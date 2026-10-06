@@ -395,6 +395,13 @@ type PublicMdaRow = {
   bonusScore: number;
   penaltyValues: Record<string, boolean>;
   bonusValues: Record<string, boolean>;
+  /** Plain-language SLA month problems for the public tracker (failed / missing / partial). */
+  slaMonthIssues: Array<{
+    monthKey: string;
+    monthLabel: string;
+    kind: "failed" | "missing" | "partial";
+    message: string;
+  }>;
   lastUpdated: number;
   rank: number;
 };
@@ -423,6 +430,13 @@ const othersBreakdownValidator = v.array(
   })
 );
 
+const slaMonthIssueValidator = v.object({
+  monthKey: v.string(),
+  monthLabel: v.string(),
+  kind: v.union(v.literal("failed"), v.literal("missing"), v.literal("partial")),
+  message: v.string(),
+});
+
 const publicMdaScoresReturns = v.object({
   mdas: v.array(
     v.object({
@@ -446,6 +460,7 @@ const publicMdaScoresReturns = v.object({
       bonusScore: v.number(),
       penaltyValues: v.record(v.string(), v.boolean()),
       bonusValues: v.record(v.string(), v.boolean()),
+      slaMonthIssues: v.array(slaMonthIssueValidator),
       lastUpdated: v.number(),
       rank: v.number(),
     })
@@ -561,6 +576,10 @@ function buildPublicMdaRowFromDashboard(
   const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
   const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
   const othersBreakdown = buildOthersBreakdown(mda, othersItems, excludedMetrics);
+  const slaBucket = mda.sla as
+    | { monthIssues?: PublicMdaRow["slaMonthIssues"] }
+    | null
+    | undefined;
 
   const maxFromFramework = frameworkMetrics
     .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
@@ -581,6 +600,7 @@ function buildPublicMdaRowFromDashboard(
     bonusScore: roundScore(Math.abs(bonuses?.score || 0)),
     penaltyValues: penalties?.values || {},
     bonusValues: bonuses?.values || {},
+    slaMonthIssues: Array.isArray(slaBucket?.monthIssues) ? slaBucket.monthIssues : [],
     lastUpdated: Number(mda.lastUpdated) || Date.now(),
     rank: 0,
   };
@@ -616,6 +636,7 @@ function buildEmptyPublicMdaRow(
     bonusScore: 0,
     penaltyValues: {},
     bonusValues: {},
+    slaMonthIssues: [],
     lastUpdated: Date.now(),
     rank: 0,
   };

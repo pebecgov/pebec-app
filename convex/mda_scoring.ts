@@ -14,8 +14,13 @@ import {
   filterReportsToWindow,
   getMonthNumber,
   loadSystemResolutionContext,
+  MONTH_NAMES,
   resolveScoringWindow,
 } from "./utils/efficiencyScoring";
+import {
+  buildSlaMonthIssues,
+  mergeMonthlySlaData,
+} from "../lib/slaPublicMessages";
 
 export function normalizeMdaKey(name: string) {
   return String(name || "")
@@ -2203,11 +2208,45 @@ export const getAllMdaSavedDataForDashboard = query({
       const maxPossibleScoreForMonths = totalMonthsWithData * pointsPerMonth;
       const finalScore = totalMonthsWithData > 0 ? (sumTotalScore / maxPossibleRawScore) * maxPossibleScoreForMonths : 0;
 
+      // Expected months for the scoring year (from efficiency period when configured).
+      const expectedMonths: Array<{ month: number; year: number; monthName: string; monthKey: string }> = [];
+      if (efficiencyConfig) {
+        const startMonth = getMonthNumber(efficiencyConfig.startMonth);
+        let iterYear = efficiencyConfig.startYear;
+        let iterMonth = startMonth;
+        for (let i = 0; i < (efficiencyConfig.totalMonths || 12); i++) {
+          expectedMonths.push({
+            month: iterMonth,
+            year: iterYear,
+            monthName: MONTH_NAMES[iterMonth] ?? `Month ${iterMonth + 1}`,
+            monthKey: `${iterYear}-${iterMonth}`,
+          });
+          iterMonth++;
+          if (iterMonth > 11) {
+            iterMonth = 0;
+            iterYear++;
+          }
+        }
+      } else {
+        for (let month = 0; month < 12; month++) {
+          expectedMonths.push({
+            month,
+            year,
+            monthName: MONTH_NAMES[month] ?? `Month ${month + 1}`,
+            monthKey: `${year}-${month}`,
+          });
+        }
+      }
+
+      const mergedMonthly = mergeMonthlySlaData(dataList);
+      const monthIssues = buildSlaMonthIssues(mergedMonthly, expectedMonths);
+
       mdaDataMap[mdaName].sla = {
         score: finalScore,
         monthsWithData: totalMonthsWithData,
         totalMonths: slaTotalMonths,
-        maxPossibleScore: slaMaxPoints
+        maxPossibleScore: slaMaxPoints,
+        monthIssues,
       };
     });
 

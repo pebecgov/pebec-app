@@ -42,6 +42,12 @@ interface MdaScoreData {
   bonusScore?: number;
   penaltyValues?: Record<string, boolean>;
   bonusValues?: Record<string, boolean>;
+  slaMonthIssues?: Array<{
+    monthKey: string;
+    monthLabel: string;
+    kind: "failed" | "missing" | "partial";
+    message: string;
+  }>;
   rank: number;
 }
 
@@ -129,6 +135,14 @@ export default function MdaSummaryPage() {
       const scored = selected.metricScores?.[metric.key];
       const isScored = scored?.scored === true;
       const isComplete = isScored && scored?.complete !== false;
+      const slaIssues =
+        metric.key === "sla" && !exempted
+          ? (selected.slaMonthIssues || []).map((issue) => ({
+              label: issue.monthLabel,
+              message: issue.message,
+              kind: issue.kind,
+            }))
+          : undefined;
       return {
         name: metric.label,
         score: exempted ? 0 : (scored?.score ?? 0),
@@ -138,6 +152,7 @@ export default function MdaSummaryPage() {
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         justification: metric.justification,
         exempted,
+        issues: slaIssues && slaIssues.length > 0 ? slaIssues : undefined,
       };
     });
 
@@ -173,7 +188,12 @@ export default function MdaSummaryPage() {
           </div>
         </div>
       )}
-      <MetricBreakdown title="BFA Metrics" hint="Why each metric is scored (set by PEBEC admin)" metrics={metrics} hideStatus={!fullyScored} />
+      <MetricBreakdown
+        title="BFA Metrics"
+        hint="Why each metric is scored (set by PEBEC admin). Open SLA Compliance for month-by-month file issues."
+        metrics={metrics}
+        hideStatus={!fullyScored}
+      />
       {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}
