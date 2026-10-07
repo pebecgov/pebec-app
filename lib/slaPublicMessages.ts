@@ -180,15 +180,7 @@ export function buildSlaMonthIssues(
       continue;
     }
 
-    if (status === "partial_success") {
-      issues.push({
-        monthKey: month.monthKey,
-        monthLabel: label,
-        kind: "partial",
-        message: plainSlaFailureMessage(check, "partial"),
-      });
-      continue;
-    }
+    // Partial success already earned points — do not list under "needs attention".
 
     if (entry.method === "file" && entry.overallPercentage == null) {
       issues.push({
@@ -279,12 +271,13 @@ export function buildSlaMonthStatuses(
       };
     }
 
+    // Partial Excel success still earned points — treat as scored (green), keep the note.
     if (status === "partial_success") {
       const points = slaMonthPoints(entry, maxPointsPerMonth);
       return {
         monthKey: month.monthKey,
         monthLabel,
-        status: "partial" as const,
+        status: "scored" as const,
         points,
         maxPoints: round2(maxPointsPerMonth),
         percentage:
