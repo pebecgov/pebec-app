@@ -283,9 +283,9 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
             Update latest months only
           </p>
           <p className="text-[11px] text-amber-900/90 leading-relaxed">
-            For agencies that re-submitted an older month (e.g. October 2025 uploaded again this year), this
-            keeps months that are already scored and only processes months that are missing, failed, or have a
-            newer upload — then replaces that month&apos;s score with the latest file.
+            Keeps months that already scored successfully. Only processes months that are missing or whose last
+            score failed — those are re-scored from the latest upload. Successful months are not re-scored even
+            if a newer file was uploaded later.
           </p>
 
           {!confirmLatest ? (
@@ -303,9 +303,9 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
           ) : (
             <div className="space-y-2 rounded border border-amber-300 bg-white p-2">
               <p className="text-[11px] text-gray-700">
-                Confirm: score only missing, failed, or re-uploaded months for all{" "}
-                <strong>{uniqueMdaNames.length}</strong> MDAs in <strong>{scoringPeriod}</strong>, using the
-                latest file when a month was submitted more than once?
+                Confirm: only score missing or previously failed months for all{" "}
+                <strong>{uniqueMdaNames.length}</strong> MDAs in <strong>{scoringPeriod}</strong>? Months that
+                already succeeded stay unchanged.
               </p>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button
