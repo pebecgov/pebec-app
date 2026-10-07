@@ -107,6 +107,7 @@ export const getBulkSlaInternalContext = internalQuery({
         totalScore: v.number(),
         percentage: v.number(),
         monthsWithData: v.number(),
+        monthlySlaData: v.any(),
       }),
     ),
     excludedMdas: v.array(v.string()),
@@ -142,7 +143,12 @@ export const getBulkSlaInternalContext = internalQuery({
 
     const existingByMda: Record<
       string,
-      { totalScore: number; percentage: number; monthsWithData: number }
+      {
+        totalScore: number;
+        percentage: number;
+        monthsWithData: number;
+        monthlySlaData: Record<string, unknown>;
+      }
     > = {};
     for (const mdaName of args.mdaNames) {
       const existing = await ctx.db
@@ -156,6 +162,10 @@ export const getBulkSlaInternalContext = internalQuery({
           totalScore: existing.totalScore,
           percentage: existing.percentage,
           monthsWithData: existing.monthsWithData,
+          monthlySlaData:
+            existing.monthlySlaData && typeof existing.monthlySlaData === "object"
+              ? (existing.monthlySlaData as Record<string, unknown>)
+              : {},
         };
       }
     }

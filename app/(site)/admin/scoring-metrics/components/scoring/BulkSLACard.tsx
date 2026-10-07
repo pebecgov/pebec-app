@@ -8,12 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { ChevronDown, ChevronUp, Eye, Loader2, PlayCircle, Scale } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Loader2,
+  PlayCircle,
+  RefreshCw,
+  Scale,
+} from "lucide-react";
 
 type MonthOutcome = {
   monthKey: string;
   monthName: string;
-  status: "scored" | "failed" | "no_report" | "no_file" | "unsupported_format";
+  status: "scored" | "failed" | "no_report" | "no_file" | "unsupported_format" | "kept";
   score: number;
   overallPercentage: number | null;
   validRows?: number;
@@ -23,7 +31,7 @@ type MonthOutcome = {
 
 type MdaResult = {
   mdaName: string;
-  status: "saved" | "would_save" | "excluded" | "kept_existing" | "error";
+  status: "saved" | "would_save" | "excluded" | "kept_existing" | "unchanged" | "error";
   previousScore: number | null;
   newScore: number;
   percentage: number;
@@ -31,12 +39,15 @@ type MdaResult = {
   monthsScored: number;
   monthsFailed: number;
   monthsMissing: number;
+  monthsUpdated?: number;
+  monthsKept?: number;
   detail: string;
   months: MonthOutcome[];
 };
 
 type RunSummary = {
   dryRun: boolean;
+  updateLatestOnly: boolean;
   slaPoints: number;
   pointsPerMonth: number;
   totalMonths: number;
@@ -44,11 +55,14 @@ type RunSummary = {
   failedChunks: string[];
 };
 
+type RunMode = "full" | "latest";
+
 const STATUS_LABEL: Record<MdaResult["status"], string> = {
   saved: "Saved",
   would_save: "Will save",
   excluded: "Excluded",
   kept_existing: "Kept existing",
+  unchanged: "No changes",
   error: "Error",
 };
 
@@ -57,6 +71,7 @@ const STATUS_CLASS: Record<MdaResult["status"], string> = {
   would_save: "bg-blue-100 text-blue-800",
   excluded: "bg-gray-200 text-gray-700",
   kept_existing: "bg-amber-100 text-amber-800",
+  unchanged: "bg-slate-100 text-slate-700",
   error: "bg-rose-100 text-rose-800",
 };
 
@@ -74,28 +89,33 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
 
   const [overwriteExisting, setOverwriteExisting] = useState(false);
   const [running, setRunning] = useState<"dry" | "live" | null>(null);
+  const [runMode, setRunMode] = useState<RunMode>("full");
   const [progress, setProgress] = useState(0);
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [expandedMda, setExpandedMda] = useState<string | null>(null);
+  const [confirmLatest, setConfirmLatest] = useState(false);
 
   const uniqueMdaNames = useMemo(
     () => Array.from(new Set(mdaNames.map((n) => n.trim()).filter(Boolean))),
     [mdaNames],
   );
 
-  const execute = async (dryRun: boolean) => {
+  const execute = async (dryRun: boolean, mode: RunMode) => {
     if (uniqueMdaNames.length === 0) {
       toast.error("No MDAs to process");
       return;
     }
 
     setRunning(dryRun ? "dry" : "live");
+    setRunMode(mode);
     setProgress(0);
     setSummary(null);
     setShowDetails(false);
     setExpandedMda(null);
+    setConfirmLatest(false);
 
+    const updateLatestOnly = mode === "latest";
     const results: MdaResult[] = [];
     const failedChunks: string[] = [];
     let slaPoints = context?.slaPoints ?? 0;
@@ -114,7 +134,8 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
           scoringPeriod,
           mdaNames: chunk,
           dryRun,
-          overwriteExisting,
+          overwriteExisting: updateLatestOnly ? true : overwriteExisting,
+          updateLatestOnly,
         });
         slaPoints = res.slaPoints;
         pointsPerMonth = res.pointsPerMonth;
@@ -141,15 +162,31 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
       }
     }
 
-    setSummary({ dryRun, slaPoints, pointsPerMonth, totalMonths, results, failedChunks });
+    setSummary({
+      dryRun,
+      updateLatestOnly,
+      slaPoints,
+      pointsPerMonth,
+      totalMonths,
+      results,
+      failedChunks,
+    });
     setRunning(null);
 
     if (failedChunks.length > 0) {
       toast.error(`Finished with ${failedChunks.length} failed batch${failedChunks.length > 1 ? "es" : ""}`);
     } else if (dryRun) {
-      toast.success(`SLA preview ready for ${results.length} MDAs — nothing was saved`);
+      toast.success(
+        updateLatestOnly
+          ? `Latest-months preview ready for ${results.length} MDAs — nothing was saved`
+          : `SLA preview ready for ${results.length} MDAs — nothing was saved`,
+      );
     } else {
-      toast.success(`Saved SLA scores for ${savedCount} MDA${savedCount === 1 ? "" : "s"}`);
+      toast.success(
+        updateLatestOnly
+          ? `Updated latest SLA months for ${savedCount} MDA${savedCount === 1 ? "" : "s"}`
+          : `Saved SLA scores for ${savedCount} MDA${savedCount === 1 ? "" : "s"}`,
+      );
     }
   };
 
@@ -161,8 +198,10 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
       wouldSave: by("would_save"),
       excluded: by("excluded"),
       kept: by("kept_existing"),
+      unchanged: by("unchanged"),
       errors: by("error"),
       monthsFailed: summary.results.reduce((n, r) => n + r.monthsFailed, 0),
+      monthsUpdated: summary.results.reduce((n, r) => n + (r.monthsUpdated ?? 0), 0),
     };
   }, [summary]);
 
@@ -187,7 +226,8 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
           ) : null}
           , the same way as Configure Monthly SLA → Auto-Process. Pending completions (NIL / N/A / Not yet
           approved) get half credit while the expected timeline is still open. Files with at least one scorable
-          row are accepted (no 20% minimum). Failures show plain-language reasons.
+          row are accepted (no 20% minimum). Failures show plain-language reasons. Always uses the{" "}
+          <strong>latest upload</strong> when a month was submitted more than once.
         </p>
 
         <label className="flex items-center gap-2 text-xs text-gray-700">
@@ -197,19 +237,19 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
             disabled={running !== null}
           />
           Also replace MDAs that already have a saved SLA score
-          <span className="text-gray-400">(off by default — those are left untouched)</span>
+          <span className="text-gray-400">(full run only — off by default)</span>
         </label>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="flex-1 border-sky-300 text-sky-800 hover:bg-sky-100"
             disabled={running !== null}
-            onClick={() => execute(true)}
+            onClick={() => execute(true, "full")}
           >
-            {running === "dry" ? (
+            {running === "dry" && runMode === "full" ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Previewing…
               </>
@@ -224,9 +264,9 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
             size="sm"
             className="flex-1 bg-sky-700 hover:bg-sky-800"
             disabled={running !== null}
-            onClick={() => execute(false)}
+            onClick={() => execute(false, "full")}
           >
-            {running === "live" ? (
+            {running === "live" && runMode === "full" ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running…
               </>
@@ -238,11 +278,92 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
           </Button>
         </div>
 
+        <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+          <p className="text-xs text-amber-950 font-medium">
+            Update latest months only
+          </p>
+          <p className="text-[11px] text-amber-900/90 leading-relaxed">
+            For agencies that re-submitted an older month (e.g. October 2025 uploaded again this year), this
+            keeps months that are already scored and only processes months that are missing, failed, or have a
+            newer upload — then replaces that month&apos;s score with the latest file.
+          </p>
+
+          {!confirmLatest ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-full border-amber-400 text-amber-950 hover:bg-amber-100"
+              disabled={running !== null}
+              onClick={() => setConfirmLatest(true)}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Ask: update latest / unscored months?
+            </Button>
+          ) : (
+            <div className="space-y-2 rounded border border-amber-300 bg-white p-2">
+              <p className="text-[11px] text-gray-700">
+                Confirm: score only missing, failed, or re-uploaded months for all{" "}
+                <strong>{uniqueMdaNames.length}</strong> MDAs in <strong>{scoringPeriod}</strong>, using the
+                latest file when a month was submitted more than once?
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  disabled={running !== null}
+                  onClick={() => setConfirmLatest(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 border-amber-400"
+                  disabled={running !== null}
+                  onClick={() => execute(true, "latest")}
+                >
+                  {running === "dry" && runMode === "latest" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Previewing…
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4 mr-2" /> Preview latest only
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="flex-1 bg-amber-700 hover:bg-amber-800"
+                  disabled={running !== null}
+                  onClick={() => execute(false, "latest")}
+                >
+                  {running === "live" && runMode === "latest" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" /> Confirm &amp; update
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {running !== null && (
           <div className="space-y-1">
             <Progress value={progress} className="h-2" />
             <p className="text-[11px] text-gray-500">
-              {progress}% — processing in batches of {CHUNK_SIZE} (reads each monthly Excel)
+              {progress}% — {runMode === "latest" ? "updating latest months" : "processing"} in batches of{" "}
+              {CHUNK_SIZE} (reads each monthly Excel)
             </p>
           </div>
         )}
@@ -256,6 +377,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
                 }`}
               >
                 {summary.dryRun ? "Preview" : "Saved"}
+                {summary.updateLatestOnly ? " · latest months" : ""}
               </span>
               <span className="text-gray-700">
                 {summary.results.length} MDAs · max {summary.slaPoints} pts
@@ -265,8 +387,14 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
               ) : (
                 <span className="text-gray-700">{counts.saved} written</span>
               )}
+              {counts.unchanged > 0 && (
+                <span className="text-slate-600">{counts.unchanged} unchanged</span>
+              )}
               {counts.kept > 0 && <span className="text-amber-700">{counts.kept} kept existing</span>}
               {counts.excluded > 0 && <span className="text-gray-600">{counts.excluded} excluded</span>}
+              {summary.updateLatestOnly && counts.monthsUpdated > 0 && (
+                <span className="text-sky-800">{counts.monthsUpdated} month(s) updated</span>
+              )}
               {counts.monthsFailed > 0 && (
                 <span className="text-rose-700">{counts.monthsFailed} month file(s) failed</span>
               )}
@@ -325,7 +453,9 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
                             )}
                           </td>
                           <td className="px-2 py-1.5 text-gray-600">
-                            {r.monthsScored} ok · {r.monthsFailed} fail · {r.monthsMissing} missing
+                            {summary.updateLatestOnly
+                              ? `${r.monthsUpdated ?? 0} updated · ${r.monthsKept ?? 0} kept · ${r.monthsFailed} fail`
+                              : `${r.monthsScored} ok · ${r.monthsFailed} fail · ${r.monthsMissing} missing`}
                           </td>
                           <td className="px-2 py-1.5">
                             <div className="text-gray-600">{r.detail}</div>
@@ -349,7 +479,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
                                 {m.monthName}
                               </td>
                               <td className="px-2 py-1">
-                                {m.status === "scored" ? (
+                                {m.status === "scored" || m.status === "kept" ? (
                                   <span className="font-medium text-gray-900">
                                     {m.score.toFixed(2)} pts
                                     {m.overallPercentage !== null && (
@@ -357,6 +487,9 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
                                         {" "}
                                         ({m.overallPercentage.toFixed(1)}%)
                                       </span>
+                                    )}
+                                    {m.status === "kept" && (
+                                      <span className="ml-1 text-slate-500">kept</span>
                                     )}
                                   </span>
                                 ) : (
