@@ -1662,4 +1662,16 @@ export default defineSchema({
   })
     .index("byFrameworkYear", ["framework", "year"])
     .index("byFrameworkYearMetric", ["framework", "year", "metricKey"]),
+
+  /** Anonymous public tracker visitors (MDA + state) for admin live monitoring. */
+  tracker_presence: defineTable({
+    sessionId: v.string(),
+    path: v.string(),
+    section: v.union(v.literal("mdas"), v.literal("states"), v.literal("other")),
+    lastSeenAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_lastSeen", ["lastSeenAt"])
+    .index("by_section_lastSeen", ["section", "lastSeenAt"]),
 });

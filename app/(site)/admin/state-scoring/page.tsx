@@ -27,6 +27,7 @@ import {
 } from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 import AnalysisTab from "@/components/Admin/AnalysisTab";
+import TrackerPresenceMonitor from "@/components/Admin/TrackerPresenceMonitor";
 import { generateStateIndicatorPDF, processStateScoresForIndicator } from "@/lib/stateIndicatorPdfGenerator";
 import { toast } from "sonner";
 import { stateRegions, geopoliticalRegions } from "@/lib/stateRegions";
@@ -1092,6 +1093,7 @@ export default function StateScoringPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">State Scoring & Rankings</h1>
           <p className="text-gray-600">Score states, analyze indicator performance, and view rankings.</p>
         </div>
+        <TrackerPresenceMonitor />
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Global State Filter</p>

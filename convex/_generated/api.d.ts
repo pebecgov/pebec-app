@@ -103,6 +103,7 @@ import type * as state_scores from "../state_scores.js";
 import type * as tasks from "../tasks.js";
 import type * as ticket_comments from "../ticket_comments.js";
 import type * as tickets from "../tickets.js";
+import type * as tracker_presence from "../tracker_presence.js";
 import type * as ungaThankYouEmail from "../ungaThankYouEmail.js";
 import type * as upload from "../upload.js";
 import type * as uploadTicketsPdf from "../uploadTicketsPdf.js";
@@ -218,6 +219,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   ticket_comments: typeof ticket_comments;
   tickets: typeof tickets;
+  tracker_presence: typeof tracker_presence;
   ungaThankYouEmail: typeof ungaThankYouEmail;
   upload: typeof upload;
   uploadTicketsPdf: typeof uploadTicketsPdf;
