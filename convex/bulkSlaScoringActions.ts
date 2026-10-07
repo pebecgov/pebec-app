@@ -9,8 +9,8 @@
  *
  * Modes:
  * - full (default): score every month in the window (optionally skip MDAs that already have SLA)
- * - updateLatestOnly: keep existing month scores; only score months that are missing,
- *   failed, or have a newer reform-champion upload than the one last scored
+ * - updateLatestOnly: keep existing successful month scores; only score months that
+ *   are missing or whose last attempt failed (re-score uses the latest upload)
  */
 import { v } from "convex/values";
 import { action } from "./_generated/server";
@@ -111,27 +111,26 @@ type ExistingMonthEntry = {
   check?: { status?: string; validRows?: number; totalRows?: number; message?: string } | null;
 };
 
+/**
+ * Update-latest mode: only touch months that still need a score.
+ * - Missing / never scored → score
+ * - Last attempt failed → re-score (uses latest file)
+ * - Already success / partial_success → keep (do not re-score even if a newer upload exists)
+ */
 function existingMonthNeedsRescore(
   entry: ExistingMonthEntry | undefined,
-  reportSubmittedAt: number | null,
-  reportCount: number,
+  _reportSubmittedAt: number | null,
+  _reportCount: number,
 ): boolean {
   if (!entry) return true;
   const status = entry.check?.status;
   if (status === "failed") return true;
-  if (entry.overallPercentage == null && !(typeof entry.score === "number" && entry.score > 0)) {
-    return true;
-  }
-  if (reportSubmittedAt == null) return false;
-
-  // Prefer comparing against the submission we last scored
-  if (typeof entry.scoredSubmittedAt === "number") {
-    return reportSubmittedAt > entry.scoredSubmittedAt;
-  }
-
-  // Legacy rows (no scoredSubmittedAt): only re-score when the month was uploaded
-  // more than once (e.g. Oct 2025 submitted again in 2026) so we pick the latest file.
-  return reportCount > 1;
+  // Successfully scored before (including partial_success) — leave alone
+  if (status === "success" || status === "partial_success") return false;
+  if (typeof entry.score === "number" && entry.score > 0) return false;
+  if (typeof entry.overallPercentage === "number") return false;
+  // No usable score yet
+  return true;
 }
 
 function summarizeMergedMonths(
@@ -163,8 +162,8 @@ export const runBulkSlaScoringChunk = action({
     /** When false (default), MDAs that already have SLA data are left alone (full mode only). */
     overwriteExisting: v.optional(v.boolean()),
     /**
-     * Only score months that are missing / failed / have a newer upload than last scored.
-     * Keeps other months and merges into the existing SLA row.
+     * Only score months that are missing or previously failed.
+     * Successful months are left alone even if a newer file exists.
      */
     updateLatestOnly: v.optional(v.boolean()),
   },
@@ -307,7 +306,7 @@ export const runBulkSlaScoringChunk = action({
                   typeof existingEntry.overallPercentage === "number"
                     ? existingEntry.overallPercentage
                     : null,
-                detail: "Kept previous score (no newer upload)",
+                detail: "Kept previous successful score",
               });
               continue;
             }
