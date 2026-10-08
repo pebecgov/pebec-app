@@ -332,6 +332,8 @@ export default defineSchema({
       v.literal("follow_up_view"),
       v.literal("follow_up_reply"),
       v.literal("follow_up_attach"),
+      v.literal("status_select"),
+      v.literal("ticket_select"),
       v.literal("collect_evidence")
     ),
     language: v.optional(
@@ -365,6 +367,28 @@ export default defineSchema({
     createdAt: v.number()
   }).index("byMessageSid", ["messageSid"]),
 
+  whatsapp_outbound: defineTable({
+    phone: v.string(),
+    ticketId: v.optional(v.id("tickets")),
+    kind: v.union(
+      v.literal("status"),
+      v.literal("needs_info"),
+      v.literal("rate_limited"),
+      v.literal("skipped_policy"),
+    ),
+    channel: v.union(
+      v.literal("session"),
+      v.literal("template"),
+      v.literal("none"),
+    ),
+    sent: v.boolean(),
+    error: v.optional(v.string()),
+    bodyPreview: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("byPhone_createdAt", ["phone", "createdAt"])
+    .index("byTicket_createdAt", ["ticketId", "createdAt"]),
+
   ticket_comments: defineTable({
     content: v.string(),
     ticketId: v.id("tickets"),
@@ -373,7 +397,9 @@ export default defineSchema({
     authorName: v.optional(v.string()),
     authorImage: v.optional(v.string()),
     createdAt: v.number(),
-    fileIds: v.optional(v.array(v.id("_storage")))
+    fileIds: v.optional(v.array(v.id("_storage"))),
+    /** Opt-in push to citizen WhatsApp ("needs info" / citizen update). */
+    notifyWhatsApp: v.optional(v.boolean()),
   }).index("byTicket", ["ticketId"]),
   ticket_internal_notes: defineTable({
     content: v.string(),

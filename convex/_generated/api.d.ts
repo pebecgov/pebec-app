@@ -115,8 +115,10 @@ import type * as whatsapp_cloud from "../whatsapp/cloud.js";
 import type * as whatsapp_constants from "../whatsapp/constants.js";
 import type * as whatsapp_handler from "../whatsapp/handler.js";
 import type * as whatsapp_i18n from "../whatsapp/i18n.js";
+import type * as whatsapp_outbound from "../whatsapp/outbound.js";
 import type * as whatsapp_portsCustoms from "../whatsapp/portsCustoms.js";
 import type * as whatsapp_simpleFlow from "../whatsapp/simpleFlow.js";
+import type * as whatsapp_targets from "../whatsapp/targets.js";
 import type * as whatsapp_twilio from "../whatsapp/twilio.js";
 import type * as workshop from "../workshop.js";
 
@@ -231,8 +233,10 @@ declare const fullApi: ApiFromModules<{
   "whatsapp/constants": typeof whatsapp_constants;
   "whatsapp/handler": typeof whatsapp_handler;
   "whatsapp/i18n": typeof whatsapp_i18n;
+  "whatsapp/outbound": typeof whatsapp_outbound;
   "whatsapp/portsCustoms": typeof whatsapp_portsCustoms;
   "whatsapp/simpleFlow": typeof whatsapp_simpleFlow;
+  "whatsapp/targets": typeof whatsapp_targets;
   "whatsapp/twilio": typeof whatsapp_twilio;
   workshop: typeof workshop;
 }>;
