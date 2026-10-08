@@ -370,16 +370,20 @@ export function MetricBreakdown({
                             {monthStatuses.map((month) => {
                               const isSubmission = month.labelMode === "submission";
                               const isSla = month.labelMode === "sla";
+                              // SLA: green (scored, including former partial) or red (failed/missing).
+                              // Timeliness still uses yellow for late.
                               const tone =
-                                month.status === "on_time" || month.status === "scored"
+                                month.status === "on_time" ||
+                                month.status === "scored" ||
+                                (isSla && month.status === "partial")
                                   ? "bg-green-100 text-green-900 border-green-200"
-                                  : month.status === "late" || month.status === "partial"
+                                  : month.status === "late"
                                     ? "bg-yellow-100 text-yellow-950 border-yellow-200"
                                     : month.status === "failed"
                                       ? "bg-rose-100 text-rose-900 border-rose-200"
                                       : "bg-red-100 text-red-900 border-red-200";
                               const statusLabel =
-                                month.status === "scored"
+                                month.status === "scored" || (isSla && month.status === "partial")
                                   ? "Scored"
                                   : month.status === "on_time"
                                     ? isSubmission
@@ -455,17 +459,11 @@ export function MetricBreakdown({
                             <span
                               className={
                                 issue.kind === "missing"
-                                  ? "inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-700"
-                                  : issue.kind === "partial"
-                                    ? "inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-medium text-amber-950"
-                                    : "inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800"
+                                  ? "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800"
+                                  : "inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800"
                               }
                             >
-                              {issue.kind === "missing"
-                                ? "Not submitted"
-                                : issue.kind === "partial"
-                                  ? "Partially scored"
-                                  : "Could not score"}
+                              {issue.kind === "missing" ? "Not submitted" : "Could not score"}
                             </span>
                           </div>
                           <p className="text-sm text-gray-700 leading-relaxed">{issue.message}</p>

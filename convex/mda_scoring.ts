@@ -587,27 +587,43 @@ export const getRealMonthlyReports = query({
   handler: async (ctx, args) => loadRealMonthlyReports(ctx, args),
 });
 
-// Returns only the file reference, so actions don't receive the embedded report data
+// Returns only the file reference, so actions don't receive the embedded report data.
+// When an MDA re-uploads the same reporting month later, use the latest submission.
 export const getMonthlyReportFileRef = internalQuery({
   args: {
     mdaName: v.string(),
     month: v.number(),
     year: v.number(),
+    /** Scoring window period (e.g. "2026") — needed when the window spans prior calendar years. */
+    scoringPeriod: v.optional(v.string()),
   },
   returns: v.union(
     v.null(),
     v.object({
       fileId: v.optional(v.id("_storage")),
       fileName: v.optional(v.string()),
+      submittedAt: v.number(),
+      reportCount: v.number(),
     })
   ),
-  handler: async (ctx, { mdaName, month, year }) => {
-    const monthlyData = await loadRealMonthlyReports(ctx, { mdaName, scoringPeriod: String(year) });
+  handler: async (ctx, { mdaName, month, year, scoringPeriod }) => {
+    const period = scoringPeriod ?? String(year);
+    const monthlyData = await loadRealMonthlyReports(ctx, {
+      mdaName,
+      scoringPeriod: period,
+    });
     const monthName = new Date(year, month, 1).toLocaleString("default", { month: "long" });
     const entry = monthlyData.find((m) => m.month === monthName && m.year === year);
-    const report = entry?.submitted ? entry.reports[0] : undefined;
-    if (!report) return null;
-    return { fileId: report.fileId, fileName: report.fileName };
+
+    if (!entry?.submitted || entry.reports.length === 0) return null;
+
+    const latest = [...entry.reports].sort((a, b) => b.submittedAt - a.submittedAt)[0]!;
+    return {
+      fileId: latest.fileId,
+      fileName: latest.fileName,
+      submittedAt: latest.submittedAt,
+      reportCount: entry.reports.length,
+    };
   },
 });
 

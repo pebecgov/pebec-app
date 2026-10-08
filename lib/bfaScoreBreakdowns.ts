@@ -31,7 +31,11 @@ function formatHours(hours: number): string {
   return `${round2(hours)} hours (about ${days} day${days === 1 ? "" : "s"})`;
 }
 
-/** Mirrors convex/utils/efficiencyScoring.computeReportGovBreakdown (client-safe copy). */
+/**
+ * Mirrors convex/utils/efficiencyScoring.computeReportGovBreakdown (client-safe copy).
+ * Weights of reportGovPoints: resolution rate 75%, response time 10%, resolution time 15%.
+ * Response / resolution time: pass/fail at ≤72 hours (full points or 0).
+ */
 function computeReportGovBreakdown(
   stats: {
     totalTickets: number;
@@ -47,9 +51,9 @@ function computeReportGovBreakdown(
     stats;
   const adjusted = stats.adjustedResolutionRate ?? null;
 
-  const maxResRatePoints = reportGovPoints * 0.4667;
-  const maxResponsePoints = reportGovPoints * 0.2;
-  const maxResolutionTimePoints = reportGovPoints * 0.3333;
+  const maxResRatePoints = reportGovPoints * 0.75;
+  const maxResponsePoints = reportGovPoints * 0.1;
+  const maxResolutionTimePoints = reportGovPoints * 0.15;
 
   let resRateScore = 0;
   let responseScore = 0;
@@ -67,18 +71,12 @@ function computeReportGovBreakdown(
     else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
     else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
 
-    if (averageResponseTime > 0) {
-      if (averageResponseTime <= 24) responseScore = maxResponsePoints;
-      else if (averageResponseTime <= 48) responseScore = maxResponsePoints * (2 / 3);
-      else if (averageResponseTime <= 72) responseScore = maxResponsePoints * (1 / 3);
+    if (averageResponseTime > 0 && averageResponseTime <= 72) {
+      responseScore = maxResponsePoints;
     }
 
-    if (averageResolutionTime > 0) {
-      if (averageResolutionTime <= 48) resolutionTimeScore = maxResolutionTimePoints;
-      else if (averageResolutionTime <= 72) resolutionTimeScore = maxResolutionTimePoints * (4 / 5);
-      else if (averageResolutionTime <= 96) resolutionTimeScore = maxResolutionTimePoints * (3 / 5);
-      else if (averageResolutionTime <= 120) resolutionTimeScore = maxResolutionTimePoints * (2 / 5);
-      else if (averageResolutionTime <= 144) resolutionTimeScore = maxResolutionTimePoints * (1 / 5);
+    if (averageResolutionTime > 0 && averageResolutionTime <= 72) {
+      resolutionTimeScore = maxResolutionTimePoints;
     }
   }
 
@@ -170,11 +168,14 @@ export function reportGovScoreBreakdown(args: {
     args.maxPoints,
   );
 
-  const rateMax = round2(args.maxPoints * 0.4667);
-  const responseMax = round2(args.maxPoints * 0.2);
-  const resolutionMax = round2(args.maxPoints * 0.3333);
+  const rateMax = round2(args.maxPoints * 0.75);
+  const responseMax = round2(args.maxPoints * 0.1);
+  const resolutionMax = round2(args.maxPoints * 0.15);
   const rateShown =
     args.adjustedResolutionRate != null ? args.adjustedResolutionRate : args.resolutionRate;
+  const partsTotal = round2(
+    breakdown.resolutionRate + breakdown.responseTime + breakdown.resolutionTime,
+  );
 
   return [
     {
@@ -195,29 +196,29 @@ export function reportGovScoreBreakdown(args: {
       maxPoints: rateMax,
       explanation:
         args.adjustedResolutionRate != null
-          ? `Resolution-rate points use an adjusted rate (${round2(args.adjustedResolutionRate)}%) that balances your results with the system average when you have few complaints. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points → ${round2(breakdown.resolutionRate)} earned.`
-          : `Resolution-rate points are based on ${round2(args.resolutionRate)}% of tickets resolved. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points → ${round2(breakdown.resolutionRate)} earned.`,
+          ? `Resolution-rate points use an adjusted rate (${round2(args.adjustedResolutionRate)}%) that balances your results with the system average when you have few complaints. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points (75%) → ${round2(breakdown.resolutionRate)} earned.`
+          : `Resolution-rate points are based on ${round2(args.resolutionRate)}% of tickets resolved. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points (75%) → ${round2(breakdown.resolutionRate)} earned.`,
     },
     {
       label: "Response time points",
       value: formatHours(args.averageResponseTime),
       points: round2(breakdown.responseTime),
       maxPoints: responseMax,
-      explanation: `Average time to first response was ${formatHours(args.averageResponseTime)}. Faster responses earn more of the ${responseMax} points available for this part → ${round2(breakdown.responseTime)} earned.`,
+      explanation: `Average time to first response was ${formatHours(args.averageResponseTime)}. Full ${responseMax} points (10%) when average ≤ 72 hours, otherwise 0 → ${round2(breakdown.responseTime)} earned.`,
     },
     {
       label: "Resolution time points",
       value: formatHours(args.averageResolutionTime),
       points: round2(breakdown.resolutionTime),
       maxPoints: resolutionMax,
-      explanation: `Average time to fully resolve a ticket was ${formatHours(args.averageResolutionTime)}. Faster resolutions earn more of the ${resolutionMax} points available for this part → ${round2(breakdown.resolutionTime)} earned.`,
+      explanation: `Average time to fully resolve a ticket was ${formatHours(args.averageResolutionTime)}. Full ${resolutionMax} points (15%) when average ≤ 72 hours, otherwise 0 → ${round2(breakdown.resolutionTime)} earned.`,
     },
     {
       label: "Total for Report Gov",
       value: `${round2(args.score)} / ${round2(args.maxPoints)}`,
       points: round2(args.score),
       maxPoints: round2(args.maxPoints),
-      explanation: `Adding the three parts: ${round2(breakdown.resolutionRate)} + ${round2(breakdown.responseTime)} + ${round2(breakdown.resolutionTime)} = ${round2(breakdown.total)} (shown as ${round2(args.score)} on the tracker).`,
+      explanation: `Adding the three parts: ${round2(breakdown.resolutionRate)} + ${round2(breakdown.responseTime)} + ${round2(breakdown.resolutionTime)} = ${partsTotal} (shown as ${round2(args.score)} on the tracker).`,
     },
   ];
 }

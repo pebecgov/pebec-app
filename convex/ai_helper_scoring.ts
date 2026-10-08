@@ -120,7 +120,12 @@ export const processMonthlyReportFromDB = action({
   returns: v.any(),
   handler: async (ctx, { mdaName, month, year }): Promise<ProcessMonthlyReportResult> => {
     try {
-      const report: { fileId?: Id<"_storage">; fileName?: string } | null = await ctx.runQuery(internal.mda_scoring.getMonthlyReportFileRef, {
+      const report: {
+        fileId?: Id<"_storage">;
+        fileName?: string;
+        submittedAt: number;
+        reportCount: number;
+      } | null = await ctx.runQuery(internal.mda_scoring.getMonthlyReportFileRef, {
         mdaName,
         month,
         year,

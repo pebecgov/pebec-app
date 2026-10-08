@@ -123,16 +123,12 @@ function isScoredMonth(entry: SlaMonthEntry | undefined): boolean {
 }
 
 /**
- * Build public-facing month issues for an MDA that already has SLA scoring data.
- * Successful months are omitted — only months that need attention are returned.
+ * Attention list is a subset of the month cards. A month marked scored on the
+ * card can never also be "Could not score" here.
  *
  * Missing months are only listed when the saved data looks like a period-wide
  * bulk/manual run (has failure checks, or covers a meaningful share of months).
  * That avoids flooding older one-off saves with “please submit” for every blank month.
- */
-/**
- * Attention list is a subset of the month cards. A month marked scored on the
- * card can never also be "Could not score" here.
  */
 export function slaIssuesFromStatuses(
   statuses: SlaMonthStatus[],
