@@ -10,7 +10,6 @@ import {
   isEmailNotificationBlacklisted,
 } from "./users";
 import { api } from "./_generated/api";
-import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   calculateBusinessHours,
@@ -529,27 +528,7 @@ export const updateTicketStatus = mutation({
     console.log(
       `📧 Email sent to ${ticket.email} for status update to ${status}`,
     );
-    if (ticket.whatsappPhone) {
-      const statusLabel = status.replace("_", " ");
-      const whatsappLines = [
-        "PEBEC ReportGov update",
-        "",
-        `Ticket: ${ticket.ticketNumber}`,
-        `Status: ${statusLabel}`,
-      ];
-      if (
-        (status === "resolved" || status === "closed") &&
-        resolutionNote
-      ) {
-        whatsappLines.push(`Note: ${resolutionNote}`);
-      }
-      whatsappLines.push("");
-      whatsappLines.push("Send this ticket number on WhatsApp to check status.");
-      await ctx.scheduler.runAfter(0, internal.whatsapp.cloud.notifyCitizen, {
-        phone: ticket.whatsappPhone,
-        body: whatsappLines.join("\n"),
-      });
-    }
+    // WhatsApp is sent instantly by updateTicketStatusAndNotify (action).
     return true;
   },
 });

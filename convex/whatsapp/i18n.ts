@@ -184,7 +184,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
       if (dateLabel) lines.push(`Date: ${dateLabel}`);
       lines.push("");
       lines.push("Keep this ticket number to track your complaint.");
-      lines.push("Tap Check Complaint or send the ticket number anytime.");
+      lines.push("Use the buttons below anytime.");
       return lines.join("\n");
     },
     statusNotFound:
@@ -300,7 +300,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
       if (dateLabel) lines.push(`Kwanan wata: ${dateLabel}`);
       lines.push("");
       lines.push("Ajiye lambar tikiti don bin diddigin kara.");
-      lines.push("Danna Duba kara ko aika lambar tikiti a kowane lokaci.");
+      lines.push("Yi amfani da maɓallan da ke ƙasa a kowane lokaci.");
       return lines.join("\n");
     },
     statusNotFound: "Babu tikiti da wannan lamba a wannan lambar WhatsApp.",
@@ -414,7 +414,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
       if (dateLabel) lines.push(`Ubochi: ${dateLabel}`);
       lines.push("");
       lines.push("Chekwaa nọmba tiketi a iji soro mkpesa gi.");
-      lines.push("Pia Lelee mkpesa ma obu zipu nọmba tiketi mgbe obula.");
+      lines.push("Jiri bọtịn ndị dị n'okpuru mgbe ọ bụla.");
       return lines.join("\n");
     },
     statusNotFound: "Onweghi tiketi nwere nọmba ahu maka nọmba WhatsApp a.",
@@ -527,7 +527,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
       if (dateLabel) lines.push(`Ojo: ${dateLabel}`);
       lines.push("");
       lines.push("Pa nọmba tiketi yi mo lati tele esun re.");
-      lines.push("Te Wo esun tabi fi nọmba tiketi ranse nigbakugba.");
+      lines.push("Lo awọn bọtini nisalẹ nigbakugba.");
       return lines.join("\n");
     },
     statusNotFound: "Ko si tiketi pelu nọmba yen fun nọmba WhatsApp yii.",

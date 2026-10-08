@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -110,7 +110,7 @@ export default function AdminTicketsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const hasTicketAccess = (role: string | undefined) => role === "admin" || role === "staff" || role === "president" || role === "vice_president";
   const tickets = useQuery(api.tickets.getAllTickets, hasTicketAccess(role) ? {} : "skip");
-  const updateTicketStatus = useMutation(api.tickets.updateTicketStatus);
+  const updateTicketStatus = useAction(api.whatsapp.cloud.updateTicketStatusAndNotify);
   useEffect(() => {
     if (!isLoading && !hasTicketAccess(role)) {
       router.replace("/");
@@ -179,11 +179,17 @@ export default function AdminTicketsPage() {
   };
   async function handleStatusChange(ticketId: string, newStatus: string) {
     try {
-      await updateTicketStatus({
+      const result = await updateTicketStatus({
         ticketId: ticketId as Id<"tickets">,
         status: newStatus as "open" | "in_progress" | "resolved" | "closed"
       });
-      toast.success("Ticket status updated.");
+      if (result.whatsappSent) {
+        toast.success("Ticket status updated. WhatsApp sent.");
+      } else if (result.whatsappError) {
+        toast.warning(`Ticket updated, but WhatsApp failed: ${result.whatsappError}`);
+      } else {
+        toast.success("Ticket status updated.");
+      }
     } catch (error) {
       toast.error("Failed to update ticket.");
       console.error(error);
@@ -606,12 +612,18 @@ export default function AdminTicketsPage() {
               return;
             }
             try {
-              await updateTicketStatus({
+              const result = await updateTicketStatus({
                 ticketId: pendingResolution.ticketId,
                 status: pendingResolution.status,
                 resolutionNote
               });
-              toast.success("Ticket updated successfully.");
+              if (result.whatsappSent) {
+                toast.success("Ticket updated. WhatsApp sent.");
+              } else if (result.whatsappError) {
+                toast.warning(`Ticket updated, but WhatsApp failed: ${result.whatsappError}`);
+              } else {
+                toast.success("Ticket updated successfully.");
+              }
               setShowResolutionDialog(false);
               setPendingResolution(null);
               setResolutionNote("");

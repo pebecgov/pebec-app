@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Id } from "@/convex/_generated/dataModel";
@@ -46,7 +46,7 @@ export default function AdminTicketDetailsPage() {
     vice_president: "vice_president"
   };
   const basePath = roleBasePath[role as keyof typeof roleBasePath] || "admin";
-  const updateTicketStatus = useMutation(api.tickets.updateTicketStatus);
+  const updateTicketStatus = useAction(api.whatsapp.cloud.updateTicketStatusAndNotify);
   const getFileUrl = useMutation(api.tickets.getStorageUrl);
   const deleteTicket = useMutation(api.tickets.deleteTicketMutation);
   const [fileUrls, setFileUrls] = useState<string[]>([]);
@@ -90,7 +90,16 @@ export default function AdminTicketDetailsPage() {
       updateTicketStatus({
         ticketId: ticketId as Id<"tickets">,
         status: newStatus
-      }).then(() => toast.success(`✅ Ticket updated to ${newStatus.replace("_", " ")}`)).catch(() => toast.error("❌ Failed to update ticket status.")).finally(() => setLoadingStatus(false));
+      }).then((result) => {
+        const label = newStatus.replace("_", " ");
+        if (result.whatsappSent) {
+          toast.success(`✅ Ticket updated to ${label}. WhatsApp sent.`);
+        } else if (result.whatsappError) {
+          toast.warning(`✅ Ticket updated to ${label}, but WhatsApp failed: ${result.whatsappError}`);
+        } else {
+          toast.success(`✅ Ticket updated to ${label}`);
+        }
+      }).catch(() => toast.error("❌ Failed to update ticket status.")).finally(() => setLoadingStatus(false));
     }
   }
   async function submitResolutionNote() {
@@ -98,14 +107,24 @@ export default function AdminTicketDetailsPage() {
       toast.error("Resolution note is required.");
       return;
     }
-    await updateTicketStatus({
-      ticketId: ticketId as Id<"tickets">,
-      status: statusToUpdate,
-      resolutionNote
-    });
-    setIsDialogOpen(false);
-    setIsLocked(true);
-    toast.success(`Ticket marked as ${statusToUpdate}.`);
+    try {
+      const result = await updateTicketStatus({
+        ticketId: ticketId as Id<"tickets">,
+        status: statusToUpdate,
+        resolutionNote
+      });
+      setIsDialogOpen(false);
+      setIsLocked(true);
+      if (result.whatsappSent) {
+        toast.success(`Ticket marked as ${statusToUpdate}. WhatsApp sent.`);
+      } else if (result.whatsappError) {
+        toast.warning(`Ticket marked as ${statusToUpdate}, but WhatsApp failed: ${result.whatsappError}`);
+      } else {
+        toast.success(`Ticket marked as ${statusToUpdate}.`);
+      }
+    } catch {
+      toast.error("❌ Failed to update ticket status.");
+    }
   }
   async function handleDeleteTicket() {
     try {
