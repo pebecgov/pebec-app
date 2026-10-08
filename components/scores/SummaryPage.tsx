@@ -163,12 +163,15 @@ export function MetricBreakdown({
   hint,
   metrics,
   hideStatus = false,
+  showMetricMaxOnly = false,
 }: {
   title: string;
   hint?: string;
   metrics: MetricItem[];
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
+  /** Show the metric maximum only, not the points this MDA earned on it. */
+  showMetricMaxOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState<string | null>(() => {
     const withIssues = metrics.find((m) => (m.issues?.length ?? 0) > 0);
@@ -305,9 +308,13 @@ export function MetricBreakdown({
                         />
                       </div>
                       <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
-                        {formatPoints(metric.score)}
+                        {showMetricMaxOnly
+                          ? formatPoints(metric.maxScore)
+                          : formatPoints(metric.score)}
                       </span>
-                      <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                      {!showMetricMaxOnly && (
+                        <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                      )}
                     </div>
                   )}
                   {showAsInProgress && showPartialProgress ? (

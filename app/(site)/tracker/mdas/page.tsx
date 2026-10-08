@@ -78,6 +78,8 @@ export default function MdaScoresPage() {
       emptyMessage="No MDA scoring data is available for 2026 yet."
       hideStatusDistribution
       hideStatusColumn
+      hideScoreColumn
+      hideExtraColumn
     />
   );
 }
