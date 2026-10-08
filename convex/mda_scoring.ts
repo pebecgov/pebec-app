@@ -6,6 +6,7 @@ import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import { resolveReportPeriod } from "../lib/reportPeriod";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
+import { applyOthersEdit, mergeOthersSavedRows } from "../lib/othersScoreMerge";
 import { mdaMatchKey, mdaNamesMatch } from "./lib/resolveMda";
 import {
   buildMonthlyReportData,
@@ -20,9 +21,9 @@ import {
   resolveScoringWindow,
 } from "./utils/efficiencyScoring";
 import {
-  buildSlaMonthIssues,
   buildSlaMonthStatuses,
   mergeMonthlySlaData,
+  slaIssuesFromStatuses,
 } from "../lib/slaPublicMessages";
 import { computeSlaTotalFromMonthly } from "../lib/slaScoreMath";
 import {
@@ -2297,12 +2298,19 @@ export const getAllMdaSavedDataForDashboard = query({
         finalScore = Math.min(Math.round(finalScore * 100) / 100, slaMaxPoints);
       }
 
-      const monthIssues = buildSlaMonthIssues(mergedMonthly, expectedMonths);
       const monthStatuses = buildSlaMonthStatuses(
         mergedMonthly,
         expectedMonths,
         slaMaxPoints,
       );
+      const includeMissingIssues =
+        monthStatuses.some((month) => {
+          const entry = mergedMonthly[month.monthKey] as { check?: { status?: string } } | undefined;
+          return Boolean(entry?.check?.status);
+        }) ||
+        monthStatuses.filter((month) => mergedMonthly[month.monthKey]).length >=
+          Math.max(3, Math.ceil(expectedMonths.length * 0.35));
+      const monthIssues = slaIssuesFromStatuses(monthStatuses, includeMissingIssues);
 
       mdaDataMap[mdaName].sla = {
         score: finalScore,
@@ -2977,10 +2985,10 @@ export const getAllMdaSavedDataForDashboard = query({
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
-      // For 2026+, we expect one record per year usually, but if multiple (e.g. legacy halves?), average them.
-      // Cap BEEPA to Super=/10 vs standard=/9 so dashboard + public tracker never diverge.
-      const primaryOthers = dataList[0];
-      const scores = { ...(primaryOthers?.scores || {}) } as Record<string, number>;
+      // Several rows can exist for one MDA (half-year, full year, or a renamed
+      // spelling). Merge items that were actually entered. A later row's
+      // placeholder zeros must not hide an earlier Stakeholder or Transparency score.
+      const { scores, values } = mergeOthersSavedRows(dataList);
       const beepaMax = beepaMaxPointsForMda(mdaName);
       for (const item of uniqueTransparencyItems as Array<{ itemId: string; itemName?: string }>) {
         const nameKey = String(item.itemName || "")
@@ -2995,15 +3003,11 @@ export const getAllMdaSavedDataForDashboard = query({
         (sum, value) => sum + (Number(value) || 0),
         0,
       );
-      const avgSaved =
-        dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / Math.max(dataList.length, 1);
-      const othersScore =
-        Object.keys(scores).length > 0 ? scoreFromItems : avgSaved;
 
       mdaDataMap[mdaName].others = {
-        score: Math.max(0, Math.round(othersScore * 100) / 100),
+        score: Math.max(0, Math.round(scoreFromItems * 100) / 100),
         scores,
-        values: primaryOthers?.values || {},
+        values,
         beepaMax,
       };
     });
@@ -3755,28 +3759,47 @@ export const saveOthersData = mutation({
     scores: v.any(), // Record<itemId, number>
     totalScore: v.number()
   },
-  handler: async (ctx, { mdaName, scoringPeriod, values, scores, totalScore }) => {
+  handler: async (ctx, { mdaName, scoringPeriod, values, scores }) => {
     const user = await getCurrentUserOrThrow(ctx);
+    const canonical = canonicalizeMdaName(mdaName);
+    const now = Date.now();
 
-    const existingData = await ctx.db.query("saved_others_data")
-      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const periodRows = await ctx.db
+      .query("saved_others_data")
+      .withIndex("byPeriod", (q) => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+    const matched = periodRows.filter(
+      (row) => canonicalizeMdaName(row.mdaName) === canonical,
+    );
+    const merged = applyOthersEdit(
+      mergeOthersSavedRows(matched),
+      values as Record<string, boolean | number>,
+      scores as Record<string, number>,
+    );
 
-    if (existingData) {
-      await ctx.db.patch(existingData._id, {
-        values,
-        scores,
-        totalScore,
-        updatedAt: Date.now()
+    const keeper =
+      matched.find((row) => row.mdaName === canonical) ?? matched[0] ?? null;
+    if (keeper) {
+      await ctx.db.patch(keeper._id, {
+        mdaName: canonical,
+        values: merged.values,
+        scores: merged.scores,
+        totalScore: merged.totalScore,
+        updatedAt: now,
       });
+      for (const row of matched) {
+        if (row._id !== keeper._id) {
+          await ctx.db.delete(row._id);
+        }
+      }
     } else {
       await ctx.db.insert("saved_others_data", {
-        mdaName,
+        mdaName: canonical,
         scoringPeriod,
-        values,
-        scores,
-        totalScore,
-        updatedAt: Date.now()
+        values: merged.values,
+        scores: merged.scores,
+        totalScore: merged.totalScore,
+        updatedAt: now,
       });
     }
 
@@ -3791,9 +3814,30 @@ export const getOthersData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    return await ctx.db.query("saved_others_data")
-      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const canonical = canonicalizeMdaName(mdaName);
+    const periodRows = await ctx.db
+      .query("saved_others_data")
+      .withIndex("byPeriod", (q) => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+    const matched = periodRows.filter(
+      (row) => canonicalizeMdaName(row.mdaName) === canonical,
+    );
+    if (matched.length === 0) return null;
+    const merged = mergeOthersSavedRows(matched);
+    const totalScore = Object.values(merged.scores).reduce(
+      (sum, value) => sum + (Number(value) || 0),
+      0,
+    );
+    const newest = [...matched].sort(
+      (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+    )[0];
+    return {
+      ...newest,
+      mdaName: canonical,
+      values: merged.values,
+      scores: merged.scores,
+      totalScore: Math.round(totalScore * 100) / 100,
+    };
   }
 });
 
@@ -3857,24 +3901,27 @@ export const bulkSaveOthersMatrixCells = mutation({
       .collect();
     const itemById = new Map(items.map((item) => [item.itemId, item]));
 
+    const periodRows = await ctx.db
+      .query("saved_others_data")
+      .withIndex("byPeriod", (q) => q.eq("scoringPeriod", scoringPeriod))
+      .collect();
+
     const byMda = new Map<string, Array<{ itemId: string; value: string }>>();
     for (const cell of cells) {
       if (!cell.value) continue;
-      const list = byMda.get(cell.mdaName) ?? [];
+      const canonical = canonicalizeMdaName(cell.mdaName);
+      const list = byMda.get(canonical) ?? [];
       list.push({ itemId: cell.itemId, value: cell.value });
-      byMda.set(cell.mdaName, list);
+      byMda.set(canonical, list);
     }
 
     let saved = 0;
-    for (const [mdaName, mdaCells] of byMda) {
-      const existing = await ctx.db
-        .query("saved_others_data")
-        .withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-        .first();
-
-      const values: Record<string, boolean | number> = {
-        ...((existing?.values as Record<string, boolean | number> | undefined) ?? {}),
-      };
+    for (const [canonical, mdaCells] of byMda) {
+      const matched = periodRows.filter(
+        (row) => canonicalizeMdaName(row.mdaName) === canonical,
+      );
+      const merged = mergeOthersSavedRows(matched);
+      const values: Record<string, boolean | number> = { ...merged.values };
 
       for (const cell of mdaCells) {
         const item = itemById.get(cell.itemId);
@@ -3889,36 +3936,46 @@ export const bulkSaveOthersMatrixCells = mutation({
         saved += 1;
       }
 
-      const scores: Record<string, number> = {};
-      let totalScore = 0;
+      const scores: Record<string, number> = { ...merged.scores };
       for (const item of items) {
+        if (!Object.prototype.hasOwnProperty.call(values, item.itemId)) continue;
         const value = values[item.itemId];
-        let itemScore = 0;
         if ((item.answerType ?? "yes_no") === "yes_no") {
-          itemScore = value === true ? item.weight : 0;
+          scores[item.itemId] = value === true ? item.weight : 0;
         } else {
           const numValue = typeof value === "number" ? value : 0;
-          itemScore = (numValue / 10) * item.weight;
+          scores[item.itemId] = (numValue / 10) * item.weight;
         }
-        scores[item.itemId] = itemScore;
-        totalScore += itemScore;
       }
+      const totalScore = Object.values(scores).reduce(
+        (sum, value) => sum + (Number(value) || 0),
+        0,
+      );
 
-      if (existing) {
-        await ctx.db.patch(existing._id, {
+      const keeper =
+        matched.find((row) => row.mdaName === canonical) ?? matched[0] ?? null;
+      const now = Date.now();
+      if (keeper) {
+        await ctx.db.patch(keeper._id, {
+          mdaName: canonical,
           values,
           scores,
-          totalScore,
-          updatedAt: Date.now(),
+          totalScore: Math.round(totalScore * 100) / 100,
+          updatedAt: now,
         });
+        for (const row of matched) {
+          if (row._id !== keeper._id) {
+            await ctx.db.delete(row._id);
+          }
+        }
       } else {
         await ctx.db.insert("saved_others_data", {
-          mdaName,
+          mdaName: canonical,
           scoringPeriod,
           values,
           scores,
-          totalScore,
-          updatedAt: Date.now(),
+          totalScore: Math.round(totalScore * 100) / 100,
+          updatedAt: now,
         });
       }
     }

@@ -120,16 +120,8 @@ export function EntityCard({
       className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm hover:shadow-lg transition-all duration-200 relative overflow-hidden cursor-pointer hover:-translate-y-1 hover:border-[#006B3F]/30"
       onClick={onClick}
     >
-      {row.rank <= 3 && (
-        <div
-          className={`absolute top-0 right-0 w-16 h-16 ${
-            row.rank === 1 ? "bg-yellow-400" : row.rank === 2 ? "bg-gray-300" : "bg-amber-600"
-          } opacity-10 rounded-bl-full`}
-        />
-      )}
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <RankBadge rank={row.rank} />
           <div>
             {row.abbreviation && (
               <span className="inline-flex px-2 py-0.5 text-xs font-bold text-[#006B3F] bg-[#006B3F]/10 rounded mb-1">

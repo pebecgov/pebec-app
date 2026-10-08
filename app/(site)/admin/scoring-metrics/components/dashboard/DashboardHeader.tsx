@@ -4,6 +4,7 @@ import React from 'react';
 import { Download } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BulkPdfDownloader } from '@/components/Admin/BulkPdfDownloader';
+import TrackerPresenceMonitor from '@/components/Admin/TrackerPresenceMonitor';
 
 interface DashboardHeaderProps {
     selectedMetric: string;
@@ -41,6 +42,9 @@ export default function DashboardHeader({
     return (
         <div className="bg-white p-5 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
             <div className="mb-4">
+                <div className="mb-4">
+                    <TrackerPresenceMonitor />
+                </div>
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-1">Dashboard Controls</h2>
                 <p className="text-xs sm:text-sm text-gray-600 mb-4">Filter and compare scoring performance by metric, organization type, and year.</p>
                 <div className="flex flex-wrap items-center gap-3">

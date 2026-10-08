@@ -1,7 +1,7 @@
 "use client";
 
 import { formatPoints, getScoreStatus, type RankingRow } from "@/lib/scoreTracker";
-import { ProgressBar, RankBadge, StatusBadge } from "./primitives";
+import { ProgressBar, StatusBadge } from "./primitives";
 
 interface RankingTableProps {
   rows: RankingRow[];
@@ -31,7 +31,6 @@ export function RankingTable({
         <table className="w-full">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gradient-to-r from-[#006B3F] to-[#008B52] text-white">
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Rank</th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Name</th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Score</th>
               {!hideStatusColumn && (
@@ -54,9 +53,6 @@ export function RankingTable({
                   }`}
                   onClick={() => onRowClick(row)}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <RankBadge rank={row.rank} />
-                  </td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-gray-900">{row.name}</div>
                     {row.abbreviation && <div className="text-sm text-gray-500">{row.abbreviation}</div>}
