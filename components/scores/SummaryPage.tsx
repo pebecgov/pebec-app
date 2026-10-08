@@ -444,7 +444,7 @@ export function MetricBreakdown({
                         Months that need attention
                       </h4>
                       <p className="text-xs text-amber-900/80 mt-0.5">
-                        These months did not earn a full SLA score. Fix the issue below and resubmit the Excel report for that month.
+                        These months were not scored. Fix the issue below and resubmit the Excel report for that month.
                       </p>
                     </div>
                     <ul className="divide-y divide-amber-100">

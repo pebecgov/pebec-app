@@ -130,6 +130,29 @@ function isScoredMonth(entry: SlaMonthEntry | undefined): boolean {
  * bulk/manual run (has failure checks, or covers a meaningful share of months).
  * That avoids flooding older one-off saves with “please submit” for every blank month.
  */
+/**
+ * Attention list is a subset of the month cards. A month marked scored on the
+ * card can never also be "Could not score" here.
+ */
+export function slaIssuesFromStatuses(
+  statuses: SlaMonthStatus[],
+  includeMissing: boolean,
+): SlaMonthIssue[] {
+  const issues: SlaMonthIssue[] = [];
+  for (const month of statuses) {
+    if (month.status === "scored" || month.status === "partial") continue;
+    if (month.status === "missing" && !includeMissing) continue;
+    if (month.status !== "failed" && month.status !== "missing") continue;
+    issues.push({
+      monthKey: month.monthKey,
+      monthLabel: month.monthLabel,
+      kind: month.status === "missing" ? "missing" : "failed",
+      message: month.message,
+    });
+  }
+  return issues;
+}
+
 export function buildSlaMonthIssues(
   monthlySlaData: Record<string, SlaMonthEntry> | null | undefined,
   expectedMonths: SlaMonthInput[],
@@ -138,69 +161,18 @@ export function buildSlaMonthIssues(
   const keys = Object.keys(monthlySlaData).filter((k) => !k.startsWith("__"));
   if (keys.length === 0 || expectedMonths.length === 0) return [];
 
-  const issues: SlaMonthIssue[] = [];
   let hasCheckMetadata = false;
   let presentExpected = 0;
-
   for (const month of expectedMonths) {
     const entry = monthlySlaData[month.monthKey] as SlaMonthEntry | undefined;
     if (entry) presentExpected++;
     if (entry?.check?.status) hasCheckMetadata = true;
   }
-
   const looksLikeFullPeriodRun =
     hasCheckMetadata || presentExpected >= Math.max(3, Math.ceil(expectedMonths.length * 0.35));
 
-  for (const month of expectedMonths) {
-    const entry = monthlySlaData[month.monthKey] as SlaMonthEntry | undefined;
-    const label = `${month.monthName} ${month.year}`;
-
-    if (!entry) {
-      if (looksLikeFullPeriodRun) {
-        issues.push({
-          monthKey: month.monthKey,
-          monthLabel: label,
-          kind: "missing",
-          message: plainSlaFailureMessage(null, "missing"),
-        });
-      }
-      continue;
-    }
-
-    const check = entry.check ?? null;
-    const status = check?.status;
-
-    if (status === "failed") {
-      issues.push({
-        monthKey: month.monthKey,
-        monthLabel: label,
-        kind: "failed",
-        message: plainSlaFailureMessage(check, "failed"),
-      });
-      continue;
-    }
-
-    if (status === "partial_success") {
-      issues.push({
-        monthKey: month.monthKey,
-        monthLabel: label,
-        kind: "partial",
-        message: plainSlaFailureMessage(check, "partial"),
-      });
-      continue;
-    }
-
-    if (entry.method === "file" && entry.overallPercentage == null) {
-      issues.push({
-        monthKey: month.monthKey,
-        monthLabel: label,
-        kind: "failed",
-        message: plainSlaFailureMessage(check, "failed"),
-      });
-    }
-  }
-
-  return issues;
+  const statuses = buildSlaMonthStatuses(monthlySlaData, expectedMonths, 0);
+  return slaIssuesFromStatuses(statuses, looksLikeFullPeriodRun);
 }
 
 export function mergeMonthlySlaData(
@@ -267,7 +239,30 @@ export function buildSlaMonthStatuses(
       };
     }
 
-    if (status === "failed" || (entry.method === "file" && entry.overallPercentage == null && !isScoredMonth(entry))) {
+    // Points win over a stale "failed" flag. Partial files are still scored:
+    // only some rows were usable, and the month card says so.
+    if (isScoredMonth(entry) || status === "partial_success") {
+      const points = slaMonthPoints(entry, maxPointsPerMonth);
+      const percentage =
+        typeof entry.overallPercentage === "number" ? round2(entry.overallPercentage) : null;
+      const acceptedNote =
+        status === "partial_success" ? plainSlaFailureMessage(check, "partial") : "";
+      const complianceNote =
+        percentage != null
+          ? `Excel scored at ${percentage}% compliance → ${points} of ${round2(maxPointsPerMonth)} points for this month.`
+          : `This month earned ${points} of ${round2(maxPointsPerMonth)} points.`;
+      return {
+        monthKey: month.monthKey,
+        monthLabel,
+        status: "scored" as const,
+        points,
+        maxPoints: round2(maxPointsPerMonth),
+        percentage,
+        message: acceptedNote || complianceNote,
+      };
+    }
+
+    if (status === "failed" || (entry.method === "file" && entry.overallPercentage == null)) {
       return {
         monthKey: month.monthKey,
         monthLabel,
@@ -276,37 +271,6 @@ export function buildSlaMonthStatuses(
         maxPoints: round2(maxPointsPerMonth),
         percentage: null,
         message: plainSlaFailureMessage(check, "failed"),
-      };
-    }
-
-    if (status === "partial_success") {
-      const points = slaMonthPoints(entry, maxPointsPerMonth);
-      return {
-        monthKey: month.monthKey,
-        monthLabel,
-        status: "partial" as const,
-        points,
-        maxPoints: round2(maxPointsPerMonth),
-        percentage:
-          typeof entry.overallPercentage === "number" ? round2(entry.overallPercentage) : null,
-        message: plainSlaFailureMessage(check, "partial"),
-      };
-    }
-
-    if (isScoredMonth(entry)) {
-      const points = slaMonthPoints(entry, maxPointsPerMonth);
-      return {
-        monthKey: month.monthKey,
-        monthLabel,
-        status: "scored" as const,
-        points,
-        maxPoints: round2(maxPointsPerMonth),
-        percentage:
-          typeof entry.overallPercentage === "number" ? round2(entry.overallPercentage) : null,
-        message:
-          typeof entry.overallPercentage === "number"
-            ? `Excel scored at ${round2(entry.overallPercentage)}% compliance → ${points} of ${round2(maxPointsPerMonth)} points for this month.`
-            : `This month earned ${points} of ${round2(maxPointsPerMonth)} points.`,
       };
     }
 

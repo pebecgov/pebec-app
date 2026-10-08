@@ -61,7 +61,7 @@ export default function StateSummaryPage() {
             href="/tracker/states"
             className="inline-flex items-center rounded-lg bg-[#006B3F] px-4 py-2 text-sm font-medium text-white hover:bg-[#005432]"
           >
-            Back to State Rankings
+            Back to States
           </Link>
         </div>
       </div>
@@ -103,9 +103,8 @@ export default function StateSummaryPage() {
     <div>
       <SummaryHeader
         backHref="/tracker/states"
-        backLabel="Back to State Rankings"
+        backLabel="Back to States"
         title={selected.state}
-        description={`Rank #${selected.rank} of ${stateData?.totalStates || 0} states`}
         status={status}
         score={selected.totalScore}
         maxScore={selected.maxScore}

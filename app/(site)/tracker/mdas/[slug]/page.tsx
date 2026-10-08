@@ -136,7 +136,7 @@ export default function MdaSummaryPage() {
             href="/tracker/mdas"
             className="inline-flex items-center rounded-lg bg-[#006B3F] px-4 py-2 text-sm font-medium text-white hover:bg-[#005432]"
           >
-            Back to MDA Rankings
+            Back to MDAs
           </Link>
         </div>
       </div>
@@ -222,11 +222,18 @@ export default function MdaSummaryPage() {
           }));
         }
         if (selected.slaMonthIssues && selected.slaMonthIssues.length > 0) {
-          issues = selected.slaMonthIssues.map((issue) => ({
-            label: issue.monthLabel,
-            message: issue.message,
-            kind: issue.kind,
-          }));
+          const scoredMonthKeys = new Set(
+            (monthStatuses || [])
+              .filter((month) => month.status === "scored" || month.status === "partial")
+              .map((month) => month.monthKey)
+          );
+          issues = selected.slaMonthIssues
+            .filter((issue) => !scoredMonthKeys.has(issue.monthKey))
+            .map((issue) => ({
+              label: issue.monthLabel,
+              message: issue.message,
+              kind: issue.kind,
+            }));
         }
       } else if (showDetail && metric.key === "reportGov") {
         breakdown = selected.scoreBreakdowns?.reportGov;
@@ -267,10 +274,9 @@ export default function MdaSummaryPage() {
     <div>
       <SummaryHeader
         backHref="/tracker/mdas"
-        backLabel="Back to MDA Rankings"
+        backLabel="Back to MDAs"
         abbreviation={abbreviation}
         title={selected.mdaName}
-        description={`Rank #${selected.rank} of ${mdaData?.totalMdas || 0} MDAs`}
         status={status}
         score={selected.finalScore}
         maxScore={selected.maxPossibleScore}

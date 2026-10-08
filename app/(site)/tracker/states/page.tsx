@@ -20,21 +20,22 @@ export default function StateScoresPage() {
 
   const rows = useMemo<RankingRow[] | undefined>(() => {
     if (!stateData?.states) return undefined;
-    return (stateData.states as StateRankingData[]).map((state) => ({
-      id: state.state,
-      rank: state.rank,
-      name: state.state,
-      score: state.totalScore,
-      maxScore: state.maxScore,
-      extra: Object.keys(state.indicators || {}).length,
-      href: `/tracker/states/${scoreSlug(state.state)}`,
-    }));
+    return (stateData.states as StateRankingData[])
+      .map((state) => ({
+        id: state.state,
+        rank: state.rank,
+        name: state.state,
+        score: state.totalScore,
+        maxScore: state.maxScore,
+        extra: Object.keys(state.indicators || {}).length,
+        href: `/tracker/states/${scoreSlug(state.state)}`,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }, [stateData]);
 
   return (
     <RankingDashboard
-      title="State Rankings"
-      subtitle="Nigerian state business climate rankings — 2026"
+      title="State Performance"
       searchPlaceholder="Search state..."
       extraColumnHeader="Indicators"
       extraCardLabel="indicators"

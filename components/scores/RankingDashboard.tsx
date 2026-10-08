@@ -138,7 +138,7 @@ export function RankingDashboard({
 
       <section>
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">{entityLabel} Rankings</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{entityLabel}s</h2>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

@@ -45,22 +45,24 @@ export default function MdaScoresPage() {
 
   const rows = useMemo<RankingRow[] | undefined>(() => {
     if (!mdaData) return undefined;
-    return (mdaData.mdas as MdaScoreData[]).map((mda) => {
-      const reports = reportByMda.get(canonicalizeMdaName(mda.mdaName));
-      return {
-        id: mda.mdaName,
-        rank: mda.rank,
-        name: mda.mdaName,
-        abbreviation: getMdaAbbreviation(mda.mdaName),
-        score: mda.finalScore,
-        maxScore: mda.maxPossibleScore,
-        extra:
-          SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && reports.submitted > 0
-            ? `${reports.submitted}/${reports.due}`
-            : "—",
-        href: `/tracker/mdas/${scoreSlug(mda.mdaName)}`,
-      };
-    });
+    return (mdaData.mdas as MdaScoreData[])
+      .map((mda) => {
+        const reports = reportByMda.get(canonicalizeMdaName(mda.mdaName));
+        return {
+          id: mda.mdaName,
+          rank: mda.rank,
+          name: mda.mdaName,
+          abbreviation: getMdaAbbreviation(mda.mdaName),
+          score: mda.finalScore,
+          maxScore: mda.maxPossibleScore,
+          extra:
+            SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && reports.submitted > 0
+              ? `${reports.submitted}/${reports.due}`
+              : "—",
+          href: `/tracker/mdas/${scoreSlug(mda.mdaName)}`,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }, [mdaData, reportByMda]);
 
   return (
