@@ -31,6 +31,10 @@ interface RankingDashboardProps {
   hideStatusDistribution?: boolean;
   /** Hide status badges in table/cards (MDA tracker). */
   hideStatusColumn?: boolean;
+  /** MDA list: name only, no overall score. */
+  hideScoreColumn?: boolean;
+  /** MDA list: hide the reports column. */
+  hideExtraColumn?: boolean;
 }
 
 export function RankingDashboard({
@@ -45,6 +49,8 @@ export function RankingDashboard({
   emptyMessage,
   hideStatusDistribution = false,
   hideStatusColumn = false,
+  hideScoreColumn = false,
+  hideExtraColumn = false,
 }: RankingDashboardProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>("ranking");
@@ -197,6 +203,8 @@ export function RankingDashboard({
               rows={filteredRows}
               extraColumnHeader={extraColumnHeader}
               hideStatusColumn={hideStatusColumn}
+              hideScoreColumn={hideScoreColumn}
+              hideExtraColumn={hideExtraColumn}
               onRowClick={(row) => router.push(row.href)}
             />
           ) : (

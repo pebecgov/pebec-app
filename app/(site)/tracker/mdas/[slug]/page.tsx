@@ -299,6 +299,7 @@ export default function MdaSummaryPage() {
         hint="SLA shows month-by-month points; Report Gov and BEEPA explain how scores are graded."
         metrics={metrics}
         hideStatus={!fullyScored}
+        showMetricMaxOnly
       />
       {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
         <MonthlyReportsPanel

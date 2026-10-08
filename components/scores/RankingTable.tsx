@@ -8,6 +8,8 @@ interface RankingTableProps {
   extraColumnHeader: string;
   onRowClick: (row: RankingRow) => void;
   hideStatusColumn?: boolean;
+  hideScoreColumn?: boolean;
+  hideExtraColumn?: boolean;
 }
 
 export function RankingTable({
@@ -15,6 +17,8 @@ export function RankingTable({
   extraColumnHeader,
   onRowClick,
   hideStatusColumn = false,
+  hideScoreColumn = false,
+  hideExtraColumn = false,
 }: RankingTableProps) {
   if (rows.length === 0) {
     return (
@@ -32,14 +36,18 @@ export function RankingTable({
           <thead className="sticky top-0 z-10">
             <tr className="bg-gradient-to-r from-[#006B3F] to-[#008B52] text-white">
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Name</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Score</th>
+              {!hideScoreColumn && (
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Score</th>
+              )}
               {!hideStatusColumn && (
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Progress</th>
               )}
               {!hideStatusColumn && (
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">Status</th>
               )}
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">{extraColumnHeader}</th>
+              {!hideExtraColumn && (
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider">{extraColumnHeader}</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -57,9 +65,11 @@ export function RankingTable({
                     <div className="text-sm font-medium text-gray-900">{row.name}</div>
                     {row.abbreviation && <div className="text-sm text-gray-500">{row.abbreviation}</div>}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-semibold text-gray-900">{formatPoints(row.score)}</span>
-                  </td>
+                  {!hideScoreColumn && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-gray-900">{formatPoints(row.score)}</span>
+                    </td>
+                  )}
                   {!hideStatusColumn && status && (
                     <td className="px-6 py-4 w-40">
                       <ProgressBar score={row.score} maxScore={row.maxScore} color={status.color} size="sm" />
@@ -70,7 +80,9 @@ export function RankingTable({
                       <StatusBadge status={status} size="sm" />
                     </td>
                   )}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.extra}</td>
+                  {!hideExtraColumn && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{row.extra}</td>
+                  )}
                 </tr>
               );
             })}
