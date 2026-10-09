@@ -142,10 +142,14 @@ export const mdalistIcon = [{
     name: "National Pension Commission",
     abbreviation: "PENCOM",
     icon: "👴👵" // Icon representing elderly people or pensions
-  }, {
+  },   {
     name: "National Bureau of Statistics",
     abbreviation: "NBS",
     icon: "📊" // Icon representing a bar chart or statistics
+  }, {
+    name: "National Single Window",
+    abbreviation: "NSW",
+    icon: "🪟" // Icon representing a single window / digital gateway
   }, {
     name: "Nigeria Agricultural Quarantine Service",
     abbreviation: "NAQS",
