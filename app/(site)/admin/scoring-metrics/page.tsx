@@ -456,7 +456,6 @@ export default function ScoringMetricsPage() {
       const isTransparencySkipped = mda.transparency?.isSkipped || false;
 
       // Recompute max points from active yearly metric totals and per-MDA exclusions.
-      // This guarantees denominator reflects exclusions even for empty/no-data rows.
       let maxPossiblePoints = baseMaxPoints;
       if (isTransparencySkipped) maxPossiblePoints -= 5;
       if (isReportGovSkipped) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
