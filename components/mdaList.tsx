@@ -113,9 +113,12 @@ export const mdasList = [{
 }, {
   name: "National Pension Commission",
   abbreviation: "PENCOM"
-}, {
+},   {
   name: "National Bureau of Statistics",
   abbreviation: "NBS"
+}, {
+  name: "National Single Window",
+  abbreviation: "NSW"
 }, {
   name: "Nigeria Agricultural Quarantine Service",
   abbreviation: "NAQS"
