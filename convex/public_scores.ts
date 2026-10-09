@@ -675,11 +675,17 @@ function buildPublicMdaRowFromDashboard(
   const beepaKey = findBeepaMetricKey(othersItems);
   const isSuperMda = isSuperBeepaMda(displayName);
   const beepaMax = beepaMaxPointsForMda(displayName);
+  const mysteryMaxOverride =
+    typeof mda.mysteryMaxPoints === "number" ? mda.mysteryMaxPoints : null;
   const metricScores: Record<string, MetricScoreCell> = {};
   for (const metric of frameworkMetrics) {
     const frameworkMax =
       beepaKey && metric.key === beepaKey ? beepaMax : metric.max;
     const base = metricScoreFromDashboard(mda, metric.key, frameworkMax);
+    if (metric.key === "mystery" && mysteryMaxOverride != null) {
+      base.max = mysteryMaxOverride;
+      if (base.score > mysteryMaxOverride) base.score = mysteryMaxOverride;
+    }
     // Cap BEEPA display max (and score if it somehow exceeds) for non–Super MDAs.
     if (beepaKey && metric.key === beepaKey) {
       base.max = beepaMax;
@@ -742,6 +748,7 @@ function buildPublicMdaRowFromDashboard(
     .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
     .reduce((sum, metric) => {
       if (beepaKey && metric.key === beepaKey) return sum + beepaMax;
+      if (metric.key === "mystery" && mysteryMaxOverride != null) return sum + mysteryMaxOverride;
       return sum + metric.max;
     }, 0);
 

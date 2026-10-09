@@ -31,6 +31,12 @@ import {
   BEEPA_SUPER_MDA_MAX,
   beepaMaxPointsForMda,
 } from "../lib/beepaTrackerRoster";
+import {
+  exemptMysteryTypeIds,
+  isSavedMysteryTypeExempt,
+  mysteryExemptionAdjustment,
+  type MysteryTypeRef,
+} from "../lib/mysteryTypeExemption";
 
 export function normalizeMdaKey(name: string) {
   return String(name || "")
@@ -2032,12 +2038,15 @@ export const getAllMdaSavedDataForDashboard = query({
     const fullYearPeriod = String(year);
 
     // Fetch dynamic configuration for 2026+
-    const [efficiencyConfig, mysteryQuestions, transparencyItems, innovationStakeholderItems, metricExclusions] = await Promise.all([
+    const [efficiencyConfig, mysteryQuestions, mysteryTypes, transparencyItems, innovationStakeholderItems, metricExclusions] = await Promise.all([
       ctx.db.query("efficiency_periods")
         .withIndex("byYear", q => q.eq("year", year))
         .filter(q => q.eq(q.field("isActive"), true))
         .first(),
       ctx.db.query("mystery_shopping_questions")
+        .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
+        .collect(),
+      ctx.db.query("mystery_shopping_types")
         .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
         .collect(),
       ctx.db.query("transparency_items")
@@ -2406,6 +2415,7 @@ export const getAllMdaSavedDataForDashboard = query({
         maxPossibleScore: typeMax,
         complete,
         questionLines,
+        mysteryType: mysteryTypeId,
       };
     });
 
@@ -3070,7 +3080,31 @@ export const getAllMdaSavedDataForDashboard = query({
         excludedMetrics.has("others") || excludedMetrics.has(`others:${itemId}`);
 
       const slaScore = mda.sla?.score || 0;
-      const mysteryScore = mda.mysteryShopping?.score || 0;
+      const exemptTypeIds = exemptMysteryTypeIds(excludedMetrics);
+      const mysteryTypesForExemption: MysteryTypeRef[] = mysteryTypes.map((type) => ({
+        typeId: String(type.typeId || ""),
+        typeName: type.typeName,
+      }));
+      const mysteryQuestionsForExemption = uniqueMysteryQuestions.map((question) => ({
+        typeId: String(question.typeId || ""),
+        weight: question.weight || 0,
+      }));
+      const mysteryAdjustment = mysteryExemptionAdjustment({
+        questions: mysteryQuestionsForExemption,
+        excludedTypeIds: exemptTypeIds,
+        mysteryTotal,
+      });
+      const savedMysteryType = String(mda.mysteryShopping?.mysteryType || "");
+      const mysteryTypeExempt = isSavedMysteryTypeExempt(
+        savedMysteryType,
+        exemptTypeIds,
+        mysteryTypesForExemption,
+      );
+      let mysteryScore = mda.mysteryShopping?.score || 0;
+      if (!isExcluded("mystery") && mysteryAdjustment.exemptPoints > 0) {
+        if (mysteryTypeExempt) mysteryScore = 0;
+        mysteryScore = Math.min(mysteryScore, mysteryAdjustment.applicableMax);
+      }
       // Legacy metrics
       const controversialScore = mda.controversial?.score || 0;
       const toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
@@ -3143,6 +3177,7 @@ export const getAllMdaSavedDataForDashboard = query({
         if (isExcluded("timeliness")) maxPossiblePoints -= (efficiencyConfig.timelinessPoints || 3);
         if (isExcluded("reportGov")) maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 20);
         if (isExcluded("mystery")) maxPossiblePoints -= mysteryTotal;
+        else if (mysteryAdjustment.exemptPoints > 0) maxPossiblePoints -= mysteryAdjustment.exemptPoints;
         if (isExcluded("others")) {
           maxPossiblePoints -= othersTotal;
         } else if (Array.isArray(uniqueTransparencyItems)) {
@@ -3223,8 +3258,21 @@ export const getAllMdaSavedDataForDashboard = query({
         } : null,
         mysteryShopping: mda.mysteryShopping ? {
           ...mda.mysteryShopping,
-          maxPossibleScore: mysteryTotal
+          score:
+            !isExcluded("mystery") && mysteryAdjustment.exemptPoints > 0
+              ? effectiveMysteryScore
+              : mda.mysteryShopping.score,
+          maxPossibleScore:
+            isExcluded("mystery")
+              ? mysteryTotal
+              : mysteryAdjustment.exemptPoints > 0
+                ? mysteryAdjustment.applicableMax
+                : mysteryTotal,
+          questionLines: mysteryTypeExempt ? [] : mda.mysteryShopping.questionLines,
         } : null,
+        ...( !isExcluded("mystery") && mysteryAdjustment.exemptPoints > 0
+          ? { mysteryMaxPoints: mysteryAdjustment.applicableMax }
+          : {}),
       };
     });
 

@@ -30,6 +30,11 @@ import BulkEfficiencyCard from './BulkEfficiencyCard';
 import BulkSLACard from './BulkSLACard';
 import { computeReportGovBreakdown } from '@/convex/utils/efficiencyScoring';
 import { computeSlaTotalFromMonthly } from '@/lib/slaScoreMath';
+import {
+    exemptMysteryTypeIds,
+    isSavedMysteryTypeExempt,
+    mysteryExemptionAdjustment,
+} from '@/lib/mysteryTypeExemption';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -589,7 +594,7 @@ export default function ScoringTab({
     const calculateFinalScores = () => {
         // Core metrics (Common)
         const sla = isMetricExcluded("sla") ? 0 : calculateMonthlySlaScore().totalScore;
-        const mystery = isMetricExcluded("mystery") ? 0 : calculateMysteryScore(mysteryType, mysteryRatings);
+        let mystery = isMetricExcluded("mystery") ? 0 : calculateMysteryScore(mysteryType, mysteryRatings);
         const reportGov = isMetricExcluded("reportGov") || skipReportGov ? 0 : reportgovRate;
         const monthlyReport = isMetricExcluded("reportSubmission") ? 0 : calculateMonthlyReportStats().score;
         const timeliness = isMetricExcluded("timeliness") ? 0 : calculateTimelinessStats().score;
@@ -647,6 +652,29 @@ export default function ScoringTab({
             if (isMetricExcluded("reportSubmission")) currentMaxPoints -= (efficiencyConfig?.reportSubmissionPoints ?? 3);
             if (isMetricExcluded("timeliness")) currentMaxPoints -= (efficiencyConfig?.timelinessPoints ?? 2);
             if (isMetricExcluded("mystery")) currentMaxPoints -= 20;
+            else if (Array.isArray(mysteryConfig)) {
+                const exemptTypeIds = exemptMysteryTypeIds(excludedMetricSet);
+                const mysteryTypes = mysteryConfig.map((type: { typeId?: string; typeName?: string }) => ({
+                    typeId: String(type.typeId || type.typeName || ""),
+                    typeName: type.typeName,
+                }));
+                const mysteryQuestions = mysteryConfig.flatMap(
+                    (type: { typeId?: string; typeName?: string; questions?: Array<{ weight?: number }> }) =>
+                        (type.questions || []).map((question) => ({
+                            typeId: String(type.typeId || type.typeName || ""),
+                            weight: question.weight || 0,
+                        }))
+                );
+                const adjustment = mysteryExemptionAdjustment({
+                    questions: mysteryQuestions,
+                    excludedTypeIds: exemptTypeIds,
+                    mysteryTotal: 40,
+                });
+                currentMaxPoints -= adjustment.exemptPoints;
+                if (isSavedMysteryTypeExempt(mysteryType, exemptTypeIds, mysteryTypes)) {
+                    mystery = 0;
+                }
+            }
             if (isMetricExcluded("others")) {
                 const othersConfiguredTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0);
                 currentMaxPoints -= othersConfiguredTotal || 25;

@@ -12,6 +12,11 @@ import { toast } from "sonner";
 
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
+import {
+  exemptMysteryTypeIds,
+  isSavedMysteryTypeExempt,
+  mysteryExemptionAdjustment,
+} from "@/lib/mysteryTypeExemption";
 
 import ScoringTab from "./components/scoring/ScoringTab";
 import { BulkPdfDownloader } from "@/components/Admin/BulkPdfDownloader";
@@ -350,7 +355,37 @@ export default function ScoringMetricsPage() {
         timelinessScore = mda.timeliness.score * (pointsPerMonth10 / pointsPerMonth12);
       }
 
-      const mysteryScore = isExcluded("mystery") ? 0 : (mda.mysteryShopping?.score || 0);
+      let mysteryScore = isExcluded("mystery") ? 0 : (mda.mysteryShopping?.score || 0);
+      let mysteryExemptionPoints = 0;
+      if (dashboardYear >= 2026 && !isExcluded("mystery") && Array.isArray(mysteryConfig)) {
+        const exemptTypeIds = exemptMysteryTypeIds(excludedMetricSet);
+        const mysteryTypes = mysteryConfig.map((type: { typeId?: string; typeName?: string }) => ({
+          typeId: String(type.typeId || type.typeName || ""),
+          typeName: type.typeName,
+        }));
+        const mysteryQuestions = mysteryConfig.flatMap(
+          (type: { typeId?: string; typeName?: string; questions?: Array<{ weight?: number }> }) =>
+            (type.questions || []).map((question) => ({
+              typeId: String(type.typeId || type.typeName || ""),
+              weight: question.weight || 0,
+            }))
+        );
+        const adjustment = mysteryExemptionAdjustment({
+          questions: mysteryQuestions,
+          excludedTypeIds: exemptTypeIds,
+          mysteryTotal: 40,
+        });
+        mysteryExemptionPoints = Math.min(adjustment.exemptPoints, 20);
+        if (
+          isSavedMysteryTypeExempt(
+            String(mda.mysteryShopping?.mysteryType || ""),
+            exemptTypeIds,
+            mysteryTypes
+          )
+        ) {
+          mysteryScore = 0;
+        }
+      }
       const innovationScore = isExcluded("innovation") ? 0 : (mda.innovation?.score || 0);
       const stakeholderScore = isExcluded("stakeholder") ? 0 : (mda.stakeholder?.score || 0);
       const transparencyScore = isExcluded("transparency") ? 0 : (mda.transparency?.score || 0);
@@ -426,6 +461,7 @@ export default function ScoringMetricsPage() {
       if (isReportGovSkipped) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
       if (isExcluded("sla")) maxPossiblePoints -= 30;
       if (isExcluded("mystery")) maxPossiblePoints -= 20;
+      else if (mysteryExemptionPoints > 0) maxPossiblePoints -= mysteryExemptionPoints;
       if (isExcluded("innovation")) maxPossiblePoints -= 5;
       if (isExcluded("transparency")) maxPossiblePoints -= 5;
       if (isExcluded("reportGov")) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));

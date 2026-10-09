@@ -155,6 +155,7 @@ export default function MdaSummaryPage() {
     (reportData?.mdas || []).find(
       (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
     ) ?? reportData?.mdas?.[0];
+  const testingServiceExempt = excluded.some((key) => key.startsWith("mysteryType:"));
   const efficiencyKeys = new Set([
     "sla",
     "mystery",
@@ -255,7 +256,10 @@ export default function MdaSummaryPage() {
         complete: exempted ? true : isComplete,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         // Admin metric justifications stay in admin scoring only — not on the public tracker.
-        justification: undefined,
+        justification:
+          metric.key === "mystery" && testingServiceExempt
+            ? "Testing Service is excluded. This maximum is Mystery Shopping without those points."
+            : undefined,
         exempted,
         scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
         monthStatuses,
