@@ -307,13 +307,22 @@ export function MetricBreakdown({
                           size="sm"
                         />
                       </div>
-                      <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
-                        {showMetricMaxOnly
-                          ? formatPoints(metric.maxScore)
-                          : formatPoints(metric.score)}
-                      </span>
-                      {!showMetricMaxOnly && (
-                        <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                      {showMetricMaxOnly ? (
+                        <span className="text-right shrink-0">
+                          <span className="block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                            Metric maximum
+                          </span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formatPoints(metric.maxScore)}
+                          </span>
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
+                            {formatPoints(metric.score)}
+                          </span>
+                          <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                        </>
                       )}
                     </div>
                   )}

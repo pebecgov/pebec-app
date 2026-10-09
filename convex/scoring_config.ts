@@ -534,9 +534,15 @@ export const saveMdaMetricExclusions = mutation({
                 (targetParts.abbr && current === targetParts.abbr);
         });
 
+        const incomingHasTypeKeys = uniqueExcluded.some((key) => key.startsWith("mysteryType:"));
+        const preservedTypeKeys = incomingHasTypeKeys
+            ? []
+            : (existing?.excludedMetrics || []).filter((key) => key.startsWith("mysteryType:"));
+        const nextExcluded = Array.from(new Set([...uniqueExcluded, ...preservedTypeKeys]));
+
         if (existing) {
             await ctx.db.patch(existing._id, {
-                excludedMetrics: uniqueExcluded,
+                excludedMetrics: nextExcluded,
                 updatedAt: now,
                 updatedBy: user._id
             });
@@ -544,7 +550,7 @@ export const saveMdaMetricExclusions = mutation({
             await ctx.db.insert("mda_metric_exclusions", {
                 year,
                 mdaName,
-                excludedMetrics: uniqueExcluded,
+                excludedMetrics: nextExcluded,
                 updatedAt: now,
                 updatedBy: user._id
             });
@@ -552,6 +558,110 @@ export const saveMdaMetricExclusions = mutation({
 
         return { success: true };
     }
+});
+
+function exclusionNamesMatch(a: string, b: string): boolean {
+    const left = normalizeMdaKey(a);
+    const right = normalizeMdaKey(b);
+    if (left === right) return true;
+    const leftParts = splitMdaNameForMatch(a);
+    const rightParts = splitMdaNameForMatch(b);
+    const leftAbbr = "abbr" in leftParts ? leftParts.abbr : undefined;
+    const rightAbbr = "abbr" in rightParts ? rightParts.abbr : undefined;
+    return leftParts.fullName === right ||
+        rightParts.fullName === left ||
+        leftParts.fullName === rightParts.fullName ||
+        (leftAbbr !== undefined && (leftAbbr === right || leftAbbr === rightAbbr)) ||
+        (rightAbbr !== undefined && rightAbbr === left);
+}
+
+export const saveTestingServiceMysteryExemptions = mutation({
+    args: {
+        year: v.number(),
+        typeId: v.string(),
+        mdaNames: v.array(v.string()),
+    },
+    returns: v.object({
+        saved: v.number(),
+    }),
+    handler: async (ctx, { year, typeId, mdaNames }) => {
+        const user = await getCurrentUserOrThrow(ctx);
+        if (user.role !== "admin" && user.role !== "staff") {
+            throw new Error("Unauthorized");
+        }
+
+        const trimmedTypeId = typeId.trim();
+        if (!trimmedTypeId) {
+            throw new Error("Choose the testing service mystery shopping type");
+        }
+
+        const type = await ctx.db
+            .query("mystery_shopping_types")
+            .withIndex("byYearAndActive", (q) => q.eq("year", year).eq("isActive", true))
+            .collect();
+        const typeExists = type.some((entry) => entry.typeId === trimmedTypeId);
+        if (!typeExists) {
+            throw new Error("That mystery shopping type is not active for this year");
+        }
+
+        const key = `mysteryType:${trimmedTypeId}`;
+        const selected = Array.from(new Set(mdaNames.map((name) => name.trim()).filter(Boolean)));
+        const now = Date.now();
+        const all = await ctx.db
+            .query("mda_metric_exclusions")
+            .withIndex("byYear", (q) => q.eq("year", year))
+            .collect();
+
+        const isSelected = (mdaName: string) =>
+            selected.some((name) => exclusionNamesMatch(mdaName, name));
+
+        let saved = 0;
+
+        for (const entry of all) {
+            const hasKey = (entry.excludedMetrics || []).includes(key);
+            const selectedRow = isSelected(entry.mdaName);
+            if (selectedRow && hasKey) {
+                saved += 1;
+                continue;
+            }
+            if (selectedRow && !hasKey) {
+                await ctx.db.patch(entry._id, {
+                    excludedMetrics: Array.from(new Set([...(entry.excludedMetrics || []), key])),
+                    updatedAt: now,
+                    updatedBy: user._id,
+                });
+                saved += 1;
+                continue;
+            }
+            if (!selectedRow && hasKey) {
+                const next = (entry.excludedMetrics || []).filter((metric) => metric !== key);
+                if (next.length === 0) {
+                    await ctx.db.delete(entry._id);
+                } else {
+                    await ctx.db.patch(entry._id, {
+                        excludedMetrics: next,
+                        updatedAt: now,
+                        updatedBy: user._id,
+                    });
+                }
+            }
+        }
+
+        for (const mdaName of selected) {
+            const already = all.some((entry) => exclusionNamesMatch(entry.mdaName, mdaName));
+            if (already) continue;
+            await ctx.db.insert("mda_metric_exclusions", {
+                year,
+                mdaName,
+                excludedMetrics: [key],
+                updatedAt: now,
+                updatedBy: user._id,
+            });
+            saved += 1;
+        }
+
+        return { saved };
+    },
 });
 
 // ============================================
