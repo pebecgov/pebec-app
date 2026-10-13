@@ -1,6 +1,6 @@
 "use client";
 
-import { formatPoints, getScoreStatus, type RankingRow } from "@/lib/scoreTracker";
+import { formatScorePair, getScoreStatus, type RankingRow } from "@/lib/scoreTracker";
 import { ProgressBar, StatusBadge } from "./primitives";
 
 interface RankingTableProps {
@@ -67,7 +67,7 @@ export function RankingTable({
                   </td>
                   {!hideScoreColumn && (
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-gray-900">{formatPoints(row.score)}</span>
+                      <span className="text-sm font-semibold text-gray-900">{formatScorePair(row.score, row.maxScore)}</span>
                     </td>
                   )}
                   {!hideStatusColumn && status && (

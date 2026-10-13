@@ -287,6 +287,7 @@ export default function MdaSummaryPage() {
         score={selected.finalScore}
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
+        scoreNote="Bonus points are included in this total"
         notScoredYet={!fullyScored}
       />
       {beepaExempted && (
