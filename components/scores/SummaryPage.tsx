@@ -81,6 +81,7 @@ export function SummaryHeader({
   score,
   maxScore,
   scoreLabel,
+  scoreNote,
   notScoredYet = false,
   hideStatus = false,
 }: {
@@ -93,6 +94,7 @@ export function SummaryHeader({
   score: number;
   maxScore: number;
   scoreLabel: string;
+  scoreNote?: string;
   notScoredYet?: boolean;
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
@@ -146,7 +148,10 @@ export function SummaryHeader({
               <span className="text-lg font-semibold text-gray-500">Not scored fully</span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mb-3">Assessment year {SCORE_YEAR}</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Assessment year {SCORE_YEAR}
+            {scoreNote ? ` · ${scoreNote}` : ""}
+          </p>
           {showRunningTotal ? (
             <ProgressBar score={score} maxScore={maxScore} color={progressColor} size="lg" />
           ) : (

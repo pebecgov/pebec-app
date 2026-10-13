@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import {
   getScoreStatus,
   getStatusColorClasses,
-  formatPoints,
+  formatScorePair,
   type RankingRow,
   type ScoreStatus,
   type StatusColor,
@@ -143,7 +143,7 @@ export function EntityCard({
         ) : (
           <StatusBadge status={status} size="sm" />
         )}
-        <span className="text-lg font-bold text-[#006B3F]">{formatPoints(row.score)}</span>
+        <span className="text-lg font-bold text-[#006B3F]">{formatScorePair(row.score, row.maxScore)}</span>
       </div>
       {!hideStatus && (
         <p className="mt-3 text-xs text-gray-500">

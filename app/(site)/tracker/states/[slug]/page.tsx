@@ -109,6 +109,7 @@ export default function StateSummaryPage() {
         score={selected.totalScore}
         maxScore={selected.maxScore}
         scoreLabel="Overall Business Climate Score"
+        scoreNote="Bonus points are included in this total"
         notScoredYet={!fullyScored}
       />
       <MetricBreakdown

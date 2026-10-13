@@ -3,8 +3,6 @@ import { query } from "./_generated/server";
 import { api } from "./_generated/api";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
 import {
-  BEEPA_STANDARD_MDA_MAX,
-  BEEPA_SUPER_MDA_MAX,
   BEEPA_TRACKER_ROSTER,
   beepaMaxPointsForMda,
   isSuperBeepaMda,
@@ -15,13 +13,15 @@ import {
   CURRENT_INDICATOR_YEAR,
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
-  getOverallMaxScoreForYear,
 } from "./config/indicators";
 import { STATE_LIST, normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
 import {
   buildMdaMetricScoreBreakdowns,
   type ScoreBreakdownLine,
 } from "../lib/bfaScoreBreakdowns";
+
+/** Public tracker headline for MDAs and states. Bonus points sit inside this total. */
+const PUBLIC_TRACKER_SCORE_MAX = 100;
 
 // Helper function for grade calculation
 function gradeFromPercentage(percentage: number): string {
@@ -122,15 +122,15 @@ export const getPublicStateRankings = query({
       stateData.indicators[score.indicator].subIndicators[score.subIndicator] = score.score;
     }
 
-    const denominator: number = getOverallMaxScoreForYear(currentYear);
     const sortedStates = Array.from(stateDetails.entries())
       .map(([stateName, data]) => {
-        const percentage = denominator > 0 ? (data.totalScore / denominator) * 100 : 0;
+        const totalScore = Math.min(data.totalScore, PUBLIC_TRACKER_SCORE_MAX);
+        const percentage = Math.round((totalScore / PUBLIC_TRACKER_SCORE_MAX) * 10000) / 100;
         return {
           state: stateName,
-          totalScore: data.totalScore,
-          maxScore: denominator,
-          percentage: Math.round(percentage * 100) / 100,
+          totalScore,
+          maxScore: PUBLIC_TRACKER_SCORE_MAX,
+          percentage,
           lastUpdated: data.lastUpdated,
           indicators: data.indicators,
         };
@@ -744,33 +744,8 @@ function buildPublicMdaRowFromDashboard(
   }
   const slaMonthStatuses = Array.isArray(slaBucket?.monthStatuses) ? slaBucket.monthStatuses : [];
 
-  const maxFromFramework = frameworkMetrics
-    .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
-    .reduce((sum, metric) => {
-      if (beepaKey && metric.key === beepaKey) return sum + beepaMax;
-      if (metric.key === "mystery" && mysteryMaxOverride != null) return sum + mysteryMaxOverride;
-      return sum + metric.max;
-    }, 0);
-
-  // Prefer dashboard max (includes skips/exclusions); floor at framework max
-  // (already BEEPA Super=/10 vs standard=/9). Only correct a stale +1 if the
-  // dashboard still assumed BEEPA=10 for a non–Super MDA.
-  let maxPossibleScore = Number(mda.maxPossiblePoints) || maxFromFramework || 100;
-  if (
-    beepaKey &&
-    !isMetricExcluded(excludedMetrics, beepaKey) &&
-    !isSuperMda &&
-    beepaMax === BEEPA_STANDARD_MDA_MAX &&
-    maxFromFramework > 0 &&
-    maxPossibleScore === maxFromFramework + (BEEPA_SUPER_MDA_MAX - BEEPA_STANDARD_MDA_MAX)
-  ) {
-    maxPossibleScore = maxFromFramework;
-  }
-  maxPossibleScore = Math.max(maxPossibleScore, maxFromFramework);
-
-  // Forever sync: header total = sum of the same metric cells the UI shows
-  // (+ signed penalties/bonuses), not a separately stored dashboard total that
-  // could drift when BEEPA is capped or live auto-metrics refresh.
+  // Headline is always out of 100. Bonus and innovation points are already inside
+  // the earned total, so they do not raise the ceiling.
   let metricsSum = 0;
   for (const metric of frameworkMetrics) {
     if (isMetricExcluded(excludedMetrics, metric.key)) continue;
@@ -778,14 +753,14 @@ function buildPublicMdaRowFromDashboard(
   }
   const penaltyRaw = Number(penalties?.score) || 0;
   const bonusRaw = Number(bonuses?.score) || 0;
-  const finalScore = roundScore(metricsSum + penaltyRaw + bonusRaw);
-  const percentage =
-    maxPossibleScore > 0 ? roundScore((finalScore / maxPossibleScore) * 100) : 0;
+  const earnedScore = roundScore(metricsSum + penaltyRaw + bonusRaw);
+  const finalScore = Math.min(earnedScore, PUBLIC_TRACKER_SCORE_MAX);
+  const percentage = roundScore((finalScore / PUBLIC_TRACKER_SCORE_MAX) * 100);
 
   return {
     mdaName: displayName,
     finalScore,
-    maxPossibleScore,
+    maxPossibleScore: PUBLIC_TRACKER_SCORE_MAX,
     percentage,
     metricScores,
     othersBreakdown,
@@ -816,9 +791,6 @@ function buildEmptyPublicMdaRow(
 ): PublicMdaRow {
   const excludedMetrics =
     entry.beepaExempted && beepaExclusionKey ? [beepaExclusionKey] : [];
-  const maxPossibleScore = frameworkMetrics
-    .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
-    .reduce((sum, metric) => sum + metric.max, 0);
   const metricScores: Record<string, MetricScoreCell> = {};
   for (const metric of frameworkMetrics) {
     metricScores[metric.key] = { score: 0, max: metric.max, scored: false, complete: false };
@@ -827,7 +799,7 @@ function buildEmptyPublicMdaRow(
   return {
     mdaName: entry.name,
     finalScore: 0,
-    maxPossibleScore: maxPossibleScore || 100,
+    maxPossibleScore: PUBLIC_TRACKER_SCORE_MAX,
     percentage: 0,
     metricScores,
     othersBreakdown: [],
