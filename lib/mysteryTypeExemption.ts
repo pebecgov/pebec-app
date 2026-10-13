@@ -1,80 +1,132 @@
-/** Exclusion key for one mystery shopping type, e.g. mysteryType:<typeId>. */
-export const MYSTERY_TYPE_EXCLUSION_PREFIX = "mysteryType:";
+/** Exclusion key for the Testing Service mystery-shopping question. */
+export const MYSTERY_QUESTION_EXCLUSION_PREFIX = "mysteryQuestion:";
 
-export function mysteryTypeExclusionKey(typeId: string): string {
-  return `${MYSTERY_TYPE_EXCLUSION_PREFIX}${typeId}`;
+export function mysteryQuestionExclusionKey(questionId: string): string {
+  return `${MYSTERY_QUESTION_EXCLUSION_PREFIX}${questionId}`;
 }
 
-export function isTestingServiceMysteryType(typeName: string): boolean {
-  const key = String(typeName || "")
+export function isTestingServiceMysteryQuestion(questionText: string): boolean {
+  const key = String(questionText || "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
   return key.includes("testing service");
 }
 
-export function exemptMysteryTypeIds(excluded: Iterable<string>): Set<string> {
+export function exemptMysteryQuestionIds(excluded: Iterable<string>): Set<string> {
   const ids = new Set<string>();
+  let legacyTypeKey = false;
   for (const key of excluded) {
-    if (typeof key === "string" && key.startsWith(MYSTERY_TYPE_EXCLUSION_PREFIX)) {
-      const typeId = key.slice(MYSTERY_TYPE_EXCLUSION_PREFIX.length).trim();
-      if (typeId) ids.add(typeId);
+    if (typeof key !== "string") continue;
+    if (key.startsWith(MYSTERY_QUESTION_EXCLUSION_PREFIX)) {
+      const questionId = key.slice(MYSTERY_QUESTION_EXCLUSION_PREFIX.length).trim();
+      if (questionId) ids.add(questionId);
+    } else if (key.startsWith("mysteryType:")) {
+      // Earlier saves marked a whole mystery type. Treat that as Testing Service only.
+      legacyTypeKey = true;
     }
   }
+  if (legacyTypeKey && ids.size === 0) ids.add("__legacy_testing_service__");
   return ids;
 }
 
-export type MysteryTypeRef = {
-  typeId: string;
-  typeName?: string;
-};
-
-export type MysteryQuestionWeight = {
-  typeId: string;
+export type MysteryQuestionForScore = {
+  questionId: string;
+  questionText?: string;
   weight?: number;
+  answerType?: string;
 };
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/** An MDA with any Testing Service exemption skips every question worded as Testing Service. */
+export function isTestingServiceQuestionExempt(
+  question: { questionId: string; questionText?: string },
+  exemptQuestionIds: Set<string>
+): boolean {
+  if (exemptQuestionIds.size === 0) return false;
+  if (exemptQuestionIds.has(question.questionId)) return true;
+  return isTestingServiceMysteryQuestion(question.questionText || "");
+}
+
+export function mysteryQuestionPoints(
+  question: MysteryQuestionForScore,
+  rating: number
+): number {
+  const weight = question.weight || 0;
+  const value = Number(rating) || 0;
+  if (question.answerType === "yes_no") return value * weight;
+  return (value / 10) * weight;
+}
+
 /**
- * Testing-service (or any exempt type) points come out of the mystery maximum.
- * Remaining score stays on the reduced maximum and is not scaled back up to the full block.
+ * Score Mystery Shopping from the questions that still apply.
+ * Testing Service weight comes off the maximum. Phone Call and Email points stay as earned.
  */
-export function mysteryExemptionAdjustment(args: {
-  questions: MysteryQuestionWeight[];
-  excludedTypeIds: Set<string>;
+export function mysteryScoreWithoutQuestions(args: {
+  questions: MysteryQuestionForScore[];
+  ratings: Record<string, number | undefined>;
+  exemptQuestionIds: Set<string>;
   mysteryTotal: number;
-}): { exemptPoints: number; applicableMax: number } {
+}): { score: number; applicableMax: number; exemptPoints: number } {
   let rawAll = 0;
   let rawExempt = 0;
+  let earned = 0;
+
   for (const question of args.questions) {
     const weight = question.weight || 0;
     rawAll += weight;
-    if (args.excludedTypeIds.has(question.typeId)) rawExempt += weight;
+    if (isTestingServiceQuestionExempt(question, args.exemptQuestionIds)) {
+      rawExempt += weight;
+      continue;
+    }
+    earned += mysteryQuestionPoints(question, Number(args.ratings[question.questionId]) || 0);
   }
 
   if (rawAll <= 0 || rawExempt <= 0 || args.mysteryTotal <= 0) {
-    return { exemptPoints: 0, applicableMax: args.mysteryTotal };
+    return {
+      score: round2(earned),
+      applicableMax: args.mysteryTotal,
+      exemptPoints: 0,
+    };
   }
 
   const exemptPoints = round2((rawExempt / rawAll) * args.mysteryTotal);
   const applicableMax = round2(Math.max(0, args.mysteryTotal - exemptPoints));
-  return { exemptPoints, applicableMax };
+  const rawApplicable = rawAll - rawExempt;
+  const score =
+    rawApplicable > 0 ? round2((earned / rawApplicable) * applicableMax) : 0;
+
+  return {
+    score: Math.min(score, applicableMax),
+    applicableMax,
+    exemptPoints,
+  };
 }
 
-export function isSavedMysteryTypeExempt(
-  savedType: string,
-  exemptTypeIds: Set<string>,
-  types: MysteryTypeRef[] = []
-): boolean {
-  const value = String(savedType || "").trim();
-  if (!value || exemptTypeIds.size === 0) return false;
-  if (exemptTypeIds.has(value)) return true;
-  const match = types.find(
-    (type) => type.typeId === value || (type.typeName && type.typeName === value)
-  );
-  if (!match) return false;
-  return exemptTypeIds.has(match.typeId);
+/** Dedupe questions that repeat across mystery types so the 20-point slice is counted once. */
+export function mysteryTestingServiceAdjustment(
+  questions: MysteryQuestionForScore[],
+  exemptQuestionIds: Set<string>,
+  mysteryTotal: number
+): { score: number; applicableMax: number; exemptPoints: number } {
+  const seen = new Set<string>();
+  const unique: MysteryQuestionForScore[] = [];
+  for (const question of questions) {
+    const key = String(question.questionText || question.questionId)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(question);
+  }
+  return mysteryScoreWithoutQuestions({
+    questions: unique,
+    ratings: {},
+    exemptQuestionIds,
+    mysteryTotal,
+  });
 }

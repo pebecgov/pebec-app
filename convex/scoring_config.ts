@@ -534,10 +534,14 @@ export const saveMdaMetricExclusions = mutation({
                 (targetParts.abbr && current === targetParts.abbr);
         });
 
-        const incomingHasTypeKeys = uniqueExcluded.some((key) => key.startsWith("mysteryType:"));
-        const preservedTypeKeys = incomingHasTypeKeys
+        const incomingHasQuestionKeys = uniqueExcluded.some((key) =>
+            key.startsWith("mysteryQuestion:") || key.startsWith("mysteryType:")
+        );
+        const preservedTypeKeys = incomingHasQuestionKeys
             ? []
-            : (existing?.excludedMetrics || []).filter((key) => key.startsWith("mysteryType:"));
+            : (existing?.excludedMetrics || []).filter(
+                (key) => key.startsWith("mysteryQuestion:") || key.startsWith("mysteryType:")
+            );
         const nextExcluded = Array.from(new Set([...uniqueExcluded, ...preservedTypeKeys]));
 
         if (existing) {
@@ -578,33 +582,35 @@ function exclusionNamesMatch(a: string, b: string): boolean {
 export const saveTestingServiceMysteryExemptions = mutation({
     args: {
         year: v.number(),
-        typeId: v.string(),
         mdaNames: v.array(v.string()),
     },
     returns: v.object({
         saved: v.number(),
+        questionCount: v.number(),
     }),
-    handler: async (ctx, { year, typeId, mdaNames }) => {
+    handler: async (ctx, { year, mdaNames }) => {
         const user = await getCurrentUserOrThrow(ctx);
         if (user.role !== "admin" && user.role !== "staff") {
             throw new Error("Unauthorized");
         }
 
-        const trimmedTypeId = typeId.trim();
-        if (!trimmedTypeId) {
-            throw new Error("Choose the testing service mystery shopping type");
-        }
-
-        const type = await ctx.db
-            .query("mystery_shopping_types")
+        const questions = await ctx.db
+            .query("mystery_shopping_questions")
             .withIndex("byYearAndActive", (q) => q.eq("year", year).eq("isActive", true))
             .collect();
-        const typeExists = type.some((entry) => entry.typeId === trimmedTypeId);
-        if (!typeExists) {
-            throw new Error("That mystery shopping type is not active for this year");
+        const testingServiceQuestions = questions.filter((question) => {
+            const text = String(question.questionText || "")
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, " ")
+                .trim();
+            return text.includes("testing service");
+        });
+        if (testingServiceQuestions.length === 0) {
+            throw new Error("No Testing Service question is configured for this year");
         }
 
-        const key = `mysteryType:${trimmedTypeId}`;
+        const keys = testingServiceQuestions.map((question) => `mysteryQuestion:${question.questionId}`);
+        const keySet = new Set(keys);
         const selected = Array.from(new Set(mdaNames.map((name) => name.trim()).filter(Boolean)));
         const now = Date.now();
         const all = await ctx.db
@@ -614,37 +620,33 @@ export const saveTestingServiceMysteryExemptions = mutation({
 
         const isSelected = (mdaName: string) =>
             selected.some((name) => exclusionNamesMatch(mdaName, name));
+        const stripTestingKeys = (metrics: string[]) =>
+            metrics.filter((metric) => !keySet.has(metric) && !metric.startsWith("mysteryType:"));
 
         let saved = 0;
 
         for (const entry of all) {
-            const hasKey = (entry.excludedMetrics || []).includes(key);
+            const current = entry.excludedMetrics || [];
             const selectedRow = isSelected(entry.mdaName);
-            if (selectedRow && hasKey) {
-                saved += 1;
+            const next = selectedRow
+                ? Array.from(new Set([...stripTestingKeys(current), ...keys]))
+                : stripTestingKeys(current);
+            const unchanged =
+                next.length === current.length && next.every((metric) => current.includes(metric));
+            if (unchanged) {
+                if (selectedRow) saved += 1;
                 continue;
             }
-            if (selectedRow && !hasKey) {
+            if (next.length === 0) {
+                await ctx.db.delete(entry._id);
+            } else {
                 await ctx.db.patch(entry._id, {
-                    excludedMetrics: Array.from(new Set([...(entry.excludedMetrics || []), key])),
+                    excludedMetrics: next,
                     updatedAt: now,
                     updatedBy: user._id,
                 });
-                saved += 1;
-                continue;
             }
-            if (!selectedRow && hasKey) {
-                const next = (entry.excludedMetrics || []).filter((metric) => metric !== key);
-                if (next.length === 0) {
-                    await ctx.db.delete(entry._id);
-                } else {
-                    await ctx.db.patch(entry._id, {
-                        excludedMetrics: next,
-                        updatedAt: now,
-                        updatedBy: user._id,
-                    });
-                }
-            }
+            if (selectedRow) saved += 1;
         }
 
         for (const mdaName of selected) {
@@ -653,14 +655,14 @@ export const saveTestingServiceMysteryExemptions = mutation({
             await ctx.db.insert("mda_metric_exclusions", {
                 year,
                 mdaName,
-                excludedMetrics: [key],
+                excludedMetrics: keys,
                 updatedAt: now,
                 updatedBy: user._id,
             });
             saved += 1;
         }
 
-        return { saved };
+        return { saved, questionCount: testingServiceQuestions.length };
     },
 });
 

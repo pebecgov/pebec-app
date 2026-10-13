@@ -31,9 +31,9 @@ import BulkSLACard from './BulkSLACard';
 import { computeReportGovBreakdown } from '@/convex/utils/efficiencyScoring';
 import { computeSlaTotalFromMonthly } from '@/lib/slaScoreMath';
 import {
-    exemptMysteryTypeIds,
-    isSavedMysteryTypeExempt,
-    mysteryExemptionAdjustment,
+    exemptMysteryQuestionIds,
+    mysteryScoreWithoutQuestions,
+    mysteryTestingServiceAdjustment,
 } from '@/lib/mysteryTypeExemption';
 
 // Modals
@@ -591,10 +591,57 @@ export default function ScoringTab({
         return { onTime, total, percentage, score };
     };
 
+    const mysteryResultForMda = () => {
+        const typeQuestions = Array.isArray(mysteryConfig)
+            ? (mysteryConfig.find((type: { typeId?: string; typeName?: string }) =>
+                (type.typeId || type.typeName) === mysteryType
+            )?.questions || [])
+            : [];
+        const rawMax = typeQuestions.reduce(
+            (sum: number, question: { weight?: number }) => sum + (question.weight || 0),
+            0
+        ) || 20;
+        const fullScore = calculateMysteryScore(
+            mysteryType,
+            mysteryRatings,
+            useDynamicConfig ? mysteryConfig : undefined,
+            rawMax
+        );
+        if (!useDynamicConfig || typeQuestions.length === 0) {
+            return { score: fullScore, max: rawMax, exemptPoints: 0 };
+        }
+        const exemptQuestionIds = exemptMysteryQuestionIds(excludedMetricSet);
+        if (exemptQuestionIds.size === 0) {
+            return { score: fullScore, max: rawMax, exemptPoints: 0 };
+        }
+        const result = mysteryScoreWithoutQuestions({
+            questions: typeQuestions.map((question: {
+                questionId?: string;
+                questionText?: string;
+                weight?: number;
+                answerType?: string;
+            }) => ({
+                questionId: String(question.questionId || ""),
+                questionText: question.questionText,
+                weight: question.weight || 0,
+                answerType: question.answerType,
+            })),
+            ratings: mysteryRatings,
+            exemptQuestionIds,
+            mysteryTotal: rawMax,
+        });
+        return {
+            score: result.score,
+            max: result.applicableMax,
+            exemptPoints: result.exemptPoints,
+        };
+    };
+
     const calculateFinalScores = () => {
         // Core metrics (Common)
         const sla = isMetricExcluded("sla") ? 0 : calculateMonthlySlaScore().totalScore;
-        let mystery = isMetricExcluded("mystery") ? 0 : calculateMysteryScore(mysteryType, mysteryRatings);
+        const mysteryResult = mysteryResultForMda();
+        let mystery = isMetricExcluded("mystery") ? 0 : mysteryResult.score;
         const reportGov = isMetricExcluded("reportGov") || skipReportGov ? 0 : reportgovRate;
         const monthlyReport = isMetricExcluded("reportSubmission") ? 0 : calculateMonthlyReportStats().score;
         const timeliness = isMetricExcluded("timeliness") ? 0 : calculateTimelinessStats().score;
@@ -652,27 +699,29 @@ export default function ScoringTab({
             if (isMetricExcluded("reportSubmission")) currentMaxPoints -= (efficiencyConfig?.reportSubmissionPoints ?? 3);
             if (isMetricExcluded("timeliness")) currentMaxPoints -= (efficiencyConfig?.timelinessPoints ?? 2);
             if (isMetricExcluded("mystery")) currentMaxPoints -= 20;
-            else if (Array.isArray(mysteryConfig)) {
-                const exemptTypeIds = exemptMysteryTypeIds(excludedMetricSet);
-                const mysteryTypes = mysteryConfig.map((type: { typeId?: string; typeName?: string }) => ({
-                    typeId: String(type.typeId || type.typeName || ""),
-                    typeName: type.typeName,
-                }));
-                const mysteryQuestions = mysteryConfig.flatMap(
-                    (type: { typeId?: string; typeName?: string; questions?: Array<{ weight?: number }> }) =>
+            else if (useDynamicConfig && Array.isArray(mysteryConfig)) {
+                const adjustment = mysteryTestingServiceAdjustment(
+                    mysteryConfig.flatMap((type: {
+                        questions?: Array<{
+                            questionId?: string;
+                            questionText?: string;
+                            weight?: number;
+                            answerType?: string;
+                        }>;
+                    }) =>
                         (type.questions || []).map((question) => ({
-                            typeId: String(type.typeId || type.typeName || ""),
+                            questionId: String(question.questionId || ""),
+                            questionText: question.questionText,
                             weight: question.weight || 0,
+                            answerType: question.answerType,
                         }))
+                    ),
+                    exemptMysteryQuestionIds(excludedMetricSet),
+                    40
                 );
-                const adjustment = mysteryExemptionAdjustment({
-                    questions: mysteryQuestions,
-                    excludedTypeIds: exemptTypeIds,
-                    mysteryTotal: 40,
-                });
                 currentMaxPoints -= adjustment.exemptPoints;
-                if (isSavedMysteryTypeExempt(mysteryType, exemptTypeIds, mysteryTypes)) {
-                    mystery = 0;
+                if (!isMetricExcluded("mystery") && adjustment.exemptPoints > 0) {
+                    mystery = Math.min(mystery, adjustment.applicableMax);
                 }
             }
             if (isMetricExcluded("others")) {
@@ -770,16 +819,9 @@ export default function ScoringTab({
 
     const handleSaveMystery = async () => {
         if (!selectedMda) return;
-        const maxPossibleScore = useDynamicConfig && Array.isArray(mysteryConfig)
-            ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
-            : 20;
-
-        const score = calculateMysteryScore(
-            mysteryType,
-            mysteryRatings,
-            useDynamicConfig ? mysteryConfig : undefined,
-            maxPossibleScore
-        );
+        const mysteryResult = mysteryResultForMda();
+        const maxPossibleScore = mysteryResult.max;
+        const score = mysteryResult.score;
 
         try {
             await saveMysteryData({
@@ -1286,22 +1328,12 @@ export default function ScoringTab({
                             isSaved={!!savedMysteryShoppingData}
                             setShowRanking={setShowMysteryRanking}
                             setShowModal={setShowMysteryModal}
-                            score={calculateMysteryScore(
-                                mysteryType,
-                                mysteryRatings,
-                                useDynamicConfig ? mysteryConfig : undefined,
-                                useDynamicConfig && Array.isArray(mysteryConfig)
-                                    ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
-                                    : 20
-                            )}
+                            score={mysteryResultForMda().score}
                             handleSave={handleSaveMystery}
                             handleClear={() => handleClearMetric("mystery", () => setMysteryRatings({}))}
                             selectedMda={selectedMda}
                             hasRatings={Object.keys(mysteryRatings).length > 0}
-                            maxPoints={useDynamicConfig && Array.isArray(mysteryConfig)
-                                ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
-                                : 20
-                            }
+                            maxPoints={mysteryResultForMda().max}
                         />
                         <ReportGovCard
                             isLoading={!!selectedMda && (ticketResolutionData === undefined || isLoadingReportGovData)}
@@ -1474,21 +1506,11 @@ export default function ScoringTab({
                 onRatingChange={(key, value) => setMysteryRatings(prev => ({ ...prev, [key]: value }))}
                 mysteryType={mysteryType}
                 onTypeChange={setMysteryType}
-                calculateScore={() => calculateMysteryScore(
-                    mysteryType,
-                    mysteryRatings,
-                    useDynamicConfig ? mysteryConfig : undefined,
-                    useDynamicConfig && Array.isArray(mysteryConfig)
-                        ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
-                        : 20
-                )}
+                calculateScore={() => mysteryResultForMda().score}
                 onSave={handleSaveMystery}
                 useDynamicConfig={useDynamicConfig}
                 mysteryConfig={mysteryConfig}
-                maxPoints={useDynamicConfig && Array.isArray(mysteryConfig)
-                    ? mysteryConfig.find((t: any) => (t.typeId || t.typeName) === mysteryType)?.questions?.reduce((sum: number, q: any) => sum + (q.weight || 0), 0) || 20
-                    : 20
-                }
+                maxPoints={mysteryResultForMda().max}
             />
 
             <MonthlySLAModal

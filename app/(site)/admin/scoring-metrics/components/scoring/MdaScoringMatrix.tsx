@@ -25,12 +25,27 @@ import {
   Search,
 } from "lucide-react";
 import { SCALE_1_10_OPTIONS, YES_NO_OPTIONS } from "@/app/(site)/admin/scoring-metrics/utils/constants";
+import { isTestingServiceMysteryQuestion } from "@/lib/mysteryTypeExemption";
 
 type MatrixMetric = "others" | "mystery";
 type CellMap = Record<string, Record<string, string>>;
 
 function cellKey(mdaName: string, colId: string): string {
   return `${mdaName}::${colId}`;
+}
+
+function namesLooselyMatch(leftName: string, rightName: string): boolean {
+  const norm = (value: string) =>
+    value.toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+  const left = norm(leftName);
+  const right = norm(rightName);
+  if (left === right) return true;
+  const leftFull = left.includes(" - ") ? left.split(" - ").slice(1).join(" - ").trim() : "";
+  const rightFull = right.includes(" - ") ? right.split(" - ").slice(1).join(" - ").trim() : "";
+  return Boolean(
+    (leftFull && (leftFull === right || leftFull === rightFull)) ||
+      (rightFull && rightFull === left)
+  );
 }
 
 type Props = {
@@ -65,6 +80,7 @@ export default function MdaScoringMatrix({ scoringPeriod, year }: Props) {
 
   const bulkSaveOthers = useMutation(api.mda_scoring.bulkSaveOthersMatrixCells);
   const bulkSaveMystery = useMutation(api.mda_scoring.bulkSaveMysteryMatrixCells);
+  const yearExclusions = useQuery(api.scoring_config.getYearMetricExclusions, { year });
 
   const mdaRows = useMemo(
     () =>
@@ -177,13 +193,32 @@ export default function MdaScoringMatrix({ scoringPeriod, year }: Props) {
     });
   }, []);
 
+  const isTestingServiceExempt = useCallback(
+    (mda: { name: string; abbreviation?: string }) => {
+      const label = `${mda.abbreviation || ""} - ${mda.name}`;
+      return (yearExclusions || []).some((row) => {
+        const exempt = (row.excludedMetrics || []).some(
+          (key) => key.startsWith("mysteryQuestion:") || key.startsWith("mysteryType:")
+        );
+        if (!exempt) return false;
+        return namesLooselyMatch(label, row.mdaName) || namesLooselyMatch(mda.name, row.mdaName);
+      });
+    },
+    [yearExclusions]
+  );
+
   const isMdaComplete = useCallback(
     (mdaName: string) => {
       if (columns.length === 0) return false;
       const row = draft[mdaName] || {};
-      return columns.every((col) => Boolean(row[col.id]));
+      const mda = mdaRows.find((item) => item.name === mdaName);
+      const skipTesting = mda ? isTestingServiceExempt(mda) : false;
+      return columns.every((col) => {
+        if (skipTesting && isTestingServiceMysteryQuestion(col.label)) return true;
+        return Boolean(row[col.id]);
+      });
     },
-    [draft, columns]
+    [draft, columns, mdaRows, isTestingServiceExempt]
   );
 
   const filteredMdas = useMemo(() => {
@@ -539,6 +574,15 @@ export default function MdaScoringMatrix({ scoringPeriod, year }: Props) {
                       <span className="text-gray-600 text-xs">{mda.name}</span>
                     </td>
                     {columns.map((col) => {
+                      const testingExempt =
+                        isTestingServiceExempt(mda) && isTestingServiceMysteryQuestion(col.label);
+                      if (testingExempt) {
+                        return (
+                          <td key={col.id} className="px-2 py-1.5 text-xs text-gray-500">
+                            Excluded
+                          </td>
+                        );
+                      }
                       const value = draft[mda.name]?.[col.id] || "";
                       const dirty = dirtyKeys.has(cellKey(mda.name, col.id));
                       const options =
