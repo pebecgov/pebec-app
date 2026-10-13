@@ -101,9 +101,10 @@ export const getBulkSlaInternalContext = internalQuery({
         monthKey: v.string(),
       }),
     ),
-    existingByMda: v.record(
-      v.string(),
+    // A list, not a record: MDA names like "Nigerian Shippers’ Council" aren't valid field names.
+    existing: v.array(
       v.object({
+        mdaName: v.string(),
         totalScore: v.number(),
         percentage: v.number(),
         monthsWithData: v.number(),
@@ -141,15 +142,13 @@ export const getBulkSlaInternalContext = internalQuery({
       if (excluded.has("sla")) excludedMdas.push(mdaName);
     }
 
-    const existingByMda: Record<
-      string,
-      {
-        totalScore: number;
-        percentage: number;
-        monthsWithData: number;
-        monthlySlaData: Record<string, unknown>;
-      }
-    > = {};
+    const existingRows: Array<{
+      mdaName: string;
+      totalScore: number;
+      percentage: number;
+      monthsWithData: number;
+      monthlySlaData: Record<string, unknown>;
+    }> = [];
     for (const mdaName of args.mdaNames) {
       const existing = await ctx.db
         .query("mda_sla_data")
@@ -158,7 +157,8 @@ export const getBulkSlaInternalContext = internalQuery({
         )
         .first();
       if (existing) {
-        existingByMda[mdaName] = {
+        existingRows.push({
+          mdaName,
           totalScore: existing.totalScore,
           percentage: existing.percentage,
           monthsWithData: existing.monthsWithData,
@@ -166,7 +166,7 @@ export const getBulkSlaInternalContext = internalQuery({
             existing.monthlySlaData && typeof existing.monthlySlaData === "object"
               ? (existing.monthlySlaData as Record<string, unknown>)
               : {},
-        };
+        });
       }
     }
 
@@ -181,7 +181,7 @@ export const getBulkSlaInternalContext = internalQuery({
         monthName: MONTH_NAMES[month] ?? `Month ${month + 1}`,
         monthKey: `${year}-${month}`,
       })),
-      existingByMda,
+      existing: existingRows,
       excludedMdas,
     };
   },

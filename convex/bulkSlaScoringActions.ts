@@ -62,6 +62,9 @@ const mdaResultValidator = v.object({
   months: v.array(monthOutcomeValidator),
 });
 
+/** Larger workbooks can exhaust action memory and take the whole batch down. */
+const MAX_REPORT_FILE_BYTES = 15 * 1024 * 1024;
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -205,15 +208,13 @@ export const runBulkSlaScoringChunk = action({
       pointsPerMonth: number;
       totalMonths: number;
       months: Array<{ month: number; year: number; monthName: string; monthKey: string }>;
-      existingByMda: Record<
-        string,
-        {
-          totalScore: number;
-          percentage: number;
-          monthsWithData: number;
-          monthlySlaData: Record<string, unknown>;
-        }
-      >;
+      existing: Array<{
+        mdaName: string;
+        totalScore: number;
+        percentage: number;
+        monthsWithData: number;
+        monthlySlaData: Record<string, unknown>;
+      }>;
       excludedMdas: string[];
     } = await ctx.runQuery(internal.bulkSlaScoring.getBulkSlaInternalContext, {
       scoringPeriod: args.scoringPeriod,
@@ -221,10 +222,11 @@ export const runBulkSlaScoringChunk = action({
     });
 
     const excludedSet = new Set(context.excludedMdas);
+    const existingByMda = new Map(context.existing.map((row) => [row.mdaName, row]));
     const results: MdaResult[] = [];
 
     for (const mdaName of args.mdaNames) {
-      const existing = context.existingByMda[mdaName];
+      const existing = existingByMda.get(mdaName);
       const previousScore = existing?.totalScore ?? null;
 
       if (excludedSet.has(mdaName)) {
@@ -273,17 +275,38 @@ export const runBulkSlaScoringChunk = action({
         let monthsUpdated = 0;
         let monthsKept = 0;
 
+        const reportRefs = await ctx.runQuery(internal.mda_scoring.getMonthlyReportFileRefs, {
+          mdaName,
+          scoringPeriod: args.scoringPeriod,
+          months: context.months.map(({ month, year }) => ({ month, year })),
+        });
+
         for (const month of context.months) {
           const existingEntry = monthlySlaData[month.monthKey] as ExistingMonthEntry | undefined;
-
-          const report = await ctx.runQuery(internal.mda_scoring.getMonthlyReportFileRef, {
-            mdaName,
-            month: month.month,
-            year: month.year,
-            scoringPeriod: args.scoringPeriod,
-          });
+          const report = reportRefs[month.monthKey] ?? null;
 
           if (updateLatestOnly) {
+            // Failed before on this exact upload — re-parsing gives the same result.
+            if (
+              report &&
+              existingEntry?.check?.status === "failed" &&
+              existingEntry.scoredSubmittedAt === report.submittedAt
+            ) {
+              monthsFailed++;
+              monthOutcomes.push({
+                monthKey: month.monthKey,
+                monthName: month.monthName,
+                status: "failed",
+                score: 0,
+                overallPercentage: null,
+                validRows: existingEntry.check.validRows,
+                totalRows: existingEntry.check.totalRows,
+                detail: `Still failing — no new upload since last attempt${
+                  existingEntry.check.message ? `: ${existingEntry.check.message}` : ""
+                }`,
+              });
+              continue;
+            }
             const needsRescore = existingMonthNeedsRescore(
               existingEntry,
               report?.submittedAt ?? null,
@@ -388,6 +411,35 @@ export const runBulkSlaScoringChunk = action({
               monthKey: month.monthKey,
               monthName: month.monthName,
               status: "unsupported_format",
+              score: 0,
+              overallPercentage: null,
+              detail,
+            });
+            monthlySlaData[month.monthKey] = {
+              method: "file",
+              file: null,
+              rating: 0,
+              results: [],
+              overallPercentage: null,
+              score: 0,
+              scoredSubmittedAt: report.submittedAt,
+              check: { status: "failed", message: detail },
+            };
+            continue;
+          }
+
+          if (report.fileSize !== null && report.fileSize > MAX_REPORT_FILE_BYTES) {
+            monthsFailed++;
+            monthsUpdated++;
+            const detail = `File is too large to score automatically (${(
+              report.fileSize /
+              1024 /
+              1024
+            ).toFixed(1)} MB, limit ${MAX_REPORT_FILE_BYTES / 1024 / 1024} MB)`;
+            monthOutcomes.push({
+              monthKey: month.monthKey,
+              monthName: month.monthName,
+              status: "failed",
               score: 0,
               overallPercentage: null,
               detail,

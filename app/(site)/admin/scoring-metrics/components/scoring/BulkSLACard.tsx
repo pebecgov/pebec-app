@@ -127,23 +127,34 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
       chunks.push(uniqueMdaNames.slice(i, i + CHUNK_SIZE));
     }
 
+    const runMdas = async (mdaNamesToRun: string[]) => {
+      const res = await runChunk({
+        scoringPeriod,
+        mdaNames: mdaNamesToRun,
+        dryRun,
+        overwriteExisting: updateLatestOnly ? true : overwriteExisting,
+        updateLatestOnly,
+      });
+      slaPoints = res.slaPoints;
+      pointsPerMonth = res.pointsPerMonth;
+      totalMonths = res.totalMonths;
+      results.push(...res.results);
+    };
+
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]!;
       try {
-        const res = await runChunk({
-          scoringPeriod,
-          mdaNames: chunk,
-          dryRun,
-          overwriteExisting: updateLatestOnly ? true : overwriteExisting,
-          updateLatestOnly,
-        });
-        slaPoints = res.slaPoints;
-        pointsPerMonth = res.pointsPerMonth;
-        totalMonths = res.totalMonths;
-        results.push(...res.results);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        failedChunks.push(`${chunk[0]} … ${chunk[chunk.length - 1]}: ${message}`);
+        await runMdas(chunk);
+      } catch {
+        // One heavy MDA can crash the whole batch; retry individually so the rest still score.
+        for (const mdaName of chunk) {
+          try {
+            await runMdas([mdaName]);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            failedChunks.push(`${mdaName}: ${message}`);
+          }
+        }
       }
       setProgress(Math.round(((i + 1) / chunks.length) * 100));
     }
