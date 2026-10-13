@@ -32,10 +32,11 @@ import {
   beepaMaxPointsForMda,
 } from "../lib/beepaTrackerRoster";
 import {
-  exemptMysteryTypeIds,
-  isSavedMysteryTypeExempt,
-  mysteryExemptionAdjustment,
-  type MysteryTypeRef,
+  exemptMysteryQuestionIds,
+  isTestingServiceQuestionExempt,
+  mysteryScoreWithoutQuestions,
+  mysteryTestingServiceAdjustment,
+  type MysteryQuestionForScore,
 } from "../lib/mysteryTypeExemption";
 
 export function normalizeMdaKey(name: string) {
@@ -2038,15 +2039,12 @@ export const getAllMdaSavedDataForDashboard = query({
     const fullYearPeriod = String(year);
 
     // Fetch dynamic configuration for 2026+
-    const [efficiencyConfig, mysteryQuestions, mysteryTypes, transparencyItems, innovationStakeholderItems, metricExclusions] = await Promise.all([
+    const [efficiencyConfig, mysteryQuestions, transparencyItems, innovationStakeholderItems, metricExclusions] = await Promise.all([
       ctx.db.query("efficiency_periods")
         .withIndex("byYear", q => q.eq("year", year))
         .filter(q => q.eq(q.field("isActive"), true))
         .first(),
       ctx.db.query("mystery_shopping_questions")
-        .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
-        .collect(),
-      ctx.db.query("mystery_shopping_types")
         .withIndex("byYearAndActive", q => q.eq("year", year).eq("isActive", true))
         .collect(),
       ctx.db.query("transparency_items")
@@ -2346,7 +2344,88 @@ export const getAllMdaSavedDataForDashboard = query({
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
-      const avgScore = dataList.reduce((sum, d) => sum + (d.totalScore || 0), 0) / dataList.length;
+      const excludedForMda =
+        exclusionMap.get(normalizeMdaKey(mdaName)) ||
+        (() => {
+          const parts = splitMdaNameForMatch(mdaName);
+          return (
+            (parts.fullName ? exclusionMap.get(parts.fullName) : undefined) ||
+            (parts.abbr ? exclusionMap.get(parts.abbr) : undefined) ||
+            new Set<string>()
+          );
+        })();
+      const exemptQuestionIds = exemptMysteryQuestionIds(excludedForMda);
+
+      const questionsForType = (typeId: string): MysteryQuestionForScore[] => {
+        let matched = uniqueMysteryQuestions.filter((question) => question.typeId === typeId);
+        if (matched.length === 0 && typeId) {
+          matched = uniqueMysteryQuestions.filter(
+            (question) => String(question.typeId).toLowerCase() === typeId.toLowerCase()
+          );
+        }
+        return matched.map((question) => ({
+          questionId: question.questionId,
+          questionText: question.questionText,
+          weight: question.weight,
+          answerType: question.answerType,
+        }));
+      };
+
+      const dedupedMysteryQuestions: MysteryQuestionForScore[] = [];
+      const seenQuestionText = new Set<string>();
+      for (const question of uniqueMysteryQuestions) {
+        const key = String(question.questionText || question.questionId)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+        if (seenQuestionText.has(key)) continue;
+        seenQuestionText.add(key);
+        dedupedMysteryQuestions.push({
+          questionId: question.questionId,
+          questionText: question.questionText,
+          weight: question.weight,
+          answerType: question.answerType,
+        });
+      }
+
+      const avgScore =
+        exemptQuestionIds.size > 0
+          ? dataList.reduce((sum, row) => {
+              const typed = questionsForType(String(row.mysteryType || ""));
+              const questions = typed.length > 0 ? typed : dedupedMysteryQuestions;
+              const rowRatings = (row.ratings || {}) as Record<string, number>;
+              const ratings: Record<string, number> = { ...rowRatings };
+              if (typed.length === 0) {
+                for (const question of uniqueMysteryQuestions) {
+                  const key = String(question.questionText || question.questionId)
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, " ")
+                    .trim();
+                  const keeper = dedupedMysteryQuestions.find(
+                    (item) =>
+                      String(item.questionText || item.questionId)
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, " ")
+                        .trim() === key
+                  );
+                  if (!keeper || ratings[keeper.questionId] !== undefined) continue;
+                  if (rowRatings[question.questionId] !== undefined) {
+                    ratings[keeper.questionId] = Number(rowRatings[question.questionId]) || 0;
+                  }
+                }
+              }
+              if (questions.length === 0) return sum + (row.totalScore || 0);
+              return (
+                sum +
+                mysteryScoreWithoutQuestions({
+                  questions,
+                  ratings,
+                  exemptQuestionIds,
+                  mysteryTotal,
+                }).score
+              );
+            }, 0) / dataList.length
+          : dataList.reduce((sum, row) => sum + (row.totalScore || 0), 0) / dataList.length;
       const avgPercentage = dataList.reduce((sum, d) => sum + (d.percentage || 0), 0) / dataList.length;
 
       // Complete only when every configured question for the chosen type has a rating
@@ -2365,9 +2444,10 @@ export const getAllMdaSavedDataForDashboard = query({
           return false;
         }
         const ratings = (d.ratings || {}) as Record<string, unknown>;
-        return typeQuestions.every((q) =>
-          Object.prototype.hasOwnProperty.call(ratings, q.questionId)
-        );
+        return typeQuestions.every((q) => {
+          if (isTestingServiceQuestionExempt(q, exemptQuestionIds)) return true;
+          return Object.prototype.hasOwnProperty.call(ratings, q.questionId);
+        });
       });
 
       const typeMax = (() => {
@@ -2389,22 +2469,24 @@ export const getAllMdaSavedDataForDashboard = query({
         );
       }
       const ratings = (primaryMystery?.ratings || {}) as Record<string, number>;
-      const weightSum = typeQuestions.reduce((s, q) => s + (q.weight || 0), 0);
+      const visibleQuestions = typeQuestions.filter(
+        (question) => !isTestingServiceQuestionExempt(question, exemptQuestionIds)
+      );
+      const weightSum = visibleQuestions.reduce((sum, question) => sum + (question.weight || 0), 0);
       const questionLines =
         weightSum > 0
-          ? typeQuestions
+          ? visibleQuestions
               .slice()
               .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-              .map((q) => {
-                const rating = Number(ratings[q.questionId]) || 0;
-                const weight = q.weight || 0;
+              .map((question) => {
+                const rating = Number(ratings[question.questionId]) || 0;
+                const weight = question.weight || 0;
                 const contribution =
-                  q.answerType === "yes_no" ? rating * weight : (rating / 10) * weight;
-                const score = (contribution / weightSum) * typeMax;
+                  question.answerType === "yes_no" ? rating * weight : (rating / 10) * weight;
                 return {
-                  label: q.questionText || q.questionId,
-                  score,
-                  maxPoints: (weight / weightSum) * typeMax,
+                  label: question.questionText || question.questionId,
+                  score: contribution,
+                  maxPoints: weight,
                 };
               })
           : [];
@@ -3080,29 +3162,19 @@ export const getAllMdaSavedDataForDashboard = query({
         excludedMetrics.has("others") || excludedMetrics.has(`others:${itemId}`);
 
       const slaScore = mda.sla?.score || 0;
-      const exemptTypeIds = exemptMysteryTypeIds(excludedMetrics);
-      const mysteryTypesForExemption: MysteryTypeRef[] = mysteryTypes.map((type) => ({
-        typeId: String(type.typeId || ""),
-        typeName: type.typeName,
-      }));
-      const mysteryQuestionsForExemption = uniqueMysteryQuestions.map((question) => ({
-        typeId: String(question.typeId || ""),
-        weight: question.weight || 0,
-      }));
-      const mysteryAdjustment = mysteryExemptionAdjustment({
-        questions: mysteryQuestionsForExemption,
-        excludedTypeIds: exemptTypeIds,
+      const exemptQuestionIds = exemptMysteryQuestionIds(excludedMetrics);
+      const mysteryAdjustment = mysteryTestingServiceAdjustment(
+        uniqueMysteryQuestions.map((question) => ({
+          questionId: question.questionId,
+          questionText: question.questionText,
+          weight: question.weight,
+          answerType: question.answerType,
+        })),
+        exemptQuestionIds,
         mysteryTotal,
-      });
-      const savedMysteryType = String(mda.mysteryShopping?.mysteryType || "");
-      const mysteryTypeExempt = isSavedMysteryTypeExempt(
-        savedMysteryType,
-        exemptTypeIds,
-        mysteryTypesForExemption,
       );
       let mysteryScore = mda.mysteryShopping?.score || 0;
       if (!isExcluded("mystery") && mysteryAdjustment.exemptPoints > 0) {
-        if (mysteryTypeExempt) mysteryScore = 0;
         mysteryScore = Math.min(mysteryScore, mysteryAdjustment.applicableMax);
       }
       // Legacy metrics
@@ -3268,7 +3340,7 @@ export const getAllMdaSavedDataForDashboard = query({
               : mysteryAdjustment.exemptPoints > 0
                 ? mysteryAdjustment.applicableMax
                 : mysteryTotal,
-          questionLines: mysteryTypeExempt ? [] : mda.mysteryShopping.questionLines,
+          questionLines: mda.mysteryShopping.questionLines,
         } : null,
         ...( !isExcluded("mystery") && mysteryAdjustment.exemptPoints > 0
           ? { mysteryMaxPoints: mysteryAdjustment.applicableMax }
@@ -4110,6 +4182,26 @@ export const bulkSaveMysteryMatrixCells = mutation({
     }
 
     const maxPossibleScore = questions.reduce((sum, q) => sum + (q.weight || 0), 0);
+    const exclusionRows = await ctx.db
+      .query("mda_metric_exclusions")
+      .withIndex("byYear", (q) => q.eq("year", year))
+      .collect();
+    const exclusionMap = buildExclusionLookup(exclusionRows);
+    const excludedFor = (name: string) => {
+      const parts = splitMdaNameForMatch(name);
+      return (
+        exclusionMap.get(normalizeMdaKey(name)) ||
+        (parts.fullName ? exclusionMap.get(parts.fullName) : undefined) ||
+        (parts.abbr ? exclusionMap.get(parts.abbr) : undefined) ||
+        new Set<string>()
+      );
+    };
+    const questionPayload = questions.map((question) => ({
+      questionId: question.questionId,
+      questionText: question.questionText,
+      weight: question.weight,
+      answerType: question.answerType,
+    }));
 
     let saved = 0;
     for (const [mdaName, mdaCells] of byMda) {
@@ -4133,28 +4225,41 @@ export const bulkSaveMysteryMatrixCells = mutation({
 
       let weighted = 0;
       let weightSum = 0;
-      for (const question of questions) {
-        const rating = ratings[question.questionId] ?? 0;
-        const weight = question.weight || 1;
-        weightSum += weight;
-        if (question.answerType === "scale_1_10") {
-          weighted += (rating / 10) * weight;
-        } else if (question.answerType === "yes_no") {
-          weighted += rating * weight;
-        } else {
-          weighted += (rating / 10) * weight;
+      const exemptQuestionIds = exemptMysteryQuestionIds(excludedFor(mdaName));
+      let totalScore = 0;
+      let rowMax = maxPossibleScore;
+      if (exemptQuestionIds.size > 0) {
+        const result = mysteryScoreWithoutQuestions({
+          questions: questionPayload,
+          ratings,
+          exemptQuestionIds,
+          mysteryTotal: maxPossibleScore,
+        });
+        totalScore = result.score;
+        rowMax = result.applicableMax;
+      } else {
+        for (const question of questions) {
+          const rating = ratings[question.questionId] ?? 0;
+          const weight = question.weight || 1;
+          weightSum += weight;
+          if (question.answerType === "scale_1_10") {
+            weighted += (rating / 10) * weight;
+          } else if (question.answerType === "yes_no") {
+            weighted += rating * weight;
+          } else {
+            weighted += (rating / 10) * weight;
+          }
         }
+        totalScore = weightSum > 0 ? (weighted / weightSum) * maxPossibleScore : 0;
       }
-      const totalScore =
-        weightSum > 0 ? (weighted / weightSum) * maxPossibleScore : 0;
-      const percentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+      const percentage = rowMax > 0 ? (totalScore / rowMax) * 100 : 0;
 
       if (existing) {
         await ctx.db.patch(existing._id, {
           mysteryType,
           ratings,
           totalScore,
-          maxPossibleScore,
+          maxPossibleScore: rowMax,
           percentage,
           updatedAt: Date.now(),
           updatedBy: user._id,
@@ -4166,7 +4271,7 @@ export const bulkSaveMysteryMatrixCells = mutation({
           mysteryType,
           ratings,
           totalScore,
-          maxPossibleScore,
+          maxPossibleScore: rowMax,
           percentage,
           createdAt: Date.now(),
           updatedAt: Date.now(),

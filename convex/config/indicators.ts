@@ -454,7 +454,7 @@ const indicators2026 = {
         options: [
           { value: "eight", label: "8 pts", score: 8 },
           { value: "four", label: "4 pts", score: 4 },
-          { value: "one", label: "1 pt", score: 1 },
+          { value: "zero", label: "0 pts", score: 0 },
         ],
       },
     },

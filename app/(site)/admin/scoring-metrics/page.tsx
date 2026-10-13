@@ -13,9 +13,8 @@ import { toast } from "sonner";
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
 import {
-  exemptMysteryTypeIds,
-  isSavedMysteryTypeExempt,
-  mysteryExemptionAdjustment,
+  exemptMysteryQuestionIds,
+  mysteryTestingServiceAdjustment,
 } from "@/lib/mysteryTypeExemption";
 
 import ScoringTab from "./components/scoring/ScoringTab";
@@ -357,35 +356,33 @@ export default function ScoringMetricsPage() {
 
       let mysteryScore = isExcluded("mystery") ? 0 : (mda.mysteryShopping?.score || 0);
       let mysteryExemptionPoints = 0;
+      let mysteryApplicableMax = 40;
       if (dashboardYear >= 2026 && !isExcluded("mystery") && Array.isArray(mysteryConfig)) {
-        const exemptTypeIds = exemptMysteryTypeIds(excludedMetricSet);
-        const mysteryTypes = mysteryConfig.map((type: { typeId?: string; typeName?: string }) => ({
-          typeId: String(type.typeId || type.typeName || ""),
-          typeName: type.typeName,
-        }));
+        const exemptQuestionIds = exemptMysteryQuestionIds(excludedMetricSet);
         const mysteryQuestions = mysteryConfig.flatMap(
-          (type: { typeId?: string; typeName?: string; questions?: Array<{ weight?: number }> }) =>
+          (type: {
+            questions?: Array<{
+              questionId?: string;
+              questionText?: string;
+              weight?: number;
+              answerType?: string;
+            }>;
+          }) =>
             (type.questions || []).map((question) => ({
-              typeId: String(type.typeId || type.typeName || ""),
+              questionId: String(question.questionId || ""),
+              questionText: question.questionText,
               weight: question.weight || 0,
+              answerType: question.answerType,
             }))
         );
-        const adjustment = mysteryExemptionAdjustment({
-          questions: mysteryQuestions,
-          excludedTypeIds: exemptTypeIds,
-          mysteryTotal: 40,
-        });
+        const adjustment = mysteryTestingServiceAdjustment(
+          mysteryQuestions,
+          exemptQuestionIds,
+          40
+        );
         mysteryExemptionPoints = adjustment.exemptPoints;
-        mysteryScore = capScore(mysteryScore, adjustment.applicableMax || 40);
-        if (
-          isSavedMysteryTypeExempt(
-            String(mda.mysteryShopping?.mysteryType || ""),
-            exemptTypeIds,
-            mysteryTypes
-          )
-        ) {
-          mysteryScore = 0;
-        }
+        mysteryApplicableMax = adjustment.applicableMax || 40;
+        mysteryScore = capScore(mysteryScore, mysteryApplicableMax);
       }
       const innovationScore = isExcluded("innovation") ? 0 : (mda.innovation?.score || 0);
       const stakeholderScore = isExcluded("stakeholder") ? 0 : (mda.stakeholder?.score || 0);
@@ -493,6 +490,16 @@ export default function ScoringMetricsPage() {
         sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
         monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
         timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
+        mysteryShopping: mda.mysteryShopping
+          ? {
+              ...mda.mysteryShopping,
+              score: mysteryScore,
+              maxPossibleScore:
+                mysteryExemptionPoints > 0
+                  ? mysteryApplicableMax
+                  : (mda.mysteryShopping.maxPossibleScore || 40),
+            }
+          : mda.mysteryShopping,
         totalGrossScore: baseTotalScore,
         totalScore,
         totalPercentage,
