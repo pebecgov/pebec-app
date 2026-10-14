@@ -46,6 +46,8 @@ export default function StateScoresPage() {
       emptyMessage="No states found for this search."
       hideStatusDistribution
       hideStatusColumn
+      hideScoreColumn
+      hideExtraColumn
     />
   );
 }

@@ -107,11 +107,15 @@ export function EntityCard({
   extraLabel,
   onClick,
   hideStatus = false,
+  hideScore = false,
+  hideExtra = false,
 }: {
   row: RankingRow;
   extraLabel: string;
   onClick: () => void;
   hideStatus?: boolean;
+  hideScore?: boolean;
+  hideExtra?: boolean;
 }) {
   const status = getScoreStatus(row.score, row.maxScore);
 
@@ -139,13 +143,17 @@ export function EntityCard({
       )}
       <div className="flex items-center justify-between">
         {hideStatus ? (
-          <span className="text-sm text-gray-500">{row.extra} {extraLabel}</span>
+          !hideExtra ? (
+            <span className="text-sm text-gray-500">{row.extra} {extraLabel}</span>
+          ) : null
         ) : (
           <StatusBadge status={status} size="sm" />
         )}
-        <span className="text-lg font-bold text-[#006B3F]">{formatScorePair(row.score, row.maxScore)}</span>
+        {!hideScore && (
+          <span className="text-lg font-bold text-[#006B3F]">{formatScorePair(row.score, row.maxScore)}</span>
+        )}
       </div>
-      {!hideStatus && (
+      {!hideStatus && !hideExtra && (
         <p className="mt-3 text-xs text-gray-500">
           {row.extra} {extraLabel}
         </p>
