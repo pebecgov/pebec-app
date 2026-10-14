@@ -215,6 +215,8 @@ export function RankingDashboard({
                   row={row}
                   extraLabel={extraCardLabel}
                   hideStatus={hideStatusColumn}
+                  hideScore={hideScoreColumn}
+                  hideExtra={hideExtraColumn}
                   onClick={() => router.push(row.href)}
                 />
               ))}
