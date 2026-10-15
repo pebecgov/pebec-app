@@ -20,11 +20,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search, Users } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search, Users, Printer } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
 import { fuelCarLabel } from "@/lib/fuelCars";
+import { printFuelRequest } from "@/lib/printFuelRequest";
 import { getCompletionDocumentsFromTask } from "@/lib/taskCompletionDocuments";
 import { TaskCompletionDocumentsPanel } from "@/components/Tasks/TaskCompletionDocumentsPanel";
 
@@ -1514,23 +1515,37 @@ export default function AdminTasks() {
                               {row.priceAmount != null ? row.priceAmount.toLocaleString() : "—"}
                             </TableCell>
                             <TableCell className="text-right">
-                              {row.status === "pending_approval" && (
+                              <div className="flex flex-wrap items-center justify-end gap-2">
                                 <Button
                                   type="button"
                                   size="sm"
                                   variant="outline"
-                                  onClick={async () => {
-                                    try {
-                                      await approveFuelRequest({ requestId: row._id });
-                                      toast.success("Request approved.");
-                                    } catch (e: any) {
-                                      toast.error(e.message || "Failed to approve");
-                                    }
+                                  onClick={() => {
+                                    const opened = printFuelRequest(row);
+                                    if (!opened) toast.error("Allow pop-ups to print this request.");
                                   }}
                                 >
-                                  Approve
+                                  <Printer className="w-4 h-4 mr-1" />
+                                  Print
                                 </Button>
-                              )}
+                                {row.status === "pending_approval" && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={async () => {
+                                      try {
+                                        await approveFuelRequest({ requestId: row._id });
+                                        toast.success("Request approved.");
+                                      } catch (e: any) {
+                                        toast.error(e.message || "Failed to approve");
+                                      }
+                                    }}
+                                  >
+                                    Approve
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
