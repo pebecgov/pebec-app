@@ -62,7 +62,9 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
     abbreviation: "SCUML",
     aliases: [
       "EFCC – Special Control Unit for Money Laundering",
+      "SCUML - EFCC - Special Control Unit for Money Laundering",
       "Special Control Unit for Money Laundering",
+      "Special Control Unit Against Money Laundering",
     ],
   },
   { name: "Nigeria Export Promotion Council", abbreviation: "NEPC" },
