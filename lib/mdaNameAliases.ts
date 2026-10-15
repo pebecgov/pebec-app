@@ -48,6 +48,18 @@ export const MDA_RENAMES = [
       "nipc - nigerian investment promotion commission",
     ],
   },
+  {
+    // Display and ticket record use different prefixes for the same agency.
+    canonicalName: "EFCC - Special Control Unit for Money Laundering",
+    canonicalAbbr: "SCUML",
+    aliases: [
+      "scuml",
+      "efcc - special control unit for money laundering",
+      "scuml - efcc - special control unit for money laundering",
+      "special control unit for money laundering",
+      "special control unit against money laundering",
+    ],
+  },
 ] as const;
 
 function normalizeAliasKey(value: string): string {
@@ -59,8 +71,14 @@ function normalizeAliasKey(value: string): string {
 }
 
 function stripAbbreviationPrefix(value: string): string {
-  const match = String(value || "").match(/^[A-Z0-9.&/ -]+ - (.+)$/);
-  return match?.[1]?.trim() || String(value || "").trim();
+  let current = String(value || "").replace(/[–—]/g, "-").trim();
+  let next = current;
+  do {
+    current = next;
+    const match = current.match(/^[A-Z0-9.&/]+ - (.+)$/);
+    next = match?.[1]?.trim() || current;
+  } while (next !== current);
+  return current;
 }
 
 export function canonicalizeMdaName(name: string): string {

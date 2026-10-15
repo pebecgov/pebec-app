@@ -54,13 +54,14 @@ export const sanitizeMdaName = (mdaName: string): string => {
  * Strip abbreviation prefix from MDA names (e.g., "FME - Federal Ministry" -> "Federal Ministry")
  */
 export const stripAbbreviation = (mdaName: string): string => {
-    if (!mdaName) return mdaName;
-    // Remove pattern like "ABC - " or "ABC -" from the start
-    const match = mdaName.match(/^[A-Z]+ - (.+)$/);
-    if (match && match[1]) {
-        return match[1].trim();
-    }
-    return mdaName.trim();
+    let current = (mdaName || "").replace(/[–—]/g, "-").trim();
+    let next = current;
+    do {
+        current = next;
+        const match = current.match(/^[A-Z0-9.&/]+ - (.+)$/);
+        next = match?.[1]?.trim() || current;
+    } while (next !== current);
+    return current;
 };
 
 /**

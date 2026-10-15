@@ -2698,15 +2698,26 @@ export const getAllMdaSavedDataForDashboard = query({
       }
     }
 
-    const resolveMdaDocForReportGov = (name: string): Doc<"mdas"> | null => {
+    const resolveMdaDocsForReportGov = (name: string): Doc<"mdas">[] => {
       const canonical = canonicalizeMdaName(name);
-      const direct = mdaDocByCanonical.get(canonical);
-      if (direct) return direct;
-      return (
-        allMdaDocsForReportGov.find(
-          (m) => mdaNamesMatch(m.name, name) || mdaNamesMatch(m.name, canonical),
-        ) ?? null
-      );
+      const seen = new Set<string>();
+      const matches: Doc<"mdas">[] = [];
+      const add = (mda: Doc<"mdas"> | undefined) => {
+        if (!mda || seen.has(String(mda._id))) return;
+        seen.add(String(mda._id));
+        matches.push(mda);
+      };
+      add(mdaDocByCanonical.get(canonical));
+      for (const mda of allMdaDocsForReportGov) {
+        if (
+          canonicalizeMdaName(mda.name) === canonical ||
+          mdaNamesMatch(mda.name, name) ||
+          mdaNamesMatch(mda.name, canonical)
+        ) {
+          add(mda);
+        }
+      }
+      return matches;
     };
 
     Object.entries(reportGovResByMda).forEach(([rawMdaName, dataList]) => {
@@ -2752,8 +2763,10 @@ export const getAllMdaSavedDataForDashboard = query({
         adjustedResolutionRate = primary?.adjustedResolutionRate ?? null;
       } else if (needsLiveReportGov) {
         // Same live path as admin ScoringTab / getPeriodTicketData.
-        const mdaDoc = resolveMdaDocForReportGov(primary?.mdaName || rawMdaName || mdaName);
-        const mdaTickets = mdaDoc ? (ticketsByMdaId.get(String(mdaDoc._id)) || []) : [];
+        const mdaDocs = resolveMdaDocsForReportGov(primary?.mdaName || rawMdaName || mdaName);
+        const mdaTickets = mdaDocs.flatMap(
+          (mdaDoc) => ticketsByMdaId.get(String(mdaDoc._id)) || [],
+        );
         const stats = computeTicketStats(
           mdaTickets,
           ticketWindow.startDate,

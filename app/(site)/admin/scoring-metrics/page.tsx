@@ -480,7 +480,7 @@ export default function ScoringMetricsPage() {
         maxPossiblePoints -= excludedOthersWeight;
       }
       maxPossiblePoints = Math.max(0, maxPossiblePoints);
-
+        
       const totalPercentage = maxPossiblePoints > 0
         ? (totalScore / maxPossiblePoints) * 100
         : 0;
