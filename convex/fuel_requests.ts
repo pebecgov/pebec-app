@@ -28,15 +28,44 @@ function todayYyyyMmDd(): string {
   return `${y}-${m}-${day}`;
 }
 
+function isReceptionistAdmin(user: { role?: string; staffStream?: string } | null): boolean {
+  return !!user && user.staffStream === "receptionist" && (user.role === "staff" || user.role === "admin");
+}
+
+function personName(user: { firstName?: string; lastName?: string; email?: string } | null): string | null {
+  if (!user) return null;
+  const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+  return name || user.email || null;
+}
+
+async function withPeople(ctx: { db: { get: (id: any) => Promise<any> } }, rows: any[]) {
+  return await Promise.all(
+    rows.map(async (row) => {
+      const [requestedByUser, approvedByUser, priceEnteredByUser] = await Promise.all([
+        ctx.db.get(row.requestedBy),
+        row.approvedBy ? ctx.db.get(row.approvedBy) : null,
+        row.priceEnteredBy ? ctx.db.get(row.priceEnteredBy) : null,
+      ]);
+      return {
+        ...row,
+        requestedByName: personName(requestedByUser),
+        approvedByName: personName(approvedByUser),
+        priceEnteredByName: personName(priceEnteredByUser),
+      };
+    })
+  );
+}
+
 /** Admin (designated emails): all fuel requests, newest first. */
 export const listFuelRequests = query({
   args: {},
   handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
-    if (!isAuthorizedTaskAdmin(user)) {
+    if (!isAuthorizedTaskAdmin(user) && !isReceptionistAdmin(user)) {
       return [];
     }
-    return await ctx.db.query("fuel_requests").order("desc").collect();
+    const rows = await ctx.db.query("fuel_requests").order("desc").collect();
+    return await withPeople(ctx, rows);
   },
 });
 
@@ -48,7 +77,8 @@ export const listFuelRequestsForReception = query({
     if (user.role !== "staff" || user.staffStream !== "receptionist") {
       return [];
     }
-    return await ctx.db.query("fuel_requests").order("desc").collect();
+    const rows = await ctx.db.query("fuel_requests").order("desc").collect();
+    return await withPeople(ctx, rows);
   },
 });
 

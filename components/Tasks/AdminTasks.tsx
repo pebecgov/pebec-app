@@ -20,11 +20,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search, Users } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search, Users, Printer } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
 import { fuelCarLabel } from "@/lib/fuelCars";
+import { printFuelRequest } from "@/lib/printFuelRequest";
 import { getCompletionDocumentsFromTask } from "@/lib/taskCompletionDocuments";
 import { TaskCompletionDocumentsPanel } from "@/components/Tasks/TaskCompletionDocumentsPanel";
 
@@ -87,7 +88,11 @@ export default function AdminTasks() {
   const markReceptionDocumentViewed = useMutation(api.tasks.markReceptionDocumentViewed);
   const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
   const isAuthorizedAdmin = isAuthorizedTaskAdminClient(currentUser ?? null);
-  const fuelRequests = useQuery(api.fuel_requests.listFuelRequests, isAuthorizedAdmin ? {} : "skip");
+  const isReceptionistAdmin =
+    currentUser?.staffStream === "receptionist" &&
+    (currentUser?.role === "staff" || currentUser?.role === "admin");
+  const canSeeFuel = isReceptionistAdmin || isAuthorizedAdmin;
+  const fuelRequests = useQuery(api.fuel_requests.listFuelRequests, canSeeFuel ? {} : "skip");
   const approveFuelRequest = useMutation(api.fuel_requests.approveFuelRequest);
 
   // Only the specific admin can view pending requests
@@ -602,17 +607,17 @@ export default function AdminTasks() {
   }, [receptionInboxDocuments, filteredReceptionDocuments, receptionPage, receptionTotalPages]);
 
   useEffect(() => {
-    if (!isAuthorizedAdmin) {
+    if (!isAuthorizedAdmin && !isReceptionistAdmin) {
       setTasksMainTab("tasks");
       return;
     }
-    if (searchParams.get("tab") === "reception") {
+    if (isAuthorizedAdmin && searchParams.get("tab") === "reception") {
       setTasksMainTab("reception");
     }
-    if (searchParams.get("tab") === "fuel") {
+    if ((isAuthorizedAdmin || isReceptionistAdmin) && searchParams.get("tab") === "fuel") {
       setTasksMainTab("fuel");
     }
-  }, [isAuthorizedAdmin, searchParams]);
+  }, [isAuthorizedAdmin, isReceptionistAdmin, searchParams]);
 
   return (
     <div className="p-6 space-y-6 min-w-0 w-full max-w-full">
@@ -688,7 +693,7 @@ export default function AdminTasks() {
       </div>
 
       <Tabs value={tasksMainTab} onValueChange={(v) => setTasksMainTab(v as "tasks" | "reception" | "fuel")} className="w-full min-w-0 max-w-full">
-        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-2xl grid-cols-3" : "max-w-xs grid-cols-1"}`}>
+        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-2xl grid-cols-3" : canSeeFuel ? "max-w-md grid-cols-2" : "max-w-xs grid-cols-1"}`}>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           {isAuthorizedAdmin && (
             <TabsTrigger value="reception" className="gap-1">
@@ -696,7 +701,7 @@ export default function AdminTasks() {
               Recieve Scanned Letters
             </TabsTrigger>
           )}
-          {isAuthorizedAdmin && (
+          {canSeeFuel && (
             <TabsTrigger value="fuel" className="gap-1">
               <Droplets className="w-3.5 h-3.5" />
               Fuel
@@ -1514,23 +1519,37 @@ export default function AdminTasks() {
                               {row.priceAmount != null ? row.priceAmount.toLocaleString() : "—"}
                             </TableCell>
                             <TableCell className="text-right">
-                              {row.status === "pending_approval" && (
+                              <div className="flex flex-wrap items-center justify-end gap-2">
                                 <Button
                                   type="button"
                                   size="sm"
                                   variant="outline"
-                                  onClick={async () => {
-                                    try {
-                                      await approveFuelRequest({ requestId: row._id });
-                                      toast.success("Request approved.");
-                                    } catch (e: any) {
-                                      toast.error(e.message || "Failed to approve");
-                                    }
+                                  onClick={() => {
+                                    const opened = printFuelRequest(row);
+                                    if (!opened) toast.error("Allow pop-ups to print this request.");
                                   }}
                                 >
-                                  Approve
+                                  <Printer className="w-4 h-4 mr-1" />
+                                  Print
                                 </Button>
-                              )}
+                                {row.status === "pending_approval" && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={async () => {
+                                      try {
+                                        await approveFuelRequest({ requestId: row._id });
+                                        toast.success("Request approved.");
+                                      } catch (e: any) {
+                                        toast.error(e.message || "Failed to approve");
+                                      }
+                                    }}
+                                  >
+                                    Approve
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
