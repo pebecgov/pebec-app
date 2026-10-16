@@ -28,6 +28,10 @@ function todayYyyyMmDd(): string {
   return `${y}-${m}-${day}`;
 }
 
+function isReceptionistAdmin(user: { role?: string; staffStream?: string } | null): boolean {
+  return !!user && user.staffStream === "receptionist" && (user.role === "staff" || user.role === "admin");
+}
+
 function personName(user: { firstName?: string; lastName?: string; email?: string } | null): string | null {
   if (!user) return null;
   const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
@@ -57,7 +61,7 @@ export const listFuelRequests = query({
   args: {},
   handler: async (ctx) => {
     const user = await getCurrentUserOrThrow(ctx);
-    if (!isAuthorizedTaskAdmin(user)) {
+    if (!isAuthorizedTaskAdmin(user) && !isReceptionistAdmin(user)) {
       return [];
     }
     const rows = await ctx.db.query("fuel_requests").order("desc").collect();

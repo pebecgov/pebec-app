@@ -88,7 +88,11 @@ export default function AdminTasks() {
   const markReceptionDocumentViewed = useMutation(api.tasks.markReceptionDocumentViewed);
   const generateTaskAssignmentUploadUrl = useMutation(api.tasks.generateTaskAssignmentUploadUrl);
   const isAuthorizedAdmin = isAuthorizedTaskAdminClient(currentUser ?? null);
-  const fuelRequests = useQuery(api.fuel_requests.listFuelRequests, isAuthorizedAdmin ? {} : "skip");
+  const isReceptionistAdmin =
+    currentUser?.staffStream === "receptionist" &&
+    (currentUser?.role === "staff" || currentUser?.role === "admin");
+  const canSeeFuel = isReceptionistAdmin || isAuthorizedAdmin;
+  const fuelRequests = useQuery(api.fuel_requests.listFuelRequests, canSeeFuel ? {} : "skip");
   const approveFuelRequest = useMutation(api.fuel_requests.approveFuelRequest);
 
   // Only the specific admin can view pending requests
@@ -603,17 +607,17 @@ export default function AdminTasks() {
   }, [receptionInboxDocuments, filteredReceptionDocuments, receptionPage, receptionTotalPages]);
 
   useEffect(() => {
-    if (!isAuthorizedAdmin) {
+    if (!isAuthorizedAdmin && !isReceptionistAdmin) {
       setTasksMainTab("tasks");
       return;
     }
-    if (searchParams.get("tab") === "reception") {
+    if (isAuthorizedAdmin && searchParams.get("tab") === "reception") {
       setTasksMainTab("reception");
     }
-    if (searchParams.get("tab") === "fuel") {
+    if ((isAuthorizedAdmin || isReceptionistAdmin) && searchParams.get("tab") === "fuel") {
       setTasksMainTab("fuel");
     }
-  }, [isAuthorizedAdmin, searchParams]);
+  }, [isAuthorizedAdmin, isReceptionistAdmin, searchParams]);
 
   return (
     <div className="p-6 space-y-6 min-w-0 w-full max-w-full">
@@ -689,7 +693,7 @@ export default function AdminTasks() {
       </div>
 
       <Tabs value={tasksMainTab} onValueChange={(v) => setTasksMainTab(v as "tasks" | "reception" | "fuel")} className="w-full min-w-0 max-w-full">
-        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-2xl grid-cols-3" : "max-w-xs grid-cols-1"}`}>
+        <TabsList className={`grid w-full ${isAuthorizedAdmin ? "max-w-2xl grid-cols-3" : canSeeFuel ? "max-w-md grid-cols-2" : "max-w-xs grid-cols-1"}`}>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           {isAuthorizedAdmin && (
             <TabsTrigger value="reception" className="gap-1">
@@ -697,7 +701,7 @@ export default function AdminTasks() {
               Recieve Scanned Letters
             </TabsTrigger>
           )}
-          {isAuthorizedAdmin && (
+          {canSeeFuel && (
             <TabsTrigger value="fuel" className="gap-1">
               <Droplets className="w-3.5 h-3.5" />
               Fuel
