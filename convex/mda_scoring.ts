@@ -634,6 +634,53 @@ export const getMonthlyReportFileRef = internalQuery({
   },
 });
 
+// Same as getMonthlyReportFileRef but for every month in one pass, keyed by `${year}-${month}`.
+export const getMonthlyReportFileRefs = internalQuery({
+  args: {
+    mdaName: v.string(),
+    scoringPeriod: v.string(),
+    months: v.array(v.object({ month: v.number(), year: v.number() })),
+  },
+  returns: v.record(
+    v.string(),
+    v.object({
+      fileId: v.optional(v.id("_storage")),
+      fileName: v.optional(v.string()),
+      fileSize: v.union(v.number(), v.null()),
+      submittedAt: v.number(),
+      reportCount: v.number(),
+    })
+  ),
+  handler: async (ctx, { mdaName, scoringPeriod, months }) => {
+    const monthlyData = await loadRealMonthlyReports(ctx, { mdaName, scoringPeriod });
+    const refs: Record<
+      string,
+      {
+        fileId?: Id<"_storage">;
+        fileName?: string;
+        fileSize: number | null;
+        submittedAt: number;
+        reportCount: number;
+      }
+    > = {};
+    for (const { month, year } of months) {
+      const monthName = new Date(year, month, 1).toLocaleString("default", { month: "long" });
+      const entry = monthlyData.find((m) => m.month === monthName && m.year === year);
+      if (!entry?.submitted || entry.reports.length === 0) continue;
+      const latest = [...entry.reports].sort((a, b) => b.submittedAt - a.submittedAt)[0]!;
+      const meta = latest.fileId ? await ctx.db.system.get(latest.fileId) : null;
+      refs[`${year}-${month}`] = {
+        fileId: latest.fileId,
+        fileName: latest.fileName,
+        fileSize: meta?.size ?? null,
+        submittedAt: latest.submittedAt,
+        reportCount: entry.reports.length,
+      };
+    }
+    return refs;
+  },
+});
+
 type RealMonthlyReportEntry = {
   month: string;
   year: number;
