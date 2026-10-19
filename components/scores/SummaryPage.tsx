@@ -15,6 +15,8 @@ export interface MetricItem {
   name: string;
   score: number;
   maxScore: number;
+  /** Tracker label only. The bar still uses maxScore. */
+  displayMaxScore?: number;
   /** False when this metric has not been saved yet (do not treat as a real zero). */
   scored?: boolean;
   /**
@@ -318,7 +320,7 @@ export function MetricBreakdown({
                             Metric maximum
                           </span>
                           <span className="text-sm font-semibold text-gray-900">
-                            {formatPoints(metric.maxScore)}
+                            {formatPoints(metric.displayMaxScore ?? metric.maxScore)}
                           </span>
                         </span>
                       ) : (

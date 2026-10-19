@@ -254,6 +254,8 @@ export default function MdaSummaryPage() {
         name: metric.label,
         score: isBeepaMetric && !exempted ? Math.min(scoreValue, beepaMax) : scoreValue,
         maxScore: maxValue,
+        displayMaxScore:
+          metric.key === "mystery" && testingServiceExempt ? metric.max : undefined,
         scored: exempted ? true : isScored,
         complete: exempted ? true : isComplete,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
