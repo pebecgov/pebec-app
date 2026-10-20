@@ -795,6 +795,15 @@ function isFollowUpStep(step: SessionDoc["step"]): boolean {
   );
 }
 
+/** Free-text steps where "hello" should be saved as content, not reopen the prompt. */
+function isFreeTextStep(step: SessionDoc["step"]): boolean {
+  return (
+    step === "awaiting_complaint" ||
+    step === "follow_up_reply" ||
+    step === "collect_incident_date"
+  );
+}
+
 async function nextReply(
   ctx: MutationCtx,
   session: SessionDoc,
@@ -808,21 +817,44 @@ async function nextReply(
   const replyId = buttonId ?? "";
   const copy = sessionCopy(session);
   const fu = followCopy(session);
+  const ticketNumberInText = extractTicketNumber(text);
+  const inFreeText = isFreeTextStep(session.step);
 
   const languageChoice = parseLanguageChoice(replyId || text);
   if (languageChoice && (replyId.startsWith("lang_") || session.step === "collect_language")) {
     return await setLanguage(ctx, session, languageChoice);
   }
 
+  // Pasted ticket ID (e.g. REP-201026-008) → Check Complaint, even as first message.
   if (
-    (session.step === "idle" || session.step === "collect_language") &&
-    isGreeting(normalized)
+    ticketNumberInText &&
+    !replyId &&
+    !inFreeText &&
+    (session.step === "idle" ||
+      session.step === "collect_language" ||
+      session.step === "ticket_select" ||
+      session.step === "status_select" ||
+      session.step === "follow_up_select")
   ) {
-    return await askLanguage(ctx, session);
+    return await statusReply(ctx, session, text);
   }
 
-  if (session.step === "collect_language") {
-    return languagePicker();
+  // First prompt (language picker):
+  // - First contact: any message when language is not set yet
+  // - Hello / hi / asalam / barka (etc.): reopen the first prompt anytime
+  // Mid-chat free-text steps keep the typed words as content.
+  const isFirstContact =
+    !session.language &&
+    (session.step === "idle" || session.step === "collect_language") &&
+    !replyId &&
+    !storageId &&
+    !ticketNumberInText;
+  if (
+    isFirstContact ||
+    session.step === "collect_language" ||
+    (!inFreeText && !replyId && isGreeting(normalized))
+  ) {
+    return await askLanguage(ctx, session);
   }
 
   if (normalized === "help" || replyId === "help") {
@@ -950,9 +982,6 @@ async function nextReply(
     session.step === "status_select" ||
     session.step === "ticket_select"
   ) {
-    if (extractTicketNumber(text)) {
-      return await statusReply(ctx, session, text);
-    }
     return await startTicketPicker(ctx, session);
   }
   if (session.step === "follow_up_ticket" && session.activeTicketId) {
@@ -964,10 +993,6 @@ async function nextReply(
     const ticket = await ownedTicket(ctx, session, session.activeTicketId);
     if (ticket) return await showConversation(ctx, session, ticket);
     return await startFollowUp(ctx, session);
-  }
-
-  if (extractTicketNumber(text) && session.step === "idle") {
-    return await statusReply(ctx, session, text);
   }
 
   if (replyId.startsWith("zone_")) {
@@ -1074,9 +1099,15 @@ async function nextReply(
   if (wantsComplaint(normalized)) {
     return await startComplaint(ctx, session);
   }
-  if (isGreeting(normalized)) {
-    return await askLanguage(ctx, session);
+
+  // Idle with language already set → show action menu once.
+  // Mid-chat: do not re-send the menu; say Hi to reopen the first prompt.
+  if (session.step === "idle") {
+    return await showMenu(ctx, session);
   }
 
-  return await showMenu(ctx, session);
+  return {
+    reply: copy.help,
+    kind: "text",
+  };
 }
