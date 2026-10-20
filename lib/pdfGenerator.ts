@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import mysteryCallData from './BFA_MysteryCall_clean.json';
 import mysteryShoppingData from './UPDATED_MYSTERY_SHOPPING.json';
 import recommendationsData from './recommendations.json';
+import type { MdaRankingSummary } from './mdaRankingSummary';
 
 interface MdaDetailedData {
   mdaName: string;
@@ -48,6 +49,8 @@ interface MdaDetailedData {
     secondHalf: any;
   };
   position?: number | string;
+  /** Ranking-table totals — when present, the summary uses these instead of legacy math. */
+  rankingSummary?: MdaRankingSummary;
 }
 
 // Define interfaces for the import data
@@ -988,13 +991,66 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition += 15;
   }
 
-  // Overall Score Summary
-  // Reuse SLA score calculated earlier (but exclude from total if this is an excluded MDA)
+  // Overall Score Summary — prefer ranking-table totals when provided.
+  const ranking = data.rankingSummary;
+  const useRankingSummary = !!ranking && ranking.year >= 2026;
+
+  let summaryBody: string[][] = [];
+
+  if (useRankingSummary && ranking) {
+    summaryBody = [
+      ['SLA', `${ranking.slaScore.toFixed(1)}/${ranking.slaMax}`],
+      ['Mystery Shopping', `${ranking.mysteryScore.toFixed(1)}/${ranking.mysteryMax}`],
+    ];
+    for (const line of ranking.othersLines) {
+      summaryBody.push([
+        line.name,
+        line.excluded ? 'Excluded' : `${line.score.toFixed(1)}/${line.max}`,
+      ]);
+    }
+    summaryBody.push(
+      [
+        'Report Gov Resolution',
+        ranking.reportGovSkipped
+          ? 'Skipped'
+          : `${ranking.reportGovScore.toFixed(1)}/${ranking.reportGovMax}`,
+      ],
+      ['Monthly Report Submission', `${ranking.monthlyScore.toFixed(1)}/${ranking.monthlyMax}`],
+      ['Timeliness', `${ranking.timelinessScore.toFixed(1)}/${ranking.timelinessMax}`],
+      ['', ''],
+      ['Base Total Score', `${ranking.baseTotalScore.toFixed(1)}/${ranking.maxPossiblePoints}`],
+    );
+    for (const line of ranking.penaltyLines) {
+      summaryBody.push([
+        `${line.name} (Penalty)`,
+        line.applied ? `−${Math.abs(line.value).toFixed(1)}` : '0.0',
+      ]);
+    }
+    for (const line of ranking.bonusLines) {
+      summaryBody.push([
+        `${line.name} (Bonus)`,
+        line.applied ? `+${Math.abs(line.value).toFixed(1)}` : '0.0',
+      ]);
+    }
+    if (ranking.penaltyLines.length === 0 && ranking.penaltyScore > 0) {
+      summaryBody.push(['Penalties', `−${ranking.penaltyScore.toFixed(1)}`]);
+    }
+    if (ranking.bonusLines.length === 0 && ranking.bonusScore > 0) {
+      summaryBody.push(['Bonuses', `+${ranking.bonusScore.toFixed(1)}`]);
+    }
+    summaryBody.push(
+      ['', ''],
+      [
+        'OVERALL TOTAL',
+        `${ranking.totalScore.toFixed(1)}/${ranking.maxPossiblePoints} (${ranking.totalPercentage.toFixed(1)}%)`,
+      ]
+    );
+  } else {
+  // Legacy summary (pre-2026 / when ranking totals were not passed)
   const slaScore = isExcludedMDA ? 0 : slaFinalScore;
 
   const mysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
 
-  // Controversial: Handle both old and new data formats
   let controversialScore = data.controversial.firstHalf || data.controversial.secondHalf ?
     ((data.controversial.firstHalf?.score || 0) + (data.controversial.secondHalf?.score || 0)) / 2 : 0;
   if (data.controversial.firstHalf || data.controversial.secondHalf) {
@@ -1005,19 +1061,15 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
   let toutingRentseekingScore = 0;
   if (data.toutingRentseeking?.firstHalf || data.toutingRentseeking?.secondHalf) {
     const toutingFirst = data.toutingRentseeking?.firstHalf;
     const toutingSecond = data.toutingRentseeking?.secondHalf;
     if (toutingFirst && toutingSecond) {
-      // Both halves have data - average
       toutingRentseekingScore = ((toutingFirst.score || 0) + (toutingSecond.score || 0)) / 2;
     } else if (toutingFirst) {
-      // Only first half
       toutingRentseekingScore = toutingFirst.score || 0;
     } else if (toutingSecond) {
-      // Only second half
       toutingRentseekingScore = toutingSecond.score || 0;
     }
   }
@@ -1041,7 +1093,6 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
     isTransparencySkipped = activeTransparencyEntries.length === 0;
   }
-  // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
   let reportGovResScore = 0;
   const isReportGovSkipped = (data.reportGovResolution.firstHalf?.isSkipped || false) ||
     (data.reportGovResolution.secondHalf?.isSkipped || false);
@@ -1053,32 +1104,25 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     if (!isReportGovSkipped) {
       if (hasFirstHalf && hasSecondHalf) {
-        // Both halves have data - average
         reportGovResScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
       } else if (hasFirstHalf) {
-        // Only first half - divide by 2
         reportGovResScore = (resFirst.score || 0) / 2;
       } else if (hasSecondHalf) {
-        // Only second half - divide by 2
         reportGovResScore = (resSecond.score || 0) / 2;
       }
     }
   }
 
-  // Calculate base total score (all metrics except controversial and touting & rentseeking)
-  // Exclude SLA, Monthly Report, and Timeliness for excluded MDAs
   const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
     transparencyScore + reportGovResScore +
     (isExcludedMDA ? 0 : monthlyReportScore) +
     (isExcludedMDA ? 0 : timelinessScore);
 
-  // Calculate penalties (convert negative scores to positive penalty values)
   const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
   const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
   const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
 
   let maxPossiblePoints = 90;
-  // For excluded MDAs, subtract SLA (30) + Monthly Report (3) + Timeliness (2) = 35 points
   if (isExcludedMDA) {
     maxPossiblePoints -= 35;
   }
@@ -1089,48 +1133,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     maxPossiblePoints -= 15;
   }
 
-  // Hardcoded percentages for specific MDAs
-  let totalPercentage: number;
-  const mdaLower = data.mdaName.toLowerCase();
-
-  if (mdaLower.includes('nigerian agricultural insurance corporation')) {
-    totalPercentage = 37.1;
-  } else if (mdaLower.includes('national insurance commission')) {
-    totalPercentage = 37.3;
-  } else if (mdaLower.includes('advertising regulatory council of nigeria')) {
-    totalPercentage = 3.0;
-  } else if (mdaLower.includes('federal ministry of justice')) {
-    totalPercentage = 22.5;
-  } else if (mdaLower.includes('federal ministry of information and national orientation')) {
-    totalPercentage = 13.0;
-  } else if (mdaLower.includes('federal ministry of aviation and aerospace development')) {
-    totalPercentage = 10.5;
-  } else if (mdaLower.includes('federal ministry of transportation')) {
-    totalPercentage = 10.5;
-  } else if (mdaLower.includes('federal ministry of finance')) {
-    totalPercentage = 7.4;
-  } else if (mdaLower.includes('federal ministry of environment')) {
-    totalPercentage = 4.9;
-  } else if (mdaLower.includes('federal ministry of power')) {
-    totalPercentage = 4.9;
-  } else if (mdaLower.includes('federal ministry of works')) {
-    totalPercentage = 12.3;
-  } else if (mdaLower.includes('ministry of foreign affairs')) {
-    totalPercentage = -2.1;
-  } else {
-    // Calculate percentage normally for other MDAs
-    totalPercentage = maxPossiblePoints > 0
-      ? (totalScore / maxPossiblePoints) * 100
-      : 0;
-  }
-
-  if (yPosition > pageHeight - 60) {
-    doc.addPage();
-    yPosition = 20;
-  }
-
-  // Build summary body conditionally based on excluded MDA status
-  const summaryBody: string[][] = [];
+  const totalPercentage = maxPossiblePoints > 0
+    ? (totalScore / maxPossiblePoints) * 100
+    : 0;
 
   if (!isExcludedMDA) {
     summaryBody.push(['SLA', `${slaScore.toFixed(1)}/30`]);
@@ -1157,10 +1162,14 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     ['Controversial (Penalty)', `${controversialScore.toFixed(1)} points`],
     ['Touting & Rentseeking (Penalty)', `${toutingRentseekingScore.toFixed(1)} points`],
     ['', ''],
-    maxPossiblePoints !== 90
-      ? ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
-      : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
+    ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
   );
+  }
+
+  if (yPosition > pageHeight - 60) {
+    doc.addPage();
+    yPosition = 20;
+  }
 
   autoTable(doc, {
     startY: yPosition,

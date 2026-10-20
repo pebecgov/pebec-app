@@ -535,30 +535,19 @@ export default function ScoringMetricsPage() {
       return;
     }
 
-    // Process and filter data based on current filter
+    // Use the same processed rows as the ranking table so PDF totals stay current.
     const processedData = processDashboardMdaData(mdaFilter, ministryFilter);
 
-    // Convert back to the format expected by PDF generator
-    const filteredLiveData = processedData.map((mda: any) => ({
-      mdaName: mda.mdaName,
-      sla: mda.sla,
-      mysteryShopping: mda.mysteryShopping,
-      controversial: mda.controversial,
-      toutingRentseeking: mda.toutingRentseeking,
-      innovation: mda.innovation,
-      stakeholder: mda.stakeholder,
-      transparency: mda.transparency,
-      reportGovResolution: mda.reportGovResolution,
-      monthlyReport: mda.monthlyReport,
-      timeliness: mda.timeliness
-    }));
-
     await generateDashboardPDF({
-      liveDashboardData: filteredLiveData,
+      liveDashboardData: processedData,
       selectedMetric,
       dashboardYear,
       mdasList,
-      filterType: mdaFilter === 'withData' || ministryFilter !== 'all' ? 'withData' : 'all'
+      filterType: mdaFilter === 'withData' || ministryFilter !== 'all' ? 'withData' : 'all',
+      othersConfig: othersConfig || [],
+      penaltyConfig: penaltyConfig || [],
+      bonusConfig: bonusConfig || [],
+      efficiencyConfig: liveDashboardData?.efficiencyConfig ?? efficiencyConfig ?? undefined,
     });
   };
 
