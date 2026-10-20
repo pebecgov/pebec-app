@@ -590,30 +590,44 @@ export function parseLanguageChoice(input: string): WhatsAppLang | null {
 }
 
 export function isGreeting(normalized: string): boolean {
+  const trimmed = normalized.trim();
   return (
-    normalized === "hi" ||
-    normalized === "hello" ||
-    normalized === "hey" ||
-    normalized === "start" ||
-    normalized === "menu" ||
-    normalized === "sannu" ||
-    normalized === "salama" ||
-    normalized === "ndewo" ||
-    normalized === "kedu" ||
-    normalized === "nnoo" ||
-    normalized === "nnọọ" ||
-    normalized === "bawo" ||
-    normalized === "pelu" ||
-    normalized.startsWith("hello") ||
-    normalized.startsWith("hi ") ||
-    normalized.startsWith("hey ") ||
-    normalized.startsWith("good morning") ||
-    normalized.startsWith("good afternoon") ||
-    normalized.startsWith("good evening") ||
-    normalized.startsWith("e kaaro") ||
-    normalized.startsWith("ẹ káàrọ") ||
-    normalized.startsWith("e kaasan") ||
-    normalized.startsWith("e ku irole")
+    trimmed === "hi" ||
+    trimmed === "hello" ||
+    trimmed === "hey" ||
+    trimmed === "start" ||
+    trimmed === "menu" ||
+    trimmed === "sannu" ||
+    trimmed === "salama" ||
+    trimmed === "salam" ||
+    trimmed === "salaam" ||
+    trimmed === "asalam" ||
+    trimmed === "assalam" ||
+    trimmed === "assalamu" ||
+    trimmed === "barka" ||
+    trimmed === "ndewo" ||
+    trimmed === "kedu" ||
+    trimmed === "nnoo" ||
+    trimmed === "nnọọ" ||
+    trimmed === "bawo" ||
+    trimmed === "pelu" ||
+    trimmed.startsWith("hello") ||
+    trimmed.startsWith("hi ") ||
+    trimmed.startsWith("hey ") ||
+    trimmed.startsWith("good morning") ||
+    trimmed.startsWith("good afternoon") ||
+    trimmed.startsWith("good evening") ||
+    trimmed.startsWith("asalam") ||
+    trimmed.startsWith("assalam") ||
+    trimmed.startsWith("assalamu") ||
+    trimmed.startsWith("salam ") ||
+    trimmed.startsWith("salaam") ||
+    trimmed.startsWith("barka") ||
+    trimmed.startsWith("barka da") ||
+    trimmed.startsWith("e kaaro") ||
+    trimmed.startsWith("ẹ káàrọ") ||
+    trimmed.startsWith("e kaasan") ||
+    trimmed.startsWith("e ku irole")
   );
 }
 
