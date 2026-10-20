@@ -4,6 +4,7 @@ import React from 'react';
 import { AlertTriangle, Download, Eye } from 'lucide-react';
 import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
+import { buildMdaRankingSummary } from '@/lib/mdaRankingSummary';
 import { toast } from 'sonner';
 
 interface DashboardTableProps {
@@ -575,6 +576,16 @@ export default function DashboardTable({
                                                             ) as any;
                                                             if (detailedData) {
                                                                 detailedData.position = rank;
+                                                                detailedData.rankingSummary = buildMdaRankingSummary(
+                                                                    mda,
+                                                                    dashboardYear,
+                                                                    {
+                                                                        othersConfig: othersConfig || [],
+                                                                        penaltyConfig: penaltyConfig || [],
+                                                                        bonusConfig: bonusConfig || [],
+                                                                        efficiencyConfig,
+                                                                    }
+                                                                );
                                                                 await generateMdaScoringPDF(detailedData);
                                                                 toast.success("PDF downloaded successfully!");
                                                             } else {

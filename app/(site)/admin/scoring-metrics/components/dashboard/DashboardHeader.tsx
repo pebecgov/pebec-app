@@ -21,6 +21,8 @@ interface DashboardHeaderProps {
     processDashboardMdaData: (filter: 'all' | 'withData', ministryFilter: 'all' | 'ministries-only' | 'without-ministries') => any[];
     othersConfig: any;
     penaltyConfig: any;
+    bonusConfig?: any;
+    efficiencyConfig?: any;
 }
 
 export default function DashboardHeader({
@@ -37,7 +39,9 @@ export default function DashboardHeader({
     liveDashboardData,
     processDashboardMdaData,
     othersConfig,
-    penaltyConfig
+    penaltyConfig,
+    bonusConfig,
+    efficiencyConfig,
 }: DashboardHeaderProps) {
     return (
         <div className="bg-white p-5 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
@@ -142,6 +146,10 @@ export default function DashboardHeader({
                     <BulkPdfDownloader
                         mdaData={processDashboardMdaData(mdaFilter, ministryFilter)}
                         year={dashboardYear}
+                        othersConfig={othersConfig || []}
+                        penaltyConfig={penaltyConfig || []}
+                        bonusConfig={bonusConfig || []}
+                        efficiencyConfig={efficiencyConfig}
                     />
                 </div>
             </div>

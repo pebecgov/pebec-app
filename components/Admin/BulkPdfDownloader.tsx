@@ -4,15 +4,32 @@ import { useState } from 'react';
 import { useConvex } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
+import { buildMdaRankingSummary } from '@/lib/mdaRankingSummary';
 import { toast } from 'sonner';
 import { Loader2, Package } from 'lucide-react';
 
 interface BulkPdfDownloaderProps {
     mdaData: any[];
     year: number;
+    othersConfig?: Array<{ itemId: string; itemName: string; weight: number }>;
+    penaltyConfig?: Array<{ penaltyId: string; penaltyName: string; penaltyValue: number }>;
+    bonusConfig?: Array<{ bonusId: string; bonusName: string; bonusValue: number }>;
+    efficiencyConfig?: {
+        slaPoints?: number;
+        reportGovPoints?: number;
+        reportSubmissionPoints?: number;
+        timelinessPoints?: number;
+    };
 }
 
-export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
+export function BulkPdfDownloader({
+    mdaData,
+    year,
+    othersConfig,
+    penaltyConfig,
+    bonusConfig,
+    efficiencyConfig,
+}: BulkPdfDownloaderProps) {
     const [isDownloading, setIsDownloading] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const convex = useConvex();
@@ -50,6 +67,12 @@ export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
                 if (detailedData) {
                     // Add rank/position based on sorted order (1 = top rank)
                     detailedData.position = i + 1;
+                    detailedData.rankingSummary = buildMdaRankingSummary(mda, year, {
+                        othersConfig: othersConfig || [],
+                        penaltyConfig: penaltyConfig || [],
+                        bonusConfig: bonusConfig || [],
+                        efficiencyConfig,
+                    });
 
                     // Generate PDF
                     await generateMdaScoringPDF(detailedData);
