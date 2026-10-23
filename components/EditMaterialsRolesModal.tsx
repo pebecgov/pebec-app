@@ -10,6 +10,7 @@ import { api } from "@/convex/_generated/api";
 import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import {
+  NIGERIAN_STATES,
   SABER_MATERIAL_TYPE_LABELS,
   type SaberMaterialType,
 } from "@/lib/saberMaterials";
@@ -34,12 +35,14 @@ export default function EditMaterialRolesModal({
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const [materialType, setMaterialType] = useState<SaberMaterialType>("general");
+  const [state, setState] = useState<string>("");
 
   useEffect(() => {
     if (material) {
       setSelectedRoles(material.roles || []);
       setSelectedReference(material.reference || null);
       setMaterialType(material.materialType || "general");
+      setState(material.state || "");
     }
   }, [material]);
 
@@ -64,7 +67,7 @@ export default function EditMaterialRolesModal({
       await updateClassification({
         materialId: material._id,
         materialType,
-        state: undefined,
+        state: materialType === "general" ? undefined : state || undefined,
       });
       toast.success("Material updated");
       onClose();
@@ -99,6 +102,24 @@ export default function EditMaterialRolesModal({
             </SelectContent>
           </Select>
         </div>
+
+        {materialType !== "general" && (
+          <div className="grid gap-3 mt-4">
+            <span className="font-medium text-sm text-gray-700">State</span>
+            <Select value={state || undefined} onValueChange={setState}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select state" />
+              </SelectTrigger>
+              <SelectContent>
+                {NIGERIAN_STATES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="grid gap-3 mt-4">
           <span className="font-medium text-sm text-gray-700">Roles Access</span>
