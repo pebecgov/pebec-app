@@ -912,6 +912,7 @@ export default defineSchema({
     materialType: v.optional(v.union(
       v.literal("general"),
       v.literal("final_results"),
+      v.literal("year2_results"),
       v.literal("prior_results")
     )),
     state: v.optional(v.string())

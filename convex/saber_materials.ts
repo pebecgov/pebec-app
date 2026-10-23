@@ -12,6 +12,7 @@ import {
 const materialTypeValidator = v.union(
   v.literal("general"),
   v.literal("final_results"),
+  v.literal("year2_results"),
   v.literal("prior_results")
 );
 
@@ -50,9 +51,14 @@ export const addSaberMaterial = mutation({
   },
   handler: async (ctx, args) => {
     const materialType = args.materialType ?? "general";
+    const state =
+      materialType === "general"
+        ? undefined
+        : args.state ?? parseStateFromMaterialTitle(args.title);
     return await ctx.db.insert("saber_materials", {
       ...args,
       materialType,
+      state,
       isPublic: args.isPublic || false,
     });
   },
@@ -139,6 +145,9 @@ export const getPublicSaberMaterialsGrouped = query({
     const finalResults = sortStateReports(
       saberMaterials.filter((m) => m.materialType === "final_results")
     );
+    const year2Results = sortStateReports(
+      saberMaterials.filter((m) => m.materialType === "year2_results")
+    );
     const priorResults = sortStateReports(
       saberMaterials.filter((m) => m.materialType === "prior_results")
     );
@@ -148,6 +157,7 @@ export const getPublicSaberMaterialsGrouped = query({
 
     return {
       finalResults,
+      year2Results,
       priorResults,
       generalMaterials,
       total: saberMaterials.length,
@@ -255,7 +265,7 @@ export const autoTagStateReportMaterials = mutation({
         skipped.push({
           id: material._id,
           title: material.title,
-          reason: "Title does not match Final or Prior Results pattern",
+          reason: "Title does not match Year 1, Year 2, or Prior Results pattern",
         });
         continue;
       }
