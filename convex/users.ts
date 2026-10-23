@@ -992,52 +992,55 @@ export const getAdminEmails = mutation(async ctx => {
   );
   return admins.map((u) => u.email);
 });
-export const getGrowthStats = query(async ({
-  db
-}) => {
-  const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-  const lastMonthEnd = currentMonthStart - 1;
-  const totalUsers = (await db.query("users").collect()).length;
-  const totalPosts = (await db.query("posts").collect()).length;
-  const totalMDAs = (await db.query("mdas").collect()).length;
-  const usersLastMonth = (await db.query("users").filter(q => q.gte(q.field("_creationTime"), lastMonthStart)).collect()).length;
-  const usersThisMonth = (await db.query("users").filter(q => q.and(q.gte(q.field("_creationTime"), currentMonthStart), q.lte(q.field("_creationTime"), lastMonthEnd))).collect()).length;
-  const postsLastMonth = (await db.query("posts").filter(q => q.gte(q.field("_creationTime"), lastMonthStart)).collect()).length;
-  const postsThisMonth = (await db.query("posts").filter(q => q.and(q.gte(q.field("_creationTime"), currentMonthStart), q.lte(q.field("_creationTime"), lastMonthEnd))).collect()).length;
-  const mdasLastMonth = (await db.query("mdas").filter(q => q.gte(q.field("_creationTime"), lastMonthStart)).collect()).length;
-  const mdasThisMonth = (await db.query("mdas").filter(q => q.and(q.gte(q.field("_creationTime"), currentMonthStart), q.lte(q.field("_creationTime"), lastMonthEnd))).collect()).length;
-  console.log("🔥 Total Users:", totalUsers);
-  console.log("🔥 Users Last Month:", usersLastMonth);
-  console.log("🔥 Users This Month:", usersThisMonth);
-  console.log("🔥 Total Posts:", totalPosts);
-  console.log("🔥 Posts Last Month:", postsLastMonth);
-  console.log("🔥 Posts This Month:", postsThisMonth);
-  console.log("🔥 Total MDAs:", totalMDAs);
-  console.log("🔥 MDAs Last Month:", mdasLastMonth);
-  console.log("🔥 MDAs This Month:", mdasThisMonth);
-  return {
-    total: {
-      users: totalUsers,
-      posts: totalPosts,
-      mdas: totalMDAs
-    },
-    growth: {
-      users: {
-        current: usersThisMonth,
-        previous: usersLastMonth
+export const getGrowthStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const nowDate = new Date(now);
+    const currentMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+    const lastMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime();
+    const lastMonthEnd = currentMonthStart - 1;
+
+    // Single collect per table (avoids Convex 32k docs-read limit from re-scanning).
+    const [users, posts, mdas] = await Promise.all([
+      ctx.db.query("users").collect(),
+      ctx.db.query("posts").collect(),
+      ctx.db.query("mdas").collect(),
+    ]);
+
+    const countInRange = (
+      docs: Array<{ _creationTime: number }>,
+      start: number,
+      end: number
+    ) =>
+      docs.reduce(
+        (n, doc) =>
+          doc._creationTime >= start && doc._creationTime <= end ? n + 1 : n,
+        0
+      );
+
+    return {
+      total: {
+        users: users.length,
+        posts: posts.length,
+        mdas: mdas.length,
       },
-      posts: {
-        current: postsThisMonth,
-        previous: postsLastMonth
+      growth: {
+        users: {
+          current: countInRange(users, currentMonthStart, now),
+          previous: countInRange(users, lastMonthStart, lastMonthEnd),
+        },
+        posts: {
+          current: countInRange(posts, currentMonthStart, now),
+          previous: countInRange(posts, lastMonthStart, lastMonthEnd),
+        },
+        mdas: {
+          current: countInRange(mdas, currentMonthStart, now),
+          previous: countInRange(mdas, lastMonthStart, lastMonthEnd),
+        },
       },
-      mdas: {
-        current: mdasThisMonth,
-        previous: mdasLastMonth
-      }
-    }
-  };
+    };
+  },
 });
 export const getAllUsers = query({
   args: {
