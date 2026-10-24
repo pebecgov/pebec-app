@@ -86,6 +86,7 @@ export function SummaryHeader({
   scoreNote,
   notScoredYet = false,
   hideStatus = false,
+  hideScore = false,
 }: {
   backHref: string;
   backLabel: string;
@@ -100,6 +101,8 @@ export function SummaryHeader({
   notScoredYet?: boolean;
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
+  /** Hide overall X / 100 total and progress bar in the header. */
+  hideScore?: boolean;
 }) {
   // Incomplete overall: show "Not scored yet" badge, but keep a running total if any points exist.
   const showIncompleteBadge = notScoredYet || !status;
@@ -141,25 +144,27 @@ export function SummaryHeader({
           )}
         </div>
 
-        <div className="mt-6 bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-200">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">{scoreLabel}</span>
+        {!hideScore && (
+          <div className="mt-6 bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">{scoreLabel}</span>
+              {showRunningTotal ? (
+                <span className="text-2xl font-bold text-[#006B3F]">{formatScorePair(score, maxScore)}</span>
+              ) : (
+                <span className="text-lg font-semibold text-gray-500">Not scored fully</span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Assessment year {SCORE_YEAR}
+              {scoreNote ? ` · ${scoreNote}` : ""}
+            </p>
             {showRunningTotal ? (
-              <span className="text-2xl font-bold text-[#006B3F]">{formatScorePair(score, maxScore)}</span>
+              <ProgressBar score={score} maxScore={maxScore} color={progressColor} size="lg" />
             ) : (
-              <span className="text-lg font-semibold text-gray-500">Not scored fully</span>
+              <p className="text-sm text-gray-500">Scores will appear here once all indicators are assessed.</p>
             )}
           </div>
-          <p className="text-xs text-gray-500 mb-3">
-            Assessment year {SCORE_YEAR}
-            {scoreNote ? ` · ${scoreNote}` : ""}
-          </p>
-          {showRunningTotal ? (
-            <ProgressBar score={score} maxScore={maxScore} color={progressColor} size="lg" />
-          ) : (
-            <p className="text-sm text-gray-500">Scores will appear here once all indicators are assessed.</p>
-          )}
-        </div>
+        )}
       </div>
     </header>
   );

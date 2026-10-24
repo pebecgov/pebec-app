@@ -111,6 +111,7 @@ export default function StateSummaryPage() {
         scoreLabel="Overall Business Climate Score"
         scoreNote="Bonus points are included in this total"
         notScoredYet={!fullyScored}
+        hideScore
       />
       <MetricBreakdown
         title="Business Climate Indicators"

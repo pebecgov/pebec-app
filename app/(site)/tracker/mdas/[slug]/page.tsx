@@ -291,6 +291,7 @@ export default function MdaSummaryPage() {
         scoreLabel="Overall BFA Score"
         scoreNote="Bonus points are included in this total"
         notScoredYet={!fullyScored}
+        hideScore
       />
       {beepaExempted && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
