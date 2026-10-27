@@ -163,8 +163,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     !!ranking && (ranking.year >= 2026 || data.year >= 2026);
 
   const buildRankingSummaryBody = (summary: MdaRankingSummary): string[][] => {
+    // Same labels/order as Live Dashboard columns (no lumped "Others").
     const body: string[][] = [
-      ['SLA', `${summary.slaScore.toFixed(1)}/${summary.slaMax}`],
+      ['SLA (Efficiency)', `${summary.slaScore.toFixed(1)}/${summary.slaMax}`],
       ['Mystery Shopping', `${summary.mysteryScore.toFixed(1)}/${summary.mysteryMax}`],
     ];
     for (const line of summary.othersLines) {
@@ -180,11 +181,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
           ? 'Skipped'
           : `${summary.reportGovScore.toFixed(1)}/${summary.reportGovMax}`,
       ],
-      ['Monthly Report Submission', `${summary.monthlyScore.toFixed(1)}/${summary.monthlyMax}`],
+      ['Report Submission', `${summary.monthlyScore.toFixed(1)}/${summary.monthlyMax}`],
       ['Timeliness', `${summary.timelinessScore.toFixed(1)}/${summary.timelinessMax}`],
       ['', ''],
       [
-        'Base Total Score',
+        'Total Score',
         `${summary.baseTotalScore.toFixed(1)}/${summary.maxPossiblePoints}`,
       ],
     );
@@ -232,7 +233,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       didParseCell: (hookData: any) => {
         if (hookData.section === 'body') {
           const label = String(hookData.row.raw?.[0] || '');
-          if (label === 'OVERALL TOTAL' || label === 'Base Total Score') {
+          if (label === 'OVERALL TOTAL' || label === 'Total Score' || label === 'Base Total Score') {
             hookData.cell.styles.fontStyle = 'bold';
           }
         }
@@ -601,6 +602,45 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
+  // 2026+: render each Live Dashboard column item separately (not a lumped "Others").
+  // Pre-2026: keep legacy Innovation / Stakeholder / Transparency / penalty halves.
+  let nextSectionNumber = 3;
+  const othersSectionColors: Array<[number, number, number]> = [
+    [156, 39, 176],
+    [255, 152, 0],
+    [233, 30, 99],
+    [0, 121, 107],
+    [63, 81, 181],
+  ];
+
+  if (useTableTotals && ranking) {
+    ranking.othersLines.forEach((line, idx) => {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      const color = othersSectionColors[idx % othersSectionColors.length];
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[`${nextSectionNumber}. ${line.name} (${line.max} points)`, '']],
+        body: [
+          [
+            'Score',
+            line.excluded ? 'Excluded' : `${line.score.toFixed(1)}/${line.max}`,
+          ],
+        ],
+        headStyles: {
+          fillColor: color,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'grid',
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      nextSectionNumber += 1;
+    });
+  } else {
   // Controversial - average both halves
   if (data.controversial.firstHalf || data.controversial.secondHalf) {
     const contFirst = data.controversial.firstHalf || { isControversial: false, score: 0 };
@@ -768,10 +808,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       });
 
       if (bothSkipped) {
-        bodyRows.push(['Status', '⚠️ Transparency skipped']);
+        bodyRows.push(['Status', 'Transparency skipped']);
       } else {
         bodyRows.push(['Combined Score', `${combinedScore.toFixed(1)}/5`]);
-        // Mirror notes removed per requirement
       }
 
       autoTable(doc, {
@@ -789,12 +828,17 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       yPosition = (doc as any).lastAutoTable.finalY + 15;
     }
   }
+  nextSectionNumber = 8;
+  }
 
   // Report Gov Resolution - show single half if only one exists, otherwise sum/average
-  if (data.reportGovResolution.firstHalf || data.reportGovResolution.secondHalf) {
+  if (data.reportGovResolution.firstHalf || data.reportGovResolution.secondHalf || (useTableTotals && ranking)) {
     const resFirst = data.reportGovResolution.firstHalf || {};
     const resSecond = data.reportGovResolution.secondHalf || {};
-    const isSkipped = (resFirst?.isSkipped || false) || (resSecond?.isSkipped || false);
+    const isSkipped =
+      (useTableTotals && ranking?.reportGovSkipped) ||
+      (resFirst?.isSkipped || false) ||
+      (resSecond?.isSkipped || false);
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -806,11 +850,13 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       useTableTotals && ranking ? ranking.reportGovMax : 15;
     const reportGovScoreForPdf =
       useTableTotals && ranking ? ranking.reportGovScore : null;
+    const reportGovSectionLabel = `${nextSectionNumber}. Report Gov Resolution (${reportGovMaxForPdf} points)`;
+    nextSectionNumber += 1;
 
     if (isSkipped) {
       autoTable(doc, {
         startY: yPosition,
-        head: [[`8. Report Gov Resolution (${reportGovMaxForPdf} points)`, '']],
+        head: [[reportGovSectionLabel, '']],
         body: [['Status', 'Skipped']],
         headStyles: {
           fillColor: [63, 81, 181],
@@ -819,6 +865,20 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         },
         styles: { fontSize: 9 },
         theme: 'striped'
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    } else if (!data.reportGovResolution.firstHalf && !data.reportGovResolution.secondHalf && reportGovScoreForPdf != null) {
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[reportGovSectionLabel, '']],
+        body: [['Score', `${reportGovScoreForPdf.toFixed(1)}/${reportGovMaxForPdf}`]],
+        headStyles: {
+          fillColor: [63, 81, 181],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'striped',
       });
       yPosition = (doc as any).lastAutoTable.finalY + 15;
     } else {
@@ -881,7 +941,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
       autoTable(doc, {
         startY: yPosition,
-        head: [[`8. Report Gov Resolution (${reportGovMaxForPdf} points)`, '']],
+        head: [[reportGovSectionLabel, '']],
         body: tableBody,
         headStyles: {
           fillColor: [63, 81, 181],
@@ -1006,7 +1066,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [[`9. Monthly Report Submission (${monthlyMaxForPdf} points)`, 'Status']],
+      head: [[`${nextSectionNumber}. Monthly Report Submission (${monthlyMaxForPdf} points)`, 'Status']],
       body: monthlyReportTableData.slice(0, -2),
       headStyles: {
         fillColor: [0, 150, 136],
@@ -1016,6 +1076,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       styles: { fontSize: 9 },
       theme: 'striped',
     });
+    nextSectionNumber += 1;
     yPosition = (doc as any).lastAutoTable.finalY + 10;
 
     doc.setFontSize(10);
@@ -1128,7 +1189,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [[`10. Timeliness in Submitting Report (${timelinessMaxForPdf} points)`, 'Status']],
+      head: [[`${nextSectionNumber}. Timeliness in Submitting Report (${timelinessMaxForPdf} points)`, 'Status']],
       body: timelinessTableData.slice(0, -2),
       headStyles: {
         fillColor: [121, 85, 72],
@@ -1158,6 +1219,62 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       yPosition
     );
     yPosition += 15;
+    nextSectionNumber += 1;
+  }
+
+  // Penalties / bonuses after efficiency columns (same order as Live Dashboard).
+  if (useTableTotals && ranking) {
+    for (const line of ranking.penaltyLines) {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[`${nextSectionNumber}. ${line.name} (Penalty)`, '']],
+        body: [
+          [
+            'Applied',
+            line.applied ? `Yes (−${Math.abs(line.value).toFixed(1)})` : 'No (0.0)',
+          ],
+        ],
+        headStyles: {
+          fillColor: [156, 39, 176],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'grid',
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      nextSectionNumber += 1;
+    }
+
+    for (const line of ranking.bonusLines) {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[`${nextSectionNumber}. ${line.name} (Bonus)`, '']],
+        body: [
+          [
+            'Applied',
+            line.applied ? `Yes (+${Math.abs(line.value).toFixed(1)})` : 'No (0.0)',
+          ],
+        ],
+        headStyles: {
+          fillColor: [46, 125, 50],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'grid',
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      nextSectionNumber += 1;
+    }
   }
 
   // Overall Score Summary — already printed at top for 2026 table totals.
