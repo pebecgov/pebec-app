@@ -184,7 +184,6 @@ export default function Sidebar({
     }, {
       name: "Company Properties",
       path: "/admin/company-items",
-      adminOnly: true
     }]
   },
   // {

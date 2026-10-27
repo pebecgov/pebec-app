@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LayoutGrid, List, Search } from "lucide-react";
-import { SCORE_YEAR, formatPoints, type RankingRow } from "@/lib/scoreTracker";
+import { SCORE_YEAR, type RankingRow } from "@/lib/scoreTracker";
 import { RankingTable } from "./RankingTable";
 import { StatusDistribution } from "./StatusDistribution";
 import {
@@ -67,11 +67,6 @@ export function RankingDashboard({
     );
   }, [rows, searchQuery]);
 
-  const averageScore =
-    filteredRows.length > 0
-      ? filteredRows.reduce((sum, row) => sum + row.score, 0) / filteredRows.length
-      : 0;
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -81,7 +76,7 @@ export function RankingDashboard({
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {rows ? (
             <>
               <StatCard
@@ -114,20 +109,9 @@ export function RankingDashboard({
                   </svg>
                 }
               />
-              <StatCard
-                title="Average Score"
-                value={formatPoints(averageScore)}
-                subtitle={searchQuery ? `Across ${filteredRows.length} matching results` : `Across all ${entityLabel.toLowerCase()}s`}
-                icon={
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                }
-              />
             </>
           ) : (
             <>
-              <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />

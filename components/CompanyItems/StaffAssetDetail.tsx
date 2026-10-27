@@ -19,14 +19,15 @@ import {
 } from "@/components/ui/table";
 import { formatPrettyDate, getItemTypeMeta } from "./itemTypeMeta";
 import TablePagination, { paginateRows } from "./TablePagination";
+import { canManageCompanyProperties } from "@/lib/companyPropertiesAccess";
 
 export default function StaffAssetDetail({ userId }: { userId: Id<"users"> }) {
   const router = useRouter();
   const currentUser = useQuery(api.users.getCurrentUsers);
-  const isAdmin = currentUser?.role === "admin";
+  const canManage = !!currentUser && canManageCompanyProperties(currentUser);
   const staff = useQuery(
     api.companyAssets.getStaffAssets,
-    isAdmin ? { userId } : "skip",
+    canManage ? { userId } : "skip",
   );
   const [heldPage, setHeldPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
@@ -34,10 +35,10 @@ export default function StaffAssetDetail({ userId }: { userId: Id<"users"> }) {
   if (currentUser === undefined) {
     return <p className="py-16 text-center text-gray-500">Loading staff properties...</p>;
   }
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!currentUser || !canManage) {
     return (
       <p className="py-16 text-center text-red-500">
-        Unauthorized: Only admins can manage company properties.
+        Unauthorized: You do not have access to manage company properties.
       </p>
     );
   }

@@ -118,6 +118,7 @@ export default function StateSummaryPage() {
         hint="Click an indicator to view its sub-indicators and why each is measured"
         metrics={metrics}
         hideStatus={!fullyScored}
+        showMetricMaxOnly
       />
     </div>
   );

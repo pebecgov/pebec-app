@@ -505,7 +505,9 @@ export function MetricBreakdown({
                   <div className="border-t border-gray-200">
                     <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       <div className="col-span-7">Sub-indicator</div>
-                      <div className="col-span-5 text-right">Score</div>
+                      <div className="col-span-5 text-right">
+                        {showMetricMaxOnly ? "Maximum" : "Score"}
+                      </div>
                     </div>
                     <div className="divide-y divide-gray-100">
                       {metric.details!.map((detail) => (
@@ -523,11 +525,15 @@ export function MetricBreakdown({
                           <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
                             {isExempted
                               ? "Exempted"
-                              : detail.scored !== true
-                                ? "Not scored yet"
-                                : detail.maxScore !== undefined
-                                  ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
-                                  : formatPoints(detail.score)}
+                              : showMetricMaxOnly
+                                ? detail.maxScore !== undefined
+                                  ? formatPoints(detail.maxScore)
+                                  : "—"
+                                : detail.scored !== true
+                                  ? "Not scored yet"
+                                  : detail.maxScore !== undefined
+                                    ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
+                                    : formatPoints(detail.score)}
                           </div>
                         </div>
                       ))}
