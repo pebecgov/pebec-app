@@ -264,14 +264,13 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   ];
 
   // Service Level Agreement (SLA)
-  // Generate all 12 months for the year
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const slaTableData: string[][] = [];
 
   // 2026 SLA is stored on the full-year period; older years used 1st/2nd half.
   const slaSources = [data.sla.fullYear, data.sla.firstHalf, data.sla.secondHalf].filter(Boolean);
 
-  // Collect all months with data
+  // Collect all months with data (legacy rebuild path)
   const monthlyData: { [key: string]: { percentage?: number; score?: number; method?: string } } = {};
 
   const monthHasSlaData = (value: any): boolean => {
@@ -317,7 +316,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     });
   });
 
-  // Calculate SLA score (used for both SLA table and Overall Summary) - Exclude November (10) and December (11)
+  // Calculate SLA score (legacy path) - Exclude November (10) and December (11)
   const slaAllMonthKeys = new Set<string>();
   let slaSumTotalScore = 0;
   slaSources.forEach((source) => {
@@ -337,35 +336,52 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     });
   });
 
-  const slaTotalMonthsWithData = slaAllMonthKeys.size;
-  const slaMaxPossibleRawScore = slaTotalMonthsWithData * 5;
-  const pointsPerMonth = 30 / 10; // Changed from 12 to 10 months
-  const slaMaxPossibleScoreForMonths = slaTotalMonthsWithData * pointsPerMonth;
-  const slaFinalScore = slaTotalMonthsWithData > 0 ? (slaSumTotalScore / slaMaxPossibleRawScore) * slaMaxPossibleScoreForMonths : 0;
+  const slaTotalMonthsWithDataLegacy = slaAllMonthKeys.size;
+  const slaMaxPossibleRawScore = slaTotalMonthsWithDataLegacy * 5;
+  const pointsPerMonth = 30 / 10;
+  const slaMaxPossibleScoreForMonths = slaTotalMonthsWithDataLegacy * pointsPerMonth;
+  const slaFinalScore =
+    slaTotalMonthsWithDataLegacy > 0
+      ? (slaSumTotalScore / slaMaxPossibleRawScore) * slaMaxPossibleScoreForMonths
+      : 0;
 
-  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
-  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
-    const monthKey = `${data.year}-${monthIndex}`;
-    const monthName = monthNames[monthIndex];
-    const monthEntry = monthlyData[monthKey];
-
-    if (monthEntry) {
-      slaTableData.push([`${monthName} ${data.year}`, monthDisplayValue(monthEntry)]);
-    } else {
-      slaTableData.push([`${monthName} ${data.year}`, 'No data']);
+  if (useTableTotals && ranking) {
+    for (const month of ranking.slaMonths) {
+      slaTableData.push([month.monthLabel, month.display]);
+    }
+  } else {
+    // Add only Jan-Oct months (legacy)
+    for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
+      const monthKey = `${data.year}-${monthIndex}`;
+      const monthName = monthNames[monthIndex];
+      const monthEntry = monthlyData[monthKey];
+      if (monthEntry) {
+        slaTableData.push([`${monthName} ${data.year}`, monthDisplayValue(monthEntry)]);
+      } else {
+        slaTableData.push([`${monthName} ${data.year}`, 'No data']);
+      }
     }
   }
 
-  // Add summary rows — use Live Dashboard SLA when available (2026 = /5, not legacy /30)
   const slaMaxForPdf = useTableTotals && ranking ? ranking.slaMax : 30;
   const slaScoreForPdf = useTableTotals && ranking ? ranking.slaScore : slaFinalScore;
+  const slaMonthsWithDataForPdf =
+    useTableTotals && ranking
+      ? ranking.slaMonthsCounted
+      : slaTotalMonthsWithDataLegacy;
+  const slaMonthsTotalForPdf =
+    useTableTotals && ranking ? ranking.slaMonthsTotal || 10 : 10;
+
   slaTableData.push([
     'Total Score',
     `${slaScoreForPdf.toFixed(1)}/${slaMaxForPdf}${
       useTableTotals ? '' : ` (${((slaFinalScore / 30) * 100).toFixed(1)}%)`
     }`,
   ]);
-  slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+  slaTableData.push([
+    'Months with Data',
+    `${slaMonthsWithDataForPdf}/${slaMonthsTotalForPdf}`,
+  ]);
 
   // Only render SLA table if not an excluded MDA
   if (!isExcludedMDA) {
@@ -879,26 +895,23 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  // Monthly Report Submission - show all 12 months but exclude Nov/Dec from calculations
+  // Monthly Report Submission — prefer Live Dashboard monthStatuses (individual + bulk).
   const monthlyReportTableData: string[][] = [];
   const monthlyReportMonths: { [key: string]: boolean } = {};
   [data.monthlyReport.fullYear, data.monthlyReport.firstHalf, data.monthlyReport.secondHalf]
     .filter(Boolean)
     .forEach((half) => {
-    if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
-      Object.entries(half.manualMonthlyReports).forEach(([key, value]) => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11) from calculations
-        if (monthIndex === 10 || monthIndex === 11) return;
+      if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
+        Object.entries(half.manualMonthlyReports).forEach(([key, value]) => {
+          const monthIndex = parseInt(key.split('-')[1]);
+          if (monthIndex === 10 || monthIndex === 11) return;
+          if (value) monthlyReportMonths[key] = true;
+        });
+      }
+    });
 
-        if (value) monthlyReportMonths[key] = true;
-      });
-    }
-  });
-
-  // Check if this is FIRS, NPA, FRSC, NAMA, CAC, SEC, NDLEA, or CBN (need this before table generation)
-  const isFIRS = data.mdaName.toLowerCase().includes('federal inland revenue service') ||
+  const isFIRS =
+    data.mdaName.toLowerCase().includes('federal inland revenue service') ||
     data.mdaName.toLowerCase().includes('nigeria revenue service') ||
     data.mdaName.toLowerCase().includes('nrs');
   const isNPA = data.mdaName.toLowerCase().includes('nigerian ports authority');
@@ -909,57 +922,54 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const isNDLEA = data.mdaName.toLowerCase().includes('national drug law enforcement');
   const isCBN = data.mdaName.toLowerCase().includes('central bank');
 
-  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
-  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
-    const monthKey = `${data.year}-${monthIndex}`;
-    const monthName = monthNames[monthIndex];
-    const isSubmitted = monthlyReportMonths[monthKey] === true;
-
-    // For FIRS and NPA, always show as "Submitted"
-    // For FRSC, only January (month 0) should be forced to "Submitted"
-    // For NAMA, only February (month 1) should be forced to "Submitted"
-    // For CAC, only July (month 6) should be forced to "Submitted"
-    // For SEC, April (month 3) and May (month 4) should be forced to "Submitted"
-    // For NDLEA, only October (month 9) should be forced to "Submitted"
-    // For CBN, only January (month 0) should be forced to "Submitted"
-    let displayStatus: string;
-    if (isFIRS || isNPA) {
-      displayStatus = 'Submitted';
-    } else if (isFRSC && monthIndex === 0) {
-      displayStatus = 'Submitted';
-    } else if (isNAMA && monthIndex === 1) {
-      displayStatus = 'Submitted';
-    } else if (isCAC && monthIndex === 6) {
-      displayStatus = 'Submitted';
-    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
-      displayStatus = 'Submitted';
-    } else if (isNDLEA && monthIndex === 9) {
-      displayStatus = 'Submitted';
-    } else if (isCBN && monthIndex === 0) {
-      displayStatus = 'Submitted';
-    } else {
-      displayStatus = isSubmitted ? 'Submitted' : 'Not submitted';
+  if (useTableTotals && ranking) {
+    for (const month of ranking.monthlyMonths) {
+      monthlyReportTableData.push([month.monthLabel, month.display]);
     }
-    monthlyReportTableData.push([`${monthName} ${data.year}`, displayStatus]);
+  } else {
+    for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
+      const monthKey = `${data.year}-${monthIndex}`;
+      const monthName = monthNames[monthIndex];
+      const isSubmitted = monthlyReportMonths[monthKey] === true;
+      let displayStatus: string;
+      if (isFIRS || isNPA) {
+        displayStatus = 'Submitted';
+      } else if (isFRSC && monthIndex === 0) {
+        displayStatus = 'Submitted';
+      } else if (isNAMA && monthIndex === 1) {
+        displayStatus = 'Submitted';
+      } else if (isCAC && monthIndex === 6) {
+        displayStatus = 'Submitted';
+      } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+        displayStatus = 'Submitted';
+      } else if (isNDLEA && monthIndex === 9) {
+        displayStatus = 'Submitted';
+      } else if (isCBN && monthIndex === 0) {
+        displayStatus = 'Submitted';
+      } else {
+        displayStatus = isSubmitted ? 'Submitted' : 'Not submitted';
+      }
+      monthlyReportTableData.push([`${monthName} ${data.year}`, displayStatus]);
+    }
   }
 
-
   const monthlyReportCount = Object.keys(monthlyReportMonths).length;
-  const monthlyReportScore = monthlyReportCount * (3 / 10); // Changed from 12 to 10 months
-  const monthlyMaxForPdf =
-    useTableTotals && ranking ? ranking.monthlyMax : 3;
-  const monthlyScoreForPdf =
-    useTableTotals && ranking ? ranking.monthlyScore : null;
+  const monthlyReportScore = monthlyReportCount * (3 / 10);
+  const monthlyMaxForPdf = useTableTotals && ranking ? ranking.monthlyMax : 3;
+  const monthlyScoreForPdf = useTableTotals && ranking ? ranking.monthlyScore : null;
+  const monthlyCountForPdf =
+    useTableTotals && ranking
+      ? ranking.monthlyMonthsCounted
+      : monthlyReportCount;
+  const monthlyTotalForPdf =
+    useTableTotals && ranking ? ranking.monthlyMonthsTotal || 10 : 10;
 
-  // Only render Monthly Report Submission table if not an excluded MDA
   if (monthlyReportTableData.length > 0 && !isExcludedMDA) {
-    // For FIRS and NPA, use custom display values but keep actual calculation for total
-    // For FRSC, NAMA, CAC, SEC, NDLEA, and CBN, use custom display values
     let displayScore: string;
     let displayCount: string;
     if (monthlyScoreForPdf != null) {
       displayScore = monthlyScoreForPdf.toFixed(1);
-      displayCount = monthlyReportCount.toString();
+      displayCount = String(monthlyCountForPdf);
     } else if (isFIRS || isNPA) {
       displayScore = '3';
       displayCount = '10';
@@ -983,9 +993,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       displayCount = monthlyReportCount.toString();
     }
 
-
     monthlyReportTableData.push(['Total Score', `${displayScore}/${monthlyMaxForPdf}`]);
-    monthlyReportTableData.push(['Months Submitted', `${displayCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+    monthlyReportTableData.push([
+      'Months Submitted',
+      `${displayCount}/${monthlyTotalForPdf}`,
+    ]);
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -999,89 +1011,87 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       headStyles: {
         fillColor: [0, 150, 136],
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
       },
       styles: { fontSize: 9 },
-      theme: 'striped'
+      theme: 'striped',
     });
     yPosition = (doc as any).lastAutoTable.finalY + 10;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(monthlyReportTableData[monthlyReportTableData.length - 2][0] + ': ' + monthlyReportTableData[monthlyReportTableData.length - 2][1], 14, yPosition);
+    doc.text(
+      monthlyReportTableData[monthlyReportTableData.length - 2][0] +
+        ': ' +
+        monthlyReportTableData[monthlyReportTableData.length - 2][1],
+      14,
+      yPosition
+    );
     yPosition += 6;
-    doc.text(monthlyReportTableData[monthlyReportTableData.length - 1][0] + ': ' + monthlyReportTableData[monthlyReportTableData.length - 1][1], 14, yPosition);
+    doc.text(
+      monthlyReportTableData[monthlyReportTableData.length - 1][0] +
+        ': ' +
+        monthlyReportTableData[monthlyReportTableData.length - 1][1],
+      14,
+      yPosition
+    );
     yPosition += 15;
   }
 
-  // Timeliness - show all 12 months but exclude Nov/Dec from calculations
+  // Timeliness — prefer Live Dashboard monthStatuses (individual + bulk).
   const timelinessTableData: string[][] = [];
   const timelinessMonths: { [key: string]: boolean } = {};
   [data.timeliness.fullYear, data.timeliness.firstHalf, data.timeliness.secondHalf]
     .filter(Boolean)
     .forEach((half) => {
-    if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
-      Object.entries(half.manualTimeliness).forEach(([key, value]) => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11) from calculations
-        if (monthIndex === 10 || monthIndex === 11) return;
+      if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
+        Object.entries(half.manualTimeliness).forEach(([key, value]) => {
+          const monthIndex = parseInt(key.split('-')[1]);
+          if (monthIndex === 10 || monthIndex === 11) return;
+          if (value) timelinessMonths[key] = true;
+        });
+      }
+    });
 
-        if (value) timelinessMonths[key] = true;
-      });
+  if (useTableTotals && ranking) {
+    for (const month of ranking.timelinessMonths) {
+      timelinessTableData.push([month.monthLabel, month.display]);
     }
-  });
-
-  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
-  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
-    const monthKey = `${data.year}-${monthIndex}`;
-    const monthName = monthNames[monthIndex];
-    const isOnTime = timelinessMonths[monthKey] === true;
-    const isSubmitted = monthlyReportMonths[monthKey] === true;
-
-    // For FIRS, hardcode the status: July (month 6) is "On Time", all others are "Late"
-    // For NPA, hardcode: Only Sep (month 8) is "Late", all others are "On Time"
-    // For FRSC, hardcode: January (month 0) is "Late", others follow normal logic
-    // For NAMA, hardcode: February (month 1) is "Late", others follow normal logic
-    // For CAC, hardcode: July (month 6) is "Late", others follow normal logic
-    // For SEC, hardcode: April (month 3) and May (month 4) are "Late", others follow normal logic
-    // For NDLEA, hardcode: October (month 9) is "Late", others follow normal logic
-    // For CBN, hardcode: January (month 0) is "Late", others follow normal logic
-    let status: string;
-    if (isFIRS) {
-      status = monthIndex === 6 ? 'On Time' : 'Late';
-    } else if (isNPA) {
-      status = monthIndex === 8 ? 'Late' : 'On Time';
-    } else if (isFRSC && monthIndex === 0) {
-      status = 'Late';
-    } else if (isNAMA && monthIndex === 1) {
-      status = 'Late';
-    } else if (isCAC && monthIndex === 6) {
-      status = 'Late';
-    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
-      status = 'Late';
-    } else if (isNDLEA && monthIndex === 9) {
-      status = 'Late';
-    } else if (isCBN && monthIndex === 0) {
-      status = 'Late';
-    } else {
-      // Normal logic for other MDAs
-      if (!isSubmitted) {
+  } else {
+    for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
+      const monthKey = `${data.year}-${monthIndex}`;
+      const monthName = monthNames[monthIndex];
+      const isOnTime = timelinessMonths[monthKey] === true;
+      const isSubmitted = monthlyReportMonths[monthKey] === true;
+      let status: string;
+      if (isFIRS) {
+        status = monthIndex === 6 ? 'On Time' : 'Late';
+      } else if (isNPA) {
+        status = monthIndex === 8 ? 'Late' : 'On Time';
+      } else if (isFRSC && monthIndex === 0) {
+        status = 'Late';
+      } else if (isNAMA && monthIndex === 1) {
+        status = 'Late';
+      } else if (isCAC && monthIndex === 6) {
+        status = 'Late';
+      } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+        status = 'Late';
+      } else if (isNDLEA && monthIndex === 9) {
+        status = 'Late';
+      } else if (isCBN && monthIndex === 0) {
+        status = 'Late';
+      } else if (!isSubmitted) {
         status = 'Not Submitted';
       } else {
         status = isOnTime ? 'On Time' : 'Late';
       }
+      timelinessTableData.push([`${monthName} ${data.year}`, status]);
     }
-
-    timelinessTableData.push([`${monthName} ${data.year}`, status]);
   }
 
   const timelinessCount = Object.keys(timelinessMonths).length;
-  const timelinessScore = timelinessCount * (2 / 10); // Changed from 12 to 10 months
-  const timelinessMaxForPdf =
-    useTableTotals && ranking ? ranking.timelinessMax : 2;
-
-  // For FIRS and NPA, use custom display values but keep actual calculation for total
+  const timelinessScore = timelinessCount * (2 / 10);
+  const timelinessMaxForPdf = useTableTotals && ranking ? ranking.timelinessMax : 2;
   const displayTimelinessScore =
     useTableTotals && ranking
       ? ranking.timelinessScore.toFixed(1)
@@ -1090,13 +1100,26 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         : isNPA
           ? '1.8'
           : timelinessScore.toFixed(1);
-  const displayTimelinessCount = isFIRS ? '1' : (isNPA ? '9' : timelinessCount.toString());
+  const displayTimelinessCount =
+    useTableTotals && ranking
+      ? String(ranking.timelinessMonthsCounted)
+      : isFIRS
+        ? '1'
+        : isNPA
+          ? '9'
+          : timelinessCount.toString();
+  const timelinessTotalForPdf =
+    useTableTotals && ranking ? ranking.timelinessMonthsTotal || 10 : 10;
 
-  // Add summary rows
-  timelinessTableData.push(['Total Score', `${displayTimelinessScore}/${timelinessMaxForPdf}`]);
-  timelinessTableData.push(['Months On Time', `${displayTimelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+  timelinessTableData.push([
+    'Total Score',
+    `${displayTimelinessScore}/${timelinessMaxForPdf}`,
+  ]);
+  timelinessTableData.push([
+    'Months On Time',
+    `${displayTimelinessCount}/${timelinessTotalForPdf}`,
+  ]);
 
-  // Only render Timeliness table if not an excluded MDA
   if (!isExcludedMDA) {
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -1110,18 +1133,30 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       headStyles: {
         fillColor: [121, 85, 72],
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
       },
       styles: { fontSize: 9 },
-      theme: 'striped'
+      theme: 'striped',
     });
     yPosition = (doc as any).lastAutoTable.finalY + 10;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
+    doc.text(
+      timelinessTableData[timelinessTableData.length - 2][0] +
+        ': ' +
+        timelinessTableData[timelinessTableData.length - 2][1],
+      14,
+      yPosition
+    );
     yPosition += 6;
-    doc.text(timelinessTableData[timelinessTableData.length - 1][0] + ': ' + timelinessTableData[timelinessTableData.length - 1][1], 14, yPosition);
+    doc.text(
+      timelinessTableData[timelinessTableData.length - 1][0] +
+        ': ' +
+        timelinessTableData[timelinessTableData.length - 1][1],
+      14,
+      yPosition
+    );
     yPosition += 15;
   }
 
