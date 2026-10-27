@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import {
   getIndicatorMaxScoresForYear,
   getOverallMaxScoreForYear,
+  getSubIndicatorScore,
 } from "./config/indicators";
 import { normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
 
@@ -56,7 +57,13 @@ export const getStateRankings = query({
       }
       
       const currentTotal = stateTotals.get(normalizedState) || 0;
-      stateTotals.set(normalizedState, currentTotal + score.score);
+      const points = getSubIndicatorScore(
+        score.indicator,
+        score.subIndicator,
+        score.value ?? "",
+        currentYear
+      );
+      stateTotals.set(normalizedState, currentTotal + points);
     }
 
     const denominator = targetMaxScore || 0;

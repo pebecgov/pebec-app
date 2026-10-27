@@ -24,6 +24,7 @@ import {
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
   getOverallMaxScoreForYear,
+  getSubIndicatorScore,
 } from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 import AnalysisTab from "@/components/Admin/AnalysisTab";
@@ -243,7 +244,12 @@ const AnalyticsDashboard = () => {
           stateScores[score.state] = 0;
           stateDetails[score.state] = [];
         }
-        stateScores[score.state] += score.score || 0;
+        stateScores[score.state] += getSubIndicatorScore(
+          score.indicator,
+          score.subIndicator,
+          score.value ?? "",
+          ANALYTICS_YEAR
+        );
         stateDetails[score.state].push(score);
       }
     });
@@ -996,9 +1002,16 @@ export default function StateScoringPage() {
       if (!indicatorScores[score.indicator]) {
         indicatorScores[score.indicator] = { total: 0, subMetrics: {} };
       }
-      indicatorScores[score.indicator].total += score.score ?? 0;
+      // Derive points from stored value so stale score:0 rows (e.g. GIS Yes) still reflect.
+      const points = getSubIndicatorScore(
+        score.indicator,
+        score.subIndicator,
+        score.value ?? "",
+        ANALYTICS_YEAR
+      );
+      indicatorScores[score.indicator].total += points;
       indicatorScores[score.indicator].subMetrics[score.subIndicator] = {
-        score: score.score ?? 0,
+        score: points,
         value: score.value,
         linkToSource: (score as any).linkToSource,
       };
@@ -1006,11 +1019,7 @@ export default function StateScoringPage() {
 
     return Object.entries(getIndicatorsForYear(ANALYTICS_YEAR)).map(([indicatorKey, config]) => {
       const indicatorData = indicatorScores[indicatorKey] || { total: 0, subMetrics: {} };
-      const totalScore = indicatorData.total;
-      const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
-      const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
-
-      // Build sub-metrics array
+      // Prefer recomputed sub-metric sum so totals stay consistent with values.
       const subMetrics = Object.entries(config.subIndicators).map(([subIndicatorKey, subIndicatorConfig]) => {
         const subMetricData = indicatorData.subMetrics[subIndicatorKey] || { score: 0 };
         const subMetricMaxScore = Math.max(
@@ -1027,6 +1036,9 @@ export default function StateScoringPage() {
           linkToSource: subMetricData.linkToSource,
         };
       });
+      const totalScore = subMetrics.reduce((sum, sub) => sum + (sub.score || 0), 0);
+      const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
+      const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
       return {
         name: config.name,

@@ -13,6 +13,7 @@ import {
   CURRENT_INDICATOR_YEAR,
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
+  getSubIndicatorScore,
 } from "./config/indicators";
 import { STATE_LIST, normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
 import {
@@ -103,7 +104,13 @@ export const getPublicStateRankings = query({
         continue;
       }
 
-      stateData.totalScore += score.score;
+      const points = getSubIndicatorScore(
+        score.indicator,
+        score.subIndicator,
+        score.value ?? "",
+        currentYear
+      );
+      stateData.totalScore += points;
 
       if (score.createdAt > stateData.lastUpdated) {
         stateData.lastUpdated = score.createdAt;
@@ -118,8 +125,8 @@ export const getPublicStateRankings = query({
         };
       }
 
-      stateData.indicators[score.indicator].score += score.score;
-      stateData.indicators[score.indicator].subIndicators[score.subIndicator] = score.score;
+      stateData.indicators[score.indicator].score += points;
+      stateData.indicators[score.indicator].subIndicators[score.subIndicator] = points;
     }
 
     const sortedStates = Array.from(stateDetails.entries())
