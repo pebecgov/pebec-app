@@ -153,6 +153,90 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   doc.text(reportTitle, pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 5;
 
+  // Live Dashboard ranking totals (2026+ = out of 100). Prefer these over legacy rebuilds.
+  const ranking = data.rankingSummary;
+  const useTableTotals =
+    !!ranking && (ranking.year >= 2026 || data.year >= 2026);
+
+  const buildRankingSummaryBody = (summary: MdaRankingSummary): string[][] => {
+    const body: string[][] = [
+      ['SLA', `${summary.slaScore.toFixed(1)}/${summary.slaMax}`],
+      ['Mystery Shopping', `${summary.mysteryScore.toFixed(1)}/${summary.mysteryMax}`],
+    ];
+    for (const line of summary.othersLines) {
+      body.push([
+        line.name,
+        line.excluded ? 'Excluded' : `${line.score.toFixed(1)}/${line.max}`,
+      ]);
+    }
+    body.push(
+      [
+        'Report Gov Resolution',
+        summary.reportGovSkipped
+          ? 'Skipped'
+          : `${summary.reportGovScore.toFixed(1)}/${summary.reportGovMax}`,
+      ],
+      ['Monthly Report Submission', `${summary.monthlyScore.toFixed(1)}/${summary.monthlyMax}`],
+      ['Timeliness', `${summary.timelinessScore.toFixed(1)}/${summary.timelinessMax}`],
+      ['', ''],
+      [
+        'Base Total Score',
+        `${summary.baseTotalScore.toFixed(1)}/${summary.maxPossiblePoints}`,
+      ],
+    );
+    for (const line of summary.penaltyLines) {
+      body.push([
+        `${line.name} (Penalty)`,
+        line.applied ? `−${Math.abs(line.value).toFixed(1)}` : '0.0',
+      ]);
+    }
+    for (const line of summary.bonusLines) {
+      body.push([
+        `${line.name} (Bonus)`,
+        line.applied ? `+${Math.abs(line.value).toFixed(1)}` : '0.0',
+      ]);
+    }
+    if (summary.penaltyLines.length === 0 && summary.penaltyScore > 0) {
+      body.push(['Penalties', `−${summary.penaltyScore.toFixed(1)}`]);
+    }
+    if (summary.bonusLines.length === 0 && summary.bonusScore > 0) {
+      body.push(['Bonuses', `+${summary.bonusScore.toFixed(1)}`]);
+    }
+    body.push(
+      ['', ''],
+      [
+        'OVERALL TOTAL',
+        `${summary.totalScore.toFixed(1)}/${summary.maxPossiblePoints} (${summary.totalPercentage.toFixed(1)}%)`,
+      ],
+    );
+    return body;
+  };
+
+  // Put table-matching overall first so PDF totals match the Live Dashboard (/100).
+  if (useTableTotals && ranking) {
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['OVERALL SCORE SUMMARY (matches Live Dashboard)', '']],
+      body: buildRankingSummaryBody(ranking),
+      headStyles: {
+        fillColor: [25, 118, 210],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+      },
+      styles: { fontSize: 9 },
+      theme: 'striped',
+      didParseCell: (hookData: any) => {
+        if (hookData.section === 'body') {
+          const label = String(hookData.row.raw?.[0] || '');
+          if (label === 'OVERALL TOTAL' || label === 'Base Total Score') {
+            hookData.cell.styles.fontStyle = 'bold';
+          }
+        }
+      },
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 12;
+  }
+
   // Helper function to sort months Jan-Dec
   const sortMonthsByYearAndMonth = (entries: Array<[string, any]>): Array<[string, any]> => {
     return entries.sort(([a], [b]) => {
@@ -263,15 +347,22 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  // Add summary rows
-  slaTableData.push(['Total Score', `${slaFinalScore.toFixed(1)}/30 (${((slaFinalScore / 30) * 100).toFixed(1)}%)`]);
+  // Add summary rows — use Live Dashboard SLA when available (2026 = /5, not legacy /30)
+  const slaMaxForPdf = useTableTotals && ranking ? ranking.slaMax : 30;
+  const slaScoreForPdf = useTableTotals && ranking ? ranking.slaScore : slaFinalScore;
+  slaTableData.push([
+    'Total Score',
+    `${slaScoreForPdf.toFixed(1)}/${slaMaxForPdf}${
+      useTableTotals ? '' : ` (${((slaFinalScore / 30) * 100).toFixed(1)}%)`
+    }`,
+  ]);
   slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
   // Only render SLA table if not an excluded MDA
   if (!isExcludedMDA) {
     autoTable(doc, {
       startY: yPosition,
-      head: [['1. Service Level Agreement (30 points)', 'Score']],
+      head: [[`1. Service Level Agreement (${slaMaxForPdf} points)`, 'Score']],
       body: slaTableData.slice(0, -2),
       headStyles: {
         fillColor: [41, 128, 185],
@@ -347,8 +438,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       });
 
       if (half.totalScore) avgTotalScore += half.totalScore;
-      // Mystery Shopping is always out of 20 points, regardless of question count
-      avgMaxScore = 20;
+      // Legacy mystery max was 20; 2026 Live Dashboard uses ranking.mysteryMax (typically 40).
+      avgMaxScore = useTableTotals && ranking ? ranking.mysteryMax : 20;
       if (half.percentage) avgPercentage += half.percentage;
     }
   });
@@ -356,21 +447,26 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   Object.entries(combinedRatings).forEach(([key, info]) => {
     const avgRating = info.values.reduce((sum, val) => sum + val, 0) / info.values.length;
     if (info.type === 'rating') {
-      const points = (avgRating / 5) * 1;
       const ratingLabel = avgRating === 0 ? '0' : (ratingLabels[Math.round(avgRating)] || avgRating.toFixed(1));
       mysteryTableData.push([info.label, `${ratingLabel}`]);
     } else {
       const answer = avgRating >= 0.5 ? 'Yes' : 'No';
-      const points = avgRating >= 0.5 ? 1 : 0;
       mysteryTableData.push([info.label, `${answer}`]);
     }
   });
 
   const finalMysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
   const finalMysteryPercentage = avgPercentage / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
+  const mysteryMaxForPdf = useTableTotals && ranking ? ranking.mysteryMax : 20;
+  const mysteryScoreForPdf = useTableTotals && ranking ? ranking.mysteryScore : finalMysteryScore;
 
   if (mysteryTableData.length > 0) {
-    mysteryTableData.push(['Total Score', `${finalMysteryScore.toFixed(1)}/20 (${finalMysteryPercentage.toFixed(1)}%)`]);
+    mysteryTableData.push([
+      'Total Score',
+      useTableTotals
+        ? `${mysteryScoreForPdf.toFixed(1)}/${mysteryMaxForPdf}`
+        : `${finalMysteryScore.toFixed(1)}/20 (${finalMysteryPercentage.toFixed(1)}%)`,
+    ]);
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -379,7 +475,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['2. Mystery Shopping (20 points)', '']],
+      head: [[`2. Mystery Shopping (${mysteryMaxForPdf} points)`, '']],
       body: mysteryTableData.slice(0, -1),
       headStyles: {
         fillColor: [46, 125, 50],
@@ -681,10 +777,15 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
 
     // If skipped, just show "Skipped"
+    const reportGovMaxForPdf =
+      useTableTotals && ranking ? ranking.reportGovMax : 15;
+    const reportGovScoreForPdf =
+      useTableTotals && ranking ? ranking.reportGovScore : null;
+
     if (isSkipped) {
       autoTable(doc, {
         startY: yPosition,
-        head: [['8. Report Gov Resolution (15 points)', '']],
+        head: [[`8. Report Gov Resolution (${reportGovMaxForPdf} points)`, '']],
         body: [['Status', 'Skipped']],
         headStyles: {
           fillColor: [63, 81, 181],
@@ -740,18 +841,22 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         avgScore = originalHalfScore / 2; // Divide by 2 when only one half
       }
 
+      if (reportGovScoreForPdf != null) {
+        avgScore = reportGovScoreForPdf;
+      }
+
       const tableBody = [
         ['Total Tickets', totalTickets.toFixed(0)],
         ['Resolved Tickets', resolvedTickets.toFixed(0)],
         ['Resolution Rate', `${resolutionRate.toFixed(1)}%`],
         ['Avg Response Time', `${avgResponseTime.toFixed(1)} hours`],
         ['Avg Resolution Time', `${avgResolutionTime.toFixed(1)} hours`],
-        ['Score', `${avgScore.toFixed(1)}/15`]
+        ['Score', `${avgScore.toFixed(1)}/${reportGovMaxForPdf}`]
       ];
 
       autoTable(doc, {
         startY: yPosition,
-        head: [['8. Report Gov Resolution (15 points)', '']],
+        head: [[`8. Report Gov Resolution (${reportGovMaxForPdf} points)`, '']],
         body: tableBody,
         headStyles: {
           fillColor: [63, 81, 181],
@@ -830,6 +935,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
   const monthlyReportCount = Object.keys(monthlyReportMonths).length;
   const monthlyReportScore = monthlyReportCount * (3 / 10); // Changed from 12 to 10 months
+  const monthlyMaxForPdf =
+    useTableTotals && ranking ? ranking.monthlyMax : 3;
+  const monthlyScoreForPdf =
+    useTableTotals && ranking ? ranking.monthlyScore : null;
 
   // Only render Monthly Report Submission table if not an excluded MDA
   if (monthlyReportTableData.length > 0 && !isExcludedMDA) {
@@ -837,7 +946,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     // For FRSC, NAMA, CAC, SEC, NDLEA, and CBN, use custom display values
     let displayScore: string;
     let displayCount: string;
-    if (isFIRS || isNPA) {
+    if (monthlyScoreForPdf != null) {
+      displayScore = monthlyScoreForPdf.toFixed(1);
+      displayCount = monthlyReportCount.toString();
+    } else if (isFIRS || isNPA) {
       displayScore = '3';
       displayCount = '10';
     } else if (isFRSC) {
@@ -861,7 +973,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
 
 
-    monthlyReportTableData.push(['Total Score', `${displayScore}/3`]);
+    monthlyReportTableData.push(['Total Score', `${displayScore}/${monthlyMaxForPdf}`]);
     monthlyReportTableData.push(['Months Submitted', `${displayCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
     if (yPosition > pageHeight - 80) {
@@ -871,7 +983,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['9. Monthly Report Submission (3 points)', 'Status']],
+      head: [[`9. Monthly Report Submission (${monthlyMaxForPdf} points)`, 'Status']],
       body: monthlyReportTableData.slice(0, -2),
       headStyles: {
         fillColor: [0, 150, 136],
@@ -953,13 +1065,22 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
   const timelinessCount = Object.keys(timelinessMonths).length;
   const timelinessScore = timelinessCount * (2 / 10); // Changed from 12 to 10 months
+  const timelinessMaxForPdf =
+    useTableTotals && ranking ? ranking.timelinessMax : 2;
 
   // For FIRS and NPA, use custom display values but keep actual calculation for total
-  const displayTimelinessScore = isFIRS ? '0.2' : (isNPA ? '1.8' : timelinessScore.toFixed(1));
+  const displayTimelinessScore =
+    useTableTotals && ranking
+      ? ranking.timelinessScore.toFixed(1)
+      : isFIRS
+        ? '0.2'
+        : isNPA
+          ? '1.8'
+          : timelinessScore.toFixed(1);
   const displayTimelinessCount = isFIRS ? '1' : (isNPA ? '9' : timelinessCount.toString());
 
   // Add summary rows
-  timelinessTableData.push(['Total Score', `${displayTimelinessScore}/2`]);
+  timelinessTableData.push(['Total Score', `${displayTimelinessScore}/${timelinessMaxForPdf}`]);
   timelinessTableData.push(['Months On Time', `${displayTimelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
 
   // Only render Timeliness table if not an excluded MDA
@@ -971,7 +1092,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['10. Timeliness in Submitting Report (2 points)', 'Status']],
+      head: [[`10. Timeliness in Submitting Report (${timelinessMaxForPdf} points)`, 'Status']],
       body: timelinessTableData.slice(0, -2),
       headStyles: {
         fillColor: [121, 85, 72],
@@ -991,60 +1112,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     yPosition += 15;
   }
 
-  // Overall Score Summary — prefer ranking-table totals when provided.
-  const ranking = data.rankingSummary;
-  const useRankingSummary = !!ranking && ranking.year >= 2026;
-
+  // Overall Score Summary — already printed at top for 2026 table totals.
   let summaryBody: string[][] = [];
 
-  if (useRankingSummary && ranking) {
-    summaryBody = [
-      ['SLA', `${ranking.slaScore.toFixed(1)}/${ranking.slaMax}`],
-      ['Mystery Shopping', `${ranking.mysteryScore.toFixed(1)}/${ranking.mysteryMax}`],
-    ];
-    for (const line of ranking.othersLines) {
-      summaryBody.push([
-        line.name,
-        line.excluded ? 'Excluded' : `${line.score.toFixed(1)}/${line.max}`,
-      ]);
-    }
-    summaryBody.push(
-      [
-        'Report Gov Resolution',
-        ranking.reportGovSkipped
-          ? 'Skipped'
-          : `${ranking.reportGovScore.toFixed(1)}/${ranking.reportGovMax}`,
-      ],
-      ['Monthly Report Submission', `${ranking.monthlyScore.toFixed(1)}/${ranking.monthlyMax}`],
-      ['Timeliness', `${ranking.timelinessScore.toFixed(1)}/${ranking.timelinessMax}`],
-      ['', ''],
-      ['Base Total Score', `${ranking.baseTotalScore.toFixed(1)}/${ranking.maxPossiblePoints}`],
-    );
-    for (const line of ranking.penaltyLines) {
-      summaryBody.push([
-        `${line.name} (Penalty)`,
-        line.applied ? `−${Math.abs(line.value).toFixed(1)}` : '0.0',
-      ]);
-    }
-    for (const line of ranking.bonusLines) {
-      summaryBody.push([
-        `${line.name} (Bonus)`,
-        line.applied ? `+${Math.abs(line.value).toFixed(1)}` : '0.0',
-      ]);
-    }
-    if (ranking.penaltyLines.length === 0 && ranking.penaltyScore > 0) {
-      summaryBody.push(['Penalties', `−${ranking.penaltyScore.toFixed(1)}`]);
-    }
-    if (ranking.bonusLines.length === 0 && ranking.bonusScore > 0) {
-      summaryBody.push(['Bonuses', `+${ranking.bonusScore.toFixed(1)}`]);
-    }
-    summaryBody.push(
-      ['', ''],
-      [
-        'OVERALL TOTAL',
-        `${ranking.totalScore.toFixed(1)}/${ranking.maxPossiblePoints} (${ranking.totalPercentage.toFixed(1)}%)`,
-      ]
-    );
+  if (useTableTotals && ranking) {
+    // Skip duplicate summary; totals already match the Live Dashboard above.
   } else {
   // Legacy summary (pre-2026 / when ranking totals were not passed)
   const slaScore = isExcludedMDA ? 0 : slaFinalScore;
@@ -1166,38 +1238,40 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   );
   }
 
-  if (yPosition > pageHeight - 60) {
-    doc.addPage();
-    yPosition = 20;
-  }
-
-  autoTable(doc, {
-    startY: yPosition,
-    head: [['OVERALL SCORE SUMMARY', '']],
-    body: summaryBody,
-    headStyles: {
-      fillColor: [25, 118, 210],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    bodyStyles: {
-      fontSize: 9
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 4
-    },
-    theme: 'striped',
-    didParseCell: (data: any) => {
-      if (data.row.index === data.table.body.length - 1) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fontSize = 10;
-        data.cell.styles.fillColor = [25, 118, 210];
-        data.cell.styles.textColor = [255, 255, 255];
-      }
+  if (summaryBody.length > 0) {
+    if (yPosition > pageHeight - 60) {
+      doc.addPage();
+      yPosition = 20;
     }
-  });
-  yPosition = (doc as any).lastAutoTable.finalY + 5;
+
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['OVERALL SCORE SUMMARY', '']],
+      body: summaryBody,
+      headStyles: {
+        fillColor: [25, 118, 210],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 4
+      },
+      theme: 'striped',
+      didParseCell: (hookData: any) => {
+        if (hookData.row.index === hookData.table.body.length - 1) {
+          hookData.cell.styles.fontStyle = 'bold';
+          hookData.cell.styles.fontSize = 10;
+          hookData.cell.styles.fillColor = [25, 118, 210];
+          hookData.cell.styles.textColor = [255, 255, 255];
+        }
+      }
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 5;
+  }
 
   // Recommendations
   const recommendationsEntry = (recommendationsData as RecommendationEntry[]).find(
