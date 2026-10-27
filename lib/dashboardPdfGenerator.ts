@@ -134,7 +134,7 @@ export async function generateDashboardPDF({
     }
 
     const metricNames: Record<string, string> = {
-      totalScore: "Total Score (All Metrics)",
+      totalScore: "BFA Scoring Table",
       mysteryShopping: "Mystery Shopping",
       sla: "Service Level Agreement",
       efficiency: "Efficiency",
@@ -156,9 +156,14 @@ export async function generateDashboardPDF({
           selectedMetric
         : selectedMetric);
 
+    const pdfTitle =
+      selectedMetric === "totalScore"
+        ? "BFA Scoring Table"
+        : `BFA Scoring Table - ${metricDisplayName}`;
+
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`Live Scoring Dashboard - ${metricDisplayName}`, pageWidth / 2, yPosition, {
+    doc.text(pdfTitle, pageWidth / 2, yPosition, {
       align: "center",
     });
     yPosition += 8;
@@ -342,7 +347,7 @@ export async function generateDashboardPDF({
       },
     });
 
-    const fileName = `Dashboard_${metricDisplayName.replace(/[^a-z0-9]/gi, "_")}_${dashboardYear}.pdf`;
+    const fileName = `${pdfTitle.replace(/[^a-z0-9]/gi, "_")}_${dashboardYear}.pdf`;
     doc.save(fileName);
     toast.success("PDF downloaded successfully!");
   } catch (error) {
