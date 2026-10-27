@@ -50,8 +50,6 @@ type AnalysisTabProps = {
   className?: string;
 };
 
-const MAX_CARD_COUNT = 16;
-
 const DEFAULT_INDICATORS: Indicator[] = Object.entries(indicators).map(([indicatorKey, config]) => ({
   name: config.name,
   indicatorKey,
@@ -136,26 +134,17 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
   const isFetching = Boolean(selectedState) && (!indicators || indicators.length === 0);
 
   const preparedIndicators = React.useMemo(() => {
+    // Skeleton placeholders only while loading — never pad real data
+    // (that duplicated Electricity / Infrastructure / etc.).
     if (!indicators || indicators.length === 0) {
-      return DEFAULT_INDICATORS.slice(0, MAX_CARD_COUNT);
+      return DEFAULT_INDICATORS;
     }
 
-    const sortedIndicators = [...indicators].sort((a, b) => {
+    return [...indicators].sort((a, b) => {
       const aPerc = Number.isFinite(a.percentage) ? a.percentage : 0;
       const bPerc = Number.isFinite(b.percentage) ? b.percentage : 0;
       return bPerc - aPerc;
     });
-
-    const limited = sortedIndicators.slice(0, MAX_CARD_COUNT);
-
-    if (limited.length >= MAX_CARD_COUNT) {
-      return limited;
-    }
-
-    return [
-      ...limited,
-      ...DEFAULT_INDICATORS.slice(0, MAX_CARD_COUNT - limited.length),
-    ];
   }, [indicators]);
 
   // Calculate overall totals for PDF
@@ -272,7 +261,7 @@ const AnalysisTab: React.FC<AnalysisTabProps> = ({
 
             return (
               <Card
-                key={`${indicator.name}-${index}`}
+                key={indicator.indicatorKey || `${indicator.name}-${index}`}
                 className={cn(
                   "h-full rounded-2xl border text-foreground shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
                   visuals.card,
