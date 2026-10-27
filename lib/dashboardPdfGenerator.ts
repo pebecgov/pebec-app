@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
+import { isExcludedFromDashboardReport } from "./dashboardReportExclusions";
 
 interface MdaList {
   name: string;
@@ -172,13 +173,15 @@ export async function generateDashboardPDF({
     }
     yPosition += 8;
 
-    const allMdasArray = liveDashboardData.map((mda: any) => ({
-      ...mda,
-      baseTotalScore: Number(mda.totalGrossScore ?? mda.baseTotalScore ?? mda.totalScore) || 0,
-      totalScore: Number(mda.totalScore) || 0,
-      totalPercentage: Number(mda.totalPercentage) || 0,
-      maxPossiblePoints: Number(mda.maxPossiblePoints) || (dashboardYear >= 2026 ? 100 : 90),
-    }));
+    const allMdasArray = liveDashboardData
+      .filter((mda: any) => !isExcludedFromDashboardReport(mda?.mdaName || mda?.name || ""))
+      .map((mda: any) => ({
+        ...mda,
+        baseTotalScore: Number(mda.totalGrossScore ?? mda.baseTotalScore ?? mda.totalScore) || 0,
+        totalScore: Number(mda.totalScore) || 0,
+        totalPercentage: Number(mda.totalPercentage) || 0,
+        maxPossiblePoints: Number(mda.maxPossiblePoints) || (dashboardYear >= 2026 ? 100 : 90),
+      }));
 
     const sortedData = [...allMdasArray].sort(
       (a, b) => metricSortValue(b, selectedMetric) - metricSortValue(a, selectedMetric)
@@ -228,7 +231,6 @@ export async function generateDashboardPDF({
         const gross = Number(mda.baseTotalScore || 0);
         const maxPts = Number(mda.maxPossiblePoints) || 100;
         const final = Number(mda.totalScore || 0);
-        const pct = Number(mda.totalPercentage || 0);
 
         tableData.push([
           `#${idx + 1}`,
@@ -261,7 +263,7 @@ export async function generateDashboardPDF({
           `${gross.toFixed(1)}/${maxPts}`,
           ...penaltyCells,
           ...bonusCells,
-          `${final.toFixed(1)}\n(${pct.toFixed(1)}%)`,
+          `${final.toFixed(1)}/${maxPts}`,
         ]);
       });
     } else if (selectedMetric === "totalScore") {
@@ -300,7 +302,7 @@ export async function generateDashboardPDF({
           `${Number(mda.baseTotalScore || 0).toFixed(1)}/${mda.maxPossiblePoints}`,
           (Number(mda.controversial?.score) || 0).toFixed(1),
           (Number(mda.toutingRentseeking?.score) || 0).toFixed(1),
-          `${Number(mda.totalScore || 0).toFixed(1)}\n(${Number(mda.totalPercentage || 0).toFixed(1)}%)`,
+          `${Number(mda.totalScore || 0).toFixed(1)}/${mda.maxPossiblePoints}`,
         ]);
       });
     } else {

@@ -211,7 +211,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       ['', ''],
       [
         'OVERALL TOTAL',
-        `${summary.totalScore.toFixed(1)}/${summary.maxPossiblePoints} (${summary.totalPercentage.toFixed(1)}%)`,
+        `${summary.totalScore.toFixed(1)}/${summary.maxPossiblePoints}`,
       ],
     );
     return body;
@@ -1399,7 +1399,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     ['Controversial (Penalty)', `${controversialScore.toFixed(1)} points`],
     ['Touting & Rentseeking (Penalty)', `${toutingRentseekingScore.toFixed(1)} points`],
     ['', ''],
-    ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
+    ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints}`]
   );
   }
 
