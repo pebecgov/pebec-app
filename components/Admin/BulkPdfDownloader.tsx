@@ -5,6 +5,7 @@ import { useConvex } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
 import { buildMdaRankingSummary } from '@/lib/mdaRankingSummary';
+import { isExcludedFromDashboardReport } from '@/lib/dashboardReportExclusions';
 import { toast } from 'sonner';
 import { Loader2, Package } from 'lucide-react';
 
@@ -40,12 +41,15 @@ export function BulkPdfDownloader({
             return;
         }
 
-        // Sort MDAs by totalPercentage (rank) in descending order to match dashboard ranking
-        const sortedMdaData = [...mdaData].sort((a: any, b: any) => {
-            const aValue = a.totalPercentage || 0;
-            const bValue = b.totalPercentage || 0;
-            return bValue - aValue; // Descending order (highest rank first)
-        });
+        // Sort MDAs by totalPercentage (rank) in descending order to match dashboard ranking.
+        // Skip ministries/agencies that are not part of the scoring report (keep Nigeria Gas Company).
+        const sortedMdaData = [...mdaData]
+            .filter((mda: any) => !isExcludedFromDashboardReport(mda?.mdaName || ""))
+            .sort((a: any, b: any) => {
+                const aValue = a.totalPercentage || 0;
+                const bValue = b.totalPercentage || 0;
+                return bValue - aValue; // Descending order (highest rank first)
+            });
 
         setIsDownloading(true);
         setProgress({ current: 0, total: sortedMdaData.length });

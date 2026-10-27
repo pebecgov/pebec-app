@@ -22,6 +22,7 @@ import { BulkPdfDownloader } from "@/components/Admin/BulkPdfDownloader";
 
 // Import utility files
 import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
+import { isExcludedFromDashboardReport } from "@/lib/dashboardReportExclusions";
 import {
   STATE_OVERALL_MAX_SCORE,
 } from "./utils/constants";
@@ -510,6 +511,12 @@ export default function ScoringMetricsPage() {
           mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
       });
     }
+
+    // Always drop ministries/agencies that are not part of the scoring report
+    // (Nigeria Gas Company is kept; see dashboardReportExclusions).
+    allMdasArray = allMdasArray.filter(
+      (mda: any) => !isExcludedFromDashboardReport(mda.mdaName)
+    );
 
     // Filter based on ministry filter
     if (ministryFilterType === 'ministries-only') {
