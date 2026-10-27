@@ -534,8 +534,25 @@ export default function ScoringMetricsPage() {
       return;
     }
 
-    // Use the same processed rows as the ranking table so PDF totals stay current.
-    const processedData = processDashboardMdaData(mdaFilter, ministryFilter);
+    // Same rows + same rank order as the Live Dashboard table (sort by totalScore, not %).
+    const processedData = [...processDashboardMdaData(mdaFilter, ministryFilter)].sort(
+      (a: any, b: any) => {
+        const aScore =
+          selectedMetric === "totalScore"
+            ? Number(a.totalScore) || 0
+            : selectedMetric.startsWith("others:")
+              ? Number(a.others?.scores?.[selectedMetric.replace("others:", "")]) || 0
+              : Number(a[selectedMetric]?.score ?? a.totalScore) || 0;
+        const bScore =
+          selectedMetric === "totalScore"
+            ? Number(b.totalScore) || 0
+            : selectedMetric.startsWith("others:")
+              ? Number(b.others?.scores?.[selectedMetric.replace("others:", "")]) || 0
+              : Number(b[selectedMetric]?.score ?? b.totalScore) || 0;
+        if (bScore !== aScore) return bScore - aScore;
+        return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
+      }
+    );
 
     await generateDashboardPDF({
       liveDashboardData: processedData,
@@ -547,6 +564,7 @@ export default function ScoringMetricsPage() {
       penaltyConfig: penaltyConfig || [],
       bonusConfig: bonusConfig || [],
       efficiencyConfig: liveDashboardData?.efficiencyConfig ?? efficiencyConfig ?? undefined,
+      preserveOrder: true,
     });
   };
 
