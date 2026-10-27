@@ -41,14 +41,15 @@ import { AssetFormDialog } from "./AssetDialogs";
 import { getItemTypeMeta, formatPrettyDate } from "./itemTypeMeta";
 import TablePagination, { paginateRows } from "./TablePagination";
 import { convexErrorMessage } from "./convexError";
+import { canManageCompanyProperties } from "@/lib/companyPropertiesAccess";
 
 export default function CompanyItemsDashboard() {
   const currentUser = useQuery(api.users.getCurrentUsers);
-  const isAdmin = currentUser?.role === "admin";
-  const types = useQuery(api.companyAssets.listTypes, isAdmin ? {} : "skip");
-  const users = useQuery(api.companyAssets.listAssignableUsers, isAdmin ? {} : "skip");
-  const stats = useQuery(api.companyAssets.getStats, isAdmin ? {} : "skip");
-  const staffHolders = useQuery(api.companyAssets.listStaffHolders, isAdmin ? {} : "skip");
+  const canManage = !!currentUser && canManageCompanyProperties(currentUser);
+  const types = useQuery(api.companyAssets.listTypes, canManage ? {} : "skip");
+  const users = useQuery(api.companyAssets.listAssignableUsers, canManage ? {} : "skip");
+  const stats = useQuery(api.companyAssets.getStats, canManage ? {} : "skip");
+  const staffHolders = useQuery(api.companyAssets.listStaffHolders, canManage ? {} : "skip");
   const createType = useMutation(api.companyAssets.createType);
   const updateType = useMutation(api.companyAssets.updateType);
   const deleteType = useMutation(api.companyAssets.deleteType);
@@ -74,7 +75,7 @@ export default function CompanyItemsDashboard() {
 
   const assets = useQuery(
     api.companyAssets.listAssets,
-    isAdmin
+    canManage
       ? {
           status,
           typeId:
@@ -117,10 +118,10 @@ export default function CompanyItemsDashboard() {
   if (currentUser === undefined) {
     return <p className="py-16 text-center text-gray-500">Loading company properties...</p>;
   }
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!currentUser || !canManage) {
     return (
       <p className="py-16 text-center text-red-500">
-        Unauthorized: Only admins can manage company properties.
+        Unauthorized: You do not have access to manage company properties.
       </p>
     );
   }

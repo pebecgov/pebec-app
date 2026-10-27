@@ -13,17 +13,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AssetFormDialog, IssueDialog, ReturnDialog } from "./AssetDialogs";
 import { formatPrettyDate, getItemTypeMeta } from "./itemTypeMeta";
 import { convexErrorMessage } from "./convexError";
+import { canManageCompanyProperties } from "@/lib/companyPropertiesAccess";
 
 export default function AssetDetail({ assetId }: { assetId: Id<"company_assets"> }) {
   const router = useRouter();
   const currentUser = useQuery(api.users.getCurrentUsers);
-  const isAdmin = currentUser?.role === "admin";
+  const canManage = !!currentUser && canManageCompanyProperties(currentUser);
   const asset = useQuery(
     api.companyAssets.getAsset,
-    isAdmin ? { assetId } : "skip",
+    canManage ? { assetId } : "skip",
   );
-  const types = useQuery(api.companyAssets.listTypes, isAdmin ? {} : "skip");
-  const users = useQuery(api.companyAssets.listAssignableUsers, isAdmin ? {} : "skip");
+  const types = useQuery(api.companyAssets.listTypes, canManage ? {} : "skip");
+  const users = useQuery(api.companyAssets.listAssignableUsers, canManage ? {} : "skip");
   const deleteAsset = useMutation(api.companyAssets.deleteAsset);
   const [issueOpen, setIssueOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
@@ -32,10 +33,10 @@ export default function AssetDetail({ assetId }: { assetId: Id<"company_assets">
   if (currentUser === undefined) {
     return <p className="py-16 text-center text-gray-500">Loading property...</p>;
   }
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!currentUser || !canManage) {
     return (
       <p className="py-16 text-center text-red-500">
-        Unauthorized: Only admins can manage company properties.
+        Unauthorized: You do not have access to manage company properties.
       </p>
     );
   }

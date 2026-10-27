@@ -203,7 +203,8 @@ async function buildLeaveBalance(
     annualAllowance,
     used,
     pending,
-    remaining: annualAllowance - used - pending,
+    // Clamp so staff who already exceeded 20 (legacy) see 0 remaining, not a negative.
+    remaining: Math.max(0, annualAllowance - used - pending),
   };
 }
 

@@ -36,9 +36,6 @@ const faqData = {
   "business-env": [{
     question: "What reforms have improved business registration?",
     answer: "PEBEC has streamlined company registration through online platforms, reducing processing times significantly."
-  }, {
-    question: "Are there incentives for businesses under PEBEC?",
-    answer: "Yes, businesses can benefit from tax reductions, easier access to credit, and streamlined licensing."
   }],
   "reform-benefits": [{
     question: "How do businesses benefit from PEBEC’s reforms?",
