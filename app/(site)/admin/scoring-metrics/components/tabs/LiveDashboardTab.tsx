@@ -5,7 +5,6 @@ import DashboardHeader from '../dashboard/DashboardHeader';
 import DashboardTable from '../dashboard/DashboardTable';
 import Top10Table from '../dashboard/Top10Table';
 import Bottom10Table from '../dashboard/Bottom10Table';
-import ScoreRangeSummary from '../dashboard/ScoreRangeSummary';
 import ViewDetailsModal from '../dashboard/ViewDetailsModal';
 
 interface LiveDashboardTabProps {
@@ -97,12 +96,6 @@ export default function LiveDashboardTab({
                     penaltyConfig={penaltyConfig}
                     bonusConfig={bonusConfig}
                     efficiencyConfig={liveDashboardData?.efficiencyConfig || efficiencyConfig}
-                />
-
-                <ScoreRangeSummary
-                    processDashboardMdaData={processDashboardMdaData}
-                    mdaFilter={mdaFilter}
-                    ministryFilter={ministryFilter}
                 />
 
                 <DashboardTable

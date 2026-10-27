@@ -221,8 +221,7 @@ function BfaJustificationsConfiguration({
             <CardHeader>
                 <CardTitle>BFA justifications</CardTitle>
                 <CardDescription>
-                    These explanations appear on each MDA&apos;s public tracker page under the matching metric,
-                    bonus, or penalty.
+                    Internal scoring notes for the team. They are not shown on the public MDA tracker.
                 </CardDescription>
             </CardHeader>
             <CardContent>

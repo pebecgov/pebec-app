@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 
 const RANGES = [
   { key: '70-100', label: '100 – 70', min: 70, max: 100 },
@@ -35,20 +35,13 @@ export default function ScoreRangeSummary({
   mdaFilter,
   ministryFilter,
 }: Props) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    '70-100': true,
-    '50-69': true,
-    '40-49': true,
-    '0-39': true,
-  });
-
   const rows = useMemo(
     () => processDashboardMdaData(mdaFilter, ministryFilter) || [],
     [processDashboardMdaData, mdaFilter, ministryFilter]
   );
 
   const byRange = useMemo(() => {
-    const next: Record<string, { name: string; score: number }[]> = {
+    const next: Record<string, string[]> = {
       '70-100': [],
       '50-69': [],
       '40-49': [],
@@ -57,10 +50,10 @@ export default function ScoreRangeSummary({
     for (const mda of rows) {
       const score = bandScore(Number(mda.totalScore) || 0);
       const name = String(mda.mdaName || '').trim() || 'Unknown MDA';
-      next[rangeKeyForScore(score)].push({ name, score });
+      next[rangeKeyForScore(score)].push(name);
     }
     for (const key of Object.keys(next)) {
-      next[key].sort((a, b) => a.name.localeCompare(b.name));
+      next[key].sort((a, b) => a.localeCompare(b));
     }
     return next;
   }, [rows]);
@@ -69,32 +62,23 @@ export default function ScoreRangeSummary({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900">MDAs by score range</h3>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Final score out of 100 (same filters as the table). {total} MDA{total === 1 ? '' : 's'} counted.
-          </p>
-        </div>
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold text-gray-900">MDAs by score range</h3>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Final score out of 100 (same filters as the table). {total} MDA{total === 1 ? '' : 's'} counted.
+        </p>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {RANGES.map((range) => {
-          const mdas = byRange[range.key] ?? [];
-          const count = mdas.length;
+          const names = byRange[range.key] ?? [];
+          const count = names.length;
           const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-          const isOpen = expanded[range.key] ?? true;
           return (
             <div
               key={range.key}
-              className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-3"
+              className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4"
             >
-              <button
-                type="button"
-                className="w-full flex items-start justify-between gap-3 text-left"
-                onClick={() =>
-                  setExpanded((prev) => ({ ...prev, [range.key]: !isOpen }))
-                }
-              >
+              <div className="flex items-baseline justify-between gap-3 mb-3">
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                     {range.label}
@@ -104,26 +88,23 @@ export default function ScoreRangeSummary({
                   </p>
                   <p className="text-xs text-gray-500">{pct}% of listed MDAs</p>
                 </div>
-                <span className="mt-1 text-xs font-medium text-gray-500 shrink-0">
-                  {isOpen ? 'Hide' : 'Show'} names
-                </span>
-              </button>
-              {isOpen && (
-                <ul className="mt-3 max-h-56 overflow-y-auto space-y-1.5 border-t border-gray-200 pt-3">
-                  {mdas.length === 0 ? (
-                    <li className="text-xs text-gray-400 italic">No MDAs in this range</li>
-                  ) : (
-                    mdas.map((mda) => (
-                      <li
-                        key={`${range.key}-${mda.name}`}
-                        className="text-sm text-gray-800 leading-snug"
-                      >
-                        {mda.name}
+              </div>
+              <div className="border-t border-gray-200 pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                  MDA names
+                </p>
+                {names.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No MDAs in this range</p>
+                ) : (
+                  <ul className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                    {names.map((name) => (
+                      <li key={`${range.key}-${name}`} className="text-sm text-gray-800 leading-snug">
+                        {name}
                       </li>
-                    ))
-                  )}
-                </ul>
-              )}
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           );
         })}

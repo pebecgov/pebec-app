@@ -74,6 +74,13 @@ export function buildMdaRankingSummary(
     value: item.bonusValue || 0,
   }));
 
+  const totalScore = Number(mda.totalScore) || 0;
+  const maxPossiblePoints =
+    Number(mda.maxPossiblePoints) || (year >= 2026 ? 100 : 90);
+  const totalPercentage =
+    Number(mda.totalPercentage) ||
+    (maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0);
+
   return {
     year,
     slaScore: Number(mda.sla?.score) || 0,
@@ -101,9 +108,9 @@ export function buildMdaRankingSummary(
     baseTotalScore: Number(mda.totalGrossScore ?? mda.baseTotalScore) || 0,
     penaltyScore: Math.abs(Number(mda.penalties?.score) || 0),
     bonusScore: Math.abs(Number(mda.bonuses?.score) || 0),
-    totalScore: Number(mda.totalScore) || 0,
-    maxPossiblePoints: Number(mda.maxPossiblePoints) || (year >= 2026 ? 100 : 90),
-    totalPercentage: Number(mda.totalPercentage) || 0,
+    totalScore,
+    maxPossiblePoints,
+    totalPercentage,
     othersLines,
     penaltyLines,
     bonusLines,

@@ -1225,7 +1225,7 @@ export default function StateScoringPage() {
                     year={CURRENT_INDICATOR_YEAR}
                     metrics={stateJustificationMetrics}
                     title="State indicator justifications"
-                    description="These explanations appear on the public state tracker under each indicator and sub-indicator."
+                    description="Internal scoring notes for the team. They are not shown on the public state tracker."
                   />
                 </div>
               )}
