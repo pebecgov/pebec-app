@@ -1,5 +1,13 @@
 /** Snapshot of ranking-table scores for PDF exports (matches Live Dashboard). */
 
+export type MdaPdfMonthRow = {
+  monthKey: string;
+  monthLabel: string;
+  /** Display text for the Status/Score column */
+  display: string;
+  counted: boolean;
+};
+
 export type MdaRankingSummary = {
   year: number;
   slaScore: number;
@@ -23,6 +31,16 @@ export type MdaRankingSummary = {
   othersLines: Array<{ name: string; score: number; max: number; excluded?: boolean }>;
   penaltyLines: Array<{ name: string; applied: boolean; value: number }>;
   bonusLines: Array<{ name: string; applied: boolean; value: number }>;
+  /** Month rows from Live Dashboard — PDF must use these, not rebuild from raw halves. */
+  slaMonths: MdaPdfMonthRow[];
+  slaMonthsCounted: number;
+  slaMonthsTotal: number;
+  monthlyMonths: MdaPdfMonthRow[];
+  monthlyMonthsCounted: number;
+  monthlyMonthsTotal: number;
+  timelinessMonths: MdaPdfMonthRow[];
+  timelinessMonthsCounted: number;
+  timelinessMonthsTotal: number;
   innovationScore?: number;
   stakeholderScore?: number;
   transparencyScore?: number;
@@ -30,6 +48,71 @@ export type MdaRankingSummary = {
   controversialScore?: number;
   toutingRentseekingScore?: number;
 };
+
+function normalizeMonthStatuses(raw: unknown): any[] {
+  return Array.isArray(raw) ? raw : [];
+}
+
+function buildSlaMonthRows(mda: any): MdaPdfMonthRow[] {
+  return normalizeMonthStatuses(mda.sla?.monthStatuses).map((month) => {
+    const status = String(month.status || "");
+    const points = typeof month.points === "number" ? month.points : null;
+    const percentage = typeof month.percentage === "number" ? month.percentage : null;
+    let display = "No data";
+    let counted = false;
+    if (
+      status === "scored" ||
+      status === "partial" ||
+      status === "partial_success" ||
+      (points != null && points > 0)
+    ) {
+      counted = true;
+      if (percentage != null) display = `${percentage.toFixed(1)}%`;
+      else if (points != null) display = `${points.toFixed(2)} pts`;
+      else display = "Scored";
+    } else if (status === "failed") {
+      display = "Failed";
+    } else if (status === "missing") {
+      display = "No data";
+    } else if (month.message) {
+      display = String(month.message);
+    }
+    return {
+      monthKey: String(month.monthKey || ""),
+      monthLabel: String(month.monthLabel || month.monthKey || ""),
+      display,
+      counted,
+    };
+  });
+}
+
+function buildMonthlyReportRows(mda: any): MdaPdfMonthRow[] {
+  return normalizeMonthStatuses(mda.monthlyReport?.monthStatuses).map((month) => {
+    const submitted = month.submitted === true || month.status === "on_time" || month.status === "late";
+    return {
+      monthKey: String(month.monthKey || ""),
+      monthLabel: String(month.monthLabel || month.monthKey || ""),
+      display: submitted ? "Submitted" : "Not submitted",
+      counted: submitted,
+    };
+  });
+}
+
+function buildTimelinessRows(mda: any): MdaPdfMonthRow[] {
+  return normalizeMonthStatuses(mda.timeliness?.monthStatuses).map((month) => {
+    const onTime = month.onTime === true || month.status === "on_time";
+    const submitted = month.submitted === true || month.status === "late" || onTime;
+    let display = "Not Submitted";
+    if (onTime) display = "On Time";
+    else if (submitted || month.status === "late") display = "Late";
+    return {
+      monthKey: String(month.monthKey || ""),
+      monthLabel: String(month.monthLabel || month.monthKey || ""),
+      display,
+      counted: onTime,
+    };
+  });
+}
 
 export function buildMdaRankingSummary(
   mda: any,
@@ -84,6 +167,33 @@ export function buildMdaRankingSummary(
     Number(mda.totalPercentage) ||
     (maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0);
 
+  const slaMonths = buildSlaMonthRows(mda);
+  const monthlyMonths = buildMonthlyReportRows(mda);
+  const timelinessMonths = buildTimelinessRows(mda);
+
+  const slaMonthsTotal =
+    Number(mda.sla?.totalMonths) ||
+    slaMonths.length ||
+    (year >= 2026 ? 12 : 10);
+  const monthlyMonthsTotal =
+    Number(mda.monthlyReport?.totalMonths) ||
+    monthlyMonths.length ||
+    slaMonthsTotal;
+  const timelinessMonthsTotal =
+    Number(mda.timeliness?.totalMonths) ||
+    timelinessMonths.length ||
+    monthlyMonthsTotal;
+
+  const slaMonthsCounted =
+    Number(mda.sla?.monthsWithData) ||
+    slaMonths.filter((m) => m.counted).length;
+  const monthlyMonthsCounted =
+    Number(mda.monthlyReport?.monthsWithData) ||
+    monthlyMonths.filter((m) => m.counted).length;
+  const timelinessMonthsCounted =
+    Number(mda.timeliness?.monthsWithData) ||
+    timelinessMonths.filter((m) => m.counted).length;
+
   return {
     year,
     slaScore: Number(mda.sla?.score) || 0,
@@ -117,6 +227,15 @@ export function buildMdaRankingSummary(
     othersLines,
     penaltyLines,
     bonusLines,
+    slaMonths,
+    slaMonthsCounted,
+    slaMonthsTotal,
+    monthlyMonths,
+    monthlyMonthsCounted,
+    monthlyMonthsTotal,
+    timelinessMonths,
+    timelinessMonthsCounted,
+    timelinessMonthsTotal,
     innovationScore: Number(mda.innovation?.score) || 0,
     stakeholderScore: Number(mda.stakeholder?.score) || 0,
     transparencyScore: Number(mda.transparency?.score) || 0,
