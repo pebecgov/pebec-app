@@ -126,8 +126,17 @@ function cellScoreWithMonths(
 
 function formatOthersValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Avoid float noise like 1.6999999999999997 — one decimal is enough.
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
   return "—";
+}
+
+function formatFinalPercentage(pct: number): string {
+  // Single rounded whole-number percent (round half up).
+  const rounded = Math.round(Number(pct) || 0);
+  return `${rounded}%`;
 }
 
 /**
@@ -290,7 +299,6 @@ export async function generateDashboardPDF({
         });
         const gross = Number(mda.baseTotalScore || 0);
         const maxPts = Number(mda.maxPossiblePoints) || 100;
-        const final = Number(mda.totalScore || 0);
         const pct = Number(mda.totalPercentage || 0);
 
         tableData.push([
@@ -331,12 +339,11 @@ export async function generateDashboardPDF({
                 mda.timeliness?.monthsWithData,
                 mda.timeliness?.totalMonths
               ),
-          // Live table: bold gross, then gross/max underneath.
           `${gross.toFixed(1)}\n${gross.toFixed(1)}/${maxPts}`,
           ...penaltyCells,
           ...bonusCells,
-          // Live table: bold final score, then percentage underneath.
-          `${final.toFixed(1)}\n${pct.toFixed(1)}%`,
+          // Final column: one rounded percentage only (e.g. 77%).
+          formatFinalPercentage(pct),
         ]);
       });
     } else if (selectedMetric === "totalScore") {
@@ -358,7 +365,6 @@ export async function generateDashboardPDF({
       ];
       sortedData.forEach((mda, idx) => {
         const maxPts = Number(mda.maxPossiblePoints) || 90;
-        const final = Number(mda.totalScore || 0);
         const pct = Number(mda.totalPercentage || 0);
         tableData.push([
           `#${idx + 1}`,
@@ -378,7 +384,7 @@ export async function generateDashboardPDF({
           `${Number(mda.baseTotalScore || 0).toFixed(1)}/${maxPts}`,
           (Number(mda.controversial?.score) || 0).toFixed(1),
           (Number(mda.toutingRentseeking?.score) || 0).toFixed(1),
-          `${final.toFixed(1)}\n${pct.toFixed(1)}%`,
+          formatFinalPercentage(pct),
         ]);
       });
     } else {
