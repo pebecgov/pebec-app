@@ -57,9 +57,33 @@ function cellScore(score: number | undefined | null, max: number, skipped = fals
   return `${Number(score).toFixed(1)}/${max}`;
 }
 
+function cellScoreWithMonths(
+  score: number | undefined | null,
+  max: number,
+  monthsWithData?: number | null,
+  totalMonths?: number | null
+): string {
+  const top = cellScore(score, max);
+  if (
+    monthsWithData != null &&
+    totalMonths != null &&
+    Number.isFinite(monthsWithData) &&
+    Number.isFinite(totalMonths) &&
+    totalMonths > 0
+  ) {
+    return `${top}\n${monthsWithData}/${totalMonths} months`;
+  }
+  return top;
+}
+
+function isOthersItemExcluded(mda: any, itemId: string): boolean {
+  const excluded: string[] = Array.isArray(mda.excludedMetrics) ? mda.excludedMetrics : [];
+  return excluded.includes("others") || excluded.includes(`others:${itemId}`);
+}
+
 /**
- * Dashboard PDF uses the same totals already computed for the ranking table
- * (processDashboardMdaData). Do not recompute with legacy 90-point rules.
+ * Dashboard PDF uses the same columns/totals as the Live Dashboard ranking table.
+ * For 2026+, each Others config item is its own column (not a lumped "Others").
  */
 export async function generateDashboardPDF({
   liveDashboardData,
@@ -148,7 +172,6 @@ export async function generateDashboardPDF({
     }
     yPosition += 8;
 
-    // Ranking-table totals are already on each row — keep them.
     const allMdasArray = liveDashboardData.map((mda: any) => ({
       ...mda,
       baseTotalScore: Number(mda.totalGrossScore ?? mda.baseTotalScore ?? mda.totalScore) || 0,
@@ -171,49 +194,74 @@ export async function generateDashboardPDF({
     let head: string[] = [];
 
     if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      // Mirror Live Dashboard columns exactly — each Others item is its own column.
       head = [
         "Rank",
         "MDA Name",
-        "SLA",
-        "Mystery",
-        "Others",
-        "Report Gov",
-        "Report Sub",
+        "SLA (Efficiency)",
+        "Mystery Shopping",
+        ...othersConfig.map((item) => item.itemName),
+        "Report Gov Resolution",
+        "Report Submission",
         "Timeliness",
-        "Gross",
-        "Penalties",
-        "Bonuses",
-        "Final",
-        "Max",
-        "%",
+        "Total Score",
+        ...penaltyConfig.map((item) => item.penaltyName),
+        ...bonusConfig.map((item) => item.bonusName),
+        "Final Score",
       ];
+
       sortedData.forEach((mda, idx) => {
         const mysteryMax = Number(mda.mysteryShopping?.maxPossibleScore) || 40;
+        const othersCells = othersConfig.map((item) => {
+          if (isOthersItemExcluded(mda, item.itemId)) return "Excluded";
+          const score = Number(mda.others?.scores?.[item.itemId]) || 0;
+          return cellScore(score, item.weight || 0);
+        });
+        const penaltyCells = penaltyConfig.map((item) => {
+          const applied = mda.penalties?.values?.[item.penaltyId] === true;
+          return applied ? `−${Math.abs(item.penaltyValue || 0).toFixed(1)}` : "0.0";
+        });
+        const bonusCells = bonusConfig.map((item) => {
+          const applied = mda.bonuses?.values?.[item.bonusId] === true;
+          return applied ? `+${Math.abs(item.bonusValue || 0).toFixed(1)}` : "0.0";
+        });
+        const gross = Number(mda.baseTotalScore || 0);
+        const maxPts = Number(mda.maxPossiblePoints) || 100;
+        const final = Number(mda.totalScore || 0);
+        const pct = Number(mda.totalPercentage || 0);
+
         tableData.push([
           `#${idx + 1}`,
           mda.mdaName,
-          cellScore(mda.sla?.score, Number(mda.sla?.maxPossibleScore) || slaMax),
+          cellScoreWithMonths(
+            mda.sla?.score,
+            Number(mda.sla?.maxPossibleScore) || slaMax,
+            mda.sla?.monthsWithData,
+            mda.sla?.totalMonths
+          ),
           cellScore(mda.mysteryShopping?.score, mysteryMax),
-          mda.others?.score != null ? Number(mda.others.score).toFixed(1) : "—",
+          ...othersCells,
           cellScore(
             mda.reportGovResolution?.score,
             Number(mda.reportGovResolution?.maxPossibleScore) || reportGovMax,
             !!mda.reportGovResolution?.isSkipped
           ),
-          cellScore(
+          cellScoreWithMonths(
             mda.monthlyReport?.score,
-            Number(mda.monthlyReport?.maxPossibleScore) || monthlyMax
+            Number(mda.monthlyReport?.maxPossibleScore) || monthlyMax,
+            mda.monthlyReport?.monthsWithData,
+            mda.monthlyReport?.totalMonths
           ),
-          cellScore(
+          cellScoreWithMonths(
             mda.timeliness?.score,
-            Number(mda.timeliness?.maxPossibleScore) || timelinessMax
+            Number(mda.timeliness?.maxPossibleScore) || timelinessMax,
+            mda.timeliness?.monthsWithData,
+            mda.timeliness?.totalMonths
           ),
-          Number(mda.baseTotalScore || 0).toFixed(1),
-          Math.abs(Number(mda.penalties?.score) || 0).toFixed(1),
-          Math.abs(Number(mda.bonuses?.score) || 0).toFixed(1),
-          Number(mda.totalScore || 0).toFixed(1),
-          String(mda.maxPossiblePoints),
-          `${Number(mda.totalPercentage || 0).toFixed(1)}%`,
+          `${gross.toFixed(1)}/${maxPts}`,
+          ...penaltyCells,
+          ...bonusCells,
+          `${final.toFixed(1)}\n(${pct.toFixed(1)}%)`,
         ]);
       });
     } else if (selectedMetric === "totalScore") {
@@ -267,6 +315,7 @@ export async function generateDashboardPDF({
       });
     }
 
+    const manyCols = head.length > 12;
     autoTable(doc, {
       startY: yPosition,
       head: [head],
@@ -275,12 +324,16 @@ export async function generateDashboardPDF({
         fillColor: [41, 128, 185],
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        fontSize: selectedMetric === "totalScore" ? 7 : 9,
+        fontSize: selectedMetric === "totalScore" ? (manyCols ? 5.5 : 7) : 9,
       },
-      bodyStyles: { fontSize: selectedMetric === "totalScore" ? 6.5 : 9 },
-      styles: { fontSize: selectedMetric === "totalScore" ? 6.5 : 9, cellPadding: 1.5 },
+      bodyStyles: { fontSize: selectedMetric === "totalScore" ? (manyCols ? 5.5 : 6.5) : 9 },
+      styles: {
+        fontSize: selectedMetric === "totalScore" ? (manyCols ? 5.5 : 6.5) : 9,
+        cellPadding: manyCols ? 1 : 1.5,
+        overflow: "linebreak",
+      },
       theme: "striped",
-      margin: { left: 8, right: 8 },
+      margin: { left: 6, right: 6 },
       didDrawPage: (data: any) => {
         doc.setFontSize(10);
         doc.text(`Page ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: "center" });
