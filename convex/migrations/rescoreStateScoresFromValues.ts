@@ -1,4 +1,4 @@
-import { internalMutation } from "../_generated/server";
+import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getSubIndicatorScore } from "../config/indicators";
 
@@ -7,9 +7,14 @@ import { getSubIndicatorScore } from "../config/indicators";
  * Fixes rows where the matrix shows "Yes (3)" but Analysis shows 0
  * because score was saved as 0 when GIS options changed.
  *
- * Run: npx convex run migrations/rescoreStateScoresFromValues:rescoreStateScoresFromValues '{"year":2026}'
+ * CLI (after deploy):
+ *   npx convex run migrations/rescoreStateScoresFromValues:rescoreStateScoresFromValues '{"year":2026,"dryRun":true}'
+ *   npx convex run migrations/rescoreStateScoresFromValues:rescoreStateScoresFromValues '{"year":2026}'
+ *
+ * Dashboard: Functions → migrations/rescoreStateScoresFromValues:rescoreStateScoresFromValues → Run
+ *   args: { "year": 2026 }  (optional dryRun: true first)
  */
-export const rescoreStateScoresFromValues = internalMutation({
+export const rescoreStateScoresFromValues = mutation({
   args: {
     year: v.optional(v.number()),
     dryRun: v.optional(v.boolean()),
