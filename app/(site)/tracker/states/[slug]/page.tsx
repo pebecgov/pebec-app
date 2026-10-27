@@ -30,17 +30,13 @@ export default function StateSummaryPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
   const stateData = useQuery(api.public_scores.getPublicStateRankings, { year: SCORE_YEAR });
-  const justificationMap = useQuery(api.metric_justifications.getMap, {
-    framework: "state",
-    year: SCORE_YEAR,
-  });
 
   const selected = useMemo(() => {
     if (!stateData?.states) return undefined;
     return (stateData.states as StateRankingData[]).find((state) => scoreSlug(state.state) === slug) ?? null;
   }, [stateData, slug]);
 
-  if (selected === undefined || justificationMap === undefined) {
+  if (selected === undefined) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Skeleton className="h-8 w-64 mb-4" />
@@ -78,7 +74,9 @@ export default function StateSummaryPage() {
         label: subConfig.label,
         score: hasSubScore ? (data!.subIndicators[subKey] ?? 0) : 0,
         scored: hasSubScore,
-        justification: justificationMap[`${key}:${subKey}`],
+        maxScore: subConfig.options
+          ? Math.max(...subConfig.options.map((o) => o.score))
+          : undefined,
       };
     });
     const scoredSubCount = details.filter((detail) => detail.scored).length;
@@ -89,7 +87,6 @@ export default function StateSummaryPage() {
       score: scoredSubCount > 0 ? (data?.score ?? 0) : 0,
       maxScore: yearIndicatorMaxScores[key] ?? 0,
       scored: isIndicatorFullyScored,
-      justification: justificationMap[key],
       details,
     };
   });
@@ -115,7 +112,7 @@ export default function StateSummaryPage() {
       />
       <MetricBreakdown
         title="Business Climate Indicators"
-        hint="Click an indicator to view its sub-indicators and why each is measured"
+        hint="Click an indicator to view its sub-indicators"
         metrics={metrics}
         hideStatus={!fullyScored}
         showMetricMaxOnly
