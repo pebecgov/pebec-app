@@ -75,8 +75,11 @@ export function buildMdaRankingSummary(
   }));
 
   const totalScore = Number(mda.totalScore) || 0;
+  // 2026 framework is scored out of 100 (matches Live Dashboard / public tracker).
   const maxPossiblePoints =
-    Number(mda.maxPossiblePoints) || (year >= 2026 ? 100 : 90);
+    year >= 2026
+      ? Number(mda.maxPossiblePoints) || 100
+      : Number(mda.maxPossiblePoints) || 90;
   const totalPercentage =
     Number(mda.totalPercentage) ||
     (maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0);

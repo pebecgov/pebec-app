@@ -2,7 +2,6 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import mysteryCallData from './BFA_MysteryCall_clean.json';
 import mysteryShoppingData from './UPDATED_MYSTERY_SHOPPING.json';
-import recommendationsData from './recommendations.json';
 import type { MdaRankingSummary } from './mdaRankingSummary';
 
 interface MdaDetailedData {
@@ -11,42 +10,52 @@ interface MdaDetailedData {
   sla: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   mysteryShopping: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   controversial: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   toutingRentseeking: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   innovation: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   stakeholder: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   transparency: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   reportGovResolution: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   monthlyReport: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   timeliness: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   position?: number | string;
   /** Ranking-table totals — when present, the summary uses these instead of legacy math. */
@@ -63,11 +72,6 @@ interface MysteryCallEntry {
   "DATE SENT": string;
   "TIME SENT": string;
   "DATE MDA RESPONDED": string;
-}
-
-interface RecommendationEntry {
-  agency: string;
-  recommendations: string[];
 }
 
 interface MysteryShoppingEntry {
@@ -264,71 +268,76 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const slaTableData: string[][] = [];
 
+  // 2026 SLA is stored on the full-year period; older years used 1st/2nd half.
+  const slaSources = [data.sla.fullYear, data.sla.firstHalf, data.sla.secondHalf].filter(Boolean);
+
   // Collect all months with data
-  const monthlyData: { [key: string]: { percentage?: number; method?: string } } = {};
+  const monthlyData: { [key: string]: { percentage?: number; score?: number; method?: string } } = {};
 
-  if (data.sla.firstHalf?.monthlySlaData) {
-    Object.entries(data.sla.firstHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
-      if (value && (value.method === 'file' || value.method === 'rating')) {
-        monthlyData[key] = {
-          percentage: value.method === 'file' ? value.overallPercentage : (value.rating / 10) * 100,
-          method: value.method
-        };
-      }
-    });
-  }
+  const monthHasSlaData = (value: any): boolean => {
+    if (!value || typeof value !== 'object') return false;
+    if (value.method === 'file' && value.overallPercentage != null) return true;
+    if (value.method === 'rating' && (value.rating ?? 0) > 0) return true;
+    if (typeof value.score === 'number' && Number.isFinite(value.score) && value.score > 0) return true;
+    if (typeof value.overallPercentage === 'number') return true;
+    return false;
+  };
 
-  if (data.sla.secondHalf?.monthlySlaData) {
-    Object.entries(data.sla.secondHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
-      if (value && (value.method === 'file' || value.method === 'rating')) {
-        monthlyData[key] = {
-          percentage: value.method === 'file' ? value.overallPercentage : (value.rating / 10) * 100,
-          method: value.method
-        };
-      }
+  const monthDisplayValue = (value: {
+    percentage?: number;
+    score?: number;
+    method?: string;
+  }): string => {
+    if (typeof value.percentage === 'number' && Number.isFinite(value.percentage)) {
+      return `${value.percentage.toFixed(1)}%`;
+    }
+    if (typeof value.score === 'number' && Number.isFinite(value.score)) {
+      return `${value.score.toFixed(2)} pts`;
+    }
+    return 'Scored';
+  };
+
+  slaSources.forEach((source) => {
+    if (!source?.monthlySlaData || typeof source.monthlySlaData !== 'object') return;
+    Object.entries(source.monthlySlaData).forEach(([key, value]: [string, any]) => {
+      if (!monthHasSlaData(value)) return;
+      const percentage =
+        value.method === 'file'
+          ? value.overallPercentage
+          : value.method === 'rating'
+            ? (value.rating / 10) * 100
+            : typeof value.overallPercentage === 'number'
+              ? value.overallPercentage
+              : undefined;
+      monthlyData[key] = {
+        percentage,
+        score: typeof value.score === 'number' ? value.score : undefined,
+        method: value.method,
+      };
     });
-  }
+  });
 
   // Calculate SLA score (used for both SLA table and Overall Summary) - Exclude November (10) and December (11)
   const slaAllMonthKeys = new Set<string>();
-  [data.sla.firstHalf, data.sla.secondHalf].forEach(half => {
-    if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
-      Object.keys(half.monthlySlaData).forEach(key => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11)
-        if (monthIndex === 10 || monthIndex === 11) return;
-
-        const monthData = half.monthlySlaData[key];
-        if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
-          slaAllMonthKeys.add(key);
-        }
-      });
-    }
+  let slaSumTotalScore = 0;
+  slaSources.forEach((source) => {
+    if (!source?.monthlySlaData || typeof source.monthlySlaData !== 'object') return;
+    Object.entries(source.monthlySlaData).forEach(([key, monthData]: [string, any]) => {
+      const monthIndex = parseInt(key.split('-')[1], 10);
+      if (monthIndex === 10 || monthIndex === 11) return;
+      if (!monthHasSlaData(monthData)) return;
+      slaAllMonthKeys.add(key);
+      if (typeof monthData.score === 'number' && Number.isFinite(monthData.score)) {
+        slaSumTotalScore += monthData.score;
+      } else if (monthData.method === 'file' && monthData.overallPercentage != null) {
+        slaSumTotalScore += (monthData.overallPercentage / 100) * 5;
+      } else if (monthData.method === 'rating') {
+        slaSumTotalScore += (monthData.rating / 10) * 5;
+      }
+    });
   });
 
   const slaTotalMonthsWithData = slaAllMonthKeys.size;
-  // Recalculate sumTotalScore excluding November and December
-  let slaSumTotalScore = 0;
-  [data.sla.firstHalf, data.sla.secondHalf].forEach(half => {
-    if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
-      Object.entries(half.monthlySlaData).forEach(([key, monthData]: [string, any]) => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11)
-        if (monthIndex === 10 || monthIndex === 11) return;
-
-        if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
-          // Calculate score for this month (5 points max per month)
-          if (monthData.method === 'file') {
-            slaSumTotalScore += (monthData.overallPercentage / 100) * 5;
-          } else if (monthData.method === 'rating') {
-            slaSumTotalScore += (monthData.rating / 10) * 5;
-          }
-        }
-      });
-    }
-  });
   const slaMaxPossibleRawScore = slaTotalMonthsWithData * 5;
   const pointsPerMonth = 30 / 10; // Changed from 12 to 10 months
   const slaMaxPossibleScoreForMonths = slaTotalMonthsWithData * pointsPerMonth;
@@ -338,10 +347,10 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
     const monthKey = `${data.year}-${monthIndex}`;
     const monthName = monthNames[monthIndex];
-    const monthData = monthlyData[monthKey];
+    const monthEntry = monthlyData[monthKey];
 
-    if (monthData) {
-      slaTableData.push([`${monthName} ${data.year}`, `${monthData.percentage?.toFixed(1)}%`]);
+    if (monthEntry) {
+      slaTableData.push([`${monthName} ${data.year}`, monthDisplayValue(monthEntry)]);
     } else {
       slaTableData.push([`${monthName} ${data.year}`, 'No data']);
     }
@@ -873,7 +882,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   // Monthly Report Submission - show all 12 months but exclude Nov/Dec from calculations
   const monthlyReportTableData: string[][] = [];
   const monthlyReportMonths: { [key: string]: boolean } = {};
-  [data.monthlyReport.firstHalf, data.monthlyReport.secondHalf].forEach(half => {
+  [data.monthlyReport.fullYear, data.monthlyReport.firstHalf, data.monthlyReport.secondHalf]
+    .filter(Boolean)
+    .forEach((half) => {
     if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
       Object.entries(half.manualMonthlyReports).forEach(([key, value]) => {
         // Extract month index from key (format: "year-month")
@@ -1006,7 +1017,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   // Timeliness - show all 12 months but exclude Nov/Dec from calculations
   const timelinessTableData: string[][] = [];
   const timelinessMonths: { [key: string]: boolean } = {};
-  [data.timeliness.firstHalf, data.timeliness.secondHalf].forEach(half => {
+  [data.timeliness.fullYear, data.timeliness.firstHalf, data.timeliness.secondHalf]
+    .filter(Boolean)
+    .forEach((half) => {
     if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
       Object.entries(half.manualTimeliness).forEach(([key, value]) => {
         // Extract month index from key (format: "year-month")
@@ -1271,39 +1284,6 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       }
     });
     yPosition = (doc as any).lastAutoTable.finalY + 5;
-  }
-
-  // Recommendations
-  const recommendationsEntry = (recommendationsData as RecommendationEntry[]).find(
-    (item) => item.agency?.toLowerCase() === data.mdaName.toLowerCase() ||
-      data.mdaName.toLowerCase().includes(item.agency?.toLowerCase()) ||
-      item.agency?.toLowerCase().includes(data.mdaName.toLowerCase())
-  );
-
-  if (recommendationsEntry && recommendationsEntry.recommendations && recommendationsEntry.recommendations.length > 0) {
-    if (yPosition > pageHeight - 60) {
-      doc.addPage();
-      yPosition = 20;
-    }
-
-    const recommendationsBody = recommendationsEntry.recommendations.map((rec) => [rec]);
-
-    autoTable(doc, {
-      startY: yPosition,
-      head: [['Recommendations for Improvement']],
-      body: recommendationsBody,
-      headStyles: {
-        fillColor: [255, 87, 34],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold'
-      },
-      styles: {
-        fontSize: 9,
-        cellPadding: 4,
-        overflow: 'linebreak'
-      },
-      theme: 'striped'
-    });
   }
 
   // Save PDF

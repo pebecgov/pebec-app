@@ -226,16 +226,8 @@ export default function ScoringMetricsPage() {
       return Array.from(set || []);
     };
 
-    const baseMaxPoints = (() => {
-      if (dashboardYear < 2026) return 80;
-      const efficiencyTotal = (efficiencyConfig?.slaPoints || 5) +
-        (efficiencyConfig?.reportSubmissionPoints || 2) +
-        (efficiencyConfig?.reportGovPoints || 20) +
-        (efficiencyConfig?.timelinessPoints || 3);
-      const mysteryTotal = 40;
-      const othersTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 20;
-      return efficiencyTotal + mysteryTotal + othersTotal;
-    })();
+    // 2026 BFA is scored out of 100 (same as mda_scoring dashboard + public tracker).
+    const baseMaxPoints = dashboardYear < 2026 ? 80 : 100;
 
     // Initialize all MDAs from mdasList with null data
     const allMdasMap = new Map<string, any>();
