@@ -6,7 +6,7 @@ import {
   getOverallMaxScoreForYear,
   getSubIndicatorScore,
 } from "@/convex/config/indicators";
-import { getStateDeduction, normalizeStateName } from "@/convex/stateUtils";
+import { normalizeStateName } from "@/convex/stateUtils";
 
 export interface StateRanking {
   state: string;
@@ -14,28 +14,18 @@ export interface StateRanking {
   percentageScore: number;
   rank: number;
   maxScore: number;
-  deduction?: number;
 }
 
-function applyDeductions(
+function rankStates(
   items: Array<{ state: string; totalScore: number; percentageScore: number; maxScore: number }>
 ): StateRanking[] {
   return items
-    .map((item) => {
-      const normalizedState = normalizeStateName(item.state);
-      const deduction = getStateDeduction(normalizedState);
-      const adjustedScore = Math.max(item.totalScore - deduction, 0);
-      const adjustedPercentage =
-        item.maxScore > 0 ? (adjustedScore / item.maxScore) * 100 : 0;
-
-      return {
-        state: normalizedState,
-        totalScore: adjustedScore,
-        percentageScore: adjustedPercentage,
-        maxScore: item.maxScore,
-        deduction,
-      };
-    })
+    .map((item) => ({
+      state: normalizeStateName(item.state),
+      totalScore: item.totalScore,
+      percentageScore: item.percentageScore,
+      maxScore: item.maxScore,
+    }))
     .sort((a, b) => b.percentageScore - a.percentageScore)
     .map((item, index) => ({
       ...item,
@@ -81,7 +71,7 @@ export function useStateRankings(indicator?: string, year?: number) {
         };
       });
 
-      return applyDeductions(baseItems);
+      return rankStates(baseItems);
     }
 
     if (!baseRankings) return undefined;
@@ -102,7 +92,7 @@ export function useStateRankings(indicator?: string, year?: number) {
       };
     });
 
-    return applyDeductions(normalizedBase);
+    return rankStates(normalizedBase);
   }, [indicator, baseRankings, stateScores, currentYear]);
 
   return {

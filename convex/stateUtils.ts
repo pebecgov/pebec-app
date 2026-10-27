@@ -15,9 +15,8 @@ const STATE_ALIASES: Record<string, string> = {
   "FEDERAL CAPITAL TERRITORY": "Federal Capital Territory",
 };
 
-export const STATE_DEDUCTIONS: Record<string, number> = {
-  Ogun: 6,
-};
+/** No per-state point deductions for the current cycle. */
+export const STATE_DEDUCTIONS: Record<string, number> = {};
 
 export const VALID_NIGERIAN_STATES = new Set(STATE_LIST);
 
