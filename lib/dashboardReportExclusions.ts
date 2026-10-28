@@ -21,10 +21,6 @@ const DASHBOARD_REPORT_EXCLUDED_MDA_NAMES = [
   "Joint Tax Board",
   "Joint Revenue Board",
   "Ministry of Budget and Economic Planning",
-] as const;
-
-/** Skipped in “Download All PDFs” only (still may appear on ranking table/PDF). */
-const BULK_PDF_EXCLUDED_MDA_NAMES = [
   "Ministry of Interior",
   "Federal Ministry of Interior",
 ] as const;
@@ -58,10 +54,6 @@ function normalizeMdaKey(name: string): string {
 
 const EXCLUDED_KEYS = new Set(
   DASHBOARD_REPORT_EXCLUDED_MDA_NAMES.map((name) => normalizeMdaKey(name))
-);
-
-const BULK_EXCLUDED_KEYS = new Set(
-  BULK_PDF_EXCLUDED_MDA_NAMES.map((name) => normalizeMdaKey(name))
 );
 
 function matchesNameOrAbbr(
@@ -106,10 +98,7 @@ export function isExcludedFromDashboardReport(mdaName: string): boolean {
 }
 
 export function isExcludedFromBulkPdf(mdaName: string): boolean {
-  return (
-    isExcludedFromDashboardReport(mdaName) ||
-    nameInKeySet(mdaName, BULK_EXCLUDED_KEYS)
-  );
+  return isExcludedFromDashboardReport(mdaName);
 }
 
 export function isNewlyOnboardedExemptMda(mdaName: string): boolean {
