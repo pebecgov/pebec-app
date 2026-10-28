@@ -62,6 +62,7 @@ import type * as migrations_cleanupGettingCredit from "../migrations/cleanupGett
 import type * as migrations_cleanupInfrastructure from "../migrations/cleanupInfrastructure.js";
 import type * as migrations_cleanupInvalidStates from "../migrations/cleanupInvalidStates.js";
 import type * as migrations_mergeFCTEntries from "../migrations/mergeFCTEntries.js";
+import type * as migrations_migrateElectricityToSpreadsheetModel from "../migrations/migrateElectricityToSpreadsheetModel.js";
 import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
 import type * as migrations_renameMdaAgencies from "../migrations/renameMdaAgencies.js";
 import type * as migrations_rescoreStateScoresFromValues from "../migrations/rescoreStateScoresFromValues.js";
@@ -181,6 +182,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/cleanupInfrastructure": typeof migrations_cleanupInfrastructure;
   "migrations/cleanupInvalidStates": typeof migrations_cleanupInvalidStates;
   "migrations/mergeFCTEntries": typeof migrations_mergeFCTEntries;
+  "migrations/migrateElectricityToSpreadsheetModel": typeof migrations_migrateElectricityToSpreadsheetModel;
   "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
   "migrations/renameMdaAgencies": typeof migrations_renameMdaAgencies;
   "migrations/rescoreStateScoresFromValues": typeof migrations_rescoreStateScoresFromValues;

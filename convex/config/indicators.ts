@@ -28,37 +28,39 @@ export type IndicatorSet = Readonly<Record<string, IndicatorConfig>>;
 const indicators2025 = {
   electricity: {
     name: "Electricity (16%)",
+    // Spreadsheet: Law 3 + Agency 3 + Licence 1 + Generation 4 + Transmission 5 = 16
     subIndicators: {
       state_electricity_law: {
-        label: "State Electricity Law (2%)",
+        label: "Law (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "transfer_order_issued",
+            label: "Transfer Order Issued by NERC (3)",
+            score: 3,
+          },
+          {
+            value: "no_transfer_order",
+            label: "No Transfer Order from NERC (0)",
+            score: 0,
+          },
         ],
       },
       electricity_regulatory_commission: {
-        label: "Establishment of State Electricity Regulatory Commission (2%)",
+        label: "Establishment of Agency (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      nerc_transfer_request: {
-        label: "Request for Transfer from NERC (2%)",
-        options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "yes", label: "Yes (3)", score: 3 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_license: {
-        label: "License (1%)",
+        label: "Licence (1%)",
         options: [
           { value: "yes", label: "Yes (1)", score: 1 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_generation: {
-        label: "Electricity Generation (4% Bonus)",
+        label: "Generation (4%)",
         options: [
           { value: "excellent", label: "Excellent (4)", score: 4 },
           { value: "good", label: "Good (3)", score: 3 },
@@ -68,7 +70,7 @@ const indicators2025 = {
         ],
       },
       electricity_transmission_distribution: {
-        label: "Electricity Transmission and Distribution (5%)",
+        label: "Transmission (5%)",
         options: [
           { value: "excellent", label: "Excellent (5)", score: 5 },
           { value: "good", label: "Good (4)", score: 4 },
@@ -394,37 +396,39 @@ const indicators2025 = {
 const indicators2026 = {
   electricity: {
     name: "Electricity (16%)",
+    // Spreadsheet: Law 3 + Agency 3 + Licence 1 + Generation 4 + Transmission 5 = 16
     subIndicators: {
       state_electricity_law: {
-        label: "State Electricity Law (2%)",
+        label: "Law (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "transfer_order_issued",
+            label: "Transfer Order Issued by NERC (3)",
+            score: 3,
+          },
+          {
+            value: "no_transfer_order",
+            label: "No Transfer Order from NERC (0)",
+            score: 0,
+          },
         ],
       },
       electricity_regulatory_commission: {
-        label: "Establishment of State Electricity Regulatory Commission (2%)",
+        label: "Establishment of Agency (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      nerc_transfer_request: {
-        label: "Request for Transfer from NERC (2%)",
-        options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "yes", label: "Yes (3)", score: 3 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_license: {
-        label: "License (1%)",
+        label: "Licence (1%)",
         options: [
           { value: "yes", label: "Yes (1)", score: 1 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_generation: {
-        label: "Electricity Generation (4% Bonus)",
+        label: "Generation (4%)",
         options: [
           { value: "excellent", label: "Excellent (4)", score: 4 },
           { value: "good", label: "Good (3)", score: 3 },
@@ -434,7 +438,7 @@ const indicators2026 = {
         ],
       },
       electricity_transmission_distribution: {
-        label: "Electricity Transmission and Distribution (5%)",
+        label: "Transmission (5%)",
         options: [
           { value: "excellent", label: "Excellent (5)", score: 5 },
           { value: "good", label: "Good (4)", score: 4 },
@@ -756,9 +760,29 @@ export function getSubIndicatorScore(
   value: string,
   year?: number
 ): number {
+  // Retired: folded into Law (Transfer Order) by migrateElectricityToSpreadsheetModel.
+  // Return 0 so leftover DB rows do not double-count after the framework change.
+  if (
+    indicatorKey === "electricity" &&
+    subIndicatorKey === "nerc_transfer_request"
+  ) {
+    return 0;
+  }
+
   const subIndicator = getIndicatorsForYear(year)[indicatorKey]?.subIndicators?.[subIndicatorKey];
   if (!subIndicator) return 0;
-  return subIndicator.options.find((option) => option.value === value)?.score ?? 0;
+  const direct = subIndicator.options.find((option) => option.value === value)?.score;
+  if (direct != null) return direct;
+
+  // Legacy electricity Law values (pre-spreadsheet Transfer Order options).
+  if (
+    indicatorKey === "electricity" &&
+    subIndicatorKey === "state_electricity_law" &&
+    (value === "yes" || value === "no")
+  ) {
+    return value === "yes" ? 3 : 0;
+  }
+  return 0;
 }
 
 export type IndicatorKey = keyof typeof indicators2026 | keyof typeof indicators2025;
