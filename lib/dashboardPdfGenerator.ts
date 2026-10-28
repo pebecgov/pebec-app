@@ -1,7 +1,13 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { isExcludedFromDashboardReport } from "./dashboardReportExclusions";
+import {
+  getNewlyOnboardedExemptEntry,
+  isExcludedFromDashboardReport,
+  isNewlyOnboardedExemptMda,
+  NEWLY_ONBOARDED_EXEMPT_MDAS,
+  NEWLY_ONBOARDED_EXEMPT_NOTE,
+} from "./dashboardReportExclusions";
 
 interface MdaList {
   name: string;
@@ -245,13 +251,41 @@ export async function generateDashboardPDF({
         maxPossiblePoints: Number(mda.maxPossiblePoints) || (dashboardYear >= 2026 ? 100 : 90),
       }));
 
-    const sortedData = preserveOrder
-      ? allMdasArray
-      : [...allMdasArray].sort((a, b) => {
+    const rankedPool = allMdasArray.filter(
+      (mda) => !isNewlyOnboardedExemptMda(mda?.mdaName || mda?.name || "")
+    );
+    const onboardedFromData = allMdasArray.filter((mda) =>
+      isNewlyOnboardedExemptMda(mda?.mdaName || mda?.name || "")
+    );
+
+    const sortedRanked = preserveOrder
+      ? rankedPool
+      : [...rankedPool].sort((a, b) => {
           const diff = metricSortValue(b, selectedMetric) - metricSortValue(a, selectedMetric);
           if (diff !== 0) return diff;
           return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
         });
+
+    // Always list all five newly onboarded agencies at the bottom (stub if missing from data).
+    const usedOnboarded = new Set<string>();
+    const onboardedBottom = NEWLY_ONBOARDED_EXEMPT_MDAS.map((entry) => {
+      const existing = onboardedFromData.find((mda) => {
+        const match = getNewlyOnboardedExemptEntry(mda?.mdaName || "");
+        if (!match || match.abbreviation !== entry.abbreviation) return false;
+        if (usedOnboarded.has(match.abbreviation)) return false;
+        return true;
+      });
+      if (existing) {
+        usedOnboarded.add(entry.abbreviation);
+        return {
+          ...existing,
+          mdaName: `${entry.abbreviation} - ${entry.name}`,
+        };
+      }
+      return {
+        mdaName: `${entry.abbreviation} - ${entry.name}`,
+      };
+    });
 
     const slaMax = efficiencyConfig?.slaPoints || (dashboardYear >= 2026 ? 5 : 30);
     const reportGovMax = efficiencyConfig?.reportGovPoints || (dashboardYear >= 2026 ? 20 : 15);
@@ -279,7 +313,12 @@ export async function generateDashboardPDF({
         "Final Score",
       ];
 
-      sortedData.forEach((mda, idx) => {
+      const dashCell = () => "—";
+      const emptyOthers = othersConfig.map(() => dashCell());
+      const emptyPenalties = penaltyConfig.map(() => dashCell());
+      const emptyBonuses = bonusConfig.map(() => dashCell());
+
+      const pushRankedRow = (mda: any, rankLabel: string, finalCell: string) => {
         const mysteryMax = Number(mda.mysteryShopping?.maxPossibleScore) || 40;
         const othersCells = othersConfig.map((item) => {
           if (isOthersItemExcluded(mda, item.itemId)) return "Excluded";
@@ -299,10 +338,9 @@ export async function generateDashboardPDF({
         });
         const gross = Number(mda.baseTotalScore || 0);
         const maxPts = Number(mda.maxPossiblePoints) || 100;
-        const pct = Number(mda.totalPercentage || 0);
 
         tableData.push([
-          `#${idx + 1}`,
+          rankLabel,
           mda.mdaName,
           isExcluded(mda, "sla")
             ? "Excluded"
@@ -342,8 +380,32 @@ export async function generateDashboardPDF({
           `${gross.toFixed(1)}\n${gross.toFixed(1)}/${maxPts}`,
           ...penaltyCells,
           ...bonusCells,
-          // Final column: one rounded percentage only (e.g. 77%).
-          formatFinalPercentage(pct),
+          finalCell,
+        ]);
+      };
+
+      sortedRanked.forEach((mda, idx) => {
+        pushRankedRow(
+          mda,
+          `#${idx + 1}`,
+          formatFinalPercentage(Number(mda.totalPercentage || 0))
+        );
+      });
+
+      onboardedBottom.forEach((mda) => {
+        tableData.push([
+          "—",
+          mda.mdaName,
+          dashCell(),
+          dashCell(),
+          ...emptyOthers,
+          dashCell(),
+          dashCell(),
+          dashCell(),
+          dashCell(),
+          ...emptyPenalties,
+          ...emptyBonuses,
+          NEWLY_ONBOARDED_EXEMPT_NOTE,
         ]);
       });
     } else if (selectedMetric === "totalScore") {
@@ -363,7 +425,7 @@ export async function generateDashboardPDF({
         "Touting",
         "Final",
       ];
-      sortedData.forEach((mda, idx) => {
+      sortedRanked.forEach((mda, idx) => {
         const maxPts = Number(mda.maxPossiblePoints) || 90;
         const pct = Number(mda.totalPercentage || 0);
         tableData.push([
@@ -387,9 +449,27 @@ export async function generateDashboardPDF({
           formatFinalPercentage(pct),
         ]);
       });
+      onboardedBottom.forEach((mda) => {
+        tableData.push([
+          "—",
+          mda.mdaName,
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          NEWLY_ONBOARDED_EXEMPT_NOTE,
+        ]);
+      });
     } else {
       head = ["Rank", "MDA Name", `${metricDisplayName}`];
-      sortedData.forEach((mda, idx) => {
+      sortedRanked.forEach((mda, idx) => {
         const value = metricSortValue(mda, selectedMetric);
         tableData.push([
           `#${idx + 1}`,

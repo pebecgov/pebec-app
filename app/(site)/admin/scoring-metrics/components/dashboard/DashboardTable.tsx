@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
 import { buildMdaRankingSummary } from '@/lib/mdaRankingSummary';
 import { toast } from 'sonner';
+import { isNewlyOnboardedExemptMda } from '@/lib/dashboardReportExclusions';
 
 interface DashboardTableProps {
     liveDashboardData: any[] | undefined;
@@ -208,11 +209,18 @@ export default function DashboardTable({
                                 ? allMdasArray
                                 : allMdasArray.filter((mda: any) => !isMdaExcludedForSelectedMetric(mda, selectedMetric));
                             const sortedData = Array.isArray(metricScopedData)
-                                ? [...metricScopedData].sort((a: any, b: any) => getMetricScore(b, selectedMetric) - getMetricScore(a, selectedMetric))
+                                ? [...metricScopedData].sort((a: any, b: any) => {
+                                    const aExempt = isNewlyOnboardedExemptMda(a?.mdaName || "");
+                                    const bExempt = isNewlyOnboardedExemptMda(b?.mdaName || "");
+                                    if (aExempt !== bExempt) return aExempt ? 1 : -1;
+                                    return getMetricScore(b, selectedMetric) - getMetricScore(a, selectedMetric);
+                                  })
                                 : [];
-                            const rankedByMetric = [...sortedData];
+                            const rankedByMetric = sortedData.filter(
+                                (mda: any) => !isNewlyOnboardedExemptMda(mda?.mdaName || "")
+                            );
 
-                            // Calculate ranks based on selected metric
+                            // Calculate ranks based on selected metric (exempt MDAs are unranked)
                             const rankMap = new Map<string, number>();
                             rankedByMetric.forEach((mda: any, idx: number) => {
                                 rankMap.set(mda.mdaName, idx + 1);
@@ -220,7 +228,10 @@ export default function DashboardTable({
 
                             return sortedData.map((mda: any, index: number) => {
                                 // Get rank based on selected metric
-                                const rank = rankMap.get(mda.mdaName) || sortedData.length;
+                                const isExempt = isNewlyOnboardedExemptMda(mda?.mdaName || "");
+                                const rank = isExempt
+                                    ? "—"
+                                    : (rankMap.get(mda.mdaName) || sortedData.length);
 
                                 // Calculate overall percentage for selected metric
                                 let score = 0;
@@ -307,7 +318,7 @@ export default function DashboardTable({
                                 return (
                                     <tr key={mda.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            #{rank}
+                                            {isExempt ? "—" : `#${rank}`}
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             {mda.mdaName}
@@ -520,22 +531,30 @@ export default function DashboardTable({
                                                     </>
                                                 )}
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`font-bold ${mda.totalPercentage >= 90 ? 'text-green-600' :
-                                                            mda.totalPercentage >= 80 ? 'text-blue-600' :
-                                                                mda.totalPercentage >= 70 ? 'text-yellow-600' :
-                                                                    mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
-                                                            }`}>
-                                                            {mda.totalScore.toFixed(1)}
+                                                    {isExempt ? (
+                                                        <span className="text-xs text-gray-600 font-medium">
+                                                            Exempted due to being newly onboarded
                                                         </span>
-                                                    </div>
-                                                    <div className={`text-xs mt-1 ${mda.totalPercentage >= 90 ? 'text-green-600' :
-                                                        mda.totalPercentage >= 80 ? 'text-blue-600' :
-                                                            mda.totalPercentage >= 70 ? 'text-yellow-600' :
-                                                                mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
-                                                        }`}>
-                                                        {mda.totalPercentage.toFixed(1)}%
-                                                    </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`font-bold ${mda.totalPercentage >= 90 ? 'text-green-600' :
+                                                                    mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                                                        mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                                                            mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                                                    }`}>
+                                                                    {mda.totalScore.toFixed(1)}
+                                                                </span>
+                                                            </div>
+                                                            <div className={`text-xs mt-1 ${mda.totalPercentage >= 90 ? 'text-green-600' :
+                                                                mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                                                    mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                                                        mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                                                }`}>
+                                                                {mda.totalPercentage.toFixed(1)}%
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </td>
                                             </>
                                         ) : (
