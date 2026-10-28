@@ -22,7 +22,10 @@ import { BulkPdfDownloader } from "@/components/Admin/BulkPdfDownloader";
 
 // Import utility files
 import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
-import { isExcludedFromDashboardReport } from "@/lib/dashboardReportExclusions";
+import {
+  isExcludedFromDashboardReport,
+  isNewlyOnboardedExemptMda,
+} from "@/lib/dashboardReportExclusions";
 import {
   STATE_OVERALL_MAX_SCORE,
 } from "./utils/constants";
@@ -535,8 +538,12 @@ export default function ScoringMetricsPage() {
     }
 
     // Same rows + same rank order as the Live Dashboard table (sort by totalScore, not %).
+    // Newly onboarded exempt MDAs (REA/BOA/NSW/MOFI/NPERA) always sort to the bottom.
     const processedData = [...processDashboardMdaData(mdaFilter, ministryFilter)].sort(
       (a: any, b: any) => {
+        const aExempt = isNewlyOnboardedExemptMda(a?.mdaName || "");
+        const bExempt = isNewlyOnboardedExemptMda(b?.mdaName || "");
+        if (aExempt !== bExempt) return aExempt ? 1 : -1;
         const aScore =
           selectedMetric === "totalScore"
             ? Number(a.totalScore) || 0
