@@ -37,7 +37,7 @@ const METRIC_OPTIONS: Array<{ key: Metric; label: string; hint: string }> = [
   {
     key: "reportGov",
     label: "Report Gov Resolution",
-    hint: "from ReportGov tickets — no complaints = full Report Gov credit",
+    hint: "on-platform + no complaints = full credit; not on platform = skip",
   },
 ];
 
@@ -176,9 +176,9 @@ export default function BulkEfficiencyCard({ scoringPeriod, mdaNames }: Props) {
         <p className="text-xs text-gray-600">
           Computes and saves the data-driven Efficiency metrics for all{" "}
           <strong>{uniqueMdaNames.length} MDAs</strong> in <strong>{scoringPeriod}</strong>, exactly as if you
-          opened each MDA and pressed Save. MDAs with no ReportGov tickets earn full Report Gov credit (no
-          complaints is not a penalty). SLA has its own bulk runner below; Mystery Shopping stays manual. Use{" "}
-          <em>Preview</em> first to see the scores without saving.
+          opened each MDA and pressed Save. On-platform MDAs with no ReportGov tickets earn full Report Gov
+          credit; MDAs not on the platform are skipped (0, normalized). SLA has its own bulk runner below;
+          Mystery Shopping stays manual. Use <em>Preview</em> first to see the scores without saving.
         </p>
 
         <div className="grid gap-2 sm:grid-cols-3">

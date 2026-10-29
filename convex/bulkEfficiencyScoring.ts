@@ -295,16 +295,54 @@ export const runAutomaticEfficiencyScoring = mutation({
           // Keep intentional Skip only when the MDA actually had tickets.
           // Legacy auto-skips for 0-ticket MDAs are recalculated to full credit.
           outcomes.push({ metric: "reportGov", status: "manual_override", previousScore: existing.score, newScore: existing.score, detail: "Kept \"Skip (0 points)\"" });
+        } else if (!mda) {
+          // Not on ReportGov platform → Skip (0), remove from max. Do NOT give full credit.
+          const detail =
+            "MDA not on platform — skipped (0 points; score normalized without ReportGov)";
+          if (!dryRun) {
+            const payload = {
+              totalTickets: 0,
+              resolvedTickets: 0,
+              averageResponseTime: 0,
+              averageResolutionTime: 0,
+              resolutionRate: 0,
+              adjustedResolutionRate: undefined,
+              systemAverageResolutionRate: system?.systemAverageResolutionRate,
+              minimumThreshold: system?.minimumThreshold,
+              score: 0,
+              isManual: false,
+              isSkipped: true,
+              updatedAt: now,
+              updatedBy: user._id,
+            };
+            if (existing) {
+              await ctx.db.patch(existing._id, payload);
+            } else {
+              await ctx.db.insert("mda_reportgov_data", {
+                mdaName,
+                scoringPeriod: args.scoringPeriod,
+                ...payload,
+                createdAt: now,
+                createdBy: user._id,
+              });
+            }
+            savedCount++;
+          }
+          outcomes.push({
+            metric: "reportGov",
+            status: dryRun ? "would_save" : "saved",
+            previousScore: existing?.score ?? null,
+            newScore: 0,
+            detail,
+          });
         } else {
-          const tickets = mda
-            ? await ctx.db
-                .query("tickets")
-                .withIndex("byMDA", (q) => q.eq("assignedMDA", mda._id))
-                .collect()
-            : [];
+          const tickets = await ctx.db
+            .query("tickets")
+            .withIndex("byMDA", (q) => q.eq("assignedMDA", mda._id))
+            .collect();
           const stats = computeTicketStats(tickets, ticketWindow.startDate, ticketWindow.endDate);
 
-          // No tickets (no complaints) → full Report Gov credit, not a skip/penalty.
+          // On platform + no complaints → full Report Gov credit.
           const adjustedResolutionRate =
             stats.totalTickets > 0 && system
               ? calculateAdjustedResolutionRate({
@@ -319,9 +357,7 @@ export const runAutomaticEfficiencyScoring = mutation({
           );
           const detail =
             stats.totalTickets <= 0
-              ? !mda
-                ? `MDA not on platform / no tickets — full Report Gov credit (${points.reportGov}/${points.reportGov})`
-                : `No tickets in period — full Report Gov credit (${points.reportGov}/${points.reportGov})`
+              ? `No tickets in period — full Report Gov credit (${points.reportGov}/${points.reportGov})`
               : adjustedResolutionRate !== null
                 ? `${stats.totalTickets} tickets, ${stats.resolvedTickets} resolved (${stats.resolutionRate.toFixed(0)}% → adj. ${adjustedResolutionRate.toFixed(0)}%)`
                 : `${stats.totalTickets} tickets, ${stats.resolvedTickets} resolved (${stats.resolutionRate.toFixed(0)}%)`;
