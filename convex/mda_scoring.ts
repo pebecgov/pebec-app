@@ -2792,19 +2792,14 @@ export const getAllMdaSavedDataForDashboard = query({
       let avgScore = 0;
 
       if (isSkipped) {
+        // Includes not-on-platform MDAs (Skip / normalize). Do not convert to full credit.
+        avgScore = 0;
         totalTickets = primary?.totalTickets || 0;
         resolvedTickets = primary?.resolvedTickets || 0;
         avgResponseTime = primary?.averageResponseTime || 0;
         avgResolutionTime = primary?.averageResolutionTime || 0;
         resolutionRate = primary?.resolutionRate || 0;
         adjustedResolutionRate = primary?.adjustedResolutionRate ?? null;
-        // Legacy auto-skip for zero-complaint MDAs → full credit under current policy.
-        if (totalTickets <= 0) {
-          avgScore = reportGovMaxPoints;
-          isSkipped = false;
-        } else {
-          avgScore = 0;
-        }
       } else if (isManual) {
         // Respect explicit manual saves.
         avgScore = primary?.score || 0;
@@ -2817,31 +2812,44 @@ export const getAllMdaSavedDataForDashboard = query({
       } else if (needsLiveReportGov) {
         // Same live path as admin ScoringTab / getPeriodTicketData.
         const mdaDocs = resolveMdaDocsForReportGov(primary?.mdaName || rawMdaName || mdaName);
-        const mdaTickets = mdaDocs.flatMap(
-          (mdaDoc) => ticketsByMdaId.get(String(mdaDoc._id)) || [],
-        );
-        const stats = computeTicketStats(
-          mdaTickets,
-          ticketWindow.startDate,
-          ticketWindow.endDate,
-        );
-        totalTickets = stats.totalTickets;
-        resolvedTickets = stats.resolvedTickets;
-        resolutionRate = stats.resolutionRate;
-        avgResponseTime = stats.averageResponseTime;
-        avgResolutionTime = stats.averageResolutionTime;
-        adjustedResolutionRate = reportGovSystem
-          ? calculateAdjustedResolutionRate({
-              complaintsReceived: stats.totalTickets,
-              resolutionRate: stats.resolutionRate,
-              minimumThreshold: reportGovSystem.minimumThreshold,
-              systemAverageResolutionRate: reportGovSystem.systemAverageResolutionRate,
-            })
-          : null;
-        avgScore = computeReportGovScore(
-          { ...stats, adjustedResolutionRate },
-          reportGovMaxPoints,
-        );
+        if (mdaDocs.length === 0) {
+          // Not on ReportGov platform → Skip / normalize (not full credit).
+          avgScore = 0;
+          isSkipped = true;
+          totalTickets = 0;
+          resolvedTickets = 0;
+          resolutionRate = 0;
+          avgResponseTime = 0;
+          avgResolutionTime = 0;
+          adjustedResolutionRate = null;
+        } else {
+          const mdaTickets = mdaDocs.flatMap(
+            (mdaDoc) => ticketsByMdaId.get(String(mdaDoc._id)) || [],
+          );
+          const stats = computeTicketStats(
+            mdaTickets,
+            ticketWindow.startDate,
+            ticketWindow.endDate,
+          );
+          totalTickets = stats.totalTickets;
+          resolvedTickets = stats.resolvedTickets;
+          resolutionRate = stats.resolutionRate;
+          avgResponseTime = stats.averageResponseTime;
+          avgResolutionTime = stats.averageResolutionTime;
+          adjustedResolutionRate = reportGovSystem
+            ? calculateAdjustedResolutionRate({
+                complaintsReceived: stats.totalTickets,
+                resolutionRate: stats.resolutionRate,
+                minimumThreshold: reportGovSystem.minimumThreshold,
+                systemAverageResolutionRate: reportGovSystem.systemAverageResolutionRate,
+              })
+            : null;
+          // On platform + 0 tickets → full credit via computeReportGovScore.
+          avgScore = computeReportGovScore(
+            { ...stats, adjustedResolutionRate },
+            reportGovMaxPoints,
+          );
+        }
       } else if (fullYear && fullYear.score !== undefined && fullYear.score !== null) {
         avgScore = fullYear.score;
         totalTickets = fullYear.totalTickets || 0;

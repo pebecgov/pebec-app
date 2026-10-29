@@ -365,18 +365,31 @@ export default function ScoringTab({
         }
     }, [savedSLAData]);
 
-    // Populate Automated ReportGov Data (same formula the bulk "run all" uses)
+    // Populate Automated ReportGov Data (same formula the bulk "run all" uses).
+    // Not-on-platform MDAs should be Skip (0), not full credit for zero tickets.
     useEffect(() => {
-        if (ticketResolutionData) {
-            const breakdown = computeReportGovBreakdown(ticketResolutionData, reportGovPoints);
-            setReportGovBreakdown({
-                resolutionRate: breakdown.resolutionRate,
-                responseTime: breakdown.responseTime,
-                resolutionTime: breakdown.resolutionTime,
-            });
-            setReportgovRate(breakdown.total);
+        if (!ticketResolutionData) return;
+        const selectedMdaFromList = mdasList.find((m: any) => m.name === selectedMda);
+        const isActiveOnPlatform = !!mdasWithScores?.find((m: any) =>
+            m.name === selectedMda ||
+            (selectedMdaFromList && m.name === `${selectedMdaFromList.abbreviation} - ${selectedMda}`) ||
+            m.name.includes(selectedMda) ||
+            (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
+        );
+        if (selectedMda && mdasWithScores && !isActiveOnPlatform) {
+            setSkipReportGov(true);
+            setReportGovBreakdown({ resolutionRate: 0, responseTime: 0, resolutionTime: 0 });
+            setReportgovRate(0);
+            return;
         }
-    }, [ticketResolutionData, reportGovPoints]);
+        const breakdown = computeReportGovBreakdown(ticketResolutionData, reportGovPoints);
+        setReportGovBreakdown({
+            resolutionRate: breakdown.resolutionRate,
+            responseTime: breakdown.responseTime,
+            resolutionTime: breakdown.resolutionTime,
+        });
+        setReportgovRate(breakdown.total);
+    }, [ticketResolutionData, reportGovPoints, selectedMda, mdasList, mdasWithScores]);
 
     // Load saved Report Gov data when available
     useEffect(() => {
