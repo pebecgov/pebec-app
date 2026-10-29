@@ -2780,7 +2780,7 @@ export const getAllMdaSavedDataForDashboard = query({
 
       const hasFirstHalfData = firstHalf && firstHalf.score !== undefined && firstHalf.score !== null;
       const hasSecondHalfData = secondHalf && secondHalf.score !== undefined && secondHalf.score !== null;
-      const isSkipped = !!(primary?.isSkipped || fullYear?.isSkipped || firstHalf?.isSkipped || secondHalf?.isSkipped);
+      let isSkipped = !!(primary?.isSkipped || fullYear?.isSkipped || firstHalf?.isSkipped || secondHalf?.isSkipped);
       const isManual = !!(primary?.isManual);
 
       let totalTickets = 0;
@@ -2792,13 +2792,19 @@ export const getAllMdaSavedDataForDashboard = query({
       let avgScore = 0;
 
       if (isSkipped) {
-        avgScore = 0;
         totalTickets = primary?.totalTickets || 0;
         resolvedTickets = primary?.resolvedTickets || 0;
         avgResponseTime = primary?.averageResponseTime || 0;
         avgResolutionTime = primary?.averageResolutionTime || 0;
         resolutionRate = primary?.resolutionRate || 0;
         adjustedResolutionRate = primary?.adjustedResolutionRate ?? null;
+        // Legacy auto-skip for zero-complaint MDAs → full credit under current policy.
+        if (totalTickets <= 0) {
+          avgScore = reportGovMaxPoints;
+          isSkipped = false;
+        } else {
+          avgScore = 0;
+        }
       } else if (isManual) {
         // Respect explicit manual saves.
         avgScore = primary?.score || 0;
