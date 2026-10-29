@@ -244,8 +244,9 @@ export const DEFAULT_REPORTGOV_MINIMUM_THRESHOLD = 5;
 /**
  * Adjusted resolution rate (2026+):
  *   ((CR × RR) + (MT × ARR)) / (CR + MT)
- * pulls MDAs with few complaints towards the system average. MDAs with no
- * complaints, or nothing resolved, get 0.
+ * pulls MDAs with few complaints towards the system average.
+ * Nothing resolved (but tickets received) → 0 here; zero-complaint MDAs are
+ * handled separately in computeReportGovBreakdown as full credit.
  */
 export function calculateAdjustedResolutionRate({
   complaintsReceived,
@@ -326,9 +327,11 @@ export type ReportGovBreakdown = {
  *   - response time 10%
  *   - resolution time 15%
  *
+ * Zero tickets (no complaints received) → full `reportGovPoints` credit.
+ *
  * Resolution-rate points: when `adjustedResolutionRate` is provided (2026+),
- * points are proportional to it and an MDA with nothing resolved earns none.
- * Otherwise (2025) the legacy 7-tier ladder applies.
+ * points are proportional to it and an MDA with tickets but nothing resolved
+ * earns none. Otherwise (2025) the legacy 7-tier ladder applies.
  *
  * Response and resolution time are binary: ≤72 hours → full component points,
  * otherwise 0 (no intermediate tiers).
@@ -341,31 +344,39 @@ export function computeReportGovBreakdown(stats: ReportGovInput, reportGovPoints
   const maxResponsePoints = reportGovPoints * 0.1;
   const maxResolutionTimePoints = reportGovPoints * 0.15;
 
+  // No complaints received → full Report Gov credit (not a penalty / skip).
+  if (totalTickets <= 0) {
+    return {
+      resolutionRate: maxResRatePoints,
+      responseTime: maxResponsePoints,
+      resolutionTime: maxResolutionTimePoints,
+      total: reportGovPoints,
+    };
+  }
+
   let resRateScore = 0;
   let responseScore = 0;
   let resolutionTimeScore = 0;
 
-  if (totalTickets > 0) {
-    if (adjusted !== null) {
-      resRateScore =
-        resolvedTickets > 0 ? maxResRatePoints * (Math.min(Math.max(adjusted, 0), 100) / 100) : 0;
-    } else if (resolutionRate >= 100) resRateScore = maxResRatePoints;
-    else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
-    else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
-    else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
-    else if (resolutionRate >= 60) resRateScore = maxResRatePoints * (3 / 7);
-    else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
-    else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
+  if (adjusted !== null) {
+    resRateScore =
+      resolvedTickets > 0 ? maxResRatePoints * (Math.min(Math.max(adjusted, 0), 100) / 100) : 0;
+  } else if (resolutionRate >= 100) resRateScore = maxResRatePoints;
+  else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
+  else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
+  else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
+  else if (resolutionRate >= 60) resRateScore = maxResRatePoints * (3 / 7);
+  else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
+  else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
 
-    // Response time: pass/fail at 72h
-    if (averageResponseTime > 0 && averageResponseTime <= 72) {
-      responseScore = maxResponsePoints;
-    }
+  // Response time: pass/fail at 72h
+  if (averageResponseTime > 0 && averageResponseTime <= 72) {
+    responseScore = maxResponsePoints;
+  }
 
-    // Resolution time: pass/fail at 72h
-    if (averageResolutionTime > 0 && averageResolutionTime <= 72) {
-      resolutionTimeScore = maxResolutionTimePoints;
-    }
+  // Resolution time: pass/fail at 72h
+  if (averageResolutionTime > 0 && averageResolutionTime <= 72) {
+    resolutionTimeScore = maxResolutionTimePoints;
   }
 
   return {

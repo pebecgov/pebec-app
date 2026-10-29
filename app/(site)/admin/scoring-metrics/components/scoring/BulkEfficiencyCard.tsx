@@ -37,7 +37,7 @@ const METRIC_OPTIONS: Array<{ key: Metric; label: string; hint: string }> = [
   {
     key: "reportGov",
     label: "Report Gov Resolution",
-    hint: "from ReportGov tickets — MDAs with no tickets are auto-skipped (normalized)",
+    hint: "from ReportGov tickets — no complaints = full Report Gov credit",
   },
 ];
 
@@ -176,9 +176,9 @@ export default function BulkEfficiencyCard({ scoringPeriod, mdaNames }: Props) {
         <p className="text-xs text-gray-600">
           Computes and saves the data-driven Efficiency metrics for all{" "}
           <strong>{uniqueMdaNames.length} MDAs</strong> in <strong>{scoringPeriod}</strong>, exactly as if you
-          opened each MDA and pressed Save. MDAs with no ReportGov tickets are set to Skip (0 points) so their
-          percentage is normalized without that metric. SLA has its own bulk runner below; Mystery Shopping stays
-          manual. Use <em>Preview</em> first to see the scores without saving.
+          opened each MDA and pressed Save. MDAs with no ReportGov tickets earn full Report Gov credit (no
+          complaints is not a penalty). SLA has its own bulk runner below; Mystery Shopping stays manual. Use{" "}
+          <em>Preview</em> first to see the scores without saving.
         </p>
 
         <div className="grid gap-2 sm:grid-cols-3">
@@ -209,8 +209,9 @@ export default function BulkEfficiencyCard({ scoringPeriod, mdaNames }: Props) {
             onCheckedChange={(v) => setOverwriteManual(v === true)}
             disabled={running !== null}
           />
-          Also replace MDAs set to &ldquo;Skip (0 points)&rdquo; or entered manually
-          <span className="text-gray-400">(off by default — those are left untouched)</span>
+          Also replace intentional &ldquo;Skip (0 points)&rdquo; (when they had tickets) or
+          manual entries
+          <span className="text-gray-400">(off by default). Zero-complaint skips always get full credit.</span>
         </label>
 
         <div className="flex gap-2">

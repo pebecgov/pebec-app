@@ -55,29 +55,37 @@ function computeReportGovBreakdown(
   const maxResponsePoints = reportGovPoints * 0.1;
   const maxResolutionTimePoints = reportGovPoints * 0.15;
 
+  // No complaints received → full Report Gov credit.
+  if (totalTickets <= 0) {
+    return {
+      resolutionRate: maxResRatePoints,
+      responseTime: maxResponsePoints,
+      resolutionTime: maxResolutionTimePoints,
+      total: reportGovPoints,
+    };
+  }
+
   let resRateScore = 0;
   let responseScore = 0;
   let resolutionTimeScore = 0;
 
-  if (totalTickets > 0) {
-    if (adjusted !== null) {
-      resRateScore =
-        resolvedTickets > 0 ? maxResRatePoints * (Math.min(Math.max(adjusted, 0), 100) / 100) : 0;
-    } else if (resolutionRate >= 100) resRateScore = maxResRatePoints;
-    else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
-    else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
-    else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
-    else if (resolutionRate >= 60) resRateScore = maxResRatePoints * (3 / 7);
-    else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
-    else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
+  if (adjusted !== null) {
+    resRateScore =
+      resolvedTickets > 0 ? maxResRatePoints * (Math.min(Math.max(adjusted, 0), 100) / 100) : 0;
+  } else if (resolutionRate >= 100) resRateScore = maxResRatePoints;
+  else if (resolutionRate >= 90) resRateScore = maxResRatePoints * (6 / 7);
+  else if (resolutionRate >= 80) resRateScore = maxResRatePoints * (5 / 7);
+  else if (resolutionRate >= 70) resRateScore = maxResRatePoints * (4 / 7);
+  else if (resolutionRate >= 60) resRateScore = maxResRatePoints * (3 / 7);
+  else if (resolutionRate >= 50) resRateScore = maxResRatePoints * (2 / 7);
+  else if (resolutionRate >= 40) resRateScore = maxResRatePoints * (1 / 7);
 
-    if (averageResponseTime > 0 && averageResponseTime <= 72) {
-      responseScore = maxResponsePoints;
-    }
+  if (averageResponseTime > 0 && averageResponseTime <= 72) {
+    responseScore = maxResponsePoints;
+  }
 
-    if (averageResolutionTime > 0 && averageResolutionTime <= 72) {
-      resolutionTimeScore = maxResolutionTimePoints;
-    }
+  if (averageResolutionTime > 0 && averageResolutionTime <= 72) {
+    resolutionTimeScore = maxResolutionTimePoints;
   }
 
   return {
@@ -184,34 +192,44 @@ export function reportGovScoreBreakdown(args: {
       explanation:
         args.totalTickets > 0
           ? `${args.resolvedTickets} of ${args.totalTickets} ReportGov tickets were resolved (${round2(args.resolutionRate)}% raw resolution rate).`
-          : "No ReportGov tickets were assigned to this agency in the scoring period.",
+          : `No ReportGov tickets were assigned to this agency in the scoring period, so it earns full Report Gov credit (${round2(args.maxPoints)} / ${round2(args.maxPoints)}).`,
     },
     {
       label: "Resolution rate points",
       value:
-        args.adjustedResolutionRate != null
-          ? `${round2(rateShown)}% (adjusted)`
-          : `${round2(rateShown)}%`,
+        args.totalTickets <= 0
+          ? "No complaints — full credit"
+          : args.adjustedResolutionRate != null
+            ? `${round2(rateShown)}% (adjusted)`
+            : `${round2(rateShown)}%`,
       points: round2(breakdown.resolutionRate),
       maxPoints: rateMax,
       explanation:
-        args.adjustedResolutionRate != null
-          ? `Resolution-rate points use an adjusted rate (${round2(args.adjustedResolutionRate)}%) that balances your results with the system average when you have few complaints. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points (75%) → ${round2(breakdown.resolutionRate)} earned.`
-          : `Resolution-rate points are based on ${round2(args.resolutionRate)}% of tickets resolved. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points (75%) → ${round2(breakdown.resolutionRate)} earned.`,
+        args.totalTickets <= 0
+          ? `No complaints received → full resolution-rate credit (${rateMax} of ${round2(args.maxPoints)}).`
+          : args.adjustedResolutionRate != null
+            ? `Resolution-rate points use an adjusted rate (${round2(args.adjustedResolutionRate)}%) that balances your results with the system average when you have few complaints. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points (75%) → ${round2(breakdown.resolutionRate)} earned.`
+            : `Resolution-rate points are based on ${round2(args.resolutionRate)}% of tickets resolved. This part is worth up to ${rateMax} of ${round2(args.maxPoints)} points (75%) → ${round2(breakdown.resolutionRate)} earned.`,
     },
     {
       label: "Response time points",
       value: formatHours(args.averageResponseTime),
       points: round2(breakdown.responseTime),
       maxPoints: responseMax,
-      explanation: `Average time to first response was ${formatHours(args.averageResponseTime)}. Full ${responseMax} points (10%) when average ≤ 72 hours, otherwise 0 → ${round2(breakdown.responseTime)} earned.`,
+      explanation:
+        args.totalTickets <= 0
+          ? `No complaints received → full response-time credit (${responseMax} of ${round2(args.maxPoints)}).`
+          : `Average time to first response was ${formatHours(args.averageResponseTime)}. Full ${responseMax} points (10%) when average ≤ 72 hours, otherwise 0 → ${round2(breakdown.responseTime)} earned.`,
     },
     {
       label: "Resolution time points",
       value: formatHours(args.averageResolutionTime),
       points: round2(breakdown.resolutionTime),
       maxPoints: resolutionMax,
-      explanation: `Average time to fully resolve a ticket was ${formatHours(args.averageResolutionTime)}. Full ${resolutionMax} points (15%) when average ≤ 72 hours, otherwise 0 → ${round2(breakdown.resolutionTime)} earned.`,
+      explanation:
+        args.totalTickets <= 0
+          ? `No complaints received → full resolution-time credit (${resolutionMax} of ${round2(args.maxPoints)}).`
+          : `Average time to fully resolve a ticket was ${formatHours(args.averageResolutionTime)}. Full ${resolutionMax} points (15%) when average ≤ 72 hours, otherwise 0 → ${round2(breakdown.resolutionTime)} earned.`,
     },
     {
       label: "Total for Report Gov",
