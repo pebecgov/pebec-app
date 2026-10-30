@@ -163,22 +163,34 @@ const indicators2025 = {
   },
   digitalizing_land_registration: {
     name: "Digitalizing Land Registration (10%)",
+    // Spreadsheet: Availability of GIS + Full / Semi / Document downloads (pick highest automation tier).
     subIndicators: {
       gis: {
-        label: "GIS (3%)",
+        label: "Availability of GIS (3%)",
         options: [
-          { value: "excellent", label: "Excellent (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (3)", score: 3 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       automated: {
-        label: "Automated (7%)",
+        label: "Land Registration Automation (7%)",
         options: [
-          { value: "fully-automated", label: "Fully automated (7)", score: 7 },
-          { value: "hybrid", label: "Hybrid (4)", score: 4 },
-          { value: "manual", label: "Manual (0)", score: 0 },
+          {
+            value: "full_automation",
+            label: "Full automation end-to-end (7)",
+            score: 7,
+          },
+          {
+            value: "semi_automation",
+            label: "Semi-automation (5)",
+            score: 5,
+          },
+          {
+            value: "document_downloads",
+            label: "Document downloads/processing (2)",
+            score: 2,
+          },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
@@ -511,19 +523,34 @@ const indicators2026 = {
   },
   digitalizing_land_registration: {
     name: "Digitalizing Land Registration (10%)",
+    // Spreadsheet: Availability of GIS + Full / Semi / Document downloads (pick highest automation tier).
     subIndicators: {
       gis: {
-        label: "GIS (3%)",
+        label: "Availability of GIS (3%)",
         options: [
           { value: "yes", label: "Yes (3)", score: 3 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       automated: {
-        label: "Automated (7%)",
+        label: "Land Registration Automation (7%)",
         options: [
-          { value: "yes", label: "Yes (7)", score: 7 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "full_automation",
+            label: "Full automation end-to-end (7)",
+            score: 7,
+          },
+          {
+            value: "semi_automation",
+            label: "Semi-automation (5)",
+            score: 5,
+          },
+          {
+            value: "document_downloads",
+            label: "Document downloads/processing (2)",
+            score: 2,
+          },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
@@ -781,6 +808,19 @@ export function getSubIndicatorScore(
     (value === "yes" || value === "no")
   ) {
     return value === "yes" ? 3 : 0;
+  }
+
+  // Legacy land-registration GIS / automation values.
+  if (indicatorKey === "digitalizing_land_registration") {
+    if (subIndicatorKey === "gis") {
+      if (value === "excellent" || value === "good" || value === "fair") return 3;
+      if (value === "none") return 0;
+    }
+    if (subIndicatorKey === "automated") {
+      if (value === "yes" || value === "fully-automated") return 7;
+      if (value === "hybrid") return 5; // closest to semi-automation
+      if (value === "no" || value === "manual") return 0;
+    }
   }
   return 0;
 }
