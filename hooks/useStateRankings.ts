@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import {
   getIndicatorMaxScoresForYear,
   getOverallMaxScoreForYear,
-  getSubIndicatorScore,
+  sumStateScoreRows,
 } from "@/convex/config/indicators";
 import { normalizeStateName } from "@/convex/stateUtils";
 
@@ -47,18 +47,17 @@ export function useStateRankings(indicator?: string, year?: number) {
         return [];
       }
 
-      const stateTotals = new Map<string, number>();
+      const scoresByState = new Map<string, typeof filtered>();
       filtered.forEach((score) => {
         const normalizedState = normalizeStateName(score.state);
-        const currentTotal = stateTotals.get(normalizedState) || 0;
-        const points = getSubIndicatorScore(
-          score.indicator,
-          score.subIndicator,
-          score.value ?? "",
-          currentYear
-        );
-        stateTotals.set(normalizedState, currentTotal + points);
+        const bucket = scoresByState.get(normalizedState) ?? [];
+        bucket.push(score);
+        scoresByState.set(normalizedState, bucket);
       });
+      const stateTotals = new Map<string, number>();
+      for (const [state, rows] of scoresByState) {
+        stateTotals.set(state, sumStateScoreRows(rows, currentYear));
+      }
 
       const maxScore = getIndicatorMaxScoresForYear(currentYear)[indicator] ?? 0;
       const baseItems = Array.from(stateTotals.entries()).map(([state, totalScore]) => {
