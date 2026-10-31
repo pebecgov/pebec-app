@@ -11,6 +11,7 @@ import {
 } from "../lib/beepaTrackerRoster";
 import {
   CURRENT_INDICATOR_YEAR,
+  foldLandRegistrationPoints,
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
   getSubIndicatorScore,
@@ -127,6 +128,15 @@ export const getPublicStateRankings = query({
 
       stateData.indicators[score.indicator].score += points;
       stateData.indicators[score.indicator].subIndicators[score.subIndicator] = points;
+    }
+
+    // Land registration: show all spreadsheet columns, but score = GIS + highest automation tier.
+    for (const stateData of stateDetails.values()) {
+      const land = stateData.indicators.digitalizing_land_registration;
+      if (!land) continue;
+      const folded = foldLandRegistrationPoints(land.subIndicators);
+      stateData.totalScore += folded - land.score;
+      land.score = folded;
     }
 
     const sortedStates = Array.from(stateDetails.entries())

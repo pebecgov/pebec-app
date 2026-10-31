@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import {
   getIndicatorMaxScoresForYear,
   getOverallMaxScoreForYear,
-  getSubIndicatorScore,
+  sumStateScoreRows,
 } from "./config/indicators";
 import { normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
 
@@ -44,26 +44,22 @@ export const getStateRankings = query({
       return [];
     }
 
-    // Group by state and sum scores, filtering out invalid states and normalizing FCT
-    const stateTotals = new Map<string, number>();
+    // Group by state, then fold land-registration automation tiers.
+    const scoresByState = new Map<string, typeof allScores>();
 
     for (const score of allScores) {
-      // Normalize state name (e.g., FCT -> Federal Capital Territory)
       const normalizedState = normalizeStateName(score.state);
-      
-      // Filter out invalid states (like "Data Source", "Data Sourc", etc.)
       if (!VALID_NIGERIAN_STATES.has(normalizedState)) {
-        continue; // Skip invalid states
+        continue;
       }
-      
-      const currentTotal = stateTotals.get(normalizedState) || 0;
-      const points = getSubIndicatorScore(
-        score.indicator,
-        score.subIndicator,
-        score.value ?? "",
-        currentYear
-      );
-      stateTotals.set(normalizedState, currentTotal + points);
+      const bucket = scoresByState.get(normalizedState) ?? [];
+      bucket.push(score);
+      scoresByState.set(normalizedState, bucket);
+    }
+
+    const stateTotals = new Map<string, number>();
+    for (const [state, rows] of scoresByState) {
+      stateTotals.set(state, sumStateScoreRows(rows, currentYear));
     }
 
     const denominator = targetMaxScore || 0;
