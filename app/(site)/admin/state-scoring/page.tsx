@@ -21,10 +21,12 @@ import { Button } from "@/components/ui/button";
 import { useStateRankings } from "@/hooks/useStateRankings";
 import {
   CURRENT_INDICATOR_YEAR,
+  foldLandRegistrationPoints,
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
   getOverallMaxScoreForYear,
   getSubIndicatorScore,
+  sumStateScoreRows,
 } from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 import AnalysisTab from "@/components/Admin/AnalysisTab";
@@ -240,18 +242,14 @@ const AnalyticsDashboard = () => {
 
     filteredScores.forEach(score => {
       if (statesInRegion.includes(score.state)) {
-        if (!stateScores[score.state]) {
-          stateScores[score.state] = 0;
+        if (!stateDetails[score.state]) {
           stateDetails[score.state] = [];
         }
-        stateScores[score.state] += getSubIndicatorScore(
-          score.indicator,
-          score.subIndicator,
-          score.value ?? "",
-          ANALYTICS_YEAR
-        );
         stateDetails[score.state].push(score);
       }
+    });
+    Object.entries(stateDetails).forEach(([state, rows]) => {
+      stateScores[state] = sumStateScoreRows(rows, ANALYTICS_YEAR);
     });
 
     // Convert to chart data format
@@ -1036,7 +1034,12 @@ export default function StateScoringPage() {
           linkToSource: subMetricData.linkToSource,
         };
       });
-      const totalScore = subMetrics.reduce((sum, sub) => sum + (sub.score || 0), 0);
+      const totalScore =
+        indicatorKey === "digitalizing_land_registration"
+          ? foldLandRegistrationPoints(
+              Object.fromEntries(subMetrics.map((sub) => [sub.subIndicator, sub.score]))
+            )
+          : subMetrics.reduce((sum, sub) => sum + (sub.score || 0), 0);
       const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
       const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
