@@ -84,25 +84,20 @@ const indicators2025 = {
   },
   infrastructure: {
     name: "Infrastructure (8%)",
+    // Presence of industrial layout 2 + Functional industrial park 6 = 8
     subIndicators: {
-      roads_within_state_capital: {
-        label: "Roads within State Capital (4%)",
+      industrial_layout_presence: {
+        label: "Presence of Industrial Layout (2%)",
         options: [
-          { value: "excellent", label: "Excellent (4)", score: 4 },
-          { value: "very_good", label: "Very Good (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "poor", label: "Poor (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      industrial_zones: {
-        label: "Industrial Zones (4%)",
+      functional_industrial_park: {
+        label: "Functional Industrial Park (6%)",
         options: [
-          { value: "excellent", label: "Excellent (4)", score: 4 },
-          { value: "very_good", label: "Very Good (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "poor", label: "Poor (0)", score: 0 },
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
@@ -471,13 +466,20 @@ const indicators2026 = {
   },
   infrastructure: {
     name: "Infrastructure (8%)",
+    // Presence of industrial layout 2 + Functional industrial park 6 = 8
     subIndicators: {
-      industrial_zones: {
-        label: "Industrial Zones (8%)",
+      industrial_layout_presence: {
+        label: "Presence of Industrial Layout (2%)",
         options: [
-          { value: "eight", label: "8 pts", score: 8 },
-          { value: "four", label: "4 pts", score: 4 },
-          { value: "zero", label: "0 pts", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      functional_industrial_park: {
+        label: "Functional Industrial Park (6%)",
+        options: [
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
@@ -929,6 +931,23 @@ export function getSubIndicatorScore(
     }
     if (subIndicatorKey === "publication_of_fees_procedures") {
       // Retired combined field — scored only via publication_of_fees + procedures.
+      return 0;
+    }
+  }
+
+  // Legacy infrastructure keys (roads / single industrial_zones scale).
+  if (indicatorKey === "infrastructure") {
+    if (subIndicatorKey === "roads_within_state_capital") return 0;
+    if (subIndicatorKey === "industrial_zones") {
+      if (
+        value === "eight" ||
+        value === "excellent" ||
+        value === "very_good" ||
+        value === "good"
+      ) {
+        return 8; // treated as full via fold in migration; legacy sum path
+      }
+      if (value === "four" || value === "fair") return 2; // layout only
       return 0;
     }
   }
