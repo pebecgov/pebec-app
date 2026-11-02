@@ -158,8 +158,7 @@ const indicators2025 = {
   },
   digitalizing_land_registration: {
     name: "Digitalizing Land Registration (10%)",
-    // Spreadsheet columns. Automation tiers are mutually exclusive for scoring
-    // (highest of Full 7 / Semi 5 / Doc 2) + GIS 3 = max 10.
+    // GIS 3 + one automation tier (Full 7 / Semi 5 / Doc 2) = max 10
     subIndicators: {
       gis: {
         label: "Availability of GIS (3%)",
@@ -168,25 +167,25 @@ const indicators2025 = {
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      full_automation: {
-        label: "Full Automation End-to-End of Land Registration (7%)",
+      automated: {
+        label: "Land Registration Automation (7%)",
         options: [
-          { value: "yes", label: "Yes (7)", score: 7 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      semi_automation: {
-        label: "Semi-Automation (5%)",
-        options: [
-          { value: "yes", label: "Yes (5)", score: 5 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      document_downloads: {
-        label: "Document Downloads/Processing (2%)",
-        options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "full_automation",
+            label: "Full automation end-to-end (7)",
+            score: 7,
+          },
+          {
+            value: "semi_automation",
+            label: "Semi-automation (5)",
+            score: 5,
+          },
+          {
+            value: "document_downloads",
+            label: "Document downloads/processing (2)",
+            score: 2,
+          },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
@@ -532,8 +531,7 @@ const indicators2026 = {
   },
   digitalizing_land_registration: {
     name: "Digitalizing Land Registration (10%)",
-    // Spreadsheet columns. Automation tiers are mutually exclusive for scoring
-    // (highest of Full 7 / Semi 5 / Doc 2) + GIS 3 = max 10.
+    // GIS 3 + one automation tier (Full 7 / Semi 5 / Doc 2) = max 10
     subIndicators: {
       gis: {
         label: "Availability of GIS (3%)",
@@ -542,25 +540,25 @@ const indicators2026 = {
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      full_automation: {
-        label: "Full Automation End-to-End of Land Registration (7%)",
+      automated: {
+        label: "Land Registration Automation (7%)",
         options: [
-          { value: "yes", label: "Yes (7)", score: 7 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      semi_automation: {
-        label: "Semi-Automation (5%)",
-        options: [
-          { value: "yes", label: "Yes (5)", score: 5 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      document_downloads: {
-        label: "Document Downloads/Processing (2%)",
-        options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "full_automation",
+            label: "Full automation end-to-end (7)",
+            score: 7,
+          },
+          {
+            value: "semi_automation",
+            label: "Semi-automation (5)",
+            score: 5,
+          },
+          {
+            value: "document_downloads",
+            label: "Document downloads/processing (2)",
+            score: 2,
+          },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
@@ -772,46 +770,31 @@ export function getIndicatorMaxScoresForYear(year?: number): Record<string, numb
   if (cached) return cached;
 
   const computed = Object.fromEntries(
-    Object.entries(set).map(([key, config]) => {
-      // Land automation tiers are mutually exclusive (highest counts), so max is
-      // GIS 3 + Full 7 = 10 — not the sum of Full+Semi+Doc.
-      if (key === "digitalizing_land_registration") {
-        return [key, 10];
-      }
-      return [
-        key,
-        Object.values(config.subIndicators).reduce(
-          (sum, subIndicator) => sum + maxOptionScore(subIndicator.options),
-          0
-        ),
-      ];
-    })
+    Object.entries(set).map(([key, config]) => [
+      key,
+      Object.values(config.subIndicators).reduce(
+        (sum, subIndicator) => sum + maxOptionScore(subIndicator.options),
+        0
+      ),
+    ])
   );
   maxScoreCache.set(set, computed);
   return computed;
 }
 
-/** Sub-keys that make up land-registration automation (highest score counts). */
-export const LAND_AUTOMATION_SUB_INDICATORS = [
-  "full_automation",
-  "semi_automation",
-  "document_downloads",
-  "automated", // legacy single-field key
-] as const;
-
 /**
- * Fold land-registration sub-points: GIS + highest automation tier.
- * Prevents Full+Semi+Doc from stacking above the 10-point indicator max.
+ * Fold land-registration sub-points: GIS + automation.
+ * Still folds legacy split columns (full/semi/doc) to the highest tier until migrated.
  */
 export function foldLandRegistrationPoints(
   subPoints: Record<string, number | undefined>
 ): number {
   const gis = Number(subPoints.gis) || 0;
   const automation = Math.max(
+    Number(subPoints.automated) || 0,
     Number(subPoints.full_automation) || 0,
     Number(subPoints.semi_automation) || 0,
-    Number(subPoints.document_downloads) || 0,
-    Number(subPoints.automated) || 0
+    Number(subPoints.document_downloads) || 0
   );
   return gis + automation;
 }
@@ -889,16 +872,11 @@ export function getSubIndicatorScore(
 
   const subIndicator = getIndicatorsForYear(year)[indicatorKey]?.subIndicators?.[subIndicatorKey];
   if (!subIndicator) {
-    // Legacy single "automated" field → points still used inside foldLandRegistrationPoints.
-    if (
-      indicatorKey === "digitalizing_land_registration" &&
-      subIndicatorKey === "automated"
-    ) {
-      if (value === "yes" || value === "fully-automated" || value === "full_automation")
-        return 7;
-      if (value === "hybrid" || value === "semi_automation") return 5;
-      if (value === "document_downloads") return 2;
-      return 0;
+    // Legacy split land-automation columns (pre single dropdown).
+    if (indicatorKey === "digitalizing_land_registration") {
+      if (subIndicatorKey === "full_automation" && value === "yes") return 7;
+      if (subIndicatorKey === "semi_automation" && value === "yes") return 5;
+      if (subIndicatorKey === "document_downloads" && value === "yes") return 2;
     }
     return 0;
   }
@@ -914,13 +892,17 @@ export function getSubIndicatorScore(
     return value === "yes" ? 3 : 0;
   }
 
-  // Legacy land-registration GIS values.
-  if (
-    indicatorKey === "digitalizing_land_registration" &&
-    subIndicatorKey === "gis"
-  ) {
-    if (value === "excellent" || value === "good" || value === "fair") return 3;
-    if (value === "none") return 0;
+  // Legacy land-registration GIS / automation values.
+  if (indicatorKey === "digitalizing_land_registration") {
+    if (subIndicatorKey === "gis") {
+      if (value === "excellent" || value === "good" || value === "fair") return 3;
+      if (value === "none") return 0;
+    }
+    if (subIndicatorKey === "automated") {
+      if (value === "yes" || value === "fully-automated") return 7;
+      if (value === "hybrid") return 5;
+      if (value === "no" || value === "manual") return 0;
+    }
   }
 
   // Legacy harmonized-taxes values (pre split fees/procedures + digital max 2).

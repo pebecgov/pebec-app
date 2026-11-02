@@ -3,13 +3,12 @@ import { v } from "convex/values";
 import { getSubIndicatorScore } from "../config/indicators";
 
 /**
- * Remaps digitalizing_land_registration to spreadsheet columns:
- *   gis (Availability of GIS)
- *   full_automation (7)
- *   semi_automation (5)
- *   document_downloads (2)
+ * Collapses land-registration automation into one dropdown:
+ *   full_automation (7) / semi_automation (5) / document_downloads (2) / none (0)
+ * plus Availability of GIS (yes/no 3).
  *
- * Legacy `automated` rows are expanded into the three YES/NO columns, then deleted.
+ * Merges legacy split columns (full_automation / semi_automation / document_downloads
+ * as yes/no) into the highest tier on `automated`, then deletes the split rows.
  *
  * CLI:
  *   npx convex run migrations/migrateLandRegistrationAutomation:migrateLandRegistrationAutomation '{"dryRun":true,"year":2026}'
@@ -41,35 +40,42 @@ export const migrateLandRegistrationAutomation = mutation({
     }
 
     let gisUpdated = 0;
-    let automationCreated = 0;
-    let automatedDeleted = 0;
+    let automatedUpserted = 0;
+    let splitDeleted = 0;
     let unchanged = 0;
     const samples: string[] = [];
 
-    const mapGisValue = (value: string): string => {
+    const mapGis = (value: string): string => {
       if (value === "yes" || value === "no") return value;
       if (value === "excellent" || value === "good" || value === "fair") return "yes";
       if (value === "none") return "no";
       return value;
     };
 
-    const automationFromLegacy = (
-      value: string
-    ): {
-      full: "yes" | "no";
-      semi: "yes" | "no";
-      doc: "yes" | "no";
-    } => {
-      if (value === "yes" || value === "fully-automated" || value === "full_automation") {
-        return { full: "yes", semi: "no", doc: "no" };
+    const mapAutomatedValue = (value: string): string => {
+      if (
+        value === "full_automation" ||
+        value === "semi_automation" ||
+        value === "document_downloads" ||
+        value === "none"
+      ) {
+        return value;
       }
-      if (value === "hybrid" || value === "semi_automation") {
-        return { full: "no", semi: "yes", doc: "no" };
-      }
-      if (value === "document_downloads") {
-        return { full: "no", semi: "no", doc: "yes" };
-      }
-      return { full: "no", semi: "no", doc: "no" };
+      if (value === "yes" || value === "fully-automated") return "full_automation";
+      if (value === "hybrid") return "semi_automation";
+      if (value === "no" || value === "manual") return "none";
+      return value;
+    };
+
+    const highestFromSplit = (
+      full?: Row,
+      semi?: Row,
+      doc?: Row
+    ): "full_automation" | "semi_automation" | "document_downloads" | "none" => {
+      if (full?.value === "yes") return "full_automation";
+      if (semi?.value === "yes") return "semi_automation";
+      if (doc?.value === "yes") return "document_downloads";
+      return "none";
     };
 
     for (const [, group] of byStateYear) {
@@ -79,12 +85,12 @@ export const migrateLandRegistrationAutomation = mutation({
 
       const gis = group.find((r) => r.subIndicator === "gis");
       const automated = group.find((r) => r.subIndicator === "automated");
-      const existingFull = group.find((r) => r.subIndicator === "full_automation");
-      const existingSemi = group.find((r) => r.subIndicator === "semi_automation");
-      const existingDoc = group.find((r) => r.subIndicator === "document_downloads");
+      const full = group.find((r) => r.subIndicator === "full_automation");
+      const semi = group.find((r) => r.subIndicator === "semi_automation");
+      const doc = group.find((r) => r.subIndicator === "document_downloads");
 
       if (gis) {
-        const nextValue = mapGisValue(gis.value ?? "");
+        const nextValue = mapGis(gis.value ?? "");
         const nextScore = getSubIndicatorScore(
           "digitalizing_land_registration",
           "gis",
@@ -106,72 +112,80 @@ export const migrateLandRegistrationAutomation = mutation({
         }
       }
 
-      // Prefer already-split columns; otherwise expand legacy `automated`.
-      if (!existingFull && !existingSemi && !existingDoc && automated) {
-        const mapped = automationFromLegacy(automated.value ?? "");
-        const specs: Array<{
-          key: "full_automation" | "semi_automation" | "document_downloads";
-          value: "yes" | "no";
-        }> = [
-          { key: "full_automation", value: mapped.full },
-          { key: "semi_automation", value: mapped.semi },
-          { key: "document_downloads", value: mapped.doc },
-        ];
-        for (const spec of specs) {
-          const score = getSubIndicatorScore(
-            "digitalizing_land_registration",
-            spec.key,
-            spec.value,
-            assessmentYear
-          );
+      const hasSplit = !!(full || semi || doc);
+      let nextAutomated = automated
+        ? mapAutomatedValue(automated.value ?? "")
+        : "none";
+      if (hasSplit) {
+        const fromSplit = highestFromSplit(full, semi, doc);
+        // Prefer higher of existing automated vs split columns.
+        const rank = (v: string) =>
+          v === "full_automation" ? 3 : v === "semi_automation" ? 2 : v === "document_downloads" ? 1 : 0;
+        nextAutomated = rank(fromSplit) >= rank(nextAutomated) ? fromSplit : nextAutomated;
+      }
+
+      if (hasSplit || automated) {
+        const nextScore = getSubIndicatorScore(
+          "digitalizing_land_registration",
+          "automated",
+          nextAutomated,
+          assessmentYear
+        );
+        const link =
+          automated?.linkToSource ||
+          full?.linkToSource ||
+          semi?.linkToSource ||
+          doc?.linkToSource;
+
+        if (automated) {
+          if (
+            automated.value !== nextAutomated ||
+            Number(automated.score) !== nextScore
+          ) {
+            if (samples.length < 40) {
+              samples.push(
+                `${state} (${assessmentYear}) automated: ${automated.value}/${automated.score} → ${nextAutomated}/${nextScore}`
+              );
+            }
+            if (!dry) {
+              await ctx.db.patch(automated._id, {
+                value: nextAutomated,
+                score: nextScore,
+                ...(link ? { linkToSource: link } : {}),
+              });
+            }
+            automatedUpserted += 1;
+          } else {
+            unchanged += 1;
+          }
+        } else if (hasSplit) {
           if (samples.length < 40) {
             samples.push(
-              `${state} (${assessmentYear}) ${spec.key}: (create) ${spec.value}/${score}`
+              `${state} (${assessmentYear}) automated: (create) ${nextAutomated}/${nextScore}`
             );
           }
           if (!dry) {
             await ctx.db.insert("state_scores", {
               state,
               indicator: "digitalizing_land_registration",
-              subIndicator: spec.key,
-              value: spec.value,
-              score,
-              linkToSource: automated.linkToSource,
+              subIndicator: "automated",
+              value: nextAutomated,
+              score: nextScore,
+              linkToSource: link,
               year: yearValue,
               createdAt: Date.now(),
             });
           }
-          automationCreated += 1;
+          automatedUpserted += 1;
         }
+      }
+
+      for (const legacy of [full, semi, doc]) {
+        if (!legacy) continue;
         if (!dry) {
-          await ctx.db.delete(automated._id);
+          await ctx.db.delete(legacy._id);
         }
-        automatedDeleted += 1;
-      } else if (automated) {
-        // Split columns already exist — drop legacy automated to avoid confusion.
-        if (!dry) {
-          await ctx.db.delete(automated._id);
-        }
-        automatedDeleted += 1;
-      } else {
-        // Rescore any existing split columns from their values.
-        for (const row of [existingFull, existingSemi, existingDoc]) {
-          if (!row) continue;
-          const computed = getSubIndicatorScore(
-            "digitalizing_land_registration",
-            row.subIndicator,
-            row.value ?? "",
-            assessmentYear
-          );
-          if (Number(row.score) === computed) {
-            unchanged += 1;
-            continue;
-          }
-          if (!dry) {
-            await ctx.db.patch(row._id, { score: computed });
-          }
-          automationCreated += 1;
-        }
+        splitDeleted += 1;
       }
     }
 
@@ -180,13 +194,13 @@ export const migrateLandRegistrationAutomation = mutation({
       year: year ?? "all",
       statesTouched: byStateYear.size,
       gisUpdated,
-      automationCreated,
-      automatedDeleted,
+      automatedUpserted,
+      splitDeleted,
       unchanged,
       samples,
       message: dry
         ? "Dry run only — re-run without dryRun to apply."
-        : "Land registration spreadsheet columns migration applied.",
+        : "Land registration automation collapsed to one dropdown.",
     };
   },
 });

@@ -64,6 +64,8 @@ import type * as migrations_cleanupInvalidStates from "../migrations/cleanupInva
 import type * as migrations_mergeFCTEntries from "../migrations/mergeFCTEntries.js";
 import type * as migrations_migrateElectricityToSpreadsheetModel from "../migrations/migrateElectricityToSpreadsheetModel.js";
 import type * as migrations_migrateExportImportFacilitation from "../migrations/migrateExportImportFacilitation.js";
+import type * as migrations_migrateHarmonizedTaxesBreakdown from "../migrations/migrateHarmonizedTaxesBreakdown.js";
+import type * as migrations_migrateInfrastructureIndustrialSplit from "../migrations/migrateInfrastructureIndustrialSplit.js";
 import type * as migrations_migrateLandRegistrationAutomation from "../migrations/migrateLandRegistrationAutomation.js";
 import type * as migrations_renameMdaAgencies from "../migrations/renameMdaAgencies.js";
 import type * as migrations_rescoreStateScoresFromValues from "../migrations/rescoreStateScoresFromValues.js";
@@ -185,6 +187,8 @@ declare const fullApi: ApiFromModules<{
   "migrations/mergeFCTEntries": typeof migrations_mergeFCTEntries;
   "migrations/migrateElectricityToSpreadsheetModel": typeof migrations_migrateElectricityToSpreadsheetModel;
   "migrations/migrateExportImportFacilitation": typeof migrations_migrateExportImportFacilitation;
+  "migrations/migrateHarmonizedTaxesBreakdown": typeof migrations_migrateHarmonizedTaxesBreakdown;
+  "migrations/migrateInfrastructureIndustrialSplit": typeof migrations_migrateInfrastructureIndustrialSplit;
   "migrations/migrateLandRegistrationAutomation": typeof migrations_migrateLandRegistrationAutomation;
   "migrations/renameMdaAgencies": typeof migrations_renameMdaAgencies;
   "migrations/rescoreStateScoresFromValues": typeof migrations_rescoreStateScoresFromValues;
