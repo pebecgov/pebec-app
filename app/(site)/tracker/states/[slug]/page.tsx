@@ -7,7 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { MetricBreakdown, SummaryHeader } from "@/components/scores/SummaryPage";
 import { Skeleton } from "@/components/scores/primitives";
-import { SCORE_YEAR, getScoreStatus, scoreSlug } from "@/lib/scoreTracker";
+import { SCORE_YEAR, scoreSlug } from "@/lib/scoreTracker";
 import {
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
@@ -92,9 +92,6 @@ export default function StateSummaryPage() {
   });
 
   const fullyScored = metrics.every((metric) => metric.scored === true);
-  const status = fullyScored
-    ? getScoreStatus(selected.totalScore, selected.maxScore)
-    : null;
 
   return (
     <div>
@@ -102,19 +99,19 @@ export default function StateSummaryPage() {
         backHref="/tracker/states"
         backLabel="Back to States"
         title={selected.state}
-        status={status}
         score={selected.totalScore}
         maxScore={selected.maxScore}
         scoreLabel="Overall Business Climate Score"
         scoreNote="Bonus points are included in this total"
         notScoredYet={!fullyScored}
         hideScore
+        hideStatus
       />
       <MetricBreakdown
         title="Business Climate Indicators"
         hint="Click an indicator to view its sub-indicators"
         metrics={metrics}
-        hideStatus={!fullyScored}
+        hideStatus
         showMetricMaxOnly
       />
     </div>
