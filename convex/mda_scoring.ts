@@ -2812,30 +2812,25 @@ export const getAllMdaSavedDataForDashboard = query({
       } else if (needsLiveReportGov) {
         // Same live path as admin ScoringTab / getPeriodTicketData.
         const mdaDocs = resolveMdaDocsForReportGov(primary?.mdaName || rawMdaName || mdaName);
-        if (mdaDocs.length === 0) {
-          // Not on ReportGov platform → Skip / normalize (not full credit).
+        const mdaTickets = mdaDocs.flatMap(
+          (mdaDoc) => ticketsByMdaId.get(String(mdaDoc._id)) || [],
+        );
+        const stats = computeTicketStats(
+          mdaTickets,
+          ticketWindow.startDate,
+          ticketWindow.endDate,
+        );
+        totalTickets = stats.totalTickets;
+        resolvedTickets = stats.resolvedTickets;
+        resolutionRate = stats.resolutionRate;
+        avgResponseTime = stats.averageResponseTime;
+        avgResolutionTime = stats.averageResolutionTime;
+        // No tickets / not on platform → Skip (0) and normalize.
+        if (mdaDocs.length === 0 || stats.totalTickets === 0) {
           avgScore = 0;
           isSkipped = true;
-          totalTickets = 0;
-          resolvedTickets = 0;
-          resolutionRate = 0;
-          avgResponseTime = 0;
-          avgResolutionTime = 0;
           adjustedResolutionRate = null;
         } else {
-          const mdaTickets = mdaDocs.flatMap(
-            (mdaDoc) => ticketsByMdaId.get(String(mdaDoc._id)) || [],
-          );
-          const stats = computeTicketStats(
-            mdaTickets,
-            ticketWindow.startDate,
-            ticketWindow.endDate,
-          );
-          totalTickets = stats.totalTickets;
-          resolvedTickets = stats.resolvedTickets;
-          resolutionRate = stats.resolutionRate;
-          avgResponseTime = stats.averageResponseTime;
-          avgResolutionTime = stats.averageResolutionTime;
           adjustedResolutionRate = reportGovSystem
             ? calculateAdjustedResolutionRate({
                 complaintsReceived: stats.totalTickets,
@@ -2844,7 +2839,6 @@ export const getAllMdaSavedDataForDashboard = query({
                 systemAverageResolutionRate: reportGovSystem.systemAverageResolutionRate,
               })
             : null;
-          // On platform + 0 tickets → full credit via computeReportGovScore.
           avgScore = computeReportGovScore(
             { ...stats, adjustedResolutionRate },
             reportGovMaxPoints,

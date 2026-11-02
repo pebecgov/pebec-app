@@ -366,7 +366,7 @@ export default function ScoringTab({
     }, [savedSLAData]);
 
     // Populate Automated ReportGov Data (same formula the bulk "run all" uses).
-    // Not-on-platform MDAs should be Skip (0), not full credit for zero tickets.
+    // Zero tickets / not on platform → Skip (0), normalized without Report Gov.
     useEffect(() => {
         if (!ticketResolutionData) return;
         const selectedMdaFromList = mdasList.find((m: any) => m.name === selectedMda);
@@ -376,12 +376,14 @@ export default function ScoringTab({
             m.name.includes(selectedMda) ||
             (selectedMdaFromList && selectedMda.includes(m.name.replace(/^[^-]+ - /, '')))
         );
-        if (selectedMda && mdasWithScores && !isActiveOnPlatform) {
+        const totalTickets = Number(ticketResolutionData.totalTickets) || 0;
+        if ((selectedMda && mdasWithScores && !isActiveOnPlatform) || totalTickets === 0) {
             setSkipReportGov(true);
             setReportGovBreakdown({ resolutionRate: 0, responseTime: 0, resolutionTime: 0 });
             setReportgovRate(0);
             return;
         }
+        setSkipReportGov(false);
         const breakdown = computeReportGovBreakdown(ticketResolutionData, reportGovPoints);
         setReportGovBreakdown({
             resolutionRate: breakdown.resolutionRate,

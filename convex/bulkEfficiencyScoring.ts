@@ -108,10 +108,9 @@ export const runAutomaticEfficiencyScoring = mutation({
     /** When true nothing is written; results show what *would* be saved. */
     dryRun: v.optional(v.boolean()),
     /**
-     * By default manual Report Gov / submission / timeliness entries are left
-     * alone, as is an intentional Skip when the MDA had tickets. Set this to
-     * replace those with the automatic result. Zero-ticket legacy skips are
-     * always recalculated to full Report Gov credit.
+     * By default an MDA whose Report Gov is set to "Skip (0 points)" or whose
+     * submission/timeliness was entered manually is left alone. Set this to
+     * replace those with the automatic result.
      */
     overwriteManual: v.optional(v.boolean()),
   },
@@ -285,66 +284,61 @@ export const runAutomaticEfficiencyScoring = mutation({
 
         if (excluded.has("reportGov")) {
           outcomes.push({ metric: "reportGov", status: "excluded", previousScore: existing?.score ?? null, newScore: 0, detail: "Metric excluded for this MDA" });
-        } else if (existing?.isManual && !overwriteManual) {
-          outcomes.push({ metric: "reportGov", status: "manual_override", previousScore: existing.score, newScore: existing.score, detail: "Kept manual entry" });
-        } else if (
-          existing?.isSkipped &&
-          (existing.totalTickets ?? 0) > 0 &&
-          !overwriteManual
-        ) {
-          // Keep intentional Skip only when the MDA actually had tickets.
-          // Legacy auto-skips for 0-ticket MDAs are recalculated to full credit.
-          outcomes.push({ metric: "reportGov", status: "manual_override", previousScore: existing.score, newScore: existing.score, detail: "Kept \"Skip (0 points)\"" });
-        } else if (!mda) {
-          // Not on ReportGov platform → Skip (0), remove from max. Do NOT give full credit.
-          const detail =
-            "MDA not on platform — skipped (0 points; score normalized without ReportGov)";
-          if (!dryRun) {
-            const payload = {
-              totalTickets: 0,
-              resolvedTickets: 0,
-              averageResponseTime: 0,
-              averageResolutionTime: 0,
-              resolutionRate: 0,
-              adjustedResolutionRate: undefined,
-              systemAverageResolutionRate: system?.systemAverageResolutionRate,
-              minimumThreshold: system?.minimumThreshold,
-              score: 0,
-              isManual: false,
-              isSkipped: true,
-              updatedAt: now,
-              updatedBy: user._id,
-            };
-            if (existing) {
-              await ctx.db.patch(existing._id, payload);
-            } else {
-              await ctx.db.insert("mda_reportgov_data", {
-                mdaName,
-                scoringPeriod: args.scoringPeriod,
-                ...payload,
-                createdAt: now,
-                createdBy: user._id,
-              });
-            }
-            savedCount++;
-          }
-          outcomes.push({
-            metric: "reportGov",
-            status: dryRun ? "would_save" : "saved",
-            previousScore: existing?.score ?? null,
-            newScore: 0,
-            detail,
-          });
+        } else if ((existing?.isSkipped || existing?.isManual) && !overwriteManual) {
+          outcomes.push({ metric: "reportGov", status: "manual_override", previousScore: existing.score, newScore: existing.score, detail: existing.isSkipped ? "Kept \"Skip (0 points)\"" : "Kept manual entry" });
         } else {
-          const tickets = await ctx.db
-            .query("tickets")
-            .withIndex("byMDA", (q) => q.eq("assignedMDA", mda._id))
-            .collect();
+          const tickets = mda
+            ? await ctx.db
+                .query("tickets")
+                .withIndex("byMDA", (q) => q.eq("assignedMDA", mda._id))
+                .collect()
+            : [];
           const stats = computeTicketStats(tickets, ticketWindow.startDate, ticketWindow.endDate);
 
-          // On platform + no complaints → full Report Gov credit.
-          const adjustedResolutionRate =
-            stats.totalTickets > 0 && system
+          // No tickets / not on platform → Skip (0); remove ReportGov from the max.
+          const shouldSkip = !mda || stats.totalTickets === 0;
+          if (shouldSkip) {
+            const detail = !mda
+              ? "MDA not on platform — no tickets, skipped (score normalized without ReportGov)"
+              : "No tickets in period — skipped (0 points; score normalized without ReportGov)";
+            if (!dryRun) {
+              const payload = {
+                totalTickets: 0,
+                resolvedTickets: 0,
+                averageResponseTime: 0,
+                averageResolutionTime: 0,
+                resolutionRate: 0,
+                adjustedResolutionRate: undefined,
+                systemAverageResolutionRate: system?.systemAverageResolutionRate,
+                minimumThreshold: system?.minimumThreshold,
+                score: 0,
+                isManual: false,
+                isSkipped: true,
+                updatedAt: now,
+                updatedBy: user._id,
+              };
+              if (existing) {
+                await ctx.db.patch(existing._id, payload);
+              } else {
+                await ctx.db.insert("mda_reportgov_data", {
+                  mdaName,
+                  scoringPeriod: args.scoringPeriod,
+                  ...payload,
+                  createdAt: now,
+                  createdBy: user._id,
+                });
+              }
+              savedCount++;
+            }
+            outcomes.push({
+              metric: "reportGov",
+              status: dryRun ? "would_save" : "saved",
+              previousScore: existing?.score ?? null,
+              newScore: 0,
+              detail,
+            });
+          } else {
+            const adjustedResolutionRate = system
               ? calculateAdjustedResolutionRate({
                   complaintsReceived: stats.totalTickets,
                   resolutionRate: stats.resolutionRate,
@@ -352,52 +346,51 @@ export const runAutomaticEfficiencyScoring = mutation({
                   systemAverageResolutionRate: system.systemAverageResolutionRate,
                 })
               : null;
-          const newScore = round2(
-            computeReportGovScore({ ...stats, adjustedResolutionRate }, points.reportGov),
-          );
-          const detail =
-            stats.totalTickets <= 0
-              ? `No tickets in period — full Report Gov credit (${points.reportGov}/${points.reportGov})`
-              : adjustedResolutionRate !== null
+            const newScore = round2(
+              computeReportGovScore({ ...stats, adjustedResolutionRate }, points.reportGov),
+            );
+            const detail =
+              adjustedResolutionRate !== null
                 ? `${stats.totalTickets} tickets, ${stats.resolvedTickets} resolved (${stats.resolutionRate.toFixed(0)}% → adj. ${adjustedResolutionRate.toFixed(0)}%)`
                 : `${stats.totalTickets} tickets, ${stats.resolvedTickets} resolved (${stats.resolutionRate.toFixed(0)}%)`;
 
-          if (!dryRun) {
-            const payload = {
-              totalTickets: stats.totalTickets,
-              resolvedTickets: stats.resolvedTickets,
-              averageResponseTime: stats.averageResponseTime,
-              averageResolutionTime: stats.averageResolutionTime,
-              resolutionRate: stats.resolutionRate,
-              adjustedResolutionRate: adjustedResolutionRate ?? undefined,
-              systemAverageResolutionRate: system?.systemAverageResolutionRate,
-              minimumThreshold: system?.minimumThreshold,
-              score: newScore,
-              isManual: false,
-              isSkipped: false,
-              updatedAt: now,
-              updatedBy: user._id,
-            };
-            if (existing) {
-              await ctx.db.patch(existing._id, payload);
-            } else {
-              await ctx.db.insert("mda_reportgov_data", {
-                mdaName,
-                scoringPeriod: args.scoringPeriod,
-                ...payload,
-                createdAt: now,
-                createdBy: user._id,
-              });
+            if (!dryRun) {
+              const payload = {
+                totalTickets: stats.totalTickets,
+                resolvedTickets: stats.resolvedTickets,
+                averageResponseTime: stats.averageResponseTime,
+                averageResolutionTime: stats.averageResolutionTime,
+                resolutionRate: stats.resolutionRate,
+                adjustedResolutionRate: adjustedResolutionRate ?? undefined,
+                systemAverageResolutionRate: system?.systemAverageResolutionRate,
+                minimumThreshold: system?.minimumThreshold,
+                score: newScore,
+                isManual: false,
+                isSkipped: false,
+                updatedAt: now,
+                updatedBy: user._id,
+              };
+              if (existing) {
+                await ctx.db.patch(existing._id, payload);
+              } else {
+                await ctx.db.insert("mda_reportgov_data", {
+                  mdaName,
+                  scoringPeriod: args.scoringPeriod,
+                  ...payload,
+                  createdAt: now,
+                  createdBy: user._id,
+                });
+              }
+              savedCount++;
             }
-            savedCount++;
+            outcomes.push({
+              metric: "reportGov",
+              status: dryRun ? "would_save" : "saved",
+              previousScore: existing?.score ?? null,
+              newScore,
+              detail,
+            });
           }
-          outcomes.push({
-            metric: "reportGov",
-            status: dryRun ? "would_save" : "saved",
-            previousScore: existing?.score ?? null,
-            newScore,
-            detail,
-          });
         }
       }
 

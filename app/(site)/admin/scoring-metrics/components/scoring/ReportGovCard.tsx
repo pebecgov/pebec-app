@@ -160,11 +160,13 @@ export default function ReportGovCard({
 
                 {selectedMda && !isActiveOnPlatform && (
                     <p className="text-xs text-amber-700">
-                        This MDA is not active on the platform — use Skip (0 points); full credit does not apply.
+                        This MDA is not active on the platform — Skip (0 points); score normalized without Report Gov.
                     </p>
                 )}
-                {selectedMda && isActiveOnPlatform && totalTickets === 0 && !skip && (
-                    <p className="text-xs text-emerald-700">No complaints in this period — full Report Gov credit ({maxPoints}/{maxPoints}).</p>
+                {selectedMda && isActiveOnPlatform && totalTickets === 0 && (
+                    <p className="text-xs text-amber-700">
+                        No tickets in this period — Skip (0 points); score normalized without Report Gov.
+                    </p>
                 )}
 
                 <table className="w-full text-sm">
