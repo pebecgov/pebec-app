@@ -12,7 +12,6 @@ import {
   SCORE_YEAR,
   SHOW_PUBLIC_MDA_REPORT_COMPLIANCE,
   getMdaAbbreviation,
-  getScoreStatus,
   scoreSlug,
   type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
@@ -274,9 +273,6 @@ export default function MdaSummaryPage() {
   const fullyScored = metrics
     .filter((metric) => !metric.exempted)
     .every((metric) => metric.scored === true && metric.complete !== false);
-  const status = fullyScored
-    ? getScoreStatus(selected.finalScore, selected.maxPossibleScore)
-    : null;
 
   return (
     <div>
@@ -285,13 +281,13 @@ export default function MdaSummaryPage() {
         backLabel="Back to MDAs"
         abbreviation={abbreviation}
         title={selected.mdaName}
-        status={status}
         score={selected.finalScore}
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
         scoreNote="Bonus points are included in this total"
         notScoredYet={!fullyScored}
         hideScore
+        hideStatus
       />
       {beepaExempted && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -308,7 +304,7 @@ export default function MdaSummaryPage() {
         title="BFA Metrics"
         hint="SLA shows month-by-month points; Report Gov and BEEPA explain how scores are graded."
         metrics={metrics}
-        hideStatus={!fullyScored}
+        hideStatus
         showMetricMaxOnly
       />
       {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
