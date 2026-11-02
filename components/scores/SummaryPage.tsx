@@ -104,8 +104,8 @@ export function SummaryHeader({
   /** Hide overall X / 100 total and progress bar in the header. */
   hideScore?: boolean;
 }) {
-  // Incomplete overall: show "Not scored yet" badge, but keep a running total if any points exist.
-  const showIncompleteBadge = notScoredYet || !status;
+  // Incomplete overall: only when status UI is on. Public trackers pass hideStatus.
+  const showIncompleteBadge = !hideStatus && (notScoredYet || !status);
   const showRunningTotal = !showIncompleteBadge || score > 0;
   const progressColor = hideStatus || !status ? "green" : status.color;
 
@@ -289,7 +289,7 @@ export function MetricBreakdown({
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not in BFA total
                       </span>
-                    ) : showAsInProgress ? (
+                    ) : hideStatus ? null : showAsInProgress ? (
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not scored fully
                       </span>
@@ -297,7 +297,7 @@ export function MetricBreakdown({
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 border border-gray-200">
                         Not scored yet
                       </span>
-                    ) : !hideStatus && status ? (
+                    ) : status ? (
                       <StatusBadge status={status} size="sm" />
                     ) : null}
                   </div>
@@ -305,6 +305,34 @@ export function MetricBreakdown({
                     <p className={`text-sm text-gray-600 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Programme exemption — this metric is excluded from the overall BFA score and maximum.
                     </p>
+                  ) : hideStatus ? (
+                    <div className={`flex items-center gap-4 ${isExpandable ? "ml-9" : "ml-0"}`}>
+                      <div className="flex-1 max-w-md">
+                        <ProgressBar
+                          score={metric.score}
+                          maxScore={metric.maxScore}
+                          color={progressColor}
+                          size="sm"
+                        />
+                      </div>
+                      {showMetricMaxOnly ? (
+                        <span className="text-right shrink-0">
+                          <span className="block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                            Metric maximum
+                          </span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formatPoints(metric.displayMaxScore ?? metric.maxScore)}
+                          </span>
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
+                            {formatPoints(metric.score)}
+                          </span>
+                          <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                        </>
+                      )}
+                    </div>
                   ) : showAsNotStarted ? (
                     <p className={`text-sm text-gray-500 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Not scored yet — this is not a zero score.
@@ -338,7 +366,7 @@ export function MetricBreakdown({
                       )}
                     </div>
                   )}
-                  {showAsInProgress && showPartialProgress ? (
+                  {!hideStatus && showAsInProgress && showPartialProgress ? (
                     <p className={`text-xs text-amber-800 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Not scored fully — this is not the final score for this metric.
                     </p>

@@ -270,10 +270,6 @@ export default function MdaSummaryPage() {
       };
     });
 
-  const fullyScored = metrics
-    .filter((metric) => !metric.exempted)
-    .every((metric) => metric.scored === true && metric.complete !== false);
-
   return (
     <div>
       <SummaryHeader
@@ -285,7 +281,6 @@ export default function MdaSummaryPage() {
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
         scoreNote="Bonus points are included in this total"
-        notScoredYet={!fullyScored}
         hideScore
         hideStatus
       />
