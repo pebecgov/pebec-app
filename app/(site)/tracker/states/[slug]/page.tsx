@@ -91,8 +91,6 @@ export default function StateSummaryPage() {
     };
   });
 
-  const fullyScored = metrics.every((metric) => metric.scored === true);
-
   return (
     <div>
       <SummaryHeader
@@ -103,7 +101,6 @@ export default function StateSummaryPage() {
         maxScore={selected.maxScore}
         scoreLabel="Overall Business Climate Score"
         scoreNote="Bonus points are included in this total"
-        notScoredYet={!fullyScored}
         hideScore
         hideStatus
       />
