@@ -254,6 +254,7 @@ const indicators2025 = {
   },
   harmonized_taxes: {
     name: "Harmonized Taxes, Levies & Fees (10%)",
+    // Law 3 + Digitized 2 + Publication 2 + Procedures 2 + Incentives 1 = 10
     subIndicators: {
       harmonization_law: {
         label: "Harmonization Law (3%)",
@@ -263,19 +264,24 @@ const indicators2025 = {
         ],
       },
       digitized_tax_payment: {
-        label: "Digitized Tax Payment (4%)",
+        label: "Digitized Tax System (2%)",
         options: [
-          { value: "digital", label: "Digital / e-payment with automatic receipts (4)", score: 4 },
-          { value: "hybrid", label: "Partial / hybrid digitization (2)", score: 2 },
-          { value: "manual", label: "Manual / cash-based (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      publication_of_fees_procedures: {
-        label: "Publication of Fees & Procedures (2%)",
+      publication_of_fees: {
+        label: "Publication of Fees (2%)",
         options: [
-          { value: "publicly-available", label: "Fees and procedures publicly available (2)", score: 2 },
-          { value: "partial", label: "Either fees or procedures published (1)", score: 1 },
-          { value: "not-published", label: "Not published (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      procedures: {
+        label: "Procedures (2%)",
+        options: [
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       tax_incentives: {
@@ -606,6 +612,7 @@ const indicators2026 = {
   },
   harmonized_taxes: {
     name: "Harmonized Taxes, Levies & Fees (10%)",
+    // Law 3 + Digitized 2 + Publication 2 + Procedures 2 + Incentives 1 = 10
     subIndicators: {
       harmonization_law: {
         label: "Harmonization Law (3%)",
@@ -615,19 +622,24 @@ const indicators2026 = {
         ],
       },
       digitized_tax_payment: {
-        label: "Digitized Tax Payment (4%)",
+        label: "Digitized Tax System (2%)",
         options: [
-          { value: "digital", label: "Digital / e-payment with automatic receipts (4)", score: 4 },
-          { value: "hybrid", label: "Partial / hybrid digitization (2)", score: 2 },
-          { value: "manual", label: "Manual / cash-based (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      publication_of_fees_procedures: {
-        label: "Publication of Fees & Procedures (2%)",
+      publication_of_fees: {
+        label: "Publication of Fees (2%)",
         options: [
-          { value: "publicly-available", label: "Fees and procedures publicly available (2)", score: 2 },
-          { value: "partial", label: "Either fees or procedures published (1)", score: 1 },
-          { value: "not-published", label: "Not published (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      procedures: {
+        label: "Procedures (2%)",
+        options: [
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       tax_incentives: {
@@ -907,6 +919,18 @@ export function getSubIndicatorScore(
   ) {
     if (value === "excellent" || value === "good" || value === "fair") return 3;
     if (value === "none") return 0;
+  }
+
+  // Legacy harmonized-taxes values (pre split fees/procedures + digital max 2).
+  if (indicatorKey === "harmonized_taxes") {
+    if (subIndicatorKey === "digitized_tax_payment") {
+      if (value === "digital" || value === "hybrid" || value === "yes") return 2;
+      if (value === "manual" || value === "no") return 0;
+    }
+    if (subIndicatorKey === "publication_of_fees_procedures") {
+      // Retired combined field — scored only via publication_of_fees + procedures.
+      return 0;
+    }
   }
   return 0;
 }
