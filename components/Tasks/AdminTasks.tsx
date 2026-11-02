@@ -20,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search, Users, Printer } from "lucide-react";
+import { Plus, Trash2, Calendar, User, AlertCircle, CheckCircle2, XCircle, Hourglass, FileText, Download, MessageSquare, Clock, Inbox, Upload, MoreVertical, Eye, X, File, Droplets, Search, Users, UserMinus, Printer } from "lucide-react";
 import { formatWorkstream } from "@/lib/formatters";
 import { isAuthorizedTaskAdmin as isAuthorizedTaskAdminClient } from "@/lib/authorizedTaskAdmins";
 import { fuelDriverLabel } from "@/lib/fuelDrivers";
@@ -255,6 +255,35 @@ export default function AdminTasks() {
     setEditingTaskTitle(task.title);
     setEditTaskParticipants([]);
     setIsEditAssigneesDialogOpen(true);
+  };
+
+  const handleUnassignLinkedReceptionTask = async (doc: {
+    linkedTaskId?: Id<"tasks"> | null;
+    linkedTaskTitle?: string | null;
+    linkedTaskStatus?: string | null;
+  }) => {
+    if (!doc.linkedTaskId) {
+      toast.error("This letter is not linked to a task yet");
+      return;
+    }
+    if (doc.linkedTaskStatus === "done") {
+      toast.error("Cannot unassign a completed task");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Remove all assignees from "${doc.linkedTaskTitle || "this task"}"? It will stay linked to the letter but show as unassigned until you add someone again.`
+    );
+    if (!confirmed) return;
+    try {
+      await updateTaskAssignees({
+        taskId: doc.linkedTaskId,
+        participants: [],
+      });
+      toast.success("All assignees removed.");
+    } catch (error: any) {
+      console.error("Error unassigning task:", error);
+      toast.error(error.message || "Failed to unassign");
+    }
   };
 
   useEffect(() => {
@@ -1368,6 +1397,30 @@ export default function AdminTasks() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
+                                      {doc.status === "linked" && doc.linkedTaskId && (
+                                        <>
+                                          <DropdownMenuItem
+                                            disabled={doc.linkedTaskStatus === "done"}
+                                            onClick={() =>
+                                              handleOpenEditAssignees({
+                                                _id: doc.linkedTaskId!,
+                                                title: doc.linkedTaskTitle || doc.fileName,
+                                              })
+                                            }
+                                          >
+                                            <Users className="w-4 h-4 mr-2" />
+                                            Edit assignees
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            disabled={doc.linkedTaskStatus === "done"}
+                                            onClick={() => handleUnassignLinkedReceptionTask(doc)}
+                                            className="text-red-600 focus:text-red-700"
+                                          >
+                                            <UserMinus className="w-4 h-4 mr-2" />
+                                            Unassign all
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
                                       {doc.status === "pending" && (
                                         <DropdownMenuItem
                                           onClick={async () => {
