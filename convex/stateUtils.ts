@@ -1,3 +1,5 @@
+export const FCT_STATE_NAME = "Federal Capital Territory";
+
 export const STATE_LIST: string[] = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa",
   "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo",
@@ -5,20 +7,30 @@ export const STATE_LIST: string[] = [
   "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
   "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo",
   "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
-  "Federal Capital Territory",
+  FCT_STATE_NAME,
 ];
 
+/** Subnational ranking uses the 36 states only — FCT/Abuja is excluded. */
+export const RANKING_STATE_LIST: string[] = STATE_LIST.filter(
+  (state) => state !== FCT_STATE_NAME
+);
+
 const STATE_ALIASES: Record<string, string> = {
-  "FCT": "Federal Capital Territory",
-  "FCT/ABUJA": "Federal Capital Territory",
-  "ABUJA": "Federal Capital Territory",
-  "FEDERAL CAPITAL TERRITORY": "Federal Capital Territory",
+  "FCT": FCT_STATE_NAME,
+  "FCT/ABUJA": FCT_STATE_NAME,
+  "ABUJA": FCT_STATE_NAME,
+  "FEDERAL CAPITAL TERRITORY": FCT_STATE_NAME,
 };
 
 /** No per-state point deductions for the current cycle (was Ogun −6). */
 export const STATE_DEDUCTIONS: Record<string, number> = {};
 
 export const VALID_NIGERIAN_STATES = new Set(STATE_LIST);
+export const RANKING_STATE_SET = new Set(RANKING_STATE_LIST);
+
+export function isIncludedInSubnationalRanking(state: string): boolean {
+  return RANKING_STATE_SET.has(normalizeStateName(state));
+}
 
 export function normalizeStateName(state: string): string {
   if (!state) return state;
