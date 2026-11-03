@@ -893,10 +893,12 @@ export function getSubIndicatorScore(
   if (direct != null) return direct;
 
   // Continuous numeric values (e.g. skilled workers sheet totals).
+  // Round to 2dp so admin UI / PDFs / reports stay readable.
   if (subIndicator.numericMax != null) {
     const n = Number(value);
     if (Number.isFinite(n)) {
-      return Math.min(subIndicator.numericMax, Math.max(0, n));
+      const clamped = Math.min(subIndicator.numericMax, Math.max(0, n));
+      return Math.round(clamped * 100) / 100;
     }
   }
 
