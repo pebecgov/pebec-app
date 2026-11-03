@@ -569,10 +569,8 @@ const indicators2026 = {
       technical_vocational_training_centers: {
         label: "Technical & Vocational Training Centers (5%)",
         options: [
-          { value: "seven-plus", label: "7 or more centres (5)", score: 5 },
-          { value: "four-to-six", label: "4 to 6 centres (3.5)", score: 3.5 },
-          { value: "one-to-three", label: "1 to 3 centres (2)", score: 2 },
-          { value: "zero", label: "None (0)", score: 0 },
+          { value: "thirteen-plus", label: "13 and above (5)", score: 5 },
+          { value: "twelve-or-below", label: "12 and below (2)", score: 2 },
         ],
       },
     },
@@ -931,6 +929,23 @@ export function getSubIndicatorScore(
       }
       if (value === "four" || value === "fair") return 2; // layout only
       return 0;
+    }
+  }
+
+  // Legacy TVET centre tiers → 13+ / 12-and-below (2026+ framework).
+  if (
+    (year == null || year >= 2026) &&
+    indicatorKey === "access_to_skilled_labour" &&
+    subIndicatorKey === "technical_vocational_training_centers"
+  ) {
+    if (value === "seven-plus" || value === "thirteen-plus") return 5;
+    if (
+      value === "four-to-six" ||
+      value === "one-to-three" ||
+      value === "zero" ||
+      value === "twelve-or-below"
+    ) {
+      return 2;
     }
   }
   return 0;
