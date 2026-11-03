@@ -6,7 +6,10 @@ import {
   getOverallMaxScoreForYear,
   sumStateScoreRows,
 } from "@/convex/config/indicators";
-import { normalizeStateName } from "@/convex/stateUtils";
+import {
+  isIncludedInSubnationalRanking,
+  normalizeStateName,
+} from "@/convex/stateUtils";
 
 export interface StateRanking {
   state: string;
@@ -50,6 +53,7 @@ export function useStateRankings(indicator?: string, year?: number) {
       const scoresByState = new Map<string, typeof filtered>();
       filtered.forEach((score) => {
         const normalizedState = normalizeStateName(score.state);
+        if (!isIncludedInSubnationalRanking(normalizedState)) return;
         const bucket = scoresByState.get(normalizedState) ?? [];
         bucket.push(score);
         scoresByState.set(normalizedState, bucket);
@@ -76,20 +80,22 @@ export function useStateRankings(indicator?: string, year?: number) {
     if (!baseRankings) return undefined;
 
     const overallMaxScore = getOverallMaxScoreForYear(currentYear);
-    const normalizedBase = baseRankings.map((ranking) => {
-      const state = normalizeStateName(ranking.state);
-      const totalScore = ranking.totalScore ?? 0;
-      const percentageScore =
-        ranking.percentageScore ??
-        (overallMaxScore > 0 ? (totalScore / overallMaxScore) * 100 : 0);
+    const normalizedBase = baseRankings
+      .map((ranking) => {
+        const state = normalizeStateName(ranking.state);
+        const totalScore = ranking.totalScore ?? 0;
+        const percentageScore =
+          ranking.percentageScore ??
+          (overallMaxScore > 0 ? (totalScore / overallMaxScore) * 100 : 0);
 
-      return {
-        state,
-        totalScore,
-        percentageScore,
-        maxScore: ranking.maxScore ?? overallMaxScore,
-      };
-    });
+        return {
+          state,
+          totalScore,
+          percentageScore,
+          maxScore: ranking.maxScore ?? overallMaxScore,
+        };
+      })
+      .filter((ranking) => isIncludedInSubnationalRanking(ranking.state));
 
     return rankStates(normalizedBase);
   }, [indicator, baseRankings, stateScores, currentYear]);

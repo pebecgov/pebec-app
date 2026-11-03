@@ -16,7 +16,11 @@ import {
   getIndicatorsForYear,
   getSubIndicatorScore,
 } from "./config/indicators";
-import { STATE_LIST, normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
+import {
+  RANKING_STATE_LIST,
+  isIncludedInSubnationalRanking,
+  normalizeStateName,
+} from "./stateUtils";
 import {
   buildMdaMetricScoreBreakdowns,
   type ScoreBreakdownLine,
@@ -58,7 +62,7 @@ export const getPublicStateRankings = query({
     const yearIndicators = getIndicatorsForYear(currentYear);
     const yearIndicatorMaxScores = getIndicatorMaxScoresForYear(currentYear);
 
-    // Always seed the full roster so Total States = 37 even before any scores exist.
+    // Always seed the 36-state roster (FCT excluded) so Total States stays stable.
     const stateDetails = new Map<
       string,
       {
@@ -76,7 +80,7 @@ export const getPublicStateRankings = query({
       }
     >();
 
-    for (const stateName of STATE_LIST) {
+    for (const stateName of RANKING_STATE_LIST) {
       stateDetails.set(stateName, {
         totalScore: 0,
         indicators: {},
@@ -91,7 +95,7 @@ export const getPublicStateRankings = query({
 
     for (const score of allScores) {
       const stateName = normalizeStateName(score.state);
-      if (!VALID_NIGERIAN_STATES.has(stateName)) {
+      if (!isIncludedInSubnationalRanking(stateName)) {
         continue;
       }
 

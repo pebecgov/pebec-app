@@ -5,7 +5,10 @@ import {
   getOverallMaxScoreForYear,
   sumStateScoreRows,
 } from "./config/indicators";
-import { normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
+import {
+  isIncludedInSubnationalRanking,
+  normalizeStateName,
+} from "./stateUtils";
 
 export const getStateRankings = query({
   args: {
@@ -49,7 +52,8 @@ export const getStateRankings = query({
 
     for (const score of allScores) {
       const normalizedState = normalizeStateName(score.state);
-      if (!VALID_NIGERIAN_STATES.has(normalizedState)) {
+      // Subnational ranking is 36 states only (exclude FCT/Abuja).
+      if (!isIncludedInSubnationalRanking(normalizedState)) {
         continue;
       }
       const bucket = scoresByState.get(normalizedState) ?? [];
