@@ -14,6 +14,8 @@ export type IndicatorOption = {
 export type SubIndicatorConfig = {
   readonly label: string;
   readonly options: readonly IndicatorOption[];
+  /** When set, any finite numeric `value` scores as itself clamped to [0, numericMax]. */
+  readonly numericMax?: number;
 };
 
 export type IndicatorConfig = {
@@ -565,12 +567,14 @@ const indicators2026 = {
   },
   access_to_skilled_labour: {
     name: "Access to Skilled Labor (5%)",
+    // PEBEC sheet: relative uni/2 + accredited TVET/2 + centres/1 → continuous total /5
     subIndicators: {
-      technical_vocational_training_centers: {
-        label: "Technical & Vocational Training Centers (5%)",
+      skilled_workers_index: {
+        label: "Skilled Workers Index (5%) — PEBEC sheet total",
+        numericMax: 5,
         options: [
-          { value: "thirteen-plus", label: "13 and above (5)", score: 5 },
-          { value: "twelve-or-below", label: "12 and below (2)", score: 2 },
+          { value: "0", label: "0", score: 0 },
+          { value: "5", label: "5 (max)", score: 5 },
         ],
       },
     },
@@ -665,10 +669,24 @@ const indicators2026 = {
     name: "Grievance Redress Mechanism (4%)",
     subIndicators: {
       availability_of_grm: {
-        label: "Availability of GRM (1%)",
+        label: "Availability of GRM (0.5%)",
         options: [
-          { value: "yes", label: "Available (1)", score: 1 },
+          { value: "yes", label: "Available (0.5)", score: 0.5 },
           { value: "no", label: "Not available (0)", score: 0 },
+        ],
+      },
+      functionality: {
+        label: "Functionality (2%)",
+        options: [
+          { value: "yes", label: "Functional (2)", score: 2 },
+          { value: "no", label: "Not functional (0)", score: 0 },
+        ],
+      },
+      multiple_channels: {
+        label: "Multiple Channels (0.5%)",
+        options: [
+          { value: "yes", label: "Multiple channels (0.5)", score: 0.5 },
+          { value: "no", label: "No multiple channels (0)", score: 0 },
         ],
       },
       centralized_grm: {
@@ -676,13 +694,6 @@ const indicators2026 = {
         options: [
           { value: "yes", label: "Centralized GRM available (1)", score: 1 },
           { value: "no", label: "No centralized GRM (0)", score: 0 },
-        ],
-      },
-      multiple_channels_functionality: {
-        label: "Multiple Channels & Functionality (2%)",
-        options: [
-          { value: "yes", label: "Easily accessible via multiple channels (2)", score: 2 },
-          { value: "no", label: "Difficult to find or access (0)", score: 0 },
         ],
       },
     },
@@ -881,6 +892,14 @@ export function getSubIndicatorScore(
   const direct = subIndicator.options.find((option) => option.value === value)?.score;
   if (direct != null) return direct;
 
+  // Continuous numeric values (e.g. skilled workers sheet totals).
+  if (subIndicator.numericMax != null) {
+    const n = Number(value);
+    if (Number.isFinite(n)) {
+      return Math.min(subIndicator.numericMax, Math.max(0, n));
+    }
+  }
+
   // Legacy electricity Law values (pre-spreadsheet Transfer Order options).
   if (
     indicatorKey === "electricity" &&
@@ -932,21 +951,13 @@ export function getSubIndicatorScore(
     }
   }
 
-  // Legacy TVET centre tiers → 13+ / 12-and-below (2026+ framework).
+  // Retired 2026 TVET dropdown — replaced by skilled_workers_index sheet totals.
   if (
     (year == null || year >= 2026) &&
     indicatorKey === "access_to_skilled_labour" &&
     subIndicatorKey === "technical_vocational_training_centers"
   ) {
-    if (value === "seven-plus" || value === "thirteen-plus") return 5;
-    if (
-      value === "four-to-six" ||
-      value === "one-to-three" ||
-      value === "zero" ||
-      value === "twelve-or-below"
-    ) {
-      return 2;
-    }
+    return 0;
   }
   return 0;
 }
