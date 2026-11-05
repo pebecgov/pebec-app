@@ -49,7 +49,7 @@ export default function TicketInternalNotes({ ticketId }: TicketInternalNotesPro
   }
 
   if (notes === null) {
-    return null; // User doesn't have access
+    return null; // User doesn't have ac
   }
 
   return (
