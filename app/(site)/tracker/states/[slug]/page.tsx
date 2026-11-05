@@ -26,6 +26,59 @@ interface StateRankingData {
   }>;
 }
 
+/** Automation is one scored dropdown, but the tracker should list the three tiers. */
+const LAND_AUTOMATION_TIERS = [
+  {
+    key: "full_automation",
+    label: "Full automation end-to-end (7%)",
+    maxScore: 7,
+  },
+  {
+    key: "semi_automation",
+    label: "Semi-automation (5%)",
+    maxScore: 5,
+  },
+  {
+    key: "document_downloads",
+    label: "Document downloads / uploads (2%)",
+    maxScore: 2,
+  },
+] as const;
+
+function hasSub(
+  subs: Record<string, number> | undefined,
+  key: string
+): boolean {
+  return !!subs && Object.prototype.hasOwnProperty.call(subs, key);
+}
+
+function buildLandRegistrationDetails(subs?: Record<string, number>) {
+  const hasGis = hasSub(subs, "gis");
+  const hasCombined = hasSub(subs, "automated");
+  const hasLegacyTier = LAND_AUTOMATION_TIERS.some((tier) => hasSub(subs, tier.key));
+  const automationScored = hasCombined || hasLegacyTier;
+  const automationPoints = Math.max(
+    Number(subs?.automated) || 0,
+    ...LAND_AUTOMATION_TIERS.map((tier) => Number(subs?.[tier.key]) || 0)
+  );
+
+  return [
+    {
+      label: "Availability of GIS (3%)",
+      score: hasGis ? (subs?.gis ?? 0) : 0,
+      scored: hasGis,
+      maxScore: 3,
+    },
+    ...LAND_AUTOMATION_TIERS.map((tier) => ({
+      label: tier.label,
+      score:
+        automationScored && automationPoints === tier.maxScore ? tier.maxScore : 0,
+      scored: automationScored,
+      maxScore: tier.maxScore,
+    })),
+  ];
+}
+
 export default function StateSummaryPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
@@ -67,6 +120,23 @@ export default function StateSummaryPage() {
   const yearIndicatorMaxScores = getIndicatorMaxScoresForYear(SCORE_YEAR);
   const metrics = Object.entries(getIndicatorsForYear(SCORE_YEAR)).map(([key, config]) => {
     const data = selected.indicators?.[key];
+
+    if (key === "digitalizing_land_registration") {
+      const details = buildLandRegistrationDetails(data?.subIndicators);
+      const hasGis = details[0]?.scored === true;
+      const automationScored = details.slice(1).some((detail) => detail.scored);
+      const isIndicatorFullyScored = hasGis && automationScored;
+      return {
+        name: config.name,
+        score: hasGis || automationScored ? (data?.score ?? 0) : 0,
+        maxScore: yearIndicatorMaxScores[key] ?? 0,
+        scored: isIndicatorFullyScored,
+        justification:
+          "Automation tiers are alternatives — only the highest applicable tier counts (max 7), plus GIS (3).",
+        details,
+      };
+    }
+
     const details = Object.entries(config.subIndicators).map(([subKey, subConfig]) => {
       const hasSubScore =
         !!data?.subIndicators && Object.prototype.hasOwnProperty.call(data.subIndicators, subKey);
