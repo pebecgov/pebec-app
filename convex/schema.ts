@@ -690,7 +690,7 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     reportPeriodMonth: v.optional(v.number()),
     reportPeriodYear: v.optional(v.number())
-  }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]),
+  }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]).index("byMdaName", ["mdaName"]).index("byMdaNameAndDraft", ["mdaName", "isDraft"]),
   tasks: defineTable({
     customTaskId: v.optional(v.string()), // Manual ID for the task
     title: v.string(),

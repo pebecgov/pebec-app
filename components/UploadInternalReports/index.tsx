@@ -311,7 +311,8 @@ export default function UploadReports({
           <DialogHeader>
             <DialogTitle>Report already exists</DialogTitle>
             <DialogDescription>
-              You already have {existingReports.length} BFA report
+              {convexUser.role === "reform_champion" ? "Your MDA already has" : "You already have"}{" "}
+              {existingReports.length} BFA report
               {existingReports.length === 1 ? "" : "s"} for <strong>{periodLabel}</strong>.
               Do you want to replace an existing one or upload as a separate report?
             </DialogDescription>

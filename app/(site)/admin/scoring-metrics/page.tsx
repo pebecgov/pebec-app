@@ -537,7 +537,7 @@ export default function ScoringMetricsPage() {
       return;
     }
 
-    // Same rows + same rank order as the Live Dashboard table (sort by totalScore, not %).
+    // Same rows + same rank order as the Live Dashboard table (sort by Final Score points).
     // Newly onboarded exempt MDAs (REA/BOA/NSW/MOFI/NPERA) always sort to the bottom.
     const processedData = [...processDashboardMdaData(mdaFilter, ministryFilter)].sort(
       (a: any, b: any) => {
@@ -557,6 +557,11 @@ export default function ScoringMetricsPage() {
               ? Number(b.others?.scores?.[selectedMetric.replace("others:", "")]) || 0
               : Number(b[selectedMetric]?.score ?? b.totalScore) || 0;
         if (bScore !== aScore) return bScore - aScore;
+        if (selectedMetric === "totalScore") {
+          const pctDiff =
+            (Number(b.totalPercentage) || 0) - (Number(a.totalPercentage) || 0);
+          if (pctDiff !== 0) return pctDiff;
+        }
         return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
       }
     );

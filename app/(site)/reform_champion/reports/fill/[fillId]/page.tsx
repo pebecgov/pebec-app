@@ -122,12 +122,11 @@ export default function FillReportPage() {
     }
   }, [fillId, availableReports, router]);
 
-  // Load draft data when drafts are available
+  // Load draft data when drafts are available (MDA-scoped: any champion's draft)
   useEffect(() => {
     if (template && drafts.length > 0 && !draftLoadedRef.current && convexUserId) {
       const existingDraft = drafts.find(draft =>
         draft.templateId === template._id &&
-        draft.submittedBy === convexUserId &&
         draft.isDraft === true
       );
       if (existingDraft && existingDraft.data && Array.isArray(existingDraft.data) && existingDraft.data.length > 0) {
