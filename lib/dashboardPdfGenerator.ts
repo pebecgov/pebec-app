@@ -44,7 +44,8 @@ function isOthersItemExcluded(mda: any, itemId: string): boolean {
 
 /** Same ranking key as DashboardTable.getMetricScore — must stay in sync. */
 function metricSortValue(mda: any, selectedMetric: string): number {
-  if (selectedMetric === "totalScore") return Number(mda.totalScore) || 0;
+  // Overall ranking uses percentage so varying maxPossiblePoints stay comparable.
+  if (selectedMetric === "totalScore") return Number(mda.totalPercentage) || 0;
   if (selectedMetric === "mysteryShopping") {
     return isExcluded(mda, "mystery") ? 0 : Number(mda.mysteryShopping?.score) || 0;
   }
@@ -263,6 +264,10 @@ export async function generateDashboardPDF({
       : [...rankedPool].sort((a, b) => {
           const diff = metricSortValue(b, selectedMetric) - metricSortValue(a, selectedMetric);
           if (diff !== 0) return diff;
+          if (selectedMetric === "totalScore") {
+            const scoreDiff = (Number(b.totalScore) || 0) - (Number(a.totalScore) || 0);
+            if (scoreDiff !== 0) return scoreDiff;
+          }
           return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
         });
 

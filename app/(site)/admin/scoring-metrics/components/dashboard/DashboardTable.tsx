@@ -73,7 +73,8 @@ export default function DashboardTable({
                                                         metric === 'timeliness' ? 'Timeliness' : 'Score';
     };
     const getMetricScore = (mda: any, metric: string) => {
-        if (metric === "totalScore") return mda.totalScore || 0;
+        // Rank overall by percentage so MDAs with different maxPossiblePoints (exclusions/skips) compare fairly.
+        if (metric === "totalScore") return mda.totalPercentage || 0;
         if (metric === "mysteryShopping") return isExcluded(mda, "mystery") ? 0 : (mda.mysteryShopping?.score || 0);
         if (metric === "sla") return isExcluded(mda, "sla") ? 0 : (mda.sla?.score || 0);
         if (metric === "controversial") return isExcluded(mda, "controversial") ? 0 : (mda.controversial?.score || 0);
@@ -213,7 +214,14 @@ export default function DashboardTable({
                                     const aExempt = isNewlyOnboardedExemptMda(a?.mdaName || "");
                                     const bExempt = isNewlyOnboardedExemptMda(b?.mdaName || "");
                                     if (aExempt !== bExempt) return aExempt ? 1 : -1;
-                                    return getMetricScore(b, selectedMetric) - getMetricScore(a, selectedMetric);
+                                    const diff = getMetricScore(b, selectedMetric) - getMetricScore(a, selectedMetric);
+                                    if (diff !== 0) return diff;
+                                    // Tie-break equal % by raw points, then name — keeps ranking stable.
+                                    if (selectedMetric === "totalScore") {
+                                        const scoreDiff = (Number(b.totalScore) || 0) - (Number(a.totalScore) || 0);
+                                        if (scoreDiff !== 0) return scoreDiff;
+                                    }
+                                    return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
                                   })
                                 : [];
                             const rankedByMetric = sortedData.filter(

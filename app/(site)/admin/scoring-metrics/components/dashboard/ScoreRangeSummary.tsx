@@ -48,7 +48,7 @@ export default function ScoreRangeSummary({
       '0-39': [],
     };
     for (const mda of rows) {
-      const score = bandScore(Number(mda.totalScore) || 0);
+      const score = bandScore(Number(mda.totalPercentage) || 0);
       const name = String(mda.mdaName || '').trim() || 'Unknown MDA';
       next[rangeKeyForScore(score)].push(name);
     }
@@ -65,7 +65,7 @@ export default function ScoreRangeSummary({
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-gray-900">MDAs by score range</h3>
         <p className="text-xs text-gray-500 mt-0.5">
-          Final score out of 100 (same filters as the table). {total} MDA{total === 1 ? '' : 's'} counted.
+          Final percentage (same filters as the table). {total} MDA{total === 1 ? '' : 's'} counted.
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

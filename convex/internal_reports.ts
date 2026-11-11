@@ -1,6 +1,6 @@
 // 🚨 This project contains licensed components. Unauthorized use outside this project is prohibited and may result in legal action.
 import { v } from "convex/values";
-import { mutation, query, MutationCtx } from "./_generated/server";
+import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { getCurrentUserOrThrow } from "./users";
 import {
   isAllowedReformChampionUpload,
@@ -13,6 +13,106 @@ import {
   isBfaReportName,
   reportPeriodMatches,
 } from "../lib/reportPeriod";
+import { mdaNamesMatch } from "./lib/resolveMda";
+
+type ReportsCtx = QueryCtx | MutationCtx;
+
+/** Reform champion submissions belong to the MDA, not only the submitter. */
+async function listReformChampionMdaReports(
+  ctx: ReportsCtx,
+  user: Doc<"users">
+): Promise<Doc<"submitted_reports">[]> {
+  if (!user.mdaName) return [];
+
+  const seen = new Set<string>();
+  const results: Doc<"submitted_reports">[] = [];
+
+  const add = (reports: Doc<"submitted_reports">[]) => {
+    for (const report of reports) {
+      if (seen.has(report._id)) continue;
+      if (
+        report.mdaName &&
+        !mdaNamesMatch(report.mdaName, user.mdaName!)
+      ) {
+        continue;
+      }
+      seen.add(report._id);
+      results.push(report);
+    }
+  };
+
+  // Orphaned / historical rows stamped with this MDA name (survive user deletion).
+  add(
+    await ctx.db
+      .query("submitted_reports")
+      .withIndex("byMdaName", (q) => q.eq("mdaName", user.mdaName!))
+      .collect()
+  );
+
+  // Current champions in the same MDA (covers rows missing mdaName).
+  const champions = await ctx.db
+    .query("users")
+    .withIndex("byRole", (q) => q.eq("role", "reform_champion"))
+    .collect();
+  const peers = champions.filter(
+    (champion) =>
+      champion.mdaName && mdaNamesMatch(champion.mdaName, user.mdaName!)
+  );
+
+  for (const peer of peers) {
+    add(
+      await ctx.db
+        .query("submitted_reports")
+        .withIndex("bySubmittedBy", (q) => q.eq("submittedBy", peer._id))
+        .collect()
+    );
+  }
+
+  return results;
+}
+
+async function listReportsForSubmitterScope(
+  ctx: ReportsCtx,
+  submittedBy: Id<"users">
+): Promise<Doc<"submitted_reports">[]> {
+  const user = await ctx.db.get(submittedBy);
+  if (!user) return [];
+
+  if (user.role === "reform_champion") {
+    return listReformChampionMdaReports(ctx, user);
+  }
+
+  return await ctx.db
+    .query("submitted_reports")
+    .withIndex("bySubmittedBy", (q) => q.eq("submittedBy", submittedBy))
+    .collect();
+}
+
+async function assertCanModifyReport(
+  ctx: ReportsCtx,
+  actorId: Id<"users">,
+  report: Doc<"submitted_reports">
+): Promise<Doc<"users">> {
+  const actor = await ctx.db.get(actorId);
+  if (!actor) throw new Error("User not found");
+
+  if (report.submittedBy === actorId) return actor;
+
+  if (actor.role === "reform_champion" && actor.mdaName) {
+    if (report.mdaName && mdaNamesMatch(report.mdaName, actor.mdaName)) {
+      return actor;
+    }
+    const submitter = await ctx.db.get(report.submittedBy);
+    if (
+      submitter?.mdaName &&
+      mdaNamesMatch(submitter.mdaName, actor.mdaName)
+    ) {
+      return actor;
+    }
+  }
+
+  throw new Error("You can only modify reports for your MDA.");
+}
 
 function buildReformChampionReportAckEmail({
   firstName,
@@ -163,9 +263,7 @@ export const submitReport = mutation({
       if (!existing || existing.isDraft) {
         throw new Error("Report to replace was not found.");
       }
-      if (existing.submittedBy !== args.submittedBy) {
-        throw new Error("You can only replace your own reports.");
-      }
+      await assertCanModifyReport(ctx, args.submittedBy, existing);
       if (!isBfaReportName(existing.reportName)) {
         throw new Error("Only BFA reports can be replaced.");
       }
@@ -195,10 +293,7 @@ export const getExistingBfaReportsForPeriod = query({
     reportPeriodYear: v.number(),
   },
   handler: async (ctx, args) => {
-    const reports = await ctx.db
-      .query("submitted_reports")
-      .withIndex("bySubmittedBy", (q) => q.eq("submittedBy", args.submittedBy))
-      .collect();
+    const reports = await listReportsForSubmitterScope(ctx, args.submittedBy);
 
     return reports
       .filter((r) => r.isDraft !== true && isBfaReportName(r.reportName))
@@ -369,7 +464,7 @@ export const getAllSubmittedReports = query({
 export const getReportsByUser = query({
   handler: async ctx => {
     const user = await getCurrentUserOrThrow(ctx);
-    return await ctx.db.query("submitted_reports").withIndex("bySubmittedBy", q => q.eq("submittedBy", user._id)).collect();
+    return await listReportsForSubmitterScope(ctx, user._id);
   }
 });
 export const submitInternalReport = mutation({
@@ -451,7 +546,12 @@ export const saveDraftReport = mutation({
     const now = Date.now();
     
     if (args.draftId) {
-      // Update existing draft
+      const existingDraft = await ctx.db.get(args.draftId);
+      if (!existingDraft || existingDraft.isDraft !== true) {
+        throw new Error("Draft not found");
+      }
+      await assertCanModifyReport(ctx, args.submittedBy, existingDraft);
+      // Update existing draft (any same-MDA reform champion may continue it)
       await ctx.db.patch(args.draftId, {
         data: args.data,
         updatedAt: now
@@ -474,17 +574,15 @@ export const saveDraftReport = mutation({
   }
 });
 
-// Get draft reports for a user
+// Get draft reports for a user (MDA-scoped for reform champions)
 export const getDraftReports = query({
   args: {
     submittedBy: v.id("users"),
     templateId: v.optional(v.id("report_templates"))
   },
   handler: async (ctx, { submittedBy, templateId }) => {
-    let query = ctx.db.query("submitted_reports")
-      .withIndex("bySubmittedByAndDraft", q => q.eq("submittedBy", submittedBy).eq("isDraft", true));
-    
-    const drafts = await query.collect();
+    const reports = await listReportsForSubmitterScope(ctx, submittedBy);
+    const drafts = reports.filter((report) => report.isDraft === true);
     
     if (templateId) {
       return drafts.filter(draft => draft.templateId === templateId);
@@ -500,20 +598,24 @@ export const submitDraftReport = mutation({
     draftId: v.id("submitted_reports")
   },
   handler: async (ctx, { draftId }) => {
+    const actor = await getCurrentUserOrThrow(ctx);
     const draft = await ctx.db.get(draftId);
-    if (!draft) throw new Error("Draft not found");
+    if (!draft || draft.isDraft !== true) throw new Error("Draft not found");
+    await assertCanModifyReport(ctx, actor._id, draft);
 
     const submittedAt = Date.now();
     await ctx.db.patch(draftId, {
       isDraft: false,
       submittedAt,
-      updatedAt: submittedAt
+      updatedAt: submittedAt,
+      // Keep original submittedBy for audit; stamp MDA if missing
+      ...(actor.mdaName && !draft.mdaName ? { mdaName: actor.mdaName } : {}),
     });
 
     const template = draft.templateId ? await ctx.db.get(draft.templateId) : null;
     await sendReformChampionReportAcknowledgement(ctx, {
       role: draft.role,
-      submittedBy: draft.submittedBy,
+      submittedBy: actor._id,
       reportName: draft.reportName ?? template?.title ?? "Monthly Report",
       submittedAt,
     });
@@ -526,6 +628,10 @@ export const deleteDraftReport = mutation({
     draftId: v.id("submitted_reports")
   },
   handler: async (ctx, { draftId }) => {
+    const actor = await getCurrentUserOrThrow(ctx);
+    const draft = await ctx.db.get(draftId);
+    if (!draft || draft.isDraft !== true) throw new Error("Draft not found");
+    await assertCanModifyReport(ctx, actor._id, draft);
     await ctx.db.delete(draftId);
   }
 });
@@ -536,7 +642,7 @@ export const getSubmittedInternalReports = query({
   handler: async (ctx, {
     submittedBy
   }) => {
-    const allReports = await ctx.db.query("submitted_reports").filter(q => q.eq(q.field("submittedBy"), submittedBy)).collect();
+    const allReports = await listReportsForSubmitterScope(ctx, submittedBy);
     // Filter out only drafts, keep everything else (including uploaded reports without isDraft field)
     const nonDraftReports = allReports.filter(report => report.isDraft !== true);
     const enrichedReports = await Promise.all(nonDraftReports.map(async report => {
