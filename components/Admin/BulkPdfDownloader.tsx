@@ -41,14 +41,19 @@ export function BulkPdfDownloader({
             return;
         }
 
-        // Sort MDAs by totalPercentage (rank) in descending order to match dashboard ranking.
+        // Sort by Final Score points (highest → lowest) to match Live Dashboard ranking.
         // Skip ministries/agencies that are not part of bulk BFA PDFs (incl. Ministry of Interior).
         const sortedMdaData = [...mdaData]
             .filter((mda: any) => !isExcludedFromBulkPdf(mda?.mdaName || ""))
             .sort((a: any, b: any) => {
-                const aValue = a.totalPercentage || 0;
-                const bValue = b.totalPercentage || 0;
-                return bValue - aValue; // Descending order (highest rank first)
+                const scoreDiff =
+                  (Number(b.totalScore) || 0) - (Number(a.totalScore) || 0);
+                if (scoreDiff !== 0) return scoreDiff;
+                const pctDiff =
+                  (Number(b.totalPercentage) || 0) -
+                  (Number(a.totalPercentage) || 0);
+                if (pctDiff !== 0) return pctDiff;
+                return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
             });
 
         setIsDownloading(true);

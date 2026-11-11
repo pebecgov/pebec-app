@@ -537,7 +537,7 @@ export default function ScoringMetricsPage() {
       return;
     }
 
-    // Same rows + same rank order as the Live Dashboard table (sort by totalPercentage for overall).
+    // Same rows + same rank order as the Live Dashboard table (sort by Final Score points).
     // Newly onboarded exempt MDAs (REA/BOA/NSW/MOFI/NPERA) always sort to the bottom.
     const processedData = [...processDashboardMdaData(mdaFilter, ministryFilter)].sort(
       (a: any, b: any) => {
@@ -546,20 +546,21 @@ export default function ScoringMetricsPage() {
         if (aExempt !== bExempt) return aExempt ? 1 : -1;
         const aScore =
           selectedMetric === "totalScore"
-            ? Number(a.totalPercentage) || 0
+            ? Number(a.totalScore) || 0
             : selectedMetric.startsWith("others:")
               ? Number(a.others?.scores?.[selectedMetric.replace("others:", "")]) || 0
               : Number(a[selectedMetric]?.score ?? a.totalScore) || 0;
         const bScore =
           selectedMetric === "totalScore"
-            ? Number(b.totalPercentage) || 0
+            ? Number(b.totalScore) || 0
             : selectedMetric.startsWith("others:")
               ? Number(b.others?.scores?.[selectedMetric.replace("others:", "")]) || 0
               : Number(b[selectedMetric]?.score ?? b.totalScore) || 0;
         if (bScore !== aScore) return bScore - aScore;
         if (selectedMetric === "totalScore") {
-          const scoreDiff = (Number(b.totalScore) || 0) - (Number(a.totalScore) || 0);
-          if (scoreDiff !== 0) return scoreDiff;
+          const pctDiff =
+            (Number(b.totalPercentage) || 0) - (Number(a.totalPercentage) || 0);
+          if (pctDiff !== 0) return pctDiff;
         }
         return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
       }
