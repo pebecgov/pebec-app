@@ -73,9 +73,7 @@ export default function DashboardTable({
                                                         metric === 'timeliness' ? 'Timeliness' : 'Score';
     };
     const getMetricScore = (mda: any, metric: string) => {
-        // Rank overall by absolute Final Score points (highest → lowest).
-        // Percentage stays as a secondary display only — MDAs with a reduced max
-        // (e.g. Report Gov skipped) can have a high % but fewer points.
+   
         if (metric === "totalScore") return Number(mda.totalScore) || 0;
         if (metric === "mysteryShopping") return isExcluded(mda, "mystery") ? 0 : (mda.mysteryShopping?.score || 0);
         if (metric === "sla") return isExcluded(mda, "sla") ? 0 : (mda.sla?.score || 0);
