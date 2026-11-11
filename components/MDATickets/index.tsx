@@ -66,7 +66,8 @@ export default function MdaTicketsDashboard() {
     const startDate = dateRange.start ? new Date(dateRange.start) : null;
     const endDate = dateRange.end ? new Date(new Date(dateRange.end).setHours(23, 59, 59, 999)) : null;
     const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = ticket.title?.toLowerCase().includes(searchLower) || ticket.ticketNumber?.toLowerCase().includes(searchLower) || ticket.createdByUser?.firstName?.toLowerCase().includes(searchLower) || ticket.createdByUser?.lastName?.toLowerCase().includes(searchLower) || (ticket.createdByUser as any)?.businessName?.toLowerCase().includes(searchLower);
+    const titleForSearch = (ticket.titleEn || ticket.title || "").toLowerCase();
+    const matchesSearch = titleForSearch.includes(searchLower) || ticket.ticketNumber?.toLowerCase().includes(searchLower) || ticket.createdByUser?.firstName?.toLowerCase().includes(searchLower) || ticket.createdByUser?.lastName?.toLowerCase().includes(searchLower) || (ticket.createdByUser as any)?.businessName?.toLowerCase().includes(searchLower);
     return (statusFilter === "all" || ticket.status === statusFilter) && (!startDate || ticketDate >= startDate) && (!endDate || ticketDate <= endDate) && matchesSearch;
   }) || [];
   const itemsPerPage = 20;
@@ -187,7 +188,7 @@ export default function MdaTicketsDashboard() {
                   <span>{ticket.createdByUser.firstName} {ticket.createdByUser.lastName}</span>
                 </TableCell>
                 <TableCell>{ticket.ticketNumber}</TableCell>
-                <TableCell>{ticket.title}</TableCell>
+                <TableCell>{ticket.titleEn || ticket.title}</TableCell>
                 <TableCell>
   <Badge className={ticket.status === "resolved" ? "bg-green-100 hover:bg-green-200 text-green-800" : ticket.status === "in_progress" ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" : ticket.status === "closed" ? "bg-red-100 hover:bg-red-200 text-red-800" : ticket.status === "open" ? "bg-orange-100 hover:bg-orange-200 text-orange-800" : "bg-gray-100 hover:bg-gray-200 text-gray-800"}>
     {ticket.status.replace("_", " ").toUpperCase()}

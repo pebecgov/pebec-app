@@ -41,10 +41,21 @@ export const NIGERIAN_STATES = [
 const STATE_ALIASES: Record<string, string> = {
   abj: "Federal Capital Territory",
   abuja: "Federal Capital Territory",
+  abuia: "Federal Capital Territory",
   fct: "Federal Capital Territory",
   "federal capital territory": "Federal Capital Territory",
   "akwa ibom": "Akwa Ibom",
+  akwaibom: "Akwa Ibom",
   "cross river": "Cross River",
+  crossriver: "Cross River",
+  ph: "Rivers",
+  "port harcourt": "Rivers",
+  portharcourt: "Rivers",
+  calabar: "Cross River",
+  ibadan: "Oyo",
+  kaduna: "Kaduna",
+  kano: "Kano",
+  lagos: "Lagos",
 };
 
 export const WELCOME_MESSAGE = [

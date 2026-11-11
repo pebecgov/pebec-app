@@ -101,7 +101,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
     menuStatus: "Check Complaint",
     menuFollowUp: "Follow Up",
     menuHelp: "Help",
-    help: "Tap Submit Complaint to file an issue with a Ports & Customs MDA.\nTap Check Complaint to see ticket status.\nTap Follow Up to view the conversation and reply.\nType HELP for this message.\nType EXIT during filing to cancel.",
+    help: "Just type your complaint in any language — we will ask if anything is missing.\nOr tap Step-by-step for guided filing (Ports & Customs only).\nTap Check status for your ticket.\nType EXIT during filing to cancel.",
     welcome: [
       "Welcome to ReportGov.",
       "",
@@ -163,7 +163,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
     complaintPrompt:
       "Step 5 of 5 — Describe what happened.\n\nType the details in your own words.\nType EXIT to cancel.",
     evidencePrompt:
-      "If you have evidence, tap Attach and send a PDF, image, video, or audio.\n\nIf you do not have a file, tap Submit to file this complaint.\nType EXIT to cancel.",
+      "If you have evidence, send a PDF, image, video, or audio now.\n\nIf you do not have a file, tap Submit to file this complaint.\nType EXIT to cancel.",
     evidenceReceived:
       "Your evidence has been received.\n\nSend another file, or tap Submit to file this complaint.",
     sendEvidenceFile:
@@ -280,7 +280,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
     complaintPrompt:
       "Mataki 5 cikin 5 — Bayyana abin da ya faru.\n\nRubuta cikakken bayani da kalmomin ka.\nRubuta EXIT don soke.",
     evidencePrompt:
-      "Idan kana da shaida, danna Sanya shaida ka aika PDF, hoto, bidiyo, ko sauti.\n\nIdan ba ka da fayil, danna Aika don kai wannan kara.\nRubuta EXIT don soke.",
+      "Idan kana da shaida, aika PDF, hoto, bidiyo, ko sauti yanzu.\n\nIdan ba ka da fayil, danna Aika don kai wannan kara.\nRubuta EXIT don soke.",
     evidenceReceived:
       "An karɓi shaidarka.\n\nAika wani fayil, ko danna Aika don kai wannan kara.",
     sendEvidenceFile:
@@ -394,7 +394,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
     complaintPrompt:
       "Nzoukwa 5 n'ime 5 — Kowaa ihe mere.\n\nDee nkowa n'okwu nke gi.\nDee EXIT iji kagbuo.",
     evidencePrompt:
-      "O buru na i nwere ihe akaebe, pia Tinye fael zipu PDF, oyiyo, vidio, ma obu ụda.\n\nO buru na i nweghi fael, pia Zipu iji tinye mkpesa a.\nDee EXIT iji kagbuo.",
+      "O buru na i nwere ihe akaebe, zipu PDF, oyiyo, vidio, ma obu ụda ugbu a.\n\nO buru na i nweghi fael, pia Zipu iji tinye mkpesa a.\nDee EXIT iji kagbuo.",
     evidenceReceived:
       "Anatara ihe akaebe gi.\n\nZipu fael ozo, ma obu pia Zipu iji tinye mkpesa a.",
     sendEvidenceFile:
@@ -507,7 +507,7 @@ const COPY: Record<WhatsAppLang, Copy> = {
     complaintPrompt:
       "Igbese 5 ninu 5 — So ohun to sele.\n\nKo alaye ni oro tire.\nKo EXIT lati fagilee.",
     evidencePrompt:
-      "Ti o ba ni eri, te Fi eri kun ki o fi PDF, aworan, fidio, tabi ohun ranse.\n\nTi o ko ba ni faili, te Firanse lati fi esun yii sile.\nKo EXIT lati fagilee.",
+      "Ti o ba ni eri, fi PDF, aworan, fidio, tabi ohun ranse nisinyi.\n\nTi o ko ba ni faili, te Firanse lati fi esun yii sile.\nKo EXIT lati fagilee.",
     evidenceReceived:
       "A ti gba eri re.\n\nFi faili miiran ranse, tabi te Firanse lati fi esun yii sile.",
     sendEvidenceFile:

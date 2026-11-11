@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUserRole } from "@/lib/useUserRole";
 import { TicketCountdown } from '@/components/ui/ticket-countdown';
 import TicketInternalNotes from "@/components/TicketInternalNotes";
+import TicketLanguageContent from "@/components/TicketLanguageContent";
 import Loader from "@/components/Loader";
 
 
@@ -224,11 +225,14 @@ export default function AdminTicketDetailsPage() {
       <div id="ticket-details">
         <TicketStepper currentStep={ticket.status === "open" ? 0 : ticket.status === "in_progress" ? 1 : 2} status={ticket.status} />
 
-        <div className="mt-6">
-          <h1 className="text-2xl font-bold">{ticket.title}</h1>
-          <p className="text-gray-500 mt-1">
-            Ticket Number: <span className="font-semibold">{ticket.ticketNumber}</span>
-          </p>
+        <TicketLanguageContent
+          title={ticket.title}
+          description={ticket.description}
+          titleEn={ticket.titleEn}
+          descriptionEn={ticket.descriptionEn}
+          citizenLanguage={ticket.citizenLanguage}
+          ticketNumber={ticket.ticketNumber}
+        >
           <div className="mt-4">
             <TicketCountdown
               ticketCreatedAt={ticket.createdAt}
@@ -236,7 +240,7 @@ export default function AdminTicketDetailsPage() {
               ticketStatus={ticket.status}
             />
           </div>
-        </div>
+        </TicketLanguageContent>
 
         {ticket.resolutionNote && (
           <div className="mt-6 p-4 bg-gray-100 border rounded-lg">
@@ -259,12 +263,6 @@ export default function AdminTicketDetailsPage() {
             </Button>
           </div>
         )}
-        <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-          <h3 className="font-semibold text-lg">Description</h3>
-          <div dangerouslySetInnerHTML={{
-            __html: ticket.description
-          }} />
-        </div>
 
          <div className="mt-6 p-5 bg-white shadow-md rounded-lg border">
                 <h3 className="font-semibold text-lg mb-3">User Details</h3>

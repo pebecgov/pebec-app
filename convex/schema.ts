@@ -311,7 +311,20 @@ export default defineSchema({
     nextSteps: v.optional(v.string()),
     processedAt: v.optional(v.number()),
     source: v.optional(v.union(v.literal("web"), v.literal("whatsapp"))),
-    whatsappPhone: v.optional(v.string())
+    whatsappPhone: v.optional(v.string()),
+    /** Language the citizen used when filing (WhatsApp). */
+    citizenLanguage: v.optional(
+      v.union(
+        v.literal("en"),
+        v.literal("ha"),
+        v.literal("ig"),
+        v.literal("yo"),
+      ),
+    ),
+    /** English title for agents when citizenLanguage !== "en". */
+    titleEn: v.optional(v.string()),
+    /** English description for agents when citizenLanguage !== "en". */
+    descriptionEn: v.optional(v.string()),
   }).index("byUser", ["createdBy"]).index("byMDA", ["assignedMDA"]).index("byStatus", ["status"]).index("byTicketNumber", ["ticketNumber"]).index("byWhatsappPhone", ["whatsappPhone"]).index("byCreatedAt", ["createdAt"]),
   whatsapp_sessions: defineTable({
     phone: v.string(),
@@ -334,7 +347,10 @@ export default defineSchema({
       v.literal("follow_up_attach"),
       v.literal("status_select"),
       v.literal("ticket_select"),
-      v.literal("collect_evidence")
+      v.literal("collect_evidence"),
+      // AI free-form filing path
+      v.literal("ai_confirm"),
+      v.literal("ai_collect_missing")
     ),
     language: v.optional(
       v.union(
@@ -354,6 +370,35 @@ export default defineSchema({
       description: v.optional(v.string()),
       fileIds: v.optional(v.array(v.id("_storage"))),
       incidentDate: v.optional(v.number()),
+      /** AI extraction metadata; optional so legacy sessions remain valid. */
+      aiMeta: v.optional(
+        v.object({
+          overallConfidence: v.optional(v.number()),
+          needsReview: v.optional(v.boolean()),
+          reviewReasons: v.optional(v.array(v.string())),
+          /** Required fields still missing (confidence < 0.5 or invalid). */
+          pendingFields: v.optional(v.array(v.string())),
+          /** Fields accepted at 0.5–0.75; show in confirm and ask user to verify. */
+          verifyFields: v.optional(v.array(v.string())),
+          fieldConfidence: v.optional(
+            v.object({
+              state: v.optional(v.number()),
+              assignedMDA: v.optional(v.number()),
+              incidentDate: v.optional(v.number()),
+              description: v.optional(v.number()),
+              title: v.optional(v.number()),
+              fullName: v.optional(v.number()),
+            }),
+          ),
+          lastIntent: v.optional(v.string()),
+          /** Serialized validated extraction for ticket.aiResult. */
+          rawResult: v.optional(v.string()),
+          /** Which required field we are currently asking for. */
+          awaitingField: v.optional(v.string()),
+          outOfScopeAgency: v.optional(v.string()),
+          sourceMessagePreview: v.optional(v.string()),
+        }),
+      ),
     }),
     activeTicketId: v.optional(v.id("tickets")),
     lastInboundAt: v.number(),
@@ -366,6 +411,26 @@ export default defineSchema({
     reply: v.string(),
     createdAt: v.number()
   }).index("byMessageSid", ["messageSid"]),
+
+  /** Redacted AI / off-script analytics (never store raw phone numbers). */
+  whatsapp_ai_logs: defineTable({
+    phoneHash: v.string(),
+    messageSid: v.optional(v.string()),
+    kind: v.union(
+      v.literal("off_script"),
+      v.literal("extract"),
+      v.literal("fallback"),
+      v.literal("out_of_scope"),
+      v.literal("error"),
+    ),
+    intent: v.optional(v.string()),
+    textPreview: v.optional(v.string()),
+    overallConfidence: v.optional(v.number()),
+    needsReview: v.optional(v.boolean()),
+    error: v.optional(v.string()),
+    meta: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("byCreatedAt", ["createdAt"]).index("byKind_createdAt", ["kind", "createdAt"]),
 
   whatsapp_outbound: defineTable({
     phone: v.string(),

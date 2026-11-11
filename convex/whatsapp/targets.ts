@@ -35,14 +35,16 @@ export const getCitizenNotifyTarget = internalQuery({
       .query("whatsapp_sessions")
       .withIndex("byPhone", (q) => q.eq("phone", ticket.whatsappPhone!))
       .first();
-    const fu = followUpCopy(session?.language);
+    // Prefer language locked on the ticket at filing time.
+    const language = ticket.citizenLanguage ?? session?.language;
+    const fu = followUpCopy(language);
     return {
       phone: ticket.whatsappPhone,
       ticketId: ticket._id,
       ticketNumber: ticket.ticketNumber,
       status: ticket.status,
       resolutionNote: ticket.resolutionNote,
-      language: session?.language,
+      language,
       replyTitle: fu.reply,
       menuTitle: fu.menuButton,
     };

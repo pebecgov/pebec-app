@@ -4,7 +4,9 @@ import { action, internalAction } from "../_generated/server";
 import type { ActionCtx } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { v } from "convex/values";
-import { copyFor, followUpCopy } from "./i18n";
+import { copyFor, followUpCopy, statusLabel, type WhatsAppLang } from "./i18n";
+import { aiCopy } from "./aiCopy";
+import { translateText } from "./aiTranslate";
 import type { Id } from "../_generated/dataModel";
 
 /**
@@ -221,10 +223,12 @@ async function sendWhatsAppMessage(
   );
 
   const result: unknown = await response.json();
-  console.log("WhatsApp send response:", result);
-
   if (!response.ok) {
-    console.error("WhatsApp send failed", response.status, result);
+    console.error("WhatsApp send failed", {
+      status: response.status,
+      toSuffix: to.slice(-4),
+      error: metaErrorMessage(result),
+    });
     throw new Error(metaErrorMessage(result));
   }
 }
@@ -395,20 +399,70 @@ export const handleInbound = action({
       return null;
     }
 
-    if (result.kind === "menu") {
+    let outbound = result;
+
+    if (result.needsAiExtract) {
+      // Interim ack so WhatsApp feels responsive while Gemini runs.
+      // Use guessed/session language so Hausa users don't see English first.
+      const readingLang = result.replyLanguage ?? "en";
+      try {
+        await sendWhatsAppMessage(args.phoneNumberId, args.phone, {
+          type: "text",
+          text: {
+            preview_url: false,
+            body: aiCopy(readingLang).reading,
+          },
+        });
+      } catch (error) {
+        console.error("WhatsApp interim message failed", {
+          toSuffix: args.phone.slice(-4),
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      const extract = await ctx.runAction(
+        internal.whatsapp.aiExtract.extractComplaintFieldsInternal,
+        {
+          message: args.text,
+          priorDraftJson: result.priorDraftJson,
+          phoneHash: result.phoneHash,
+          messageSid: args.messageId,
+          logOffScript: true,
+        },
+      );
+
+      outbound = await ctx.runMutation(
+        internal.whatsapp.simpleFlow.applyAiInbound,
+        {
+          phone: args.phone,
+          messageSid: args.messageId,
+          sourceText: args.text,
+          extractOk: extract.ok,
+          timedOut: extract.timedOut,
+          extractError: extract.error,
+          validated: extract.validated,
+        },
+      );
+
+      if (outbound.duplicate) {
+        return null;
+      }
+    }
+
+    if (outbound.kind === "menu") {
       await sendWhatsAppMessage(
         args.phoneNumberId,
         args.phone,
-        menuMessage(result.menu ?? defaultMenu()),
+        menuMessage(outbound.menu ?? defaultMenu()),
       );
       return null;
     }
 
-    if (result.kind === "list" && result.list) {
+    if (outbound.kind === "list" && outbound.list) {
       await sendWhatsAppMessage(
         args.phoneNumberId,
         args.phone,
-        listMessage(result.list),
+        listMessage(outbound.list),
       );
       return null;
     }
@@ -417,7 +471,7 @@ export const handleInbound = action({
       type: "text",
       text: {
         preview_url: false,
-        body: result.reply,
+        body: outbound.reply,
       },
     });
 
@@ -453,27 +507,79 @@ const WHATSAPP_STATUS_NOTIFY = new Set([
   "closed",
 ]);
 
+const STATUS_SHELL: Record<
+  WhatsAppLang,
+  { header: string; ticket: string; status: string; note: string; footer: string }
+> = {
+  en: {
+    header: "PEBEC ReportGov update",
+    ticket: "Ticket",
+    status: "Status",
+    note: "Note",
+    footer: "Tap Reply to respond, or Menu for more options.",
+  },
+  ha: {
+    header: "Sabuntawar PEBEC ReportGov",
+    ticket: "Kara",
+    status: "Matsayi",
+    note: "Bayani",
+    footer: "Danna Amsa don amsawa, ko Menu don ƙarin zaɓuɓɓuka.",
+  },
+  ig: {
+    header: "Mmelite PEBEC ReportGov",
+    ticket: "Mkpesa",
+    status: "Ọnọdụ",
+    note: "Ndetu",
+    footer: "Pia Zaa iji zaghachi, ma ọ bụ Menu maka nhọrọ ndị ọzọ.",
+  },
+  yo: {
+    header: "Imudojuiwọn PEBEC ReportGov",
+    ticket: "Esun",
+    status: "Ipo",
+    note: "Akọsilẹ",
+    footer: "Te Dahun lati dahun, tabi Menu fun awọn aṣayan miiran.",
+  },
+};
+
 function statusNotifyBody(
+  lang: WhatsAppLang | undefined,
   ticketNumber: string,
   status: string,
   resolutionNote?: string,
 ): string {
-  const statusLabel = status.replace(/_/g, " ");
+  const language = lang ?? "en";
+  const shell = STATUS_SHELL[language];
+  const fu = followUpCopy(language);
   const lines = [
-    "PEBEC ReportGov update",
+    shell.header,
     "",
-    `Ticket: ${ticketNumber}`,
-    `Status: ${statusLabel}`,
+    `${shell.ticket}: ${ticketNumber}`,
+    `${shell.status}: ${statusLabel(fu, status)}`,
   ];
   if (
     (status === "resolved" || status === "closed") &&
     resolutionNote
   ) {
-    lines.push(`Note: ${resolutionNote}`);
+    lines.push(`${shell.note}: ${resolutionNote}`);
   }
   lines.push("");
-  lines.push("Tap Reply to respond, or Menu for more options.");
+  lines.push(shell.footer);
   return lines.join("\n");
+}
+
+async function toCitizenLanguage(
+  text: string | undefined,
+  language: WhatsAppLang | undefined,
+): Promise<string | undefined> {
+  const trimmed = text?.trim();
+  if (!trimmed) return trimmed;
+  const lang = language ?? "en";
+  if (lang === "en") return trimmed;
+  return await translateText({
+    text: trimmed,
+    sourceLang: "en",
+    targetLang: lang,
+  });
 }
 
 async function deliverWithPolicy(
@@ -573,10 +679,14 @@ export const updateTicketStatusAndNotify = action({
       };
     }
 
+    const noteEn =
+      args.resolutionNote?.trim() || target.resolutionNote?.trim() || "";
+    const noteCitizen = (await toCitizenLanguage(noteEn, target.language)) ?? "";
     const body = statusNotifyBody(
+      target.language,
       target.ticketNumber,
       args.status,
-      args.resolutionNote ?? target.resolutionNote,
+      noteCitizen || undefined,
     );
     const result = await deliverWithPolicy(ctx, {
       phone: target.phone,
@@ -590,7 +700,7 @@ export const updateTicketStatusAndNotify = action({
       templateParams: [
         target.ticketNumber,
         args.status.replace(/_/g, " "),
-        args.resolutionNote?.trim() || target.resolutionNote?.trim() || "-",
+        noteCitizen || "-",
       ],
     });
 
@@ -646,8 +756,10 @@ export const addTicketCommentAndNotify = action({
       args.content.length > 900
         ? `${args.content.slice(0, 900)}…`
         : args.content;
+    const citizenComment =
+      (await toCitizenLanguage(clipped, target.language)) ?? clipped;
     const fu = followUpCopy(target.language);
-    const body = fu.officerUpdate(target.ticketNumber, clipped);
+    const body = fu.officerUpdate(target.ticketNumber, citizenComment);
     const result = await deliverWithPolicy(ctx, {
       phone: target.phone,
       ticketId: target.ticketId,
@@ -657,7 +769,7 @@ export const addTicketCommentAndNotify = action({
       replyTitle: target.replyTitle,
       menuTitle: target.menuTitle,
       templateName: process.env.WHATSAPP_TEMPLATE_OFFICER_UPDATE,
-      templateParams: [target.ticketNumber, clipped],
+      templateParams: [target.ticketNumber, citizenComment],
     });
 
     return {

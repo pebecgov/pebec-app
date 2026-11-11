@@ -1,6 +1,7 @@
 import { internalMutation } from "../_generated/server";
 import type { MutationCtx } from "../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import { createTicketRecord } from "../tickets";
 import { saveWhatsAppCitizenComment } from "../ticket_comments";
 import {
@@ -29,6 +30,29 @@ import {
   stateFromRowId,
   stateRowId,
 } from "./portsCustoms";
+import {
+  applyValidatedToDraft,
+  buildAbusiveReply,
+  buildAiStateList,
+  buildAskMissing,
+  buildConfirmReply,
+  buildEvidenceAfterConfirm,
+  buildNeedTextForMedia,
+  buildOutOfScopeReply,
+  buildSoftWelcome,
+  draftReadyForConfirm,
+  fillMissingFromUserText,
+  guessLanguageHint,
+  looksLikeComplaintText,
+  nextMissingField,
+  phoneHashForAi,
+  resolveSessionLanguage,
+  shouldAttemptAiExtract,
+  shouldFallbackToClassic,
+  type AiReply,
+} from "./aiFlow";
+import { aiCopy } from "./aiCopy";
+import type { ValidatedExtraction } from "./aiValidate";
 import type { Doc, Id } from "../_generated/dataModel";
 
 type SessionDoc = Doc<"whatsapp_sessions">;
@@ -43,9 +67,28 @@ type MenuSpec = {
   body: string;
   buttons: Array<{ id: string; title: string }>;
 };
-type Reply = { reply: string; kind: ReplyKind; list?: ListSpec; menu?: MenuSpec };
+type Reply = {
+  reply: string;
+  kind: ReplyKind;
+  list?: ListSpec;
+  menu?: MenuSpec;
+  needsAiExtract?: boolean;
+  priorDraftJson?: string;
+  phoneHash?: string;
+  /** Language for interim "Reading…" before extract finishes. */
+  replyLanguage?: WhatsAppLang;
+};
 type Copy = ReturnType<typeof copyFor>;
 type FollowCopy = ReturnType<typeof followUpCopy>;
+
+function asReply(ai: AiReply): Reply {
+  return {
+    reply: ai.reply,
+    kind: ai.kind,
+    list: ai.list,
+    menu: ai.menu,
+  };
+}
 
 function followCopy(session: SessionDoc): FollowCopy {
   return followUpCopy(session.language);
@@ -198,17 +241,24 @@ function mdaList(copy: Copy): Reply {
   };
 }
 
-function menuReply(copy: Copy, body?: string): Reply {
-  const text = body ?? copy.menuBody;
+function menuReply(copy: Copy, body?: string, language?: WhatsAppLang): Reply {
+  const aic = aiCopy(language);
+  const text =
+    body ??
+    [
+      aic.softWelcome,
+      "",
+      "Or use the buttons below.",
+    ].join("\n");
   return {
     reply: text,
     kind: "menu",
     menu: {
       body: text,
       buttons: [
-        { id: "submit_complaint", title: copy.menuSubmit },
-        { id: "check_status", title: copy.menuStatus },
-        { id: "follow_up", title: copy.menuFollowUp },
+        { id: "submit_complaint", title: aic.guidedSteps },
+        { id: "check_status", title: aic.checkComplaint },
+        { id: "change_language", title: aic.changeLanguage },
       ],
     },
   };
@@ -243,6 +293,17 @@ export const processSimpleInbound = internalMutation({
     list: v.optional(listValidator),
     menu: v.optional(menuValidator),
     duplicate: v.boolean(),
+    needsAiExtract: v.optional(v.boolean()),
+    priorDraftJson: v.optional(v.string()),
+    phoneHash: v.optional(v.string()),
+    replyLanguage: v.optional(
+      v.union(
+        v.literal("en"),
+        v.literal("ha"),
+        v.literal("ig"),
+        v.literal("yo"),
+      ),
+    ),
   }),
   handler: async (ctx, args) => {
     const existingSid = await ctx.db
@@ -287,6 +348,21 @@ export const processSimpleInbound = internalMutation({
       args.mediaFailed,
     );
 
+    // Defer idempotency write until AI extract completes in cloud.ts
+    if (result.needsAiExtract) {
+      return {
+        reply: result.reply,
+        kind: result.kind,
+        list: result.list,
+        menu: result.menu,
+        duplicate: false,
+        needsAiExtract: true,
+        priorDraftJson: result.priorDraftJson,
+        phoneHash: result.phoneHash ?? phoneHashForAi(args.phone),
+        replyLanguage: result.replyLanguage,
+      };
+    }
+
     await ctx.db.insert("whatsapp_inbound_messages", {
       messageSid: args.messageSid,
       phone: args.phone,
@@ -325,7 +401,7 @@ async function showMenu(
   session: SessionDoc,
 ): Promise<Reply> {
   await leaveTicketAndSetStep(ctx, session, "idle");
-  return menuReply(sessionCopy(session));
+  return menuReply(sessionCopy(session), undefined, session.language);
 }
 
 async function askLanguage(
@@ -346,7 +422,7 @@ async function setLanguage(
     language,
     lastInboundAt: Date.now(),
   });
-  return menuReply(copyFor(language));
+  return menuReply(copyFor(language), undefined, language);
 }
 
 async function exitFiling(
@@ -355,7 +431,7 @@ async function exitFiling(
 ): Promise<Reply> {
   const copy = sessionCopy(session);
   await leaveTicketAndSetStep(ctx, session, "idle");
-  return menuReply(copy, copy.exited);
+  return menuReply(copy, copy.exited, session.language);
 }
 
 async function startComplaint(
@@ -378,13 +454,14 @@ async function askDate(
     step: "collect_incident_date",
     draft: { ...session.draft, assignedMDA },
   });
-  const prompt = sessionCopy(session).datePrompt;
+  const sessionCopyText = sessionCopy(session);
+  const prompt = sessionCopyText.datePrompt;
   return {
     reply: prompt,
     kind: "menu",
     menu: {
       body: prompt,
-      buttons: [{ id: "open_menu", title: followCopy(session).menuButton }],
+      buttons: [{ id: "exit_complaint", title: sessionCopyText.exitTitle }],
     },
   };
 }
@@ -392,7 +469,7 @@ async function askDate(
 async function evidenceMenu(
   copy: Copy,
   received: boolean,
-  menuTitle: string,
+  _menuTitle?: string,
 ): Promise<Reply> {
   const body = received ? copy.evidenceReceived : copy.evidencePrompt;
   return {
@@ -400,10 +477,10 @@ async function evidenceMenu(
     kind: "menu",
     menu: {
       body,
+      // User can send a file directly — no "Attach" tap required.
       buttons: [
-        { id: "attach_evidence", title: copy.attachEvidence },
         { id: "submit_filing", title: copy.submitFiling },
-        { id: "open_menu", title: menuTitle },
+        { id: "exit_complaint", title: copy.exitTitle },
       ],
     },
   };
@@ -443,11 +520,19 @@ async function finishComplaint(
     };
   }
 
+  const aiMeta = session.draft.aiMeta;
+  const title =
+    session.draft.title?.trim().slice(0, 80) || WHATSAPP_DEFAULT_TITLE;
+  const fullName =
+    session.draft.fullName?.trim() || "WhatsApp Citizen";
+  const needsReview = Boolean(aiMeta?.needsReview);
+  const citizenLanguage: WhatsAppLang = session.language ?? "en";
+  const needsEnTranslation = citizenLanguage !== "en";
   const created = await createTicketRecord(ctx, {
-    title: WHATSAPP_DEFAULT_TITLE,
+    title,
     description,
     assignedMDA,
-    fullName: "WhatsApp Citizen",
+    fullName,
     email: guestEmailForPhone(session.phone),
     phoneNumber: toNigeriaLocalPhone(session.phone),
     incidentDate,
@@ -457,22 +542,38 @@ async function finishComplaint(
     supportingDocuments: session.draft.fileIds ?? [],
     source: "whatsapp",
     whatsappPhone: session.phone,
+    aiConfidence: aiMeta?.overallConfidence,
+    aiResult: aiMeta?.rawResult,
+    aiStatus: needsReview ? "needs_review" : aiMeta ? "ai_filed" : undefined,
+    aiNeedsReviewNotify: needsReview,
+    citizenLanguage,
+    titleEn: needsEnTranslation ? undefined : title,
+    descriptionEn: needsEnTranslation ? undefined : description,
+    skipWhatsAppStaffEmail: needsEnTranslation,
   });
+
+  if (needsEnTranslation) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.whatsapp.aiTranslate.enrichTicketForStaff,
+      { ticketId: created.ticketId },
+    );
+  }
 
   await patchSession(ctx, session._id, {
     step: "idle",
-    draft: { ...session.draft, description },
+    draft: {},
     activeTicketId: created.ticketId,
   });
 
   const body = copy.submittedCloud(
     created.ticketNumber,
-    WHATSAPP_DEFAULT_TITLE,
+    title,
     state,
     assignedMDA,
     formatIncidentDate(incidentDate),
   );
-  return menuReply(copy, body);
+  return menuReply(copy, body, session.language);
 }
 
 function parseStatusTicketRowId(replyId: string): Id<"tickets"> | null {
@@ -800,8 +901,23 @@ function isFreeTextStep(step: SessionDoc["step"]): boolean {
   return (
     step === "awaiting_complaint" ||
     step === "follow_up_reply" ||
-    step === "collect_incident_date"
+    step === "collect_incident_date" ||
+    step === "ai_confirm" ||
+    step === "ai_collect_missing"
   );
+}
+
+function priorDraftJsonForAi(session: SessionDoc): string {
+  return JSON.stringify({
+    state: session.draft.state ?? null,
+    assignedMDA: session.draft.assignedMDA ?? null,
+    incidentDate: session.draft.incidentDate
+      ? formatIncidentDate(session.draft.incidentDate)
+      : null,
+    description: session.draft.description ?? null,
+    title: session.draft.title ?? null,
+    fullName: session.draft.fullName ?? null,
+  });
 }
 
 async function nextReply(
@@ -839,10 +955,41 @@ async function nextReply(
     return await statusReply(ctx, session, text);
   }
 
-  // First prompt (language picker):
-  // - First contact: any message when language is not set yet
-  // - Hello / hi / asalam / barka (etc.): reopen the first prompt anytime
-  // Mid-chat free-text steps keep the typed words as content.
+  if (replyId === "change_language") {
+    return await askLanguage(ctx, session);
+  }
+
+  // Phase 1: free-form complaint BEFORE language wall (incl. first message).
+  // Also supports first-message media+caption (storageId kept for applyAiInbound).
+  if (
+    shouldAttemptAiExtract({
+      step: session.step,
+      language: session.language,
+      text,
+      buttonId: replyId || undefined,
+      storageId,
+      mediaFailed,
+    })
+  ) {
+    // Stash first-message evidence on the draft before cloud runs extract.
+    if (storageId) {
+      const fileIds = [...(session.draft.fileIds ?? []), storageId];
+      await patchSession(ctx, session._id, {
+        draft: { ...session.draft, fileIds },
+        lastInboundAt: Date.now(),
+      });
+    }
+    return {
+      reply: "",
+      kind: "text",
+      needsAiExtract: true,
+      priorDraftJson: priorDraftJsonForAi(session),
+      phoneHash: phoneHashForAi(session.phone),
+      replyLanguage: guessLanguageHint(text, session.language),
+    };
+  }
+
+  // Soft welcome for greetings / short first contact (no mandatory language wall).
   const isFirstContact =
     !session.language &&
     (session.step === "idle" || session.step === "collect_language") &&
@@ -850,10 +997,19 @@ async function nextReply(
     !storageId &&
     !ticketNumberInText;
   if (
-    isFirstContact ||
-    session.step === "collect_language" ||
-    (!inFreeText && !replyId && isGreeting(normalized))
+    (!inFreeText && !replyId && isGreeting(normalized)) ||
+    (isFirstContact && !looksLikeComplaintText(text))
   ) {
+    await patchSession(ctx, session._id, {
+      step: "idle",
+      lastInboundAt: Date.now(),
+    });
+    return asReply(buildSoftWelcome(session.language));
+  }
+
+  // Explicit language picker only when user asked for it or is mid language step
+  // with a non-complaint reply.
+  if (session.step === "collect_language" && !looksLikeComplaintText(text)) {
     return await askLanguage(ctx, session);
   }
 
@@ -866,13 +1022,146 @@ async function nextReply(
     return await showMenu(ctx, session);
   }
   if (replyId === "open_menu") {
-    return await askLanguage(ctx, session);
+    return await showMenu(ctx, session);
+  }
+
+  // --- AI free-form path controls ---
+  if (replyId === "ai_start_over") {
+    return await startComplaint(ctx, session);
+  }
+  if (replyId === "ai_confirm_yes" && session.step === "ai_confirm") {
+    if (!draftReadyForConfirm(session.draft)) {
+      const missing = nextMissingField(session.draft) ?? "description";
+      await patchSession(ctx, session._id, {
+        step: "ai_collect_missing",
+        draft: {
+          ...session.draft,
+          aiMeta: { ...session.draft.aiMeta, awaitingField: missing },
+        },
+      });
+      return asReply(buildAskMissing(session.language, missing, copy.exitTitle));
+    }
+    const fileIds = session.draft.fileIds ?? [];
+    await patchSession(ctx, session._id, {
+      step: "collect_evidence",
+      draft: {
+        ...session.draft,
+        fileIds,
+      },
+    });
+    return asReply(
+      buildEvidenceAfterConfirm(session.language, fileIds.length > 0),
+    );
+  }
+  if (replyId === "ai_confirm_edit" && session.step === "ai_confirm") {
+    const prompt = aiCopy(session.language).editPrompt;
+    return {
+      reply: prompt,
+      kind: "menu",
+      menu: {
+        body: prompt,
+        buttons: [
+          { id: "ai_start_over", title: aiCopy(session.language).startOverButton },
+          { id: "open_menu", title: fu.menuButton },
+        ],
+      },
+    };
+  }
+
+  // AI missing-field list picks
+  if (replyId.startsWith("ai_zone_")) {
+    const list = buildAiStateList(
+      session.language,
+      replyId.slice("ai_zone_".length),
+      copy.exitTitle,
+    );
+    if (!list) {
+      return asReply(buildAskMissing(session.language, "state", copy.exitTitle));
+    }
+    await patchSession(ctx, session._id, {
+      step: "ai_collect_missing",
+      draft: {
+        ...session.draft,
+        aiMeta: { ...session.draft.aiMeta, awaitingField: "state" },
+      },
+    });
+    return asReply(list);
+  }
+  if (replyId.startsWith("ai_state:")) {
+    const state = stateFromRowId(replyId.slice("ai_".length));
+    if (!state) {
+      return asReply(buildAskMissing(session.language, "state", copy.exitTitle));
+    }
+    const pending = [
+      ...(session.draft.assignedMDA ? [] : ["assignedMDA"]),
+      ...(session.draft.incidentDate != null ? [] : ["incidentDate"]),
+      ...(session.draft.description &&
+      session.draft.description.trim().length >= 10
+        ? []
+        : ["description"]),
+    ];
+    const draft = {
+      ...session.draft,
+      state,
+      aiMeta: {
+        ...session.draft.aiMeta,
+        pendingFields: pending,
+        awaitingField: pending[0],
+      },
+    };
+    if (pending.length === 0) {
+      await patchSession(ctx, session._id, { step: "ai_confirm", draft });
+      return asReply(buildConfirmReply({ ...session, draft, step: "ai_confirm" }));
+    }
+    await patchSession(ctx, session._id, {
+      step: "ai_collect_missing",
+      draft,
+    });
+    return asReply(
+      buildAskMissing(session.language, pending[0]!, copy.exitTitle),
+    );
+  }
+  if (replyId.startsWith("ai_mda_")) {
+    const mda = findMda(replyId.slice("ai_".length));
+    if (!mda) {
+      return asReply(
+        buildAskMissing(session.language, "assignedMDA", copy.exitTitle),
+      );
+    }
+    const pending = [
+      ...(session.draft.state ? [] : ["state"]),
+      ...(session.draft.incidentDate != null ? [] : ["incidentDate"]),
+      ...(session.draft.description &&
+      session.draft.description.trim().length >= 10
+        ? []
+        : ["description"]),
+    ];
+    const draft = {
+      ...session.draft,
+      assignedMDA: mda.name,
+      aiMeta: {
+        ...session.draft.aiMeta,
+        pendingFields: pending,
+        awaitingField: pending[0],
+      },
+    };
+    if (pending.length === 0) {
+      await patchSession(ctx, session._id, { step: "ai_confirm", draft });
+      return asReply(buildConfirmReply({ ...session, draft, step: "ai_confirm" }));
+    }
+    await patchSession(ctx, session._id, {
+      step: "ai_collect_missing",
+      draft,
+    });
+    return asReply(
+      buildAskMissing(session.language, pending[0]!, copy.exitTitle),
+    );
   }
 
   if (isExitId(replyId) || isCancelCommand(normalized)) {
     if (isFollowUpStep(session.step)) {
       await leaveTicketAndSetStep(ctx, session, "idle");
-      return menuReply(copy, fu.backToMenu);
+      return menuReply(copy, fu.backToMenu, session.language);
     }
     return await exitFiling(ctx, session);
   }
@@ -916,18 +1205,12 @@ async function nextReply(
   if (replyId === "submit_filing" && session.step === "collect_evidence") {
     return await finishComplaint(ctx, session);
   }
+  // Legacy Attach button — same as "send a file directly" hint; keep Submit/Exit.
   if (replyId === "attach_evidence" && session.step === "collect_evidence") {
-    return {
-      reply: copy.sendEvidenceFile,
-      kind: "menu",
-      menu: {
-        body: copy.sendEvidenceFile,
-        buttons: [
-          { id: "submit_filing", title: copy.submitFiling },
-          { id: "open_menu", title: fu.menuButton },
-        ],
-      },
-    };
+    return await evidenceMenu(
+      copy,
+      (session.draft.fileIds?.length ?? 0) > 0,
+    );
   }
   if (replyId === "submit_complaint") {
     return await startComplaint(ctx, session);
@@ -944,13 +1227,32 @@ async function nextReply(
     return { reply: fu.attachFirst, kind: "text" };
   }
 
+  // Media alone on intake → keep the file, ask for a short text complaint.
+  if (
+    storageId &&
+    !text &&
+    session.step !== "collect_evidence" &&
+    session.step !== "follow_up_attach" &&
+    session.step !== "follow_up_reply" &&
+    session.step !== "follow_up_view" &&
+    session.step !== "follow_up_ticket"
+  ) {
+    const fileIds = [...(session.draft.fileIds ?? []), storageId];
+    await patchSession(ctx, session._id, {
+      step: "idle",
+      draft: { ...session.draft, fileIds },
+    });
+    return asReply(buildNeedTextForMedia(session.language));
+  }
+
+  // Evidence stage: accept files directly (no Attach button required).
   if (storageId && session.step === "collect_evidence") {
     const fileIds = [...(session.draft.fileIds ?? []), storageId];
     await patchSession(ctx, session._id, {
       step: "collect_evidence",
       draft: { ...session.draft, fileIds },
     });
-    return await evidenceMenu(copy, true, fu.menuButton);
+    return await evidenceMenu(copy, true);
   }
 
   if (storageId) {
@@ -1063,7 +1365,7 @@ async function nextReply(
         kind: "menu",
         menu: {
           body: copy.dateInvalid,
-          buttons: [{ id: "open_menu", title: fu.menuButton }],
+          buttons: [{ id: "exit_complaint", title: copy.exitTitle }],
         },
       };
     }
@@ -1076,7 +1378,7 @@ async function nextReply(
       kind: "menu",
       menu: {
         body: copy.complaintPrompt,
-        buttons: [{ id: "open_menu", title: fu.menuButton }],
+        buttons: [{ id: "exit_complaint", title: copy.exitTitle }],
       },
     };
   }
@@ -1096,12 +1398,70 @@ async function nextReply(
     );
   }
 
+  // AI missing-field free-text answers
+  if (session.step === "ai_collect_missing" && text) {
+    const awaiting =
+      session.draft.aiMeta?.awaitingField ??
+      nextMissingField(session.draft) ??
+      "description";
+    if (awaiting === "state") {
+      const state = matchState(text);
+      if (!state) {
+        return asReply(buildAskMissing(session.language, "state", copy.exitTitle));
+      }
+      const result = fillMissingFromUserText(session.draft, "state", state);
+      const draft = result.ok ? result.draft : { ...session.draft, state };
+      if (draftReadyForConfirm(draft)) {
+        await patchSession(ctx, session._id, { step: "ai_confirm", draft });
+        return asReply(
+          buildConfirmReply({ ...session, draft, step: "ai_confirm" }),
+        );
+      }
+      const missing = nextMissingField(draft) ?? "description";
+      await patchSession(ctx, session._id, {
+        step: "ai_collect_missing",
+        draft: {
+          ...draft,
+          aiMeta: { ...draft.aiMeta, awaitingField: missing },
+        },
+      });
+      return asReply(buildAskMissing(session.language, missing, copy.exitTitle));
+    }
+    const filled = fillMissingFromUserText(session.draft, awaiting, text);
+    if (!filled.ok) {
+      return asReply(
+        buildAskMissing(session.language, awaiting, copy.exitTitle),
+      );
+    }
+    if (draftReadyForConfirm(filled.draft)) {
+      await patchSession(ctx, session._id, {
+        step: "ai_confirm",
+        draft: filled.draft,
+      });
+      return asReply(
+        buildConfirmReply({
+          ...session,
+          draft: filled.draft,
+          step: "ai_confirm",
+        }),
+      );
+    }
+    const missing = nextMissingField(filled.draft) ?? "description";
+    await patchSession(ctx, session._id, {
+      step: "ai_collect_missing",
+      draft: {
+        ...filled.draft,
+        aiMeta: { ...filled.draft.aiMeta, awaitingField: missing },
+      },
+    });
+    return asReply(buildAskMissing(session.language, missing, copy.exitTitle));
+  }
+
   if (wantsComplaint(normalized)) {
     return await startComplaint(ctx, session);
   }
 
-  // Idle with language already set → show action menu once.
-  // Mid-chat: do not re-send the menu; say Hi to reopen the first prompt.
+  // Idle → soft smart menu (type complaint anytime).
   if (session.step === "idle") {
     return await showMenu(ctx, session);
   }
@@ -1110,4 +1470,287 @@ async function nextReply(
     reply: copy.help,
     kind: "text",
   };
+}
+
+const validatedFieldValidator = v.object({
+  value: v.union(v.string(), v.null()),
+  confidence: v.number(),
+  status: v.union(
+    v.literal("accepted"),
+    v.literal("verify"),
+    v.literal("missing"),
+  ),
+  raw: v.optional(v.union(v.string(), v.null())),
+});
+
+const validatedDateFieldValidator = v.object({
+  value: v.union(v.number(), v.null()),
+  confidence: v.number(),
+  status: v.union(
+    v.literal("accepted"),
+    v.literal("verify"),
+    v.literal("missing"),
+  ),
+  raw: v.optional(v.union(v.string(), v.null())),
+});
+
+/**
+ * Apply Gemini extraction result to the session and return the next WhatsApp reply.
+ * Records inbound idempotency for messageSid.
+ */
+export const applyAiInbound = internalMutation({
+  args: {
+    phone: v.string(),
+    messageSid: v.string(),
+    sourceText: v.string(),
+    extractOk: v.boolean(),
+    timedOut: v.boolean(),
+    extractError: v.optional(v.string()),
+    validated: v.optional(
+      v.object({
+        intent: v.string(),
+        language: v.union(v.string(), v.null()),
+        state: validatedFieldValidator,
+        assignedMDA: validatedFieldValidator,
+        incidentDate: validatedDateFieldValidator,
+        description: validatedFieldValidator,
+        title: validatedFieldValidator,
+        fullName: validatedFieldValidator,
+        overallConfidence: v.number(),
+        needsReview: v.boolean(),
+        reviewReasons: v.array(v.string()),
+        pendingFields: v.array(v.string()),
+        verifyFields: v.array(v.string()),
+        outOfScopeAgency: v.union(v.string(), v.null()),
+        notes: v.union(v.string(), v.null()),
+        incidentDateLabel: v.union(v.string(), v.null()),
+      }),
+    ),
+  },
+  returns: v.object({
+    reply: v.string(),
+    kind: v.union(v.literal("menu"), v.literal("text"), v.literal("list")),
+    list: v.optional(listValidator),
+    menu: v.optional(menuValidator),
+    duplicate: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const existingSid = await ctx.db
+      .query("whatsapp_inbound_messages")
+      .withIndex("byMessageSid", (q) => q.eq("messageSid", args.messageSid))
+      .first();
+    if (existingSid) {
+      return {
+        reply: existingSid.reply,
+        kind: "text" as const,
+        duplicate: true,
+      };
+    }
+
+    const now = Date.now();
+    let session = await ctx.db
+      .query("whatsapp_sessions")
+      .withIndex("byPhone", (q) => q.eq("phone", args.phone))
+      .first();
+    if (!session) {
+      const sessionId = await ctx.db.insert("whatsapp_sessions", {
+        phone: args.phone,
+        step: "idle",
+        draft: {},
+        lastInboundAt: now,
+        updatedAt: now,
+      });
+      session = await ctx.db.get(sessionId);
+    }
+    if (!session) {
+      throw new Error("Failed to create WhatsApp session");
+    }
+
+    const result = await handleAiExtractResult(ctx, session, args);
+
+    await ctx.db.insert("whatsapp_inbound_messages", {
+      messageSid: args.messageSid,
+      phone: args.phone,
+      reply: result.reply,
+      createdAt: now,
+    });
+
+    return {
+      reply: result.reply,
+      kind: result.kind,
+      list: result.list,
+      menu: result.menu,
+      duplicate: false,
+    };
+  },
+});
+
+async function handleAiExtractResult(
+  ctx: MutationCtx,
+  session: SessionDoc,
+  args: {
+    sourceText: string;
+    extractOk: boolean;
+    timedOut: boolean;
+    extractError?: string;
+    validated?: {
+      intent: string;
+      language: string | null;
+      state: ValidatedExtraction["state"];
+      assignedMDA: ValidatedExtraction["assignedMDA"];
+      incidentDate: ValidatedExtraction["incidentDate"];
+      description: ValidatedExtraction["description"];
+      title: ValidatedExtraction["title"];
+      fullName: ValidatedExtraction["fullName"];
+      overallConfidence: number;
+      needsReview: boolean;
+      reviewReasons: string[];
+      pendingFields: string[];
+      verifyFields: string[];
+      outOfScopeAgency: string | null;
+      notes: string | null;
+      incidentDateLabel: string | null;
+    };
+  },
+): Promise<Reply> {
+  // Always follow the citizen's language from this message (Hausa in → Hausa out).
+  const detectedLang = args.validated?.language
+    ? resolveSessionLanguage(args.validated.language)
+    : guessLanguageHint(args.sourceText, session.language);
+  const lang = detectedLang;
+  const sessionForReply: SessionDoc = { ...session, language: lang };
+  const copy = sessionCopy(sessionForReply);
+  const aic = aiCopy(lang);
+
+  if (
+    shouldFallbackToClassic({
+      ok: args.extractOk,
+      timedOut: args.timedOut,
+      overallConfidence: args.validated?.overallConfidence,
+      pendingCount: args.validated?.pendingFields.length,
+      intent: args.validated?.intent,
+    })
+  ) {
+    await patchSession(ctx, session._id, {
+      step: "collect_zone",
+      language: lang,
+      draft: {},
+    });
+    const zone = zoneList(copy);
+    return {
+      ...zone,
+      reply: `${aic.fallbackClassic}\n\n${zone.reply}`,
+      list: zone.list
+        ? { ...zone.list, body: `${aic.fallbackClassic}\n\n${zone.list.body}` }
+        : zone.list,
+    };
+  }
+
+  const validated = args.validated;
+  if (!validated) {
+    await patchSession(ctx, session._id, { language: lang });
+    return await startComplaint(ctx, { ...session, language: lang });
+  }
+
+  if (validated.intent === "abusive") {
+    await patchSession(ctx, session._id, {
+      step: "idle",
+      language: lang,
+      draft: {},
+    });
+    return asReply(buildAbusiveReply(lang));
+  }
+
+  if (
+    validated.intent === "out_of_scope" ||
+    (validated.outOfScopeAgency && !validated.assignedMDA.value)
+  ) {
+    await patchSession(ctx, session._id, {
+      step: "idle",
+      language: lang,
+      draft: {},
+    });
+    return asReply(buildOutOfScopeReply(lang, validated.outOfScopeAgency));
+  }
+
+  if (validated.intent === "check_status") {
+    if (!session.language) {
+      await patchSession(ctx, session._id, { language: lang });
+    }
+    return await statusReply(ctx, { ...session, language: lang }, args.sourceText);
+  }
+  if (validated.intent === "follow_up") {
+    if (!session.language) {
+      await patchSession(ctx, session._id, { language: lang });
+    }
+    return await startFollowUp(ctx, { ...session, language: lang });
+  }
+
+  if (validated.intent === "other" && validated.pendingFields.length >= 4) {
+    await patchSession(ctx, session._id, {
+      step: "collect_zone",
+      language: lang,
+      draft: {},
+    });
+    const zone = zoneList(copy);
+    return {
+      ...zone,
+      reply: `${aic.fallbackClassic}\n\n${zone.reply}`,
+      list: zone.list
+        ? { ...zone.list, body: `${aic.fallbackClassic}\n\n${zone.list.body}` }
+        : zone.list,
+    };
+  }
+
+  const asValidated: ValidatedExtraction = {
+    intent: validated.intent as ValidatedExtraction["intent"],
+    language: validated.language,
+    state: validated.state,
+    assignedMDA: validated.assignedMDA,
+    incidentDate: validated.incidentDate,
+    description: validated.description,
+    title: validated.title,
+    fullName: validated.fullName,
+    overallConfidence: validated.overallConfidence,
+    needsReview: validated.needsReview,
+    reviewReasons: validated.reviewReasons,
+    pendingFields: validated.pendingFields as ValidatedExtraction["pendingFields"],
+    verifyFields: validated.verifyFields as ValidatedExtraction["verifyFields"],
+    outOfScopeAgency: validated.outOfScopeAgency,
+    notes: validated.notes,
+    incidentDateLabel: validated.incidentDateLabel,
+  };
+
+  const draft = applyValidatedToDraft(
+    session.draft,
+    asValidated,
+    args.sourceText,
+  );
+
+  if (draftReadyForConfirm(draft)) {
+    await patchSession(ctx, session._id, {
+      step: "ai_confirm",
+      language: lang,
+      draft,
+    });
+    return asReply(
+      buildConfirmReply({
+        ...sessionForReply,
+        draft,
+        step: "ai_confirm",
+        language: lang,
+      }),
+    );
+  }
+
+  const missing = nextMissingField(draft) ?? "description";
+  await patchSession(ctx, session._id, {
+    step: "ai_collect_missing",
+    language: lang,
+    draft: {
+      ...draft,
+      aiMeta: { ...draft.aiMeta, awaitingField: missing },
+    },
+  });
+  return asReply(buildAskMissing(lang, missing, copy.exitTitle));
 }

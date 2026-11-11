@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:whatsapp-ai": "tsx convex/whatsapp/aiValidate.test.ts"
   },
   "dependencies": {
     "@clerk/backend": "^1.25.2",

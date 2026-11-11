@@ -39,6 +39,22 @@ export const createTicket = mutation({
     businessName: v.optional(v.string()),
     source: v.optional(v.union(v.literal("web"), v.literal("whatsapp"))),
     whatsappPhone: v.optional(v.string()),
+    aiConfidence: v.optional(v.number()),
+    aiResult: v.optional(v.string()),
+    aiStatus: v.optional(v.string()),
+    aiNeedsReviewNotify: v.optional(v.boolean()),
+    citizenLanguage: v.optional(
+      v.union(
+        v.literal("en"),
+        v.literal("ha"),
+        v.literal("ig"),
+        v.literal("yo"),
+      ),
+    ),
+    titleEn: v.optional(v.string()),
+    descriptionEn: v.optional(v.string()),
+    /** When true, WhatsApp staff emails are sent after EN translation enrich. */
+    skipWhatsAppStaffEmail: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     return await createTicketRecord(ctx, args);
@@ -116,7 +132,15 @@ export async function createTicketRecord(ctx, args) {
       updatedAt: Date.now(),
       source: args.source ?? "web",
       whatsappPhone: args.whatsappPhone,
+      aiConfidence: args.aiConfidence,
+      aiResult: args.aiResult,
+      aiStatus: args.aiStatus,
+      processedAt: args.aiStatus ? Date.now() : undefined,
+      citizenLanguage: args.citizenLanguage,
+      titleEn: args.titleEn,
+      descriptionEn: args.descriptionEn,
     });
+    const needsAiReview = Boolean(args.aiNeedsReviewNotify);
     const allAdmins = await ctx.db
       .query("users")
       .withIndex("byRole", (q) => q.eq("role", "admin"))
@@ -126,10 +150,12 @@ export async function createTicketRecord(ctx, args) {
       await ctx.db.insert("notifications", {
         userId: admin._id,
         ticketId,
-        message: `New ticket created: ${ticketNumber}`,
+        message: needsAiReview
+          ? `WhatsApp AI needs review: ${ticketNumber}`
+          : `New ticket created: ${ticketNumber}`,
         isRead: false,
         createdAt: Date.now(),
-        type: "new_ticket",
+        type: needsAiReview ? "whatsapp_ai_review" : "new_ticket",
       });
     }
     if (assignedMDAId) {
@@ -156,21 +182,27 @@ export async function createTicketRecord(ctx, args) {
       );
     }
 
-    if (args.source === "whatsapp") {
+    if (args.source === "whatsapp" && !args.skipWhatsAppStaffEmail) {
       const assignedLabel = mdaRecord?.name ?? args.assignedMDA ?? "Unassigned";
       const incidentLabel = args.incidentDate
         ? new Date(args.incidentDate).toLocaleDateString("en-NG")
         : "";
+      const staffTitle = args.titleEn ?? args.title;
+      const staffDescription = args.descriptionEn ?? args.description;
+      const reviewBanner = needsAiReview
+        ? `<p style="color:#b71c1c;"><strong>AI flagged for human review</strong> (status: ${args.aiStatus ?? "needs_review"}, confidence: ${args.aiConfidence ?? "n/a"}).</p>`
+        : "";
       const adminHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
           <div style="background-color: #FF9800; padding: 15px; text-align: center; color: white; font-size: 20px; border-radius: 8px 8px 0 0;">
-            <strong>New WhatsApp Report Created</strong>
+            <strong>${needsAiReview ? "WhatsApp AI — Review Required" : "New WhatsApp Report Created"}</strong>
           </div>
           <div style="padding: 20px; color: #333;">
-            <p>A ne w report was submitted via WhatsApp.</p>
+            <p>A new report was submitted via WhatsApp.</p>
+            ${reviewBanner}
             <p><strong>Report Number:</strong> ${ticketNumber}</p>
-            <p><strong>Title:</strong> ${args.title}</p>
-            <p><strong>Description:</strong> ${args.description}</p>
+            <p><strong>Title:</strong> ${staffTitle}</p>
+            <p><strong>Description:</strong> ${staffDescription}</p>
             <p><strong>MDA:</strong> ${assignedLabel}</p>
             <p><strong>Location:</strong> ${args.state ?? ""}</p>
             <p><strong>Incident Date:</strong> ${incidentLabel}</p>
@@ -187,8 +219,8 @@ export async function createTicketRecord(ctx, args) {
           <div style="padding: 20px; color: #333;">
             <p>A new WhatsApp report has been assigned to ${assignedLabel}.</p>
             <p><strong>Report Number:</strong> ${ticketNumber}</p>
-            <p><strong>Title:</strong> ${args.title}</p>
-            <p><strong>Description:</strong> ${args.description}</p>
+            <p><strong>Title:</strong> ${staffTitle}</p>
+            <p><strong>Description:</strong> ${staffDescription}</p>
             <p><strong>Location:</strong> ${args.state ?? ""}</p>
             <p>Please log in to your dashboard to manage this report.</p>
           </div>
@@ -209,7 +241,9 @@ export async function createTicketRecord(ctx, args) {
       for (const admin of admins) {
         await queueEmail(
           admin.email,
-          `New Ticket Created - ${ticketNumber}`,
+          needsAiReview
+            ? `WhatsApp AI Review Required - ${ticketNumber}`
+            : `New Ticket Created - ${ticketNumber}`,
           adminHtml,
         );
       }

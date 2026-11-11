@@ -141,7 +141,8 @@ export default function AdminTicketsPage() {
     const ticketDate = new Date(ticket.createdAt);
     const startDate = dateRange.start ? new Date(dateRange.start) : null;
     const endDate = dateRange.end ? new Date(dateRange.end) : null;
-    return (statusFilter === "all" || ticket.status === statusFilter) && (!mdaFilter || ticket.assignedMDAName === mdaFilter) && (!startDate || ticketDate >= startDate) && (!endDate || ticketDate <= endDate) && (ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) || ticket.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) || ticket.status.toLowerCase().includes(searchQuery.toLowerCase()));
+    const titleForSearch = (ticket.titleEn || ticket.title || "").toLowerCase();
+    return (statusFilter === "all" || ticket.status === statusFilter) && (!mdaFilter || ticket.assignedMDAName === mdaFilter) && (!startDate || ticketDate >= startDate) && (!endDate || ticketDate <= endDate) && (titleForSearch.includes(searchQuery.toLowerCase()) || ticket.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) || ticket.status.toLowerCase().includes(searchQuery.toLowerCase()));
   }) || [];
   const totalTicketCount = tickets?.length ?? 0;
   const filtersApplied = statusFilter !== "all" || !!mdaFilter || !!searchQuery || !!dateRange.start || !!dateRange.end;
@@ -152,7 +153,7 @@ export default function AdminTicketsPage() {
     const data = filteredTickets.filter(ticket => selectedTickets.includes(ticket._id));
     const csvData = data.map(ticket => ({
       TicketNumber: ticket.ticketNumber,
-      Title: ticket.title,
+      Title: ticket.titleEn || ticket.title,
       Status: ticket.status,
       MDA: ticket.assignedMDA,
       Date: new Date(ticket.createdAt).toLocaleDateString()
@@ -453,7 +454,7 @@ export default function AdminTicketsPage() {
             </TableCell>
 
             <TableCell className="whitespace-normal break-words max-w-[200px] text-sm">
-              {ticket.title}
+              {ticket.titleEn || ticket.title}
             </TableCell>
 
             <TableCell className="whitespace-normal break-words max-w-[250px] text-sm">
