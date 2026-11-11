@@ -73,7 +73,10 @@ export default function DashboardTable({
                                                         metric === 'timeliness' ? 'Timeliness' : 'Score';
     };
     const getMetricScore = (mda: any, metric: string) => {
-        if (metric === "totalScore") return mda.totalScore || 0;
+        // Rank overall by absolute Final Score points (highest → lowest).
+        // Percentage stays as a secondary display only — MDAs with a reduced max
+        // (e.g. Report Gov skipped) can have a high % but fewer points.
+        if (metric === "totalScore") return Number(mda.totalScore) || 0;
         if (metric === "mysteryShopping") return isExcluded(mda, "mystery") ? 0 : (mda.mysteryShopping?.score || 0);
         if (metric === "sla") return isExcluded(mda, "sla") ? 0 : (mda.sla?.score || 0);
         if (metric === "controversial") return isExcluded(mda, "controversial") ? 0 : (mda.controversial?.score || 0);
@@ -213,7 +216,20 @@ export default function DashboardTable({
                                     const aExempt = isNewlyOnboardedExemptMda(a?.mdaName || "");
                                     const bExempt = isNewlyOnboardedExemptMda(b?.mdaName || "");
                                     if (aExempt !== bExempt) return aExempt ? 1 : -1;
-                                    return getMetricScore(b, selectedMetric) - getMetricScore(a, selectedMetric);
+                                    const diff =
+                                      getMetricScore(b, selectedMetric) -
+                                      getMetricScore(a, selectedMetric);
+                                    if (diff !== 0) return diff;
+                                    // Tie-break equal points by percentage, then name.
+                                    if (selectedMetric === "totalScore") {
+                                      const pctDiff =
+                                        (Number(b.totalPercentage) || 0) -
+                                        (Number(a.totalPercentage) || 0);
+                                      if (pctDiff !== 0) return pctDiff;
+                                    }
+                                    return String(a.mdaName || "").localeCompare(
+                                      String(b.mdaName || "")
+                                    );
                                   })
                                 : [];
                             const rankedByMetric = sortedData.filter(
