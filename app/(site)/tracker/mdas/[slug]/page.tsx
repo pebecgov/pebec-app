@@ -18,10 +18,9 @@ import {
 import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
 import {
   beepaMaxPointsForMda,
-  isSuperBeepaMda,
   matchBeepaTrackerRosterEntry,
 } from "@/lib/beepaTrackerRoster";
-import { beepaScoreBreakdown, type ScoreBreakdownLine } from "@/lib/bfaScoreBreakdowns";
+import type { ScoreBreakdownLine } from "@/lib/bfaScoreBreakdowns";
 
 interface AdjustmentItem {
   id: string;
@@ -148,7 +147,6 @@ export default function MdaSummaryPage() {
   const beepaExempted =
     rosterEntry?.beepaExempted === true ||
     excluded.some((key) => key === "others" || key.startsWith("others:"));
-  const isSuperMda = isSuperBeepaMda(selected.mdaName, abbreviation);
   const beepaMax = beepaMaxPointsForMda(selected.mdaName, abbreviation);
   const reports =
     (reportData?.mdas || []).find(
@@ -183,7 +181,6 @@ export default function MdaSummaryPage() {
         (isBeepaMetric && beepaExempted);
       const scored = selected.metricScores?.[metric.key];
       const isScored = scored?.scored === true;
-      const isComplete = isScored && scored?.complete !== false;
       const scoreValue = exempted ? 0 : (scored?.score ?? 0);
       let maxValue = scored?.max ?? metric.max;
       if (isBeepaMetric && !exempted) {
@@ -191,7 +188,7 @@ export default function MdaSummaryPage() {
       }
       const showDetail = !exempted && (isScored || scoreValue > 0);
 
-      // Public tracker detail: Report Gov + BEEPA breakdowns; SLA month grid.
+      // Public tracker: SLA month grid only — no Report Gov / BEEPA score-math explanations.
       let breakdown: ScoreBreakdownLine[] | undefined;
       let monthStatuses:
         | Array<{
@@ -205,13 +202,6 @@ export default function MdaSummaryPage() {
             message?: string;
           }>
         | undefined;
-      let issues:
-        | Array<{
-            label: string;
-            message: string;
-            kind: "failed" | "missing" | "partial";
-          }>
-        | undefined;
 
       if (!exempted && metric.key === "sla") {
         if (showDetail) {
@@ -223,30 +213,6 @@ export default function MdaSummaryPage() {
             labelMode: "sla" as const,
           }));
         }
-        if (selected.slaMonthIssues && selected.slaMonthIssues.length > 0) {
-          const scoredMonthKeys = new Set(
-            (monthStatuses || [])
-              .filter((month) => month.status === "scored" || month.status === "partial")
-              .map((month) => month.monthKey)
-          );
-          issues = selected.slaMonthIssues
-            .filter((issue) => !scoredMonthKeys.has(issue.monthKey))
-            .map((issue) => ({
-              label: issue.monthLabel,
-              message: issue.message,
-              kind: issue.kind,
-            }));
-        }
-      } else if (showDetail && metric.key === "reportGov") {
-        breakdown = selected.scoreBreakdowns?.reportGov;
-      } else if (showDetail && isBeepaMetric) {
-        breakdown =
-          selected.scoreBreakdowns?.[metric.key] ??
-          beepaScoreBreakdown({
-            score: Math.min(scoreValue, beepaMax),
-            maxPoints: beepaMax,
-            isSuperMda,
-          });
       }
 
       return {
@@ -256,7 +222,8 @@ export default function MdaSummaryPage() {
         displayMaxScore:
           metric.key === "mystery" && testingServiceExempt ? metric.max : undefined,
         scored: exempted ? true : isScored,
-        complete: exempted ? true : isComplete,
+        // Never surface "Not scored fully" on the public tracker.
+        complete: true,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
         // Admin metric justifications stay in admin scoring only — not on the public tracker.
         justification:
@@ -266,7 +233,6 @@ export default function MdaSummaryPage() {
         exempted,
         scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
         monthStatuses,
-        issues,
       };
     });
 
@@ -297,7 +263,7 @@ export default function MdaSummaryPage() {
       )}
       <MetricBreakdown
         title="BFA Metrics"
-        hint="SLA shows month-by-month points; Report Gov and BEEPA explain how scores are graded."
+        hint="Click a metric for more detail where available"
         metrics={metrics}
         hideStatus
         showMetricMaxOnly

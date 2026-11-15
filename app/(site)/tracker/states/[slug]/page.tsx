@@ -131,6 +131,8 @@ export default function StateSummaryPage() {
         score: hasGis || automationScored ? (data?.score ?? 0) : 0,
         maxScore: yearIndicatorMaxScores[key] ?? 0,
         scored: isIndicatorFullyScored,
+        // Never surface "Not scored fully" on the public tracker.
+        complete: true,
         justification:
           "Automation tiers are alternatives — only the highest applicable tier counts (max 7), plus GIS (3).",
         details,
@@ -157,6 +159,8 @@ export default function StateSummaryPage() {
       score: scoredSubCount > 0 ? (data?.score ?? 0) : 0,
       maxScore: yearIndicatorMaxScores[key] ?? 0,
       scored: isIndicatorFullyScored,
+      // Never surface "Not scored fully" on the public tracker.
+      complete: true,
       details,
     };
   });
