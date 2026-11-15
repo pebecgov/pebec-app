@@ -226,12 +226,14 @@ export function MetricBreakdown({
             // Incomplete vs configured questions/details — never show a final band label.
             const detailsIncomplete = hasDetails && !allDetailsScored;
             const markedIncomplete = metric.complete === false;
+            // Public tracker (hideStatus): never show "Not scored fully" on metrics.
             const showAsInProgress =
+              !hideStatus &&
               !isExempted &&
               hasAnyProgress &&
               (markedIncomplete || detailsIncomplete || metric.scored !== true);
             const showAsNotStarted =
-              !isExempted && !hasAnyProgress && metric.scored !== true;
+              !hideStatus && !isExempted && !hasAnyProgress && metric.scored !== true;
             const showAsNotScored = showAsInProgress || showAsNotStarted;
             const status =
               showAsNotScored || isExempted
