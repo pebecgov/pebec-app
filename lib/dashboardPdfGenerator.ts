@@ -246,7 +246,7 @@ export async function generateDashboardPDF({
       doc.setFontSize(7.5);
       doc.setFont("helvetica", "italic");
       const legendLines = doc.splitTextToSize(
-        "Note: Where Mystery Shopping Testing Service was not tested, that portion is removed from the MDA’s max. A full score on the remaining channels (e.g. 20/20) counts as full Mystery marks — the same as 40/40 for MDAs that were fully tested. Final Score is normalized to /100 so this does not reduce their ranking.",
+        "Note: Metrics that are not applicable (e.g. BEEPA exemption, Mystery Testing Service not tested, SERVICOM monthly scoring exemption) are removed from that MDA’s applicable maximum — they are not scored as zero. Scores are then converted to a /100 Final Score so MDAs are not penalised for inapplicable metrics. For Testing Service: full marks on the remaining channels (e.g. 20/20) equals full Mystery (same as 40/40).",
         pageWidth - 20
       );
       doc.text(legendLines, pageWidth / 2, yPosition, { align: "center" });
@@ -542,6 +542,62 @@ export async function generateDashboardPDF({
         doc.text(`Page ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: "center" });
       },
     });
+
+    if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      const tableEndY =
+        (doc as any).lastAutoTable?.finalY != null
+          ? Number((doc as any).lastAutoTable.finalY)
+          : yPosition;
+      let methodY = tableEndY + 10;
+      const left = 10;
+      const contentWidth = pageWidth - 20;
+      const ensureSpace = (needed: number) => {
+        if (methodY + needed > pageHeight - 16) {
+          doc.addPage();
+          methodY = 16;
+        }
+      };
+
+      ensureSpace(40);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("BFA Compliance Assessment and Ranking Methodology", left, methodY);
+      methodY += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const methodologyParagraphs = [
+        "The BFA compliance assessment was based on a total of ten (10) metrics. However, not all metrics were applicable to every Ministry, Department, and Agency (MDA). Consequently, while some MDAs were assessed against all ten (10) metrics, others were assessed against eight (8) or nine (9), depending on the applicability of the metrics to their operations.",
+        "To ensure fairness, consistency, and comparability in the assessment and ranking process, it was agreed that each MDA’s compliance score would be calculated based on the total number of metrics applicable to and assessed for that MDA, rather than the overall ten (10) metrics.",
+        "The resulting scores would then be converted into percentages and used as the basis for ranking all MDAs. This approach ensures that MDAs are not penalised for metrics that are not applicable to them, while maintaining a standardised and equitable basis for comparing compliance performance across all MDAs.",
+      ];
+      for (const paragraph of methodologyParagraphs) {
+        const lines = doc.splitTextToSize(paragraph, contentWidth);
+        ensureSpace(lines.length * 3.6 + 4);
+        doc.text(lines, left, methodY);
+        methodY += lines.length * 3.6 + 3;
+      }
+
+      ensureSpace(18);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("Calculation", left, methodY);
+      methodY += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const calcLines = doc.splitTextToSize(
+        "Compliance Score (%) = (Points earned ÷ Points from applicable metrics) × 100",
+        contentWidth
+      );
+      doc.text(calcLines, left, methodY);
+      methodY += calcLines.length * 3.6 + 3;
+      const exampleLines = doc.splitTextToSize(
+        "For example, an MDA that earned 70 out of 80 applicable points would receive a compliance score of 87.5%, while an MDA that earned 90 out of 100 would receive 90%. Final Score is shown out of 100 after normalisation so rankings remain comparable.",
+        contentWidth
+      );
+      ensureSpace(exampleLines.length * 3.6 + 2);
+      doc.text(exampleLines, left, methodY);
+    }
 
     const fileName = `${pdfTitle.replace(/[^a-z0-9]/gi, "_")}_${dashboardYear}.pdf`;
     doc.save(fileName);

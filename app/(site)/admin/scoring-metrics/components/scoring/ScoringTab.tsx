@@ -681,6 +681,7 @@ export default function ScoringTab({
 
         // Keep max points aligned with dashboard model.
         let currentMaxPoints = useDynamicConfig ? 100 : 80;
+        let excludedOthersWeight = 0;
 
         if (useDynamicConfig) {
             // 2026+ Dynamic
@@ -748,7 +749,18 @@ export default function ScoringTab({
                     mystery = Math.min(mystery, adjustment.applicableMax);
                 }
             }
-            // BEEPA / Others exclusions keep the denominator at full points (count as 0, not removed from max).
+            // BEEPA / Others exclusions: remove from applicable max (do not treat as scored 0).
+            if (isMetricExcluded("others")) {
+                excludedOthersWeight =
+                    (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
+                currentMaxPoints -= excludedOthersWeight;
+            } else if (othersConfig) {
+                excludedOthersWeight = othersConfig.reduce((sum: number, item: any) => {
+                    if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
+                    return sum;
+                }, 0);
+                currentMaxPoints -= excludedOthersWeight;
+            }
             if (isMetricExcluded("penalties")) {
                 // Penalties are deductions; excluded means no deduction logic, max points unchanged.
             }
@@ -796,7 +808,7 @@ export default function ScoringTab({
             totalScore,
             applicableMax: Math.max(0, currentMaxPoints),
             fullMax: useDynamicConfig ? 100 : 80,
-            shouldNormalize: testingServiceExempt,
+            shouldNormalize: testingServiceExempt || excludedOthersWeight > 0,
         });
 
         return {

@@ -469,16 +469,28 @@ export default function ScoringMetricsPage() {
       if (isExcluded("reportGov")) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
       if (isExcluded("reportSubmission")) maxPossiblePoints -= (dashboardYear < 2026 ? 3 : (efficiencyConfig?.reportSubmissionPoints || 3));
       if (isExcluded("timeliness")) maxPossiblePoints -= (dashboardYear < 2026 ? 2 : (efficiencyConfig?.timelinessPoints || 2));
-      // BEEPA / Others exclusions keep the denominator at full points (count as 0, not removed from max).
+      // BEEPA / Others exclusions: remove from applicable max (do not treat as scored 0).
+      let excludedOthersWeight = 0;
+      if (dashboardYear >= 2026 && isExcluded("others")) {
+        excludedOthersWeight =
+          (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
+        maxPossiblePoints -= excludedOthersWeight;
+      } else if (dashboardYear >= 2026 && othersConfig) {
+        excludedOthersWeight = (othersConfig || []).reduce((sum: number, item: any) => {
+          if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
+          return sum;
+        }, 0);
+        maxPossiblePoints -= excludedOthersWeight;
+      }
       maxPossiblePoints = Math.max(0, maxPossiblePoints);
 
-      // Programme exemptions / Testing Service: scale onto /100 so exclusions don't hurt ranking.
+      // Scale onto /100 when metrics were removed from the max (fair ranking).
       const normalized = normalizeProgrammeExemptedScore({
         mdaName: mda.mdaName,
         totalScore,
         applicableMax: maxPossiblePoints,
         fullMax: baseMaxPoints,
-        shouldNormalize: mysteryExemptionPoints > 0,
+        shouldNormalize: mysteryExemptionPoints > 0 || excludedOthersWeight > 0,
       });
 
       return {

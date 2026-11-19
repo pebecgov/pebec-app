@@ -487,11 +487,18 @@ export default function ViewDetailsModal({
                                                 grossScore += safeNumber(timeliness?.score);
                                                 maxPossiblePoints += timelinessPoints;
                                             }
-                                            // Excluded BEEPA/Others count as 0 points but stay in the denominator.
+                                            // Excluded BEEPA/Others are removed from the applicable max (not scored as 0).
                                             if (!isExcluded("others")) {
                                                 grossScore += safeNumber(others?.totalScore);
+                                                const excludedOthersWeight = (othersItems || []).reduce(
+                                                    (sum: number, item: any) =>
+                                                        isOthersItemExcluded(item.itemId)
+                                                            ? sum + (safeNumber(item?.weight) || 0)
+                                                            : sum,
+                                                    0
+                                                );
+                                                maxPossiblePoints += Math.max(0, othersTotalPoints - excludedOthersWeight);
                                             }
-                                            maxPossiblePoints += othersTotalPoints;
 
                                             penaltyDeduction = isExcluded("penalties")
                                                 ? 0

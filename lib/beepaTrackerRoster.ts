@@ -174,7 +174,8 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
     name: "Nigerian Agricultural Insurance Corporation",
     abbreviation: "NAIC",
     beepaExempted: true,
-    beepaExemptionReason: "Exempted from BEEPA due to fire incident",
+    beepaExemptionReason:
+      "Exempted from BEEPA due to fire incident — not applicable; removed from max (not scored as 0). Score normalized to /100",
   },
   {
     name: "Nigeria Revenue Service",
@@ -213,7 +214,10 @@ export function beepaReportNameNote(
   const entry = matchBeepaTrackerRosterEntry(mdaName, abbreviation);
   const beepaExcluded = options?.beepaExcluded === true || entry?.beepaExempted === true;
   if (beepaExcluded) {
-    return entry?.beepaExemptionReason || "Exempted from BEEPA";
+    return (
+      entry?.beepaExemptionReason ||
+      "Exempted from BEEPA — not applicable; removed from max (not scored as 0). Score normalized to /100"
+    );
   }
   if (!entry) return null;
   if (entry.superMda) {

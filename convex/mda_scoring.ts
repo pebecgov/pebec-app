@@ -3327,8 +3327,16 @@ export const getAllMdaSavedDataForDashboard = query({
         if (isExcluded("reportGov")) maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 20);
         if (isExcluded("mystery")) maxPossiblePoints -= mysteryTotal;
         else if (mysteryAdjustment.exemptPoints > 0) maxPossiblePoints -= mysteryAdjustment.exemptPoints;
-        // BEEPA / Others exclusions keep the denominator at full points (count as 0, not removed from max).
-        // Non–Super MDAs still grade BEEPA /9 when scored; do not shrink overall max for that.
+        // BEEPA / Others exclusions: remove from applicable max (do not treat as scored 0).
+        if (isExcluded("others")) {
+          maxPossiblePoints -= othersTotal;
+        } else if (Array.isArray(uniqueTransparencyItems)) {
+          const excludedOthersWeight = uniqueTransparencyItems.reduce((sum: number, item: any) => {
+            if (!isOthersItemExcluded(item.itemId)) return sum;
+            return sum + (item.weight || 0);
+          }, 0);
+          maxPossiblePoints -= excludedOthersWeight;
+        }
       } else {
         // Legacy 2025 calculation
         if (mda.transparency?.isSkipped) {
@@ -3347,12 +3355,18 @@ export const getAllMdaSavedDataForDashboard = query({
       }
       maxPossiblePoints = Math.max(maxPossiblePoints, 0);
 
+      const othersMaxRemoved =
+        year >= 2026 &&
+        (isExcluded("others") ||
+          (Array.isArray(uniqueTransparencyItems) &&
+            uniqueTransparencyItems.some((item: any) => isOthersItemExcluded(item.itemId))));
+
       const normalized = normalizeProgrammeExemptedScore({
         mdaName: mda.mdaName || "",
         totalScore,
         applicableMax: maxPossiblePoints,
         fullMax: year >= 2026 ? 100 : 80,
-        shouldNormalize: mysteryAdjustment.exemptPoints > 0,
+        shouldNormalize: mysteryAdjustment.exemptPoints > 0 || othersMaxRemoved,
       });
 
       return {
