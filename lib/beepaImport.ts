@@ -19,7 +19,7 @@ const KNOWN_ALIASES: Record<string, string> = {
   "trade marks registry": "Trademarks Registry",
   "trademarks registry": "Trademarks Registry",
   "efcc special control unit for money laundering":
-    "EFCC - Special Control Unit for Money Laundering",
+    "EFCC - Special Control Unit Against Money Laundering (SCUML)",
   "nigerian copyright commission": "Nigerian Copyright Commission",
   "port health quarantine services": "Port Health (Quarantine) Services",
   "port health services": "Port Health (Quarantine) Services",

@@ -166,7 +166,6 @@ export default function DashboardTable({
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov Resolution</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Submission</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timeliness</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
 
                                     {dashboardYear < 2026 ? (
                                         <>
@@ -471,22 +470,6 @@ export default function DashboardTable({
                                                         <span className="text-gray-400">—</span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-gray-700">
-                                                            {(mda.totalGrossScore || 0).toFixed(1)}
-                                                        </span>
-                                                        {mda.reportGovResolution?.isSkipped && (
-                                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded inline-flex items-center gap-1" title="Report Gov Resolution skipped - points normalized">
-                                                                <AlertTriangle className="h-3 w-3" />
-                                                                Normalized
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500 mt-1">
-                                                        <span>{(mda.totalGrossScore || 0).toFixed(1)}/{mda.maxPossiblePoints}</span>
-                                                    </div>
-                                                </td>
                                                 {dashboardYear < 2026 ? (
                                                     <>
                                                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -557,8 +540,21 @@ export default function DashboardTable({
                                                                         mda.totalPercentage >= 70 ? 'text-yellow-600' :
                                                                             mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
                                                                     }`}>
-                                                                    {mda.totalScore.toFixed(1)}
+                                                                    {mda.totalScore.toFixed(1)}/{mda.maxPossiblePoints || 100}
                                                                 </span>
+                                                                {(mda.reportGovResolution?.isSkipped || mda.isProgrammeNormalized) && (
+                                                                    <span
+                                                                        className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded inline-flex items-center gap-1"
+                                                                        title={
+                                                                            mda.isProgrammeNormalized
+                                                                                ? "Programme exemptions — score scaled to /100 so excluded metrics do not count against ranking"
+                                                                                : "Report Gov Resolution skipped - points normalized"
+                                                                        }
+                                                                    >
+                                                                        <AlertTriangle className="h-3 w-3" />
+                                                                        Normalized
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             <div className={`text-xs mt-1 ${mda.totalPercentage >= 90 ? 'text-green-600' :
                                                                 mda.totalPercentage >= 80 ? 'text-blue-600' :

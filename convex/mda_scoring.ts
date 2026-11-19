@@ -26,11 +26,11 @@ import {
   slaIssuesFromStatuses,
 } from "../lib/slaPublicMessages";
 import { computeSlaTotalFromMonthly } from "../lib/slaScoreMath";
+import { beepaMaxPointsForMda } from "../lib/beepaTrackerRoster";
 import {
-  BEEPA_STANDARD_MDA_MAX,
-  BEEPA_SUPER_MDA_MAX,
-  beepaMaxPointsForMda,
-} from "../lib/beepaTrackerRoster";
+  mergeProgrammeMetricExclusions,
+  normalizeProgrammeExemptedScore,
+} from "../lib/programmeMetricExclusions";
 import {
   exemptMysteryQuestionIds,
   isTestingServiceQuestionExempt,
@@ -306,11 +306,14 @@ export const calculateAndSaveMDAScore = mutation({
       .collect();
     const exclusionLookup = buildExclusionLookup(yearExclusions as Array<{ mdaName: string; excludedMetrics: string[] }>);
     const mdaParts = splitMdaNameForMatch(args.mdaName);
-    const excludedMetrics =
+    const rawExcluded =
       exclusionLookup.get(normalizeMdaKey(args.mdaName)) ||
       (mdaParts.fullName ? exclusionLookup.get(mdaParts.fullName) : undefined) ||
       (mdaParts.abbr ? exclusionLookup.get(mdaParts.abbr) : undefined) ||
       new Set<string>();
+    const excludedMetrics = new Set(
+      mergeProgrammeMetricExclusions(args.mdaName, rawExcluded)
+    );
     const isExcluded = (metricKey: string) => excludedMetrics.has(metricKey);
 
     const effectiveServiceLevelAgreementScore = isExcluded("sla") ? 0 : args.serviceLevelAgreementScore;
@@ -2391,7 +2394,7 @@ export const getAllMdaSavedDataForDashboard = query({
         mdaDataMap[mdaName] = { mdaName, sla: null, mysteryShopping: null, controversial: null, innovation: null, stakeholder: null, transparency: null, reportGovResolution: null, monthlyReport: null, timeliness: null, others: null, penalties: null, bonuses: null };
       }
 
-      const excludedForMda =
+      const rawExcludedForMda =
         exclusionMap.get(normalizeMdaKey(mdaName)) ||
         (() => {
           const parts = splitMdaNameForMatch(mdaName);
@@ -2401,6 +2404,9 @@ export const getAllMdaSavedDataForDashboard = query({
             new Set<string>()
           );
         })();
+      const excludedForMda = new Set(
+        mergeProgrammeMetricExclusions(mdaName, rawExcludedForMda)
+      );
       const exemptQuestionIds = exemptMysteryQuestionIds(excludedForMda);
 
       const questionsForType = (typeId: string): MysteryQuestionForScore[] => {
@@ -3220,11 +3226,14 @@ export const getAllMdaSavedDataForDashboard = query({
     // Convert to array and calculate total scores
     const allMdasProcessed = Object.values(mdaDataMap).map((mda: any) => {
       const parts = splitMdaNameForMatch(mda.mdaName || "");
-      const excludedMetrics =
+      const rawExcluded =
         exclusionMap.get(normalizeMdaKey(mda.mdaName || "")) ||
         (parts.fullName ? exclusionMap.get(parts.fullName) : undefined) ||
         (parts.abbr ? exclusionMap.get(parts.abbr) : undefined) ||
         new Set<string>();
+      const excludedMetrics = new Set(
+        mergeProgrammeMetricExclusions(mda.mdaName || "", rawExcluded)
+      );
       const isExcluded = (metricKey: string) => excludedMetrics.has(metricKey);
       const isOthersItemExcluded = (itemId: string) =>
         excludedMetrics.has("others") || excludedMetrics.has(`others:${itemId}`);
@@ -3318,27 +3327,8 @@ export const getAllMdaSavedDataForDashboard = query({
         if (isExcluded("reportGov")) maxPossiblePoints -= (efficiencyConfig.reportGovPoints || 20);
         if (isExcluded("mystery")) maxPossiblePoints -= mysteryTotal;
         else if (mysteryAdjustment.exemptPoints > 0) maxPossiblePoints -= mysteryAdjustment.exemptPoints;
-        if (isExcluded("others")) {
-          maxPossiblePoints -= othersTotal;
-        } else if (Array.isArray(uniqueTransparencyItems)) {
-          const excludedOthersWeight = uniqueTransparencyItems.reduce((sum: number, item: any) => {
-            if (!isOthersItemExcluded(item.itemId)) return sum;
-            return sum + (item.weight || 0);
-          }, 0);
-          maxPossiblePoints -= excludedOthersWeight;
-          // Config weights BEEPA at 10; non–Super MDAs are graded /9 on the tracker.
-          const hasBeepa = uniqueTransparencyItems.some((item: { itemName?: string; itemId: string }) => {
-            if (isOthersItemExcluded(item.itemId)) return false;
-            const nameKey = String(item.itemName || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, " ")
-              .trim();
-            return nameKey === "beepa" || nameKey.includes("beepa");
-          });
-          if (hasBeepa && beepaMaxPointsForMda(mda.mdaName) === BEEPA_STANDARD_MDA_MAX) {
-            maxPossiblePoints -= BEEPA_SUPER_MDA_MAX - BEEPA_STANDARD_MDA_MAX;
-          }
-        }
+        // BEEPA / Others exclusions keep the denominator at full points (count as 0, not removed from max).
+        // Non–Super MDAs still grade BEEPA /9 when scored; do not shrink overall max for that.
       } else {
         // Legacy 2025 calculation
         if (mda.transparency?.isSkipped) {
@@ -3357,14 +3347,24 @@ export const getAllMdaSavedDataForDashboard = query({
       }
       maxPossiblePoints = Math.max(maxPossiblePoints, 0);
 
-      const totalPercentage = maxPossiblePoints > 0 ? (totalScore / maxPossiblePoints) * 100 : 0;
+      const normalized = normalizeProgrammeExemptedScore({
+        mdaName: mda.mdaName || "",
+        totalScore,
+        applicableMax: maxPossiblePoints,
+        fullMax: year >= 2026 ? 100 : 80,
+        shouldNormalize: mysteryAdjustment.exemptPoints > 0,
+      });
 
       return {
         ...mda,
         totalGrossScore,
-        totalScore,
-        totalPercentage,
-        maxPossiblePoints,
+        totalScore: normalized.totalScore,
+        totalPercentage: normalized.totalPercentage,
+        maxPossiblePoints: normalized.maxPossiblePoints,
+        isProgrammeNormalized: normalized.isProgrammeNormalized,
+        isTestingServiceExempt: mysteryAdjustment.exemptPoints > 0,
+        rawTotalScore: normalized.rawTotalScore,
+        applicableMaxPoints: normalized.applicableMax,
         excludedMetrics: Array.from(excludedMetrics),
         // Override nested maxPossibleScores if dynamic config exists
         sla: mda.sla ? { ...mda.sla, maxPossibleScore: efficiencyConfig?.slaPoints || 5 } : null,
@@ -4257,12 +4257,12 @@ export const bulkSaveMysteryMatrixCells = mutation({
     const exclusionMap = buildExclusionLookup(exclusionRows);
     const excludedFor = (name: string) => {
       const parts = splitMdaNameForMatch(name);
-      return (
+      const raw =
         exclusionMap.get(normalizeMdaKey(name)) ||
         (parts.fullName ? exclusionMap.get(parts.fullName) : undefined) ||
         (parts.abbr ? exclusionMap.get(parts.abbr) : undefined) ||
-        new Set<string>()
-      );
+        new Set<string>();
+      return new Set(mergeProgrammeMetricExclusions(name, raw));
     };
     const questionPayload = questions.map((question) => ({
       questionId: question.questionId,

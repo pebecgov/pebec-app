@@ -55,6 +55,8 @@ export const sanitizeMdaName = (mdaName: string): string => {
  */
 export const stripAbbreviation = (mdaName: string): string => {
     let current = (mdaName || "").replace(/[–—]/g, "-").trim();
+    // Strip trailing "(ABBR)" e.g. "Service Compact (SERVICOM)" → "Service Compact"
+    current = current.replace(/\s*\([A-Za-z0-9.&/+\-]+\)\s*$/g, "").trim();
     let next = current;
     do {
         current = next;

@@ -23,6 +23,7 @@ import {
   normalizeMdaKey,
   splitMdaNameForMatch,
 } from "./mda_scoring";
+import { mergeProgrammeMetricExclusions } from "../lib/programmeMetricExclusions";
 import {
   buildMonthlyReportData,
   calculateAdjustedResolutionRate,
@@ -91,12 +92,12 @@ function excludedMetricsFor(
   mdaName: string,
 ): Set<string> {
   const parts = splitMdaNameForMatch(mdaName);
-  return (
+  const raw =
     exclusionMap.get(normalizeMdaKey(mdaName)) ||
     (parts.fullName ? exclusionMap.get(parts.fullName) : undefined) ||
     (parts.abbr ? exclusionMap.get(parts.abbr) : undefined) ||
-    new Set<string>()
-  );
+    new Set<string>();
+  return new Set(mergeProgrammeMetricExclusions(mdaName, raw));
 }
 
 export const runAutomaticEfficiencyScoring = mutation({

@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { useConvex, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { mergeProgrammeMetricExclusions } from '@/lib/programmeMetricExclusions';
 
 interface ViewDetailsModalProps {
     viewDetailsMda: string | null;
@@ -62,8 +63,8 @@ export default function ViewDetailsModal({
         return { fullName: normalized };
     };
     const excludedMetrics = React.useMemo(() => {
-        if (!viewDetailsMda || !allConfigs?.metricExclusions) return new Set<string>();
-        const rows = allConfigs.metricExclusions as Array<{ mdaName: string; excludedMetrics: string[] }>;
+        if (!viewDetailsMda) return new Set<string>();
+        const rows = (allConfigs?.metricExclusions || []) as Array<{ mdaName: string; excludedMetrics: string[] }>;
         const lookup = new Map<string, Set<string>>();
         rows.forEach((row) => {
             const set = new Set(row.excludedMetrics || []);
@@ -75,7 +76,12 @@ export default function ViewDetailsModal({
         });
         const normalized = normalizeMdaKey(viewDetailsMda);
         const parts = splitMdaNameForMatch(viewDetailsMda);
-        return lookup.get(normalized) || lookup.get(parts.fullName) || (parts.abbr ? lookup.get(parts.abbr) : undefined) || new Set<string>();
+        const fromConfig =
+            lookup.get(normalized) ||
+            lookup.get(parts.fullName) ||
+            (parts.abbr ? lookup.get(parts.abbr) : undefined) ||
+            new Set<string>();
+        return new Set(mergeProgrammeMetricExclusions(viewDetailsMda, fromConfig));
     }, [viewDetailsMda, allConfigs]);
     const isExcluded = (metric: string) => excludedMetrics.has(metric);
     const isOthersItemExcluded = (itemId: string) =>
@@ -481,10 +487,11 @@ export default function ViewDetailsModal({
                                                 grossScore += safeNumber(timeliness?.score);
                                                 maxPossiblePoints += timelinessPoints;
                                             }
+                                            // Excluded BEEPA/Others count as 0 points but stay in the denominator.
                                             if (!isExcluded("others")) {
                                                 grossScore += safeNumber(others?.totalScore);
-                                                maxPossiblePoints += othersTotalPoints;
                                             }
+                                            maxPossiblePoints += othersTotalPoints;
 
                                             penaltyDeduction = isExcluded("penalties")
                                                 ? 0

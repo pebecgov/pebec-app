@@ -8,6 +8,7 @@ import {
   NEWLY_ONBOARDED_EXEMPT_MDAS,
   NEWLY_ONBOARDED_EXEMPT_NOTE,
 } from "./dashboardReportExclusions";
+import { formatMdaNameForBeepaReport } from "./beepaTrackerRoster";
 
 interface MdaList {
   name: string;
@@ -313,7 +314,6 @@ export async function generateDashboardPDF({
         "Report Gov Resolution",
         "Report Submission",
         "Timeliness",
-        "Total Score",
         ...penaltyConfig.map((item) => item.penaltyName),
         ...bonusConfig.map((item) => item.bonusName),
         "Final Score",
@@ -326,6 +326,16 @@ export async function generateDashboardPDF({
 
       const pushRankedRow = (mda: any, rankLabel: string, finalCell: string) => {
         const mysteryMax = Number(mda.mysteryShopping?.maxPossibleScore) || 40;
+        const beepaExcludedInData = othersConfig.some((item) => {
+          const nameKey = String(item.itemName || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim();
+          return (
+            (nameKey === "beepa" || nameKey.includes("beepa")) &&
+            isOthersItemExcluded(mda, item.itemId)
+          );
+        });
         const othersCells = othersConfig.map((item) => {
           if (isOthersItemExcluded(mda, item.itemId)) return "Excluded";
           const score = Number(mda.others?.scores?.[item.itemId]) || 0;
@@ -342,12 +352,13 @@ export async function generateDashboardPDF({
           const applied = mda.bonuses?.values?.[item.bonusId] === true;
           return applied ? `+${item.bonusValue ?? 0}` : "0.0";
         });
-        const gross = Number(mda.baseTotalScore || 0);
-        const maxPts = Number(mda.maxPossiblePoints) || 100;
 
         tableData.push([
           rankLabel,
-          mda.mdaName,
+          formatMdaNameForBeepaReport(mda.mdaName, null, {
+            beepaExcluded: beepaExcludedInData,
+            testingServiceExempt: !!mda.isTestingServiceExempt,
+          }),
           isExcluded(mda, "sla")
             ? "Excluded"
             : cellScoreWithMonths(
@@ -383,7 +394,6 @@ export async function generateDashboardPDF({
                 mda.timeliness?.monthsWithData,
                 mda.timeliness?.totalMonths
               ),
-          `${gross.toFixed(1)}\n${gross.toFixed(1)}/${maxPts}`,
           ...penaltyCells,
           ...bonusCells,
           finalCell,
@@ -391,10 +401,12 @@ export async function generateDashboardPDF({
       };
 
       sortedRanked.forEach((mda, idx) => {
+        const maxPts = Number(mda.maxPossiblePoints) || 100;
+        const finalPts = Number(mda.totalScore) || 0;
         pushRankedRow(
           mda,
           `#${idx + 1}`,
-          formatFinalPercentage(Number(mda.totalPercentage || 0))
+          `${finalPts.toFixed(1)}/${maxPts}\n${formatFinalPercentage(Number(mda.totalPercentage || 0))}`
         );
       });
 
@@ -405,7 +417,6 @@ export async function generateDashboardPDF({
           dashCell(),
           dashCell(),
           ...emptyOthers,
-          dashCell(),
           dashCell(),
           dashCell(),
           dashCell(),
@@ -504,6 +515,14 @@ export async function generateDashboardPDF({
       },
       theme: "striped",
       margin: { left: 6, right: 6 },
+      columnStyles:
+        selectedMetric === "totalScore" && dashboardYear >= 2026
+          ? {
+              // Rank + MDA name (with BEEPA status note under the name)
+              0: { cellWidth: 10 },
+              1: { cellWidth: 42, fontSize: manyCols ? 5 : 5.5 },
+            }
+          : undefined,
       didDrawPage: (data: any) => {
         doc.setFontSize(10);
         doc.text(`Page ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: "center" });

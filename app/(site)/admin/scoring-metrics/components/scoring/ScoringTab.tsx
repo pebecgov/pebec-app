@@ -35,6 +35,10 @@ import {
     mysteryScoreWithoutQuestions,
     mysteryTestingServiceAdjustment,
 } from '@/lib/mysteryTypeExemption';
+import {
+    mergeProgrammeMetricExclusions,
+    normalizeProgrammeExemptedScore,
+} from '@/lib/programmeMetricExclusions';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -180,7 +184,12 @@ export default function ScoringTab({
         selectedMda ? { year: scoringYear, mdaName: selectedMda } : "skip"
     );
 
-    const excludedMetricSet = new Set<string>(mdaMetricExclusions?.excludedMetrics || []);
+    const excludedMetricSet = new Set<string>(
+        mergeProgrammeMetricExclusions(
+            selectedMda || "",
+            mdaMetricExclusions?.excludedMetrics || []
+        )
+    );
     const isMetricExcluded = (metricKey: string) => excludedMetricSet.has(metricKey);
     const isOthersItemExcluded = (itemId: string) =>
         excludedMetricSet.has("others") || excludedMetricSet.has(`others:${itemId}`);
@@ -739,16 +748,7 @@ export default function ScoringTab({
                     mystery = Math.min(mystery, adjustment.applicableMax);
                 }
             }
-            if (isMetricExcluded("others")) {
-                const othersConfiguredTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0);
-                currentMaxPoints -= othersConfiguredTotal || 25;
-            } else if (othersConfig) {
-                const excludedOthersWeight = othersConfig.reduce((sum: number, item: any) => {
-                    if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
-                    return sum;
-                }, 0);
-                currentMaxPoints -= excludedOthersWeight;
-            }
+            // BEEPA / Others exclusions keep the denominator at full points (count as 0, not removed from max).
             if (isMetricExcluded("penalties")) {
                 // Penalties are deductions; excluded means no deduction logic, max points unchanged.
             }
@@ -786,10 +786,24 @@ export default function ScoringTab({
 
         totalScore = Math.max(0, totalScore);
 
-        return {
-            totalPercentage: currentMaxPoints > 0 ? (totalScore / currentMaxPoints) * 100 : 0,
+        const testingServiceExempt =
+            useDynamicConfig &&
+            !isMetricExcluded("mystery") &&
+            mysteryResult.exemptPoints > 0;
+
+        const normalized = normalizeProgrammeExemptedScore({
+            mdaName: selectedMda || "",
             totalScore,
-            maxPossiblePoints: currentMaxPoints,
+            applicableMax: Math.max(0, currentMaxPoints),
+            fullMax: useDynamicConfig ? 100 : 80,
+            shouldNormalize: testingServiceExempt,
+        });
+
+        return {
+            totalPercentage: normalized.totalPercentage,
+            totalScore: normalized.totalScore,
+            maxPossiblePoints: normalized.maxPossiblePoints,
+            isProgrammeNormalized: normalized.isProgrammeNormalized,
             scores: {
                 serviceLevelAgreement: sla,
                 mysteryShopping: mystery,
