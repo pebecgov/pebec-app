@@ -6,7 +6,10 @@ import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
 import { buildMdaRankingSummary } from '@/lib/mdaRankingSummary';
 import { toast } from 'sonner';
-import { isNewlyOnboardedExemptMda } from '@/lib/dashboardReportExclusions';
+import {
+    getRankingExemptNote,
+    isNewlyOnboardedExemptMda,
+} from '@/lib/dashboardReportExclusions';
 
 interface DashboardTableProps {
     liveDashboardData: any[] | undefined;
@@ -530,7 +533,8 @@ export default function DashboardTable({
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm">
                                                     {isExempt ? (
                                                         <span className="text-xs text-gray-600 font-medium">
-                                                            Exempted due to being newly onboarded
+                                                            {getRankingExemptNote(mda?.mdaName || "") ||
+                                                                "Exempted due to being newly onboarded"}
                                                         </span>
                                                     ) : (
                                                         <>

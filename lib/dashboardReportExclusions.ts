@@ -25,20 +25,55 @@ const DASHBOARD_REPORT_EXCLUDED_MDA_NAMES = [
   "Federal Ministry of Interior",
 ] as const;
 
+export type RankingExemptMda = {
+  abbreviation: string;
+  name: string;
+  /** Shown in Final Score / PDF when the MDA is unranked at the bottom. */
+  note: string;
+  aliases?: readonly string[];
+};
+
 /**
- * Newly onboarded — exempted from ranked scoring; always listed at the bottom
- * of the BFA ranking PDF with an exemption note.
+ * Fully exempt from ranked BFA scoring — always listed at the bottom
+ * of the Live Dashboard / ranking PDF with their exemption note.
  */
-export const NEWLY_ONBOARDED_EXEMPT_MDAS = [
-  { abbreviation: "REA", name: "Rural Electrification Agency" },
-  { abbreviation: "BOA", name: "Bank of Agriculture" },
-  { abbreviation: "NSW", name: "National Single Window" },
-  { abbreviation: "MOFI", name: "Ministry of Finance Incorporated" },
+export const RANKING_EXEMPT_MDAS: readonly RankingExemptMda[] = [
+  {
+    abbreviation: "REA",
+    name: "Rural Electrification Agency",
+    note: "Exempted due to being newly onboarded",
+  },
+  {
+    abbreviation: "BOA",
+    name: "Bank of Agriculture",
+    note: "Exempted due to being newly onboarded",
+  },
+  {
+    abbreviation: "NSW",
+    name: "National Single Window",
+    note: "Exempted due to being newly onboarded",
+  },
+  {
+    abbreviation: "MOFI",
+    name: "Ministry of Finance Incorporated",
+    note: "Exempted due to being newly onboarded",
+  },
   {
     abbreviation: "NPERA",
     name: "Nigerian Ports Economic Regulatory Agency",
+    note: "Exempted due to being newly onboarded",
+  },
+  {
+    abbreviation: "NAIC",
+    name: "Nigerian Agricultural Insurance Corporation",
+    note: "Exempted due to fire incident",
   },
 ] as const;
+
+/** @deprecated Prefer RANKING_EXEMPT_MDAS — kept for callers that only mean newly onboarded. */
+export const NEWLY_ONBOARDED_EXEMPT_MDAS = RANKING_EXEMPT_MDAS.filter(
+  (entry) => entry.abbreviation !== "NAIC"
+);
 
 export const NEWLY_ONBOARDED_EXEMPT_NOTE =
   "Exempted due to being newly onboarded";
@@ -101,16 +136,28 @@ export function isExcludedFromBulkPdf(mdaName: string): boolean {
   return isExcludedFromDashboardReport(mdaName);
 }
 
-export function isNewlyOnboardedExemptMda(mdaName: string): boolean {
-  return NEWLY_ONBOARDED_EXEMPT_MDAS.some((entry) =>
-    matchesNameOrAbbr(mdaName, entry)
+export function getRankingExemptEntry(mdaName: string): RankingExemptMda | null {
+  return (
+    RANKING_EXEMPT_MDAS.find((entry) => matchesNameOrAbbr(mdaName, entry)) ??
+    null
   );
 }
 
+export function getRankingExemptNote(mdaName: string): string | null {
+  return getRankingExemptEntry(mdaName)?.note ?? null;
+}
+
+/** Fully exempt from ranked scoring (newly onboarded + NAIC fire incident, etc.). */
+export function isRankingExemptMda(mdaName: string): boolean {
+  return getRankingExemptEntry(mdaName) !== null;
+}
+
+/** @deprecated Use isRankingExemptMda — includes NAIC and newly onboarded. */
+export function isNewlyOnboardedExemptMda(mdaName: string): boolean {
+  return isRankingExemptMda(mdaName);
+}
+
+/** @deprecated Use getRankingExemptEntry. */
 export function getNewlyOnboardedExemptEntry(mdaName: string) {
-  return (
-    NEWLY_ONBOARDED_EXEMPT_MDAS.find((entry) =>
-      matchesNameOrAbbr(mdaName, entry)
-    ) ?? null
-  );
+  return getRankingExemptEntry(mdaName);
 }
