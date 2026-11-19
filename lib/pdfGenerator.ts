@@ -183,11 +183,6 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       ],
       ['Report Submission', `${summary.monthlyScore.toFixed(1)}/${summary.monthlyMax}`],
       ['Timeliness', `${summary.timelinessScore.toFixed(1)}/${summary.timelinessMax}`],
-      ['', ''],
-      [
-        'Total Score',
-        `${summary.baseTotalScore.toFixed(1)}/${summary.maxPossiblePoints}`,
-      ],
     );
     for (const line of summary.penaltyLines) {
       body.push([
@@ -210,7 +205,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     body.push(
       ['', ''],
       [
-        'OVERALL TOTAL',
+        'Final Score',
         `${summary.totalScore.toFixed(1)}/${summary.maxPossiblePoints}`,
       ],
     );
@@ -233,7 +228,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       didParseCell: (hookData: any) => {
         if (hookData.section === 'body') {
           const label = String(hookData.row.raw?.[0] || '');
-          if (label === 'OVERALL TOTAL' || label === 'Total Score' || label === 'Base Total Score') {
+          if (label === 'OVERALL TOTAL' || label === 'Final Score' || label === 'Total Score' || label === 'Base Total Score') {
             hookData.cell.styles.fontStyle = 'bold';
           }
         }

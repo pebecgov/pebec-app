@@ -50,14 +50,47 @@ export const MDA_RENAMES = [
   },
   {
     // Display and ticket record use different prefixes for the same agency.
-    canonicalName: "EFCC - Special Control Unit for Money Laundering",
+    canonicalName: "EFCC - Special Control Unit Against Money Laundering (SCUML)",
     canonicalAbbr: "SCUML",
     aliases: [
       "scuml",
       "efcc - special control unit for money laundering",
+      "efcc - special control unit against money laundering",
+      "efcc - special control unit against money laundering scuml",
+      "efcc special control unit against money laundering scuml",
       "scuml - efcc - special control unit for money laundering",
+      "scuml - efcc - special control unit against money laundering",
       "special control unit for money laundering",
       "special control unit against money laundering",
+    ],
+  },
+  {
+    canonicalName: "Nigerian Content Development and Monitoring Board (NCDMB)",
+    canonicalAbbr: "NCDMB",
+    aliases: [
+      "ncdmb",
+      "nigerian content development management board",
+      "nigerian content development and monitoring board",
+      "nigerian content development and monitoring board ncdmb",
+    ],
+  },
+  {
+    canonicalName: "Nigeria Export Processing Zones Authority (NEPZA)",
+    canonicalAbbr: "NEPZA",
+    aliases: [
+      "nepza",
+      "nigeria export processing zone authority",
+      "nigeria export processing zones authority",
+      "nigeria export processing zones authority nepza",
+    ],
+  },
+  {
+    canonicalName: "Service Compact (SERVICOM)",
+    canonicalAbbr: "SERVICOM",
+    aliases: [
+      "servicom",
+      "service compact",
+      "service compact servicom",
     ],
   },
 ] as const;
@@ -72,6 +105,7 @@ function normalizeAliasKey(value: string): string {
 
 function stripAbbreviationPrefix(value: string): string {
   let current = String(value || "").replace(/[–—]/g, "-").trim();
+  current = current.replace(/\s*\([A-Za-z0-9.&/+\-]+\)\s*$/g, "").trim();
   let next = current;
   do {
     current = next;

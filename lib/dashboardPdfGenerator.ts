@@ -8,6 +8,7 @@ import {
   NEWLY_ONBOARDED_EXEMPT_MDAS,
   NEWLY_ONBOARDED_EXEMPT_NOTE,
 } from "./dashboardReportExclusions";
+import { formatMdaNameForBeepaReport } from "./beepaTrackerRoster";
 
 interface MdaList {
   name: string;
@@ -240,7 +241,19 @@ export async function generateDashboardPDF({
       doc.text("Filter: MDAs with Data", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 5;
     }
-    yPosition += 8;
+    if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      yPosition += 2;
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "italic");
+      const legendLines = doc.splitTextToSize(
+        "Note: Metrics that are not applicable (e.g. BEEPA exemption, Mystery Testing Service not tested, SERVICOM monthly scoring exemption) are removed from that MDA’s applicable maximum — they are not scored as zero. Scores are then converted to a /100 Final Score so MDAs are not penalised for inapplicable metrics. For Testing Service: full marks on the remaining channels (e.g. 20/20) equals full Mystery (same as 40/40).",
+        pageWidth - 20
+      );
+      doc.text(legendLines, pageWidth / 2, yPosition, { align: "center" });
+      yPosition += legendLines.length * 3.2 + 2;
+      doc.setFont("helvetica", "normal");
+    }
+    yPosition += 6;
 
     const allMdasArray = liveDashboardData
       .filter((mda: any) => !isExcludedFromDashboardReport(mda?.mdaName || mda?.name || ""))
@@ -313,7 +326,6 @@ export async function generateDashboardPDF({
         "Report Gov Resolution",
         "Report Submission",
         "Timeliness",
-        "Total Score",
         ...penaltyConfig.map((item) => item.penaltyName),
         ...bonusConfig.map((item) => item.bonusName),
         "Final Score",
@@ -326,6 +338,16 @@ export async function generateDashboardPDF({
 
       const pushRankedRow = (mda: any, rankLabel: string, finalCell: string) => {
         const mysteryMax = Number(mda.mysteryShopping?.maxPossibleScore) || 40;
+        const beepaExcludedInData = othersConfig.some((item) => {
+          const nameKey = String(item.itemName || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim();
+          return (
+            (nameKey === "beepa" || nameKey.includes("beepa")) &&
+            isOthersItemExcluded(mda, item.itemId)
+          );
+        });
         const othersCells = othersConfig.map((item) => {
           if (isOthersItemExcluded(mda, item.itemId)) return "Excluded";
           const score = Number(mda.others?.scores?.[item.itemId]) || 0;
@@ -342,12 +364,13 @@ export async function generateDashboardPDF({
           const applied = mda.bonuses?.values?.[item.bonusId] === true;
           return applied ? `+${item.bonusValue ?? 0}` : "0.0";
         });
-        const gross = Number(mda.baseTotalScore || 0);
-        const maxPts = Number(mda.maxPossiblePoints) || 100;
 
         tableData.push([
           rankLabel,
-          mda.mdaName,
+          formatMdaNameForBeepaReport(mda.mdaName, null, {
+            beepaExcluded: beepaExcludedInData,
+            testingServiceExempt: !!mda.isTestingServiceExempt,
+          }),
           isExcluded(mda, "sla")
             ? "Excluded"
             : cellScoreWithMonths(
@@ -358,7 +381,9 @@ export async function generateDashboardPDF({
               ),
           isExcluded(mda, "mystery")
             ? "Excluded"
-            : cellScore(mda.mysteryShopping?.score, mysteryMax),
+            : mda.isTestingServiceExempt
+              ? `${cellScore(mda.mysteryShopping?.score, mysteryMax)}\n(Full on tested; Testing Service N/A)`
+              : cellScore(mda.mysteryShopping?.score, mysteryMax),
           ...othersCells,
           isExcluded(mda, "reportGov")
             ? "Excluded"
@@ -383,7 +408,6 @@ export async function generateDashboardPDF({
                 mda.timeliness?.monthsWithData,
                 mda.timeliness?.totalMonths
               ),
-          `${gross.toFixed(1)}\n${gross.toFixed(1)}/${maxPts}`,
           ...penaltyCells,
           ...bonusCells,
           finalCell,
@@ -391,10 +415,12 @@ export async function generateDashboardPDF({
       };
 
       sortedRanked.forEach((mda, idx) => {
+        const maxPts = Number(mda.maxPossiblePoints) || 100;
+        const finalPts = Number(mda.totalScore) || 0;
         pushRankedRow(
           mda,
           `#${idx + 1}`,
-          formatFinalPercentage(Number(mda.totalPercentage || 0))
+          `${finalPts.toFixed(1)}/${maxPts}\n${formatFinalPercentage(Number(mda.totalPercentage || 0))}`
         );
       });
 
@@ -405,7 +431,6 @@ export async function generateDashboardPDF({
           dashCell(),
           dashCell(),
           ...emptyOthers,
-          dashCell(),
           dashCell(),
           dashCell(),
           dashCell(),
@@ -504,11 +529,75 @@ export async function generateDashboardPDF({
       },
       theme: "striped",
       margin: { left: 6, right: 6 },
+      columnStyles:
+        selectedMetric === "totalScore" && dashboardYear >= 2026
+          ? {
+              // Rank + MDA name (with BEEPA status note under the name)
+              0: { cellWidth: 10 },
+              1: { cellWidth: 42, fontSize: manyCols ? 5 : 5.5 },
+            }
+          : undefined,
       didDrawPage: (data: any) => {
         doc.setFontSize(10);
         doc.text(`Page ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: "center" });
       },
     });
+
+    if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      const tableEndY =
+        (doc as any).lastAutoTable?.finalY != null
+          ? Number((doc as any).lastAutoTable.finalY)
+          : yPosition;
+      let methodY = tableEndY + 10;
+      const left = 10;
+      const contentWidth = pageWidth - 20;
+      const ensureSpace = (needed: number) => {
+        if (methodY + needed > pageHeight - 16) {
+          doc.addPage();
+          methodY = 16;
+        }
+      };
+
+      ensureSpace(40);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("BFA Compliance Assessment and Ranking Methodology", left, methodY);
+      methodY += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const methodologyParagraphs = [
+        "The BFA compliance assessment was based on a total of ten (10) metrics. However, not all metrics were applicable to every Ministry, Department, and Agency (MDA). Consequently, while some MDAs were assessed against all ten (10) metrics, others were assessed against eight (8) or nine (9), depending on the applicability of the metrics to their operations.",
+        "To ensure fairness, consistency, and comparability in the assessment and ranking process, it was agreed that each MDA’s compliance score would be calculated based on the total number of metrics applicable to and assessed for that MDA, rather than the overall ten (10) metrics.",
+        "The resulting scores would then be converted into percentages and used as the basis for ranking all MDAs. This approach ensures that MDAs are not penalised for metrics that are not applicable to them, while maintaining a standardised and equitable basis for comparing compliance performance across all MDAs.",
+      ];
+      for (const paragraph of methodologyParagraphs) {
+        const lines = doc.splitTextToSize(paragraph, contentWidth);
+        ensureSpace(lines.length * 3.6 + 4);
+        doc.text(lines, left, methodY);
+        methodY += lines.length * 3.6 + 3;
+      }
+
+      ensureSpace(18);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("Calculation", left, methodY);
+      methodY += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const calcLines = doc.splitTextToSize(
+        "Compliance Score (%) = (Points earned ÷ Points from applicable metrics) × 100",
+        contentWidth
+      );
+      doc.text(calcLines, left, methodY);
+      methodY += calcLines.length * 3.6 + 3;
+      const exampleLines = doc.splitTextToSize(
+        "For example, an MDA that earned 70 out of 80 applicable points would receive a compliance score of 87.5%, while an MDA that earned 90 out of 100 would receive 90%. Final Score is shown out of 100 after normalisation so rankings remain comparable.",
+        contentWidth
+      );
+      ensureSpace(exampleLines.length * 3.6 + 2);
+      doc.text(exampleLines, left, methodY);
+    }
 
     const fileName = `${pdfTitle.replace(/[^a-z0-9]/gi, "_")}_${dashboardYear}.pdf`;
     doc.save(fileName);

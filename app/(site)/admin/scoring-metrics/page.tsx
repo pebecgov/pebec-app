@@ -27,6 +27,10 @@ import {
   isNewlyOnboardedExemptMda,
 } from "@/lib/dashboardReportExclusions";
 import {
+  mergeProgrammeMetricExclusions,
+  normalizeProgrammeExemptedScore,
+} from "@/lib/programmeMetricExclusions";
+import {
   STATE_OVERALL_MAX_SCORE,
 } from "./utils/constants";
 
@@ -227,7 +231,7 @@ export default function ScoringMetricsPage() {
         yearExclusionLookup.get(normalized) ||
         (parts.fullName ? yearExclusionLookup.get(parts.fullName) : undefined) ||
         (parts.abbr ? yearExclusionLookup.get(parts.abbr) : undefined);
-      return Array.from(set || []);
+      return mergeProgrammeMetricExclusions(mdaName, set || []);
     };
 
     // 2026 BFA is scored out of 100 (same as mda_scoring dashboard + public tracker).
@@ -465,21 +469,29 @@ export default function ScoringMetricsPage() {
       if (isExcluded("reportGov")) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
       if (isExcluded("reportSubmission")) maxPossiblePoints -= (dashboardYear < 2026 ? 3 : (efficiencyConfig?.reportSubmissionPoints || 3));
       if (isExcluded("timeliness")) maxPossiblePoints -= (dashboardYear < 2026 ? 2 : (efficiencyConfig?.timelinessPoints || 2));
+      // BEEPA / Others exclusions: remove from applicable max (do not treat as scored 0).
+      let excludedOthersWeight = 0;
       if (dashboardYear >= 2026 && isExcluded("others")) {
-        const othersTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
-        maxPossiblePoints -= othersTotal;
+        excludedOthersWeight =
+          (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
+        maxPossiblePoints -= excludedOthersWeight;
       } else if (dashboardYear >= 2026 && othersConfig) {
-        const excludedOthersWeight = (othersConfig || []).reduce((sum: number, item: any) => {
+        excludedOthersWeight = (othersConfig || []).reduce((sum: number, item: any) => {
           if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
           return sum;
         }, 0);
         maxPossiblePoints -= excludedOthersWeight;
       }
       maxPossiblePoints = Math.max(0, maxPossiblePoints);
-        
-      const totalPercentage = maxPossiblePoints > 0
-        ? (totalScore / maxPossiblePoints) * 100
-        : 0;
+
+      // Scale onto /100 when metrics were removed from the max (fair ranking).
+      const normalized = normalizeProgrammeExemptedScore({
+        mdaName: mda.mdaName,
+        totalScore,
+        applicableMax: maxPossiblePoints,
+        fullMax: baseMaxPoints,
+        shouldNormalize: mysteryExemptionPoints > 0 || excludedOthersWeight > 0,
+      });
 
       return {
         ...mda,
@@ -497,11 +509,15 @@ export default function ScoringMetricsPage() {
             }
           : mda.mysteryShopping,
         totalGrossScore: baseTotalScore,
-        totalScore,
-        totalPercentage,
+        totalScore: normalized.totalScore,
+        totalPercentage: normalized.totalPercentage,
         isReportGovSkipped,
         isTransparencySkipped,
-        maxPossiblePoints
+        isProgrammeNormalized: normalized.isProgrammeNormalized,
+        isTestingServiceExempt: mysteryExemptionPoints > 0,
+        rawTotalScore: normalized.rawTotalScore,
+        applicableMaxPoints: normalized.applicableMax,
+        maxPossiblePoints: normalized.maxPossiblePoints,
       };
     });
 

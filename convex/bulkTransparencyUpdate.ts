@@ -18,12 +18,12 @@ const MDAS_WITH_100_PERCENT_SLA_PUBLICATION = [
   "National Bureau of Statistics",
   "Nigeria Civil Aviation Authority", 
   "Nigerian Communications Commission",
-  "Nigerian Content Development and Monitoring Board",
+  "Nigerian Content Development and Monitoring Board (NCDMB)",
   "Nigeria Customs Service",
   "National Drug Law Enforcement Agency",
   "Nigerian Electricity Management Service Agency",
   "Nigeria Export Promotion Council",
-  "Nigeria Export Processing Zone Authority",
+  "Nigeria Export Processing Zones Authority (NEPZA)",
   "National Environmental Standards and Regulations Enforcement Agency",
   "Nigerian Export-Import Bank",
   "Nigerian Maritime Administration and Safety Agency",
@@ -39,9 +39,9 @@ const MDAS_WITH_100_PERCENT_SLA_PUBLICATION = [
   "Oil & Gas Free Zone Authority",
   "National Pension Commission",
   "Rural Electrification Agency",
-  "EFCC – Special Control Unit for Money Laundering",
+  "EFCC - Special Control Unit Against Money Laundering (SCUML)",
   "Securities and Exchange Commission",
-  "Service Compact",
+  "Service Compact (SERVICOM)",
   "Standards Organisation of Nigeria"
 ];
 

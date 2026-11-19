@@ -31,7 +31,7 @@ const DEMO_MDAS: Array<{
   { name: "Federal Road Safety Corps", factor: 0.44, bonusIds: [], penaltyIds: ["penalty_noncompliance"], submittedMonths: [0] },
   { name: "National Identity Management Commission", factor: 0.40, bonusIds: [], penaltyIds: ["penalty_late"], submittedMonths: [2] },
   { name: "Nigeria Police Force", factor: 0.36, bonusIds: [], penaltyIds: ["penalty_late", "penalty_noncompliance"], submittedMonths: [] },
-  { name: "Service Compact", factor: 0.32, bonusIds: [], penaltyIds: ["penalty_late", "penalty_noncompliance"], submittedMonths: [6] },
+  { name: "Service Compact (SERVICOM)", factor: 0.32, bonusIds: [], penaltyIds: ["penalty_late", "penalty_noncompliance"], submittedMonths: [6] },
 ];
 
 const STATE_OVERRIDES: Record<string, number> = {

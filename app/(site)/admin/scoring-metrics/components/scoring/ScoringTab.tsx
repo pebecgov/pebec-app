@@ -35,6 +35,10 @@ import {
     mysteryScoreWithoutQuestions,
     mysteryTestingServiceAdjustment,
 } from '@/lib/mysteryTypeExemption';
+import {
+    mergeProgrammeMetricExclusions,
+    normalizeProgrammeExemptedScore,
+} from '@/lib/programmeMetricExclusions';
 
 // Modals
 import { MysteryShoppingModal } from '../modals/MysteryShoppingModal';
@@ -180,7 +184,12 @@ export default function ScoringTab({
         selectedMda ? { year: scoringYear, mdaName: selectedMda } : "skip"
     );
 
-    const excludedMetricSet = new Set<string>(mdaMetricExclusions?.excludedMetrics || []);
+    const excludedMetricSet = new Set<string>(
+        mergeProgrammeMetricExclusions(
+            selectedMda || "",
+            mdaMetricExclusions?.excludedMetrics || []
+        )
+    );
     const isMetricExcluded = (metricKey: string) => excludedMetricSet.has(metricKey);
     const isOthersItemExcluded = (itemId: string) =>
         excludedMetricSet.has("others") || excludedMetricSet.has(`others:${itemId}`);
@@ -672,6 +681,7 @@ export default function ScoringTab({
 
         // Keep max points aligned with dashboard model.
         let currentMaxPoints = useDynamicConfig ? 100 : 80;
+        let excludedOthersWeight = 0;
 
         if (useDynamicConfig) {
             // 2026+ Dynamic
@@ -739,11 +749,13 @@ export default function ScoringTab({
                     mystery = Math.min(mystery, adjustment.applicableMax);
                 }
             }
+            // BEEPA / Others exclusions: remove from applicable max (do not treat as scored 0).
             if (isMetricExcluded("others")) {
-                const othersConfiguredTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0);
-                currentMaxPoints -= othersConfiguredTotal || 25;
+                excludedOthersWeight =
+                    (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
+                currentMaxPoints -= excludedOthersWeight;
             } else if (othersConfig) {
-                const excludedOthersWeight = othersConfig.reduce((sum: number, item: any) => {
+                excludedOthersWeight = othersConfig.reduce((sum: number, item: any) => {
                     if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
                     return sum;
                 }, 0);
@@ -786,10 +798,24 @@ export default function ScoringTab({
 
         totalScore = Math.max(0, totalScore);
 
-        return {
-            totalPercentage: currentMaxPoints > 0 ? (totalScore / currentMaxPoints) * 100 : 0,
+        const testingServiceExempt =
+            useDynamicConfig &&
+            !isMetricExcluded("mystery") &&
+            mysteryResult.exemptPoints > 0;
+
+        const normalized = normalizeProgrammeExemptedScore({
+            mdaName: selectedMda || "",
             totalScore,
-            maxPossiblePoints: currentMaxPoints,
+            applicableMax: Math.max(0, currentMaxPoints),
+            fullMax: useDynamicConfig ? 100 : 80,
+            shouldNormalize: testingServiceExempt || excludedOthersWeight > 0,
+        });
+
+        return {
+            totalPercentage: normalized.totalPercentage,
+            totalScore: normalized.totalScore,
+            maxPossiblePoints: normalized.maxPossiblePoints,
+            isProgrammeNormalized: normalized.isProgrammeNormalized,
             scores: {
                 serviceLevelAgreement: sla,
                 mysteryShopping: mystery,

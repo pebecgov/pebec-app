@@ -25,6 +25,7 @@ import {
   buildMdaMetricScoreBreakdowns,
   type ScoreBreakdownLine,
 } from "../lib/bfaScoreBreakdowns";
+import { mergeProgrammeMetricExclusions } from "../lib/programmeMetricExclusions";
 
 /** Public tracker headline for MDAs and states. Bonus points sit inside this total. */
 const PUBLIC_TRACKER_SCORE_MAX = 100;
@@ -687,7 +688,8 @@ function buildPublicMdaRowFromDashboard(
   extraExcluded: string[] = [],
   trackerStatusByKey: Record<string, boolean> = {}
 ): PublicMdaRow {
-  const excludedMetrics = Array.from(
+  const excludedMetrics = mergeProgrammeMetricExclusions(
+    displayName,
     new Set([
       ...(Array.isArray(mda.excludedMetrics) ? (mda.excludedMetrics as string[]) : []),
       ...extraExcluded,
