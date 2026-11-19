@@ -586,13 +586,13 @@ export async function generateDashboardPDF({
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       const calcLines = doc.splitTextToSize(
-        "Compliance Score (%) = (Points earned ÷ Points from applicable metrics) × 100",
+        "Compliance Score (%) = (Metrics Complied With ÷ Total Applicable Metrics) × 100",
         contentWidth
       );
       doc.text(calcLines, left, methodY);
       methodY += calcLines.length * 3.6 + 3;
       const exampleLines = doc.splitTextToSize(
-        "For example, an MDA that earned 70 out of 80 applicable points would receive a compliance score of 87.5%, while an MDA that earned 90 out of 100 would receive 90%. Final Score is shown out of 100 after normalisation so rankings remain comparable.",
+        "For example, an MDA that complied with 7 out of 8 applicable metrics would receive a compliance score of 87.5%, while an MDA that complied with 9 out of 10 would receive 90%.",
         contentWidth
       );
       ensureSpace(exampleLines.length * 3.6 + 2);
