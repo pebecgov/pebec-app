@@ -241,7 +241,19 @@ export async function generateDashboardPDF({
       doc.text("Filter: MDAs with Data", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 5;
     }
-    yPosition += 8;
+    if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      yPosition += 2;
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "italic");
+      const legendLines = doc.splitTextToSize(
+        "Note: Where Mystery Shopping Testing Service was not tested, that portion is removed from the MDA’s max. A full score on the remaining channels (e.g. 20/20) counts as full Mystery marks — the same as 40/40 for MDAs that were fully tested. Final Score is normalized to /100 so this does not reduce their ranking.",
+        pageWidth - 20
+      );
+      doc.text(legendLines, pageWidth / 2, yPosition, { align: "center" });
+      yPosition += legendLines.length * 3.2 + 2;
+      doc.setFont("helvetica", "normal");
+    }
+    yPosition += 6;
 
     const allMdasArray = liveDashboardData
       .filter((mda: any) => !isExcludedFromDashboardReport(mda?.mdaName || mda?.name || ""))
@@ -369,7 +381,9 @@ export async function generateDashboardPDF({
               ),
           isExcluded(mda, "mystery")
             ? "Excluded"
-            : cellScore(mda.mysteryShopping?.score, mysteryMax),
+            : mda.isTestingServiceExempt
+              ? `${cellScore(mda.mysteryShopping?.score, mysteryMax)}\n(Full on tested; Testing Service N/A)`
+              : cellScore(mda.mysteryShopping?.score, mysteryMax),
           ...othersCells,
           isExcluded(mda, "reportGov")
             ? "Excluded"

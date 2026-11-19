@@ -240,7 +240,7 @@ export function formatMdaNameForBeepaReport(
   if (programmeNote) notes.push(programmeNote);
   if (options?.testingServiceExempt) {
     notes.push(
-      "Exempt from Mystery Shopping Testing Service — score normalized to /100"
+      "Mystery Testing Service not tested — graded only on tested channels; full marks on that reduced max (e.g. 20/20) equals full Mystery (same as 40/40). Score normalized to /100"
     );
   }
   if (notes.length === 0) return name;
