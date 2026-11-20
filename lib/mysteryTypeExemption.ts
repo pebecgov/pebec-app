@@ -35,6 +35,7 @@ export type MysteryQuestionForScore = {
   questionText?: string;
   weight?: number;
   answerType?: string;
+  order?: number;
 };
 
 function round2(value: number): number {

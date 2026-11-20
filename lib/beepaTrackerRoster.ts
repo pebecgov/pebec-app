@@ -174,8 +174,7 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
     name: "Nigerian Agricultural Insurance Corporation",
     abbreviation: "NAIC",
     beepaExempted: true,
-    beepaExemptionReason:
-      "Exempted from BEEPA due to fire incident — not applicable; removed from max (not scored as 0). Score normalized to /100",
+    beepaExemptionReason: "Exempted due to fire incident (full BFA ranking exemption)",
   },
   {
     name: "Nigeria Revenue Service",

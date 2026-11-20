@@ -2125,112 +2125,74 @@ export const getAllMdaSavedDataForDashboard = query({
     const othersTotal = uniqueTransparencyItems.reduce((sum, i) => sum + (i.weight || 0), 0) +
       uniqueInnovationStakeholderItems.reduce((sum, i) => sum + (i.weight || 0), 0) || 25;
 
-    console.log(`[Dashboard Debug ${year}] Efficiency: ${JSON.stringify(efficiencyConfig)}, Mystery (raw): ${mysteryTotal}, Others (raw): ${othersTotal}`);
-
-    // Get all MDAs from database and from scoring history to get complete list
+    // MDA list from mdas table only — avoid scanning entire mda_scoring_history (was a common 1s timeout cause).
     const allMdas = await ctx.db.query("mdas").collect();
-    const allScoringHistory = await ctx.db.query("mda_scoring_history").collect();
-    const uniqueMdaNamesFromHistory = [...new Set(allScoringHistory.map(s => canonicalizeMdaName(s.mdaName)))];
-
-    // Combine and deduplicate
-    const allMdaNames = [...new Set([...allMdas.map(m => canonicalizeMdaName(m.name.trim())), ...uniqueMdaNamesFromHistory])];
-    const uniqueMdaNames = [...new Set(allMdaNames)];
+    const uniqueMdaNames = [...new Set(allMdas.map((m) => canonicalizeMdaName(m.name.trim())))];
     const exclusionMap = buildExclusionLookup(metricExclusions as Array<{ mdaName: string; excludedMetrics: string[] }>);
 
-    // Get all saved data for both periods - query separately and combine
-    const [slaFirstHalf, slaSecondHalf, slaFullYear] = await Promise.all([
-      ctx.db.query("mda_sla_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_sla_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_sla_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const slaData = [...slaFirstHalf, ...slaSecondHalf, ...slaFullYear];
+    // 2026+ scores are stored on the calendar-year period; older years also use half-year periods.
+    const scoringPeriods =
+      year >= 2026
+        ? [fullYearPeriod]
+        : [firstHalfPeriod, secondHalfPeriod, fullYearPeriod];
 
-    const [mysteryFirstHalf, mysterySecondHalf, mysteryFullYear] = await Promise.all([
-      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_mystery_shopping_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const mysteryData = [...mysteryFirstHalf, ...mysterySecondHalf, ...mysteryFullYear];
+    const collectByPeriods = async (
+      table:
+        | "mda_sla_data"
+        | "mda_mystery_shopping_data"
+        | "mda_controversial_data"
+        | "mda_innovation_data"
+        | "mda_stakeholder_data"
+        | "mda_transparency_data"
+        | "mda_reportgov_data"
+        | "mda_monthly_report_data"
+        | "mda_timeliness_data"
+        | "mda_touting_rentseeking_data"
+        | "saved_others_data"
+        | "saved_penalties_data"
+        | "saved_bonuses_data"
+    ): Promise<any[]> => {
+      const batches = await Promise.all(
+        scoringPeriods.map((period) =>
+          ctx.db
+            .query(table)
+            .withIndex("byPeriod", (q: any) => q.eq("scoringPeriod", period))
+            .collect()
+        )
+      );
+      return batches.flat();
+    };
 
-    const [controversialFirstHalf, controversialSecondHalf, controversialFullYear] = await Promise.all([
-      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_controversial_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
+    // Fetch every metric table in parallel (was sequential batches → easy to blow the 1s query limit).
+    const [
+      slaData,
+      mysteryData,
+      controversialData,
+      innovationData,
+      stakeholderData,
+      transparencyData,
+      reportGovResolutionData,
+      monthlyReportData,
+      timelinessData,
+      toutingRentseekingData,
+      othersData,
+      penaltiesData,
+      bonusesData,
+    ] = await Promise.all([
+      collectByPeriods("mda_sla_data"),
+      collectByPeriods("mda_mystery_shopping_data"),
+      collectByPeriods("mda_controversial_data"),
+      collectByPeriods("mda_innovation_data"),
+      collectByPeriods("mda_stakeholder_data"),
+      collectByPeriods("mda_transparency_data"),
+      collectByPeriods("mda_reportgov_data"),
+      collectByPeriods("mda_monthly_report_data"),
+      collectByPeriods("mda_timeliness_data"),
+      collectByPeriods("mda_touting_rentseeking_data"),
+      collectByPeriods("saved_others_data"),
+      collectByPeriods("saved_penalties_data"),
+      collectByPeriods("saved_bonuses_data"),
     ]);
-    const controversialData = [...controversialFirstHalf, ...controversialSecondHalf, ...controversialFullYear];
-
-    const [innovationFirstHalf, innovationSecondHalf, innovationFullYear] = await Promise.all([
-      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_innovation_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const innovationData = [...innovationFirstHalf, ...innovationSecondHalf, ...innovationFullYear];
-
-    const [stakeholderFirstHalf, stakeholderSecondHalf, stakeholderFullYear] = await Promise.all([
-      ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_stakeholder_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const stakeholderData = [...stakeholderFirstHalf, ...stakeholderSecondHalf, ...stakeholderFullYear];
-
-    const [transparencyFirstHalf, transparencySecondHalf, transparencyFullYear] = await Promise.all([
-      ctx.db.query("mda_transparency_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_transparency_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_transparency_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const transparencyData = [...transparencyFirstHalf, ...transparencySecondHalf, ...transparencyFullYear];
-
-    const [reportGovResFirstHalf, reportGovResSecondHalf, reportGovResFullYear] = await Promise.all([
-      ctx.db.query("mda_reportgov_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_reportgov_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_reportgov_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const reportGovResolutionData = [...reportGovResFirstHalf, ...reportGovResSecondHalf, ...reportGovResFullYear];
-
-    const [monthlyReportFirstHalf, monthlyReportSecondHalf, monthlyReportFullYear] = await Promise.all([
-      ctx.db.query("mda_monthly_report_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_monthly_report_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_monthly_report_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const monthlyReportData = [...monthlyReportFirstHalf, ...monthlyReportSecondHalf, ...monthlyReportFullYear];
-
-    const [timelinessFirstHalf, timelinessSecondHalf, timelinessFullYear] = await Promise.all([
-      ctx.db.query("mda_timeliness_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_timeliness_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_timeliness_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const timelinessData = [...timelinessFirstHalf, ...timelinessSecondHalf, ...timelinessFullYear];
-
-    const [toutingRentseekingFirstHalf, toutingRentseekingSecondHalf, toutingRentseekingFullYear] = await Promise.all([
-      ctx.db.query("mda_touting_rentseeking_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("mda_touting_rentseeking_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("mda_touting_rentseeking_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const toutingRentseekingData = [...toutingRentseekingFirstHalf, ...toutingRentseekingSecondHalf, ...toutingRentseekingFullYear];
-
-    // Dynamic Others Data (2026+)
-    const [othersFirstHalf, othersSecondHalf, othersFullYear] = await Promise.all([
-      ctx.db.query("saved_others_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("saved_others_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("saved_others_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const othersData = [...othersFirstHalf, ...othersSecondHalf, ...othersFullYear];
-
-    // Dynamic Penalties Data (2026+)
-    const [penaltiesFirstHalf, penaltiesSecondHalf, penaltiesFullYear] = await Promise.all([
-      ctx.db.query("saved_penalties_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("saved_penalties_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("saved_penalties_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const penaltiesData = [...penaltiesFirstHalf, ...penaltiesSecondHalf, ...penaltiesFullYear];
-
-    // Dynamic Bonuses Data (2026+)
-    const [bonusesFirstHalf, bonusesSecondHalf, bonusesFullYear] = await Promise.all([
-      ctx.db.query("saved_bonuses_data").withIndex("byPeriod", q => q.eq("scoringPeriod", firstHalfPeriod)).collect(),
-      ctx.db.query("saved_bonuses_data").withIndex("byPeriod", q => q.eq("scoringPeriod", secondHalfPeriod)).collect(),
-      ctx.db.query("saved_bonuses_data").withIndex("byPeriod", q => q.eq("scoringPeriod", fullYearPeriod)).collect()
-    ]);
-    const bonusesData = [...bonusesFirstHalf, ...bonusesSecondHalf, ...bonusesFullYear];
 
     // Group data by MDA name
     const mdaDataMap: { [key: string]: any } = {};
@@ -2388,6 +2350,50 @@ export const getAllMdaSavedDataForDashboard = query({
       mysteryByMda[key].push(data);
     });
 
+    // Build once — previously rebuilt inside every MDA loop (major CPU cost).
+    const dedupedMysteryQuestions: MysteryQuestionForScore[] = [];
+    const seenQuestionText = new Set<string>();
+    for (const question of uniqueMysteryQuestions) {
+      const key = String(question.questionText || question.questionId)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+      if (seenQuestionText.has(key)) continue;
+      seenQuestionText.add(key);
+      dedupedMysteryQuestions.push({
+        questionId: question.questionId,
+        questionText: question.questionText,
+        weight: question.weight,
+        answerType: question.answerType,
+        order: question.order,
+      });
+    }
+    const mysteryQuestionsByTypeId = new Map<string, MysteryQuestionForScore[]>();
+    const mysteryQuestionsByTypeIdLower = new Map<string, MysteryQuestionForScore[]>();
+    for (const question of uniqueMysteryQuestions) {
+      const typeId = String(question.typeId || "");
+      const mapped: MysteryQuestionForScore = {
+        questionId: question.questionId,
+        questionText: question.questionText,
+        weight: question.weight,
+        answerType: question.answerType,
+        order: question.order,
+      };
+      if (!mysteryQuestionsByTypeId.has(typeId)) mysteryQuestionsByTypeId.set(typeId, []);
+      mysteryQuestionsByTypeId.get(typeId)!.push(mapped);
+      const lower = typeId.toLowerCase();
+      if (!mysteryQuestionsByTypeIdLower.has(lower)) mysteryQuestionsByTypeIdLower.set(lower, []);
+      mysteryQuestionsByTypeIdLower.get(lower)!.push(mapped);
+    }
+    const questionsForType = (typeId: string): MysteryQuestionForScore[] => {
+      if (!typeId) return [];
+      return (
+        mysteryQuestionsByTypeId.get(typeId) ||
+        mysteryQuestionsByTypeIdLower.get(typeId.toLowerCase()) ||
+        []
+      );
+    };
+
     Object.entries(mysteryByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
@@ -2408,38 +2414,6 @@ export const getAllMdaSavedDataForDashboard = query({
         mergeProgrammeMetricExclusions(mdaName, rawExcludedForMda)
       );
       const exemptQuestionIds = exemptMysteryQuestionIds(excludedForMda);
-
-      const questionsForType = (typeId: string): MysteryQuestionForScore[] => {
-        let matched = uniqueMysteryQuestions.filter((question) => question.typeId === typeId);
-        if (matched.length === 0 && typeId) {
-          matched = uniqueMysteryQuestions.filter(
-            (question) => String(question.typeId).toLowerCase() === typeId.toLowerCase()
-          );
-        }
-        return matched.map((question) => ({
-          questionId: question.questionId,
-          questionText: question.questionText,
-          weight: question.weight,
-          answerType: question.answerType,
-        }));
-      };
-
-      const dedupedMysteryQuestions: MysteryQuestionForScore[] = [];
-      const seenQuestionText = new Set<string>();
-      for (const question of uniqueMysteryQuestions) {
-        const key = String(question.questionText || question.questionId)
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, " ")
-          .trim();
-        if (seenQuestionText.has(key)) continue;
-        seenQuestionText.add(key);
-        dedupedMysteryQuestions.push({
-          questionId: question.questionId,
-          questionText: question.questionText,
-          weight: question.weight,
-          answerType: question.answerType,
-        });
-      }
 
       const avgScore =
         exemptQuestionIds.size > 0
@@ -2484,14 +2458,7 @@ export const getAllMdaSavedDataForDashboard = query({
       // Complete only when every configured question for the chosen type has a rating
       // on every saved period row (so MDAs don't treat a partial save as final).
       const complete = dataList.every((d) => {
-        const typeId = String(d.mysteryType || "");
-        let typeQuestions = uniqueMysteryQuestions.filter((q) => q.typeId === typeId);
-        // Fallback: some older rows store typeName instead of typeId
-        if (typeQuestions.length === 0) {
-          typeQuestions = uniqueMysteryQuestions.filter(
-            (q) => String(q.typeId).toLowerCase() === typeId.toLowerCase()
-          );
-        }
+        const typeQuestions = questionsForType(String(d.mysteryType || ""));
         if (typeQuestions.length === 0) {
           // Can't verify against config — treat as NOT fully scored.
           return false;
@@ -2504,23 +2471,16 @@ export const getAllMdaSavedDataForDashboard = query({
       });
 
       const typeMax = (() => {
-        const typeId = dataList[0]?.mysteryType;
+        const typeId = String(dataList[0]?.mysteryType || "");
         if (!typeId) return mysteryTotal;
-        const sum = uniqueMysteryQuestions
-          .filter((q) => q.typeId === typeId)
-          .reduce((s, q) => s + (q.weight || 0), 0);
+        const sum = questionsForType(typeId).reduce((s, q) => s + (q.weight || 0), 0);
         return sum > 0 ? sum : mysteryTotal;
       })();
 
       // Per-question contribution for the public tracker (from the latest/full-year row).
       const primaryMystery = dataList.find((d) => d.scoringPeriod === fullYearPeriod) || dataList[0];
       const mysteryTypeId = String(primaryMystery?.mysteryType || "");
-      let typeQuestions = uniqueMysteryQuestions.filter((q) => q.typeId === mysteryTypeId);
-      if (typeQuestions.length === 0 && mysteryTypeId) {
-        typeQuestions = uniqueMysteryQuestions.filter(
-          (q) => String(q.typeId).toLowerCase() === mysteryTypeId.toLowerCase()
-        );
-      }
+      const typeQuestions = questionsForType(mysteryTypeId);
       const ratings = (primaryMystery?.ratings || {}) as Record<string, number>;
       const visibleQuestions = typeQuestions.filter(
         (question) => !isTestingServiceQuestionExempt(question, exemptQuestionIds)

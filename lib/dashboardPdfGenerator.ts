@@ -2,10 +2,10 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 import {
-  getNewlyOnboardedExemptEntry,
+  getRankingExemptEntry,
   isExcludedFromDashboardReport,
-  isNewlyOnboardedExemptMda,
-  NEWLY_ONBOARDED_EXEMPT_MDAS,
+  isRankingExemptMda,
+  RANKING_EXEMPT_MDAS,
   NEWLY_ONBOARDED_EXEMPT_NOTE,
 } from "./dashboardReportExclusions";
 import { formatMdaNameForBeepaReport } from "./beepaTrackerRoster";
@@ -266,10 +266,10 @@ export async function generateDashboardPDF({
       }));
 
     const rankedPool = allMdasArray.filter(
-      (mda) => !isNewlyOnboardedExemptMda(mda?.mdaName || mda?.name || "")
+      (mda) => !isRankingExemptMda(mda?.mdaName || mda?.name || "")
     );
-    const onboardedFromData = allMdasArray.filter((mda) =>
-      isNewlyOnboardedExemptMda(mda?.mdaName || mda?.name || "")
+    const exemptFromData = allMdasArray.filter((mda) =>
+      isRankingExemptMda(mda?.mdaName || mda?.name || "")
     );
 
     const sortedRanked = preserveOrder
@@ -285,24 +285,26 @@ export async function generateDashboardPDF({
           return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
         });
 
-    // Always list all five newly onboarded agencies at the bottom (stub if missing from data).
-    const usedOnboarded = new Set<string>();
-    const onboardedBottom = NEWLY_ONBOARDED_EXEMPT_MDAS.map((entry) => {
-      const existing = onboardedFromData.find((mda) => {
-        const match = getNewlyOnboardedExemptEntry(mda?.mdaName || "");
+    // Always list ranking-exempt agencies at the bottom (stub if missing from data).
+    const usedExempt = new Set<string>();
+    const onboardedBottom = RANKING_EXEMPT_MDAS.map((entry) => {
+      const existing = exemptFromData.find((mda) => {
+        const match = getRankingExemptEntry(mda?.mdaName || "");
         if (!match || match.abbreviation !== entry.abbreviation) return false;
-        if (usedOnboarded.has(match.abbreviation)) return false;
+        if (usedExempt.has(match.abbreviation)) return false;
         return true;
       });
       if (existing) {
-        usedOnboarded.add(entry.abbreviation);
+        usedExempt.add(entry.abbreviation);
         return {
           ...existing,
           mdaName: `${entry.abbreviation} - ${entry.name}`,
+          rankingExemptNote: entry.note,
         };
       }
       return {
         mdaName: `${entry.abbreviation} - ${entry.name}`,
+        rankingExemptNote: entry.note,
       };
     });
 
@@ -436,7 +438,7 @@ export async function generateDashboardPDF({
           dashCell(),
           ...emptyPenalties,
           ...emptyBonuses,
-          NEWLY_ONBOARDED_EXEMPT_NOTE,
+          mda.rankingExemptNote || NEWLY_ONBOARDED_EXEMPT_NOTE,
         ]);
       });
     } else if (selectedMetric === "totalScore") {
@@ -495,7 +497,7 @@ export async function generateDashboardPDF({
           "—",
           "—",
           "—",
-          NEWLY_ONBOARDED_EXEMPT_NOTE,
+          mda.rankingExemptNote || NEWLY_ONBOARDED_EXEMPT_NOTE,
         ]);
       });
     } else {
