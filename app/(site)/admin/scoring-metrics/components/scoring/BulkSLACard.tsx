@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
@@ -75,39 +75,7 @@ const STATUS_CLASS: Record<MdaResult["status"], string> = {
   error: "bg-rose-100 text-rose-800",
 };
 
-const SLA_STATUS_LABEL: Record<string, string> = {
-  scored: "SLA scored",
-  failed: "SLA failed",
-  missing: "No upload",
-  none: "Uploaded · not scored",
-};
-
 const CHUNK_SIZE = 3;
-const PREVIEW_CHUNK = 40;
-
-type SubmissionPreviewRow = {
-  mdaName: string;
-  months: Array<{
-    monthKey: string;
-    monthName: string;
-    year: number;
-    submittedAt: number | null;
-    reportCount: number;
-    fileName: string | null;
-    slaStatus: "scored" | "failed" | "missing" | "none";
-  }>;
-};
-
-function formatSubmittedAt(ts: number | null): string {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleString("en-NG", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 type Props = {
   scoringPeriod: string;
@@ -127,118 +95,19 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
   const [showDetails, setShowDetails] = useState(false);
   const [expandedMda, setExpandedMda] = useState<string | null>(null);
   const [confirmLatest, setConfirmLatest] = useState(false);
-  const [selectedMdas, setSelectedMdas] = useState<string[]>([]);
-  const [mdaFilter, setMdaFilter] = useState("");
-  const [showSubmissionDates, setShowSubmissionDates] = useState(false);
-  const [datesExpandedMda, setDatesExpandedMda] = useState<string | null>(null);
-  const [submissionPreviewRows, setSubmissionPreviewRows] = useState<SubmissionPreviewRow[]>([]);
-  const [submissionPreviewTruncated, setSubmissionPreviewTruncated] = useState(false);
-  const [loadingSubmissionDates, setLoadingSubmissionDates] = useState(false);
-  const [submissionDatesError, setSubmissionDatesError] = useState<string | null>(null);
-  const previewRequestId = useRef(0);
-
-  const previewBulkSlaSubmissions = useAction(api.bulkSlaScoring.previewBulkSlaSubmissions);
 
   const uniqueMdaNames = useMemo(
-    () => Array.from(new Set(mdaNames.map((n) => n.trim()).filter(Boolean))).sort((a, b) =>
-      a.localeCompare(b),
-    ),
+    () =>
+      Array.from(new Set(mdaNames.map((n) => n.trim()).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
     [mdaNames],
   );
 
-  const didInitSelection = useRef(false);
-  // Default: all selected on first load; later only drop names that disappeared.
-  useEffect(() => {
-    setSelectedMdas((prev) => {
-      if (uniqueMdaNames.length === 0) return [];
-      if (!didInitSelection.current) {
-        didInitSelection.current = true;
-        return uniqueMdaNames;
-      }
-      const allowed = new Set(uniqueMdaNames);
-      return prev.filter((name) => allowed.has(name));
-    });
-  }, [uniqueMdaNames]);
-
-  const filteredMdaNames = useMemo(() => {
-    const q = mdaFilter.trim().toLowerCase();
-    if (!q) return uniqueMdaNames;
-    return uniqueMdaNames.filter((name) => name.toLowerCase().includes(q));
-  }, [uniqueMdaNames, mdaFilter]);
-
-  const selectedSet = useMemo(() => new Set(selectedMdas), [selectedMdas]);
-  const selectedCount = selectedMdas.length;
-
-  const loadSubmissionDates = async (names: string[]) => {
-    const requestId = ++previewRequestId.current;
-    setLoadingSubmissionDates(true);
-    setSubmissionDatesError(null);
-    setSubmissionPreviewRows([]);
-    setSubmissionPreviewTruncated(false);
-
-    try {
-      const allRows: SubmissionPreviewRow[] = [];
-      let truncated = false;
-      for (let i = 0; i < names.length; i += PREVIEW_CHUNK) {
-        const chunk = names.slice(i, i + PREVIEW_CHUNK);
-        const result = await previewBulkSlaSubmissions({
-          scoringPeriod,
-          mdaNames: chunk,
-        });
-        if (requestId !== previewRequestId.current) return;
-        allRows.push(...result.rows);
-        truncated = truncated || result.truncated;
-      }
-      if (requestId !== previewRequestId.current) return;
-      setSubmissionPreviewRows(allRows);
-      setSubmissionPreviewTruncated(truncated);
-    } catch (err) {
-      if (requestId !== previewRequestId.current) return;
-      const message = err instanceof Error ? err.message : "Failed to load submission dates";
-      setSubmissionDatesError(message);
-      toast.error(message);
-    } finally {
-      if (requestId === previewRequestId.current) {
-        setLoadingSubmissionDates(false);
-      }
-    }
-  };
-
-  const toggleSubmissionDates = () => {
-    if (showSubmissionDates) {
-      previewRequestId.current += 1;
-      setShowSubmissionDates(false);
-      setLoadingSubmissionDates(false);
-      setSubmissionDatesError(null);
-      return;
-    }
-    if (selectedMdas.length === 0) {
-      toast.error("Select at least one MDA");
-      return;
-    }
-    setShowSubmissionDates(true);
-    void loadSubmissionDates(selectedMdas);
-  };
-
-  const toggleMda = (name: string) => {
-    setSelectedMdas((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
-  };
-
-  const selectAllFiltered = () => {
-    setSelectedMdas((prev) => Array.from(new Set([...prev, ...filteredMdaNames])));
-  };
-
-  const clearFiltered = () => {
-    const drop = new Set(filteredMdaNames);
-    setSelectedMdas((prev) => prev.filter((n) => !drop.has(n)));
-  };
-
   const execute = async (dryRun: boolean, mode: RunMode) => {
-    const targetMdas = selectedMdas.filter(Boolean);
+    const targetMdas = uniqueMdaNames;
     if (targetMdas.length === 0) {
-      toast.error("Select at least one MDA");
+      toast.error("No MDAs available to score");
       return;
     }
 
@@ -355,14 +224,13 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Scale className="w-4 h-4 text-sky-700" />
-          Run Service Level Agreement (selected MDAs)
+          Run Service Level Agreement (all MDAs)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-gray-600">
           Scores SLA from reform-champion Excel uploads for{" "}
-          <strong>{selectedCount}</strong> selected of <strong>{uniqueMdaNames.length}</strong> MDAs in{" "}
-          <strong>{scoringPeriod}</strong>
+          <strong>{uniqueMdaNames.length}</strong> MDAs in <strong>{scoringPeriod}</strong>
           {context ? (
             <>
               {" "}
@@ -372,197 +240,6 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
           ) : null}
           . Always uses the <strong>latest upload</strong> when a month was submitted more than once.
         </p>
-
-        <div className="rounded-md border border-sky-200 bg-white p-3 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-medium text-gray-800">Select MDAs</p>
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px]"
-                disabled={running !== null}
-                onClick={selectAllFiltered}
-              >
-                Select shown
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px]"
-                disabled={running !== null}
-                onClick={clearFiltered}
-              >
-                Clear shown
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px]"
-                disabled={running !== null}
-                onClick={() => setSelectedMdas(uniqueMdaNames)}
-              >
-                Select all
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-[11px]"
-                disabled={running !== null}
-                onClick={() => setSelectedMdas([])}
-              >
-                Clear all
-              </Button>
-            </div>
-          </div>
-          <input
-            type="search"
-            value={mdaFilter}
-            onChange={(e) => setMdaFilter(e.target.value)}
-            placeholder="Filter MDAs…"
-            className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs"
-            disabled={running !== null}
-          />
-          <div className="max-h-40 overflow-auto rounded border border-gray-100 divide-y">
-            {filteredMdaNames.map((name) => (
-              <label
-                key={name}
-                className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-gray-800 hover:bg-sky-50 cursor-pointer"
-              >
-                <Checkbox
-                  checked={selectedSet.has(name)}
-                  onCheckedChange={() => toggleMda(name)}
-                  disabled={running !== null}
-                />
-                <span className="truncate">{name}</span>
-              </label>
-            ))}
-            {filteredMdaNames.length === 0 && (
-              <p className="px-2 py-2 text-[11px] text-gray-500">No MDAs match this filter.</p>
-            )}
-          </div>
-          <p className="text-[11px] text-gray-500">
-            {selectedCount} selected
-            {mdaFilter.trim() ? ` · showing ${filteredMdaNames.length}` : ""}
-          </p>
-        </div>
-
-        <div className="rounded-md border border-slate-200 bg-white p-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-gray-800">Submission dates</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-[11px]"
-              disabled={running !== null || selectedCount === 0 || loadingSubmissionDates}
-              onClick={toggleSubmissionDates}
-            >
-              {loadingSubmissionDates ? (
-                <>
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Loading…
-                </>
-              ) : showSubmissionDates ? (
-                "Hide dates"
-              ) : (
-                "Show dates for selected"
-              )}
-            </Button>
-          </div>
-          {showSubmissionDates && (
-            <>
-              {submissionPreviewTruncated && (
-                <p className="text-[11px] text-amber-800">
-                  Preview capped at {PREVIEW_CHUNK} MDAs per request. Deselect some if needed.
-                </p>
-              )}
-              {loadingSubmissionDates && (
-                <p className="text-[11px] text-gray-500 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Loading submission dates…
-                </p>
-              )}
-              {submissionDatesError && !loadingSubmissionDates && (
-                <p className="text-[11px] text-rose-700">{submissionDatesError}</p>
-              )}
-              {!loadingSubmissionDates && !submissionDatesError && submissionPreviewRows.length > 0 && (
-                <div className="max-h-56 overflow-auto rounded border">
-                  <table className="w-full text-[11px]">
-                    <thead className="sticky top-0 bg-gray-50 text-left text-gray-600">
-                      <tr>
-                        <th className="px-2 py-1.5 font-medium">MDA</th>
-                        <th className="px-2 py-1.5 font-medium">Uploads</th>
-                        <th className="px-2 py-1.5 font-medium">Latest submit</th>
-                        <th className="px-2 py-1.5 font-medium" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {submissionPreviewRows.map((row) => {
-                        const withUpload = row.months.filter((m) => m.submittedAt);
-                        const latestTs = withUpload.reduce(
-                          (max, m) => Math.max(max, m.submittedAt ?? 0),
-                          0,
-                        );
-                        return (
-                          <Fragment key={row.mdaName}>
-                            <tr className="border-t align-top">
-                              <td className="px-2 py-1.5 font-medium text-gray-900">{row.mdaName}</td>
-                              <td className="px-2 py-1.5 text-gray-600">
-                                {withUpload.length}/{row.months.length} months
-                              </td>
-                              <td className="px-2 py-1.5 text-gray-600">
-                                {latestTs ? formatSubmittedAt(latestTs) : "—"}
-                              </td>
-                              <td className="px-2 py-1.5">
-                                <button
-                                  type="button"
-                                  className="text-sky-700 hover:underline"
-                                  onClick={() =>
-                                    setDatesExpandedMda((cur) =>
-                                      cur === row.mdaName ? null : row.mdaName,
-                                    )
-                                  }
-                                >
-                                  {datesExpandedMda === row.mdaName ? "Hide months" : "Months"}
-                                </button>
-                              </td>
-                            </tr>
-                            {datesExpandedMda === row.mdaName &&
-                              row.months.map((m) => (
-                                <tr
-                                  key={`${row.mdaName}-${m.monthKey}`}
-                                  className="border-t bg-slate-50/80 align-top"
-                                >
-                                  <td className="px-2 py-1 pl-6 text-gray-600" colSpan={2}>
-                                    {m.monthName} {m.year}
-                                    {m.reportCount > 1 ? ` · ${m.reportCount} uploads` : ""}
-                                    {m.fileName ? (
-                                      <span className="block text-[10px] text-gray-400 truncate max-w-[16rem]">
-                                        {m.fileName}
-                                      </span>
-                                    ) : null}
-                                  </td>
-                                  <td className="px-2 py-1 text-gray-700">
-                                    {formatSubmittedAt(m.submittedAt)}
-                                  </td>
-                                  <td className="px-2 py-1 text-gray-600">
-                                    {SLA_STATUS_LABEL[m.slaStatus] ?? m.slaStatus}
-                                  </td>
-                                </tr>
-                              ))}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </div>
 
         <label className="flex items-center gap-2 text-xs text-gray-700">
           <Checkbox
@@ -580,7 +257,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
             variant="outline"
             size="sm"
             className="flex-1 border-sky-300 text-sky-800 hover:bg-sky-100"
-            disabled={running !== null || selectedCount === 0}
+            disabled={running !== null || uniqueMdaNames.length === 0}
             onClick={() => execute(true, "full")}
           >
             {running === "dry" && runMode === "full" ? (
@@ -589,7 +266,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
               </>
             ) : (
               <>
-                <Eye className="w-4 h-4 mr-2" /> Preview selected (no save)
+                <Eye className="w-4 h-4 mr-2" /> Preview all (no save)
               </>
             )}
           </Button>
@@ -597,7 +274,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
             type="button"
             size="sm"
             className="flex-1 bg-sky-700 hover:bg-sky-800"
-            disabled={running !== null || selectedCount === 0}
+            disabled={running !== null || uniqueMdaNames.length === 0}
             onClick={() => execute(false, "full")}
           >
             {running === "live" && runMode === "full" ? (
@@ -606,7 +283,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
               </>
             ) : (
               <>
-                <PlayCircle className="w-4 h-4 mr-2" /> Run &amp; save for selected
+                <PlayCircle className="w-4 h-4 mr-2" /> Run &amp; save all
               </>
             )}
           </Button>
@@ -617,7 +294,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
           <p className="text-[11px] text-amber-900/90 leading-relaxed">
             Keeps months that already scored successfully. Only processes months that are missing or whose last
             score failed — those are re-scored from the latest upload. Successful months are not re-scored even
-            if a newer file was uploaded later. Runs only for the MDAs you selected above.
+            if a newer file was uploaded later.
           </p>
 
           {!confirmLatest ? (
@@ -626,18 +303,18 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
               size="sm"
               variant="outline"
               className="w-full border-amber-400 text-amber-950 hover:bg-amber-100"
-              disabled={running !== null || selectedCount === 0}
+              disabled={running !== null || uniqueMdaNames.length === 0}
               onClick={() => setConfirmLatest(true)}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
-              Ask: update latest / unscored months for selected?
+              Ask: update latest / unscored months?
             </Button>
           ) : (
             <div className="space-y-2 rounded border border-amber-300 bg-white p-2">
               <p className="text-[11px] text-gray-700">
                 Confirm: only score missing or previously failed months for{" "}
-                <strong>{selectedCount}</strong> selected MDA{selectedCount === 1 ? "" : "s"} in{" "}
-                <strong>{scoringPeriod}</strong>? Months that already succeeded stay unchanged.
+                <strong>{uniqueMdaNames.length}</strong> MDAs in <strong>{scoringPeriod}</strong>? Months that
+                already succeeded stay unchanged.
               </p>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button
@@ -695,7 +372,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
             <Progress value={progress} className="h-2" />
             <p className="text-[11px] text-gray-500">
               {progress}% — {runMode === "latest" ? "updating latest months" : "processing"}{" "}
-              {selectedCount} MDA{selectedCount === 1 ? "" : "s"} in batches of {CHUNK_SIZE}
+              {uniqueMdaNames.length} MDA{uniqueMdaNames.length === 1 ? "" : "s"} in batches of {CHUNK_SIZE}
             </p>
           </div>
         )}

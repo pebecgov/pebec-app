@@ -169,6 +169,11 @@ export const runBulkSlaScoringChunk = action({
      * Successful months are left alone even if a newer file exists.
      */
     updateLatestOnly: v.optional(v.boolean()),
+    /**
+     * Only use uploads with submittedAt <= this timestamp.
+     * Per month, picks the latest file still on/before the cutoff.
+     */
+    submittedBefore: v.optional(v.number()),
   },
   returns: v.object({
     dryRun: v.boolean(),
@@ -195,6 +200,7 @@ export const runBulkSlaScoringChunk = action({
     const dryRun = args.dryRun ?? false;
     const overwriteExisting = args.overwriteExisting ?? false;
     const updateLatestOnly = args.updateLatestOnly ?? false;
+    const submittedBefore = args.submittedBefore;
 
     const actor = await ctx.runQuery(internal.bulkSlaScoring.getActorForBulkSla, {});
     if (!actor || (actor.role !== "admin" && actor.role !== "staff")) {
@@ -279,6 +285,7 @@ export const runBulkSlaScoringChunk = action({
           mdaName,
           scoringPeriod: args.scoringPeriod,
           months: context.months.map(({ month, year }) => ({ month, year })),
+          submittedBefore,
         });
 
         for (const month of context.months) {
