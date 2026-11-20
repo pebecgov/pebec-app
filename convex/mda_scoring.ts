@@ -2136,7 +2136,7 @@ export const getAllMdaSavedDataForDashboard = query({
         ? [fullYearPeriod]
         : [firstHalfPeriod, secondHalfPeriod, fullYearPeriod];
 
-    const collectByPeriods = async <T>(
+    const collectByPeriods = async (
       table:
         | "mda_sla_data"
         | "mda_mystery_shopping_data"
@@ -2151,7 +2151,7 @@ export const getAllMdaSavedDataForDashboard = query({
         | "saved_others_data"
         | "saved_penalties_data"
         | "saved_bonuses_data"
-    ): Promise<T[]> => {
+    ): Promise<any[]> => {
       const batches = await Promise.all(
         scoringPeriods.map((period) =>
           ctx.db
@@ -2160,7 +2160,7 @@ export const getAllMdaSavedDataForDashboard = query({
             .collect()
         )
       );
-      return batches.flat() as T[];
+      return batches.flat();
     };
 
     // Fetch every metric table in parallel (was sequential batches → easy to blow the 1s query limit).
@@ -2365,6 +2365,7 @@ export const getAllMdaSavedDataForDashboard = query({
         questionText: question.questionText,
         weight: question.weight,
         answerType: question.answerType,
+        order: question.order,
       });
     }
     const mysteryQuestionsByTypeId = new Map<string, MysteryQuestionForScore[]>();
@@ -2376,6 +2377,7 @@ export const getAllMdaSavedDataForDashboard = query({
         questionText: question.questionText,
         weight: question.weight,
         answerType: question.answerType,
+        order: question.order,
       };
       if (!mysteryQuestionsByTypeId.has(typeId)) mysteryQuestionsByTypeId.set(typeId, []);
       mysteryQuestionsByTypeId.get(typeId)!.push(mapped);
