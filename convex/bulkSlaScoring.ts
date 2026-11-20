@@ -8,6 +8,7 @@ import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import {
   buildExclusionLookup,
+  buildMonthlyReportFileRefs,
   normalizeMdaKey,
   splitMdaNameForMatch,
 } from "./mda_scoring";
@@ -80,6 +81,130 @@ export const getBulkSlaContext = query({
         monthKey: `${year}-${month}`,
       })),
     };
+  },
+});
+
+const PREVIEW_MDA_LIMIT = 25;
+
+/**
+ * Submission dates for selected MDAs (latest upload per month) + current SLA month status.
+ * Cap the list so the query stays under Convex's 1s limit.
+ */
+export const getBulkSlaSubmissionPreview = query({
+  args: {
+    scoringPeriod: v.string(),
+    mdaNames: v.array(v.string()),
+  },
+  returns: v.object({
+    truncated: v.boolean(),
+    rows: v.array(
+      v.object({
+        mdaName: v.string(),
+        months: v.array(
+          v.object({
+            monthKey: v.string(),
+            monthName: v.string(),
+            year: v.number(),
+            submittedAt: v.union(v.number(), v.null()),
+            reportCount: v.number(),
+            fileName: v.union(v.string(), v.null()),
+            slaStatus: v.union(
+              v.literal("scored"),
+              v.literal("failed"),
+              v.literal("missing"),
+              v.literal("none"),
+            ),
+          }),
+        ),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized");
+    }
+
+    const uniqueNames = Array.from(
+      new Set(args.mdaNames.map((n) => n.trim()).filter(Boolean)),
+    );
+    const truncated = uniqueNames.length > PREVIEW_MDA_LIMIT;
+    const mdaNames = uniqueNames.slice(0, PREVIEW_MDA_LIMIT);
+
+    const window = await resolveScoringWindow(ctx, args.scoringPeriod, "yearToDate");
+    const monthDefs = window.monthsToCheck.map(({ month, year }) => ({
+      month,
+      year,
+      monthName: MONTH_NAMES[month] ?? `Month ${month + 1}`,
+      monthKey: `${year}-${month}`,
+    }));
+
+    const rows: Array<{
+      mdaName: string;
+      months: Array<{
+        monthKey: string;
+        monthName: string;
+        year: number;
+        submittedAt: number | null;
+        reportCount: number;
+        fileName: string | null;
+        slaStatus: "scored" | "failed" | "missing" | "none";
+      }>;
+    }> = [];
+
+    for (const mdaName of mdaNames) {
+      const refs = await buildMonthlyReportFileRefs(ctx, {
+        mdaName,
+        scoringPeriod: args.scoringPeriod,
+        months: monthDefs.map(({ month, year }) => ({ month, year })),
+        includeFileSize: false,
+      });
+
+      const existing = await ctx.db
+        .query("mda_sla_data")
+        .withIndex("byMdaAndPeriod", (q) =>
+          q.eq("mdaName", mdaName).eq("scoringPeriod", args.scoringPeriod),
+        )
+        .first();
+      const monthlySla =
+        existing?.monthlySlaData && typeof existing.monthlySlaData === "object"
+          ? (existing.monthlySlaData as Record<string, any>)
+          : {};
+
+      rows.push({
+        mdaName,
+        months: monthDefs.map((m) => {
+          const ref = refs[m.monthKey];
+          const entry = monthlySla[m.monthKey];
+          const checkStatus = entry?.check?.status;
+          let slaStatus: "scored" | "failed" | "missing" | "none" = "none";
+          if (checkStatus === "failed") slaStatus = "failed";
+          else if (
+            entry &&
+            (checkStatus === "success" ||
+              checkStatus === "partial_success" ||
+              typeof entry.score === "number" ||
+              typeof entry.overallPercentage === "number")
+          ) {
+            slaStatus = "scored";
+          } else if (!ref) {
+            slaStatus = "missing";
+          }
+
+          return {
+            monthKey: m.monthKey,
+            monthName: m.monthName,
+            year: m.year,
+            submittedAt: ref?.submittedAt ?? null,
+            reportCount: ref?.reportCount ?? 0,
+            fileName: ref?.fileName ?? null,
+            slaStatus,
+          };
+        }),
+      });
+    }
+
+    return { truncated, rows };
   },
 });
 

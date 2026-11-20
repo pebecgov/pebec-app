@@ -637,6 +637,49 @@ export const getMonthlyReportFileRef = internalQuery({
   },
 });
 
+export type MonthlyReportFileRef = {
+  fileId?: Id<"_storage">;
+  fileName?: string;
+  fileSize: number | null;
+  submittedAt: number;
+  reportCount: number;
+};
+
+/** Shared helper — latest upload per month, keyed by `${year}-${month}`. */
+export async function buildMonthlyReportFileRefs(
+  ctx: QueryCtx,
+  args: {
+    mdaName: string;
+    scoringPeriod: string;
+    months: Array<{ month: number; year: number }>;
+    /** Skip storage size lookup (faster for bulk date previews). */
+    includeFileSize?: boolean;
+  }
+): Promise<Record<string, MonthlyReportFileRef>> {
+  const monthlyData = await loadRealMonthlyReports(ctx, {
+    mdaName: args.mdaName,
+    scoringPeriod: args.scoringPeriod,
+  });
+  const refs: Record<string, MonthlyReportFileRef> = {};
+  const includeFileSize = args.includeFileSize !== false;
+  for (const { month, year } of args.months) {
+    const monthName = new Date(year, month, 1).toLocaleString("default", { month: "long" });
+    const entry = monthlyData.find((m) => m.month === monthName && m.year === year);
+    if (!entry?.submitted || entry.reports.length === 0) continue;
+    const latest = [...entry.reports].sort((a, b) => b.submittedAt - a.submittedAt)[0]!;
+    const meta =
+      includeFileSize && latest.fileId ? await ctx.db.system.get(latest.fileId) : null;
+    refs[`${year}-${month}`] = {
+      fileId: latest.fileId,
+      fileName: latest.fileName,
+      fileSize: meta?.size ?? null,
+      submittedAt: latest.submittedAt,
+      reportCount: entry.reports.length,
+    };
+  }
+  return refs;
+}
+
 // Same as getMonthlyReportFileRef but for every month in one pass, keyed by `${year}-${month}`.
 export const getMonthlyReportFileRefs = internalQuery({
   args: {
@@ -655,32 +698,12 @@ export const getMonthlyReportFileRefs = internalQuery({
     })
   ),
   handler: async (ctx, { mdaName, scoringPeriod, months }) => {
-    const monthlyData = await loadRealMonthlyReports(ctx, { mdaName, scoringPeriod });
-    const refs: Record<
-      string,
-      {
-        fileId?: Id<"_storage">;
-        fileName?: string;
-        fileSize: number | null;
-        submittedAt: number;
-        reportCount: number;
-      }
-    > = {};
-    for (const { month, year } of months) {
-      const monthName = new Date(year, month, 1).toLocaleString("default", { month: "long" });
-      const entry = monthlyData.find((m) => m.month === monthName && m.year === year);
-      if (!entry?.submitted || entry.reports.length === 0) continue;
-      const latest = [...entry.reports].sort((a, b) => b.submittedAt - a.submittedAt)[0]!;
-      const meta = latest.fileId ? await ctx.db.system.get(latest.fileId) : null;
-      refs[`${year}-${month}`] = {
-        fileId: latest.fileId,
-        fileName: latest.fileName,
-        fileSize: meta?.size ?? null,
-        submittedAt: latest.submittedAt,
-        reportCount: entry.reports.length,
-      };
-    }
-    return refs;
+    return await buildMonthlyReportFileRefs(ctx, {
+      mdaName,
+      scoringPeriod,
+      months,
+      includeFileSize: true,
+    });
   },
 });
 
