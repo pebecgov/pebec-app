@@ -3,16 +3,27 @@
  * File processing lives in `bulkSlaScoringActions.ts` ("use node").
  */
 import { v } from "convex/values";
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import {
   buildExclusionLookup,
-  buildMonthlyReportFileRefs,
   normalizeMdaKey,
   splitMdaNameForMatch,
 } from "./mda_scoring";
-import { MONTH_NAMES, resolveScoringWindow } from "./utils/efficiencyScoring";
+import { mdaNamesMatch } from "./lib/resolveMda";
+import {
+  MONTH_NAMES,
+  filterReportsToWindow,
+  resolveScoringWindow,
+} from "./utils/efficiencyScoring";
 
 const DEFAULT_SLA_POINTS = 30;
 
@@ -84,62 +95,254 @@ export const getBulkSlaContext = query({
   },
 });
 
-const PREVIEW_MDA_LIMIT = 25;
+/** Max MDAs the preview action will process in one call. */
+const PREVIEW_MDA_LIMIT = 60;
 
-/**
- * Submission dates for selected MDAs (latest upload per month) + current SLA month status.
- * Cap the list so the query stays under Convex's 1s limit.
- */
-export const getBulkSlaSubmissionPreview = query({
-  args: {
-    scoringPeriod: v.string(),
-    mdaNames: v.array(v.string()),
-  },
+const submissionMonthValidator = v.object({
+  monthKey: v.string(),
+  monthName: v.string(),
+  year: v.number(),
+  submittedAt: v.union(v.number(), v.null()),
+  reportCount: v.number(),
+  fileName: v.union(v.string(), v.null()),
+  slaStatus: v.union(
+    v.literal("scored"),
+    v.literal("failed"),
+    v.literal("missing"),
+    v.literal("none"),
+  ),
+});
+
+const submissionPreviewReturns = v.object({
+  truncated: v.boolean(),
+  rows: v.array(
+    v.object({
+      mdaName: v.string(),
+      months: v.array(submissionMonthValidator),
+    }),
+  ),
+});
+
+type PreviewReport = {
+  _id: string;
+  mdaName?: string;
+  submittedAt: number;
+  fileName?: string;
+  reportPeriodMonth?: number;
+  reportPeriodYear?: number;
+};
+
+type SlaMonthStatus = "scored" | "failed" | "missing" | "none";
+
+function resolveMonthKey(
+  report: PreviewReport,
+): string {
+  if (
+    typeof report.reportPeriodMonth === "number" &&
+    typeof report.reportPeriodYear === "number"
+  ) {
+    return `${report.reportPeriodYear}-${report.reportPeriodMonth}`;
+  }
+  const d = new Date(report.submittedAt);
+  return `${d.getFullYear()}-${d.getMonth()}`;
+}
+
+function slaStatusForMonth(
+  entry: any | undefined,
+  hasUpload: boolean,
+): SlaMonthStatus {
+  const checkStatus = entry?.check?.status;
+  if (checkStatus === "failed") return "failed";
+  if (
+    entry &&
+    (checkStatus === "success" ||
+      checkStatus === "partial_success" ||
+      typeof entry.score === "number" ||
+      typeof entry.overallPercentage === "number")
+  ) {
+    return "scored";
+  }
+  if (!hasUpload) return "missing";
+  return "none";
+}
+
+function buildPreviewRows(args: {
+  mdaNames: string[];
+  monthDefs: Array<{ month: number; year: number; monthName: string; monthKey: string }>;
+  windowReports: PreviewReport[];
+  slaByMda: Record<string, Record<string, any>>;
+}) {
+  const monthKeySet = new Set(args.monthDefs.map((m) => m.monthKey));
+  return args.mdaNames.map((mdaName) => {
+    const matched = args.windowReports.filter(
+      (report) => !!report.mdaName && mdaNamesMatch(mdaName, report.mdaName),
+    );
+    const byMonth = new Map<
+      string,
+      { submittedAt: number; reportCount: number; fileName: string | null }
+    >();
+    for (const report of matched) {
+      const monthKey = resolveMonthKey(report);
+      if (!monthKeySet.has(monthKey)) continue;
+      const prev = byMonth.get(monthKey);
+      if (!prev || report.submittedAt >= prev.submittedAt) {
+        byMonth.set(monthKey, {
+          submittedAt: report.submittedAt,
+          reportCount: (prev?.reportCount ?? 0) + 1,
+          fileName: report.fileName ?? null,
+        });
+      } else {
+        byMonth.set(monthKey, { ...prev, reportCount: prev.reportCount + 1 });
+      }
+    }
+
+    const monthlySla = args.slaByMda[mdaName] ?? {};
+    return {
+      mdaName,
+      months: args.monthDefs.map((m) => {
+        const ref = byMonth.get(m.monthKey);
+        return {
+          monthKey: m.monthKey,
+          monthName: m.monthName,
+          year: m.year,
+          submittedAt: ref?.submittedAt ?? null,
+          reportCount: ref?.reportCount ?? 0,
+          fileName: ref?.fileName ?? null,
+          slaStatus: slaStatusForMonth(monthlySla[m.monthKey], !!ref),
+        };
+      }),
+    };
+  });
+}
+
+/** Window + lookback for the action-driven preview. */
+export const getBulkSlaPreviewMeta = internalQuery({
+  args: { scoringPeriod: v.string() },
   returns: v.object({
-    truncated: v.boolean(),
-    rows: v.array(
+    lookbackStart: v.number(),
+    startDate: v.number(),
+    endDate: v.number(),
+    monthsToCheck: v.array(v.object({ month: v.number(), year: v.number() })),
+    months: v.array(
       v.object({
-        mdaName: v.string(),
-        months: v.array(
-          v.object({
-            monthKey: v.string(),
-            monthName: v.string(),
-            year: v.number(),
-            submittedAt: v.union(v.number(), v.null()),
-            reportCount: v.number(),
-            fileName: v.union(v.string(), v.null()),
-            slaStatus: v.union(
-              v.literal("scored"),
-              v.literal("failed"),
-              v.literal("missing"),
-              v.literal("none"),
-            ),
-          }),
-        ),
+        month: v.number(),
+        year: v.number(),
+        monthName: v.string(),
+        monthKey: v.string(),
       }),
     ),
   }),
   handler: async (ctx, args) => {
-    const user = await getCurrentUserOrThrow(ctx);
-    if (user.role !== "admin" && user.role !== "staff") {
-      throw new Error("Unauthorized");
-    }
-
-    const uniqueNames = Array.from(
-      new Set(args.mdaNames.map((n) => n.trim()).filter(Boolean)),
-    );
-    const truncated = uniqueNames.length > PREVIEW_MDA_LIMIT;
-    const mdaNames = uniqueNames.slice(0, PREVIEW_MDA_LIMIT);
-
     const window = await resolveScoringWindow(ctx, args.scoringPeriod, "yearToDate");
-    const monthDefs = window.monthsToCheck.map(({ month, year }) => ({
-      month,
-      year,
-      monthName: MONTH_NAMES[month] ?? `Month ${month + 1}`,
-      monthKey: `${year}-${month}`,
-    }));
+    const earliestMonthStart = Math.min(
+      ...window.monthsToCheck.map(({ month, year }) => Date.UTC(year, month, 1)),
+    );
+    return {
+      lookbackStart: Math.max(0, earliestMonthStart - 1000 * 60 * 60 * 24 * 45),
+      startDate: window.startDate,
+      endDate: window.endDate,
+      monthsToCheck: window.monthsToCheck,
+      months: window.monthsToCheck.map(({ month, year }) => ({
+        month,
+        year,
+        monthName: MONTH_NAMES[month] ?? `Month ${month + 1}`,
+        monthKey: `${year}-${month}`,
+      })),
+    };
+  },
+});
 
-    const rows: Array<{
+/** Paginated reform-champion reports — keeps each query under the 1s limit. */
+export const pageReformReportsForPreview = internalQuery({
+  args: {
+    lookbackStart: v.number(),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.object({
+    reports: v.array(
+      v.object({
+        _id: v.string(),
+        mdaName: v.optional(v.string()),
+        submittedAt: v.number(),
+        fileName: v.optional(v.string()),
+        reportPeriodMonth: v.optional(v.number()),
+        reportPeriodYear: v.optional(v.number()),
+      }),
+    ),
+    continueCursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("submitted_reports")
+      .withIndex("byDate", (q) => q.gte("submittedAt", args.lookbackStart))
+      .paginate({ numItems: 150, cursor: args.cursor });
+
+    const reports = page.page
+      .filter((r) => r.role === "reform_champion" && !r.isDraft)
+      .map((r) => ({
+        _id: String(r._id),
+        mdaName: r.mdaName,
+        submittedAt: r.submittedAt,
+        fileName: r.fileName,
+        reportPeriodMonth: r.reportPeriodMonth,
+        reportPeriodYear: r.reportPeriodYear,
+      }));
+
+    return {
+      reports,
+      continueCursor: page.isDone ? null : page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
+
+export const getSlaMonthlyForPreview = internalQuery({
+  args: {
+    scoringPeriod: v.string(),
+    mdaNames: v.array(v.string()),
+  },
+  returns: v.array(
+    v.object({
+      mdaName: v.string(),
+      monthlySlaData: v.any(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const out: Array<{ mdaName: string; monthlySlaData: Record<string, any> }> = [];
+    for (const mdaName of args.mdaNames.slice(0, PREVIEW_MDA_LIMIT)) {
+      const existing = await ctx.db
+        .query("mda_sla_data")
+        .withIndex("byMdaAndPeriod", (q) =>
+          q.eq("mdaName", mdaName).eq("scoringPeriod", args.scoringPeriod),
+        )
+        .first();
+      out.push({
+        mdaName,
+        monthlySlaData:
+          existing?.monthlySlaData && typeof existing.monthlySlaData === "object"
+            ? (existing.monthlySlaData as Record<string, any>)
+            : {},
+      });
+    }
+    return out;
+  },
+});
+
+/**
+ * Submission-date preview for selected MDAs.
+ * Runs as an action so report loading can paginate past the 1s query limit
+ * (the old query timed out by scanning all reports once per MDA).
+ */
+export const previewBulkSlaSubmissions = action({
+  args: {
+    scoringPeriod: v.string(),
+    mdaNames: v.array(v.string()),
+  },
+  returns: submissionPreviewReturns,
+  handler: async (ctx, args): Promise<{
+    truncated: boolean;
+    rows: Array<{
       mdaName: string;
       months: Array<{
         monthKey: string;
@@ -148,63 +351,101 @@ export const getBulkSlaSubmissionPreview = query({
         submittedAt: number | null;
         reportCount: number;
         fileName: string | null;
-        slaStatus: "scored" | "failed" | "missing" | "none";
+        slaStatus: SlaMonthStatus;
       }>;
-    }> = [];
+    }>;
+  }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
 
-    for (const mdaName of mdaNames) {
-      const refs = await buildMonthlyReportFileRefs(ctx, {
-        mdaName,
-        scoringPeriod: args.scoringPeriod,
-        months: monthDefs.map(({ month, year }) => ({ month, year })),
-        includeFileSize: false,
-      });
-
-      const existing = await ctx.db
-        .query("mda_sla_data")
-        .withIndex("byMdaAndPeriod", (q) =>
-          q.eq("mdaName", mdaName).eq("scoringPeriod", args.scoringPeriod),
-        )
-        .first();
-      const monthlySla =
-        existing?.monthlySlaData && typeof existing.monthlySlaData === "object"
-          ? (existing.monthlySlaData as Record<string, any>)
-          : {};
-
-      rows.push({
-        mdaName,
-        months: monthDefs.map((m) => {
-          const ref = refs[m.monthKey];
-          const entry = monthlySla[m.monthKey];
-          const checkStatus = entry?.check?.status;
-          let slaStatus: "scored" | "failed" | "missing" | "none" = "none";
-          if (checkStatus === "failed") slaStatus = "failed";
-          else if (
-            entry &&
-            (checkStatus === "success" ||
-              checkStatus === "partial_success" ||
-              typeof entry.score === "number" ||
-              typeof entry.overallPercentage === "number")
-          ) {
-            slaStatus = "scored";
-          } else if (!ref) {
-            slaStatus = "missing";
-          }
-
-          return {
-            monthKey: m.monthKey,
-            monthName: m.monthName,
-            year: m.year,
-            submittedAt: ref?.submittedAt ?? null,
-            reportCount: ref?.reportCount ?? 0,
-            fileName: ref?.fileName ?? null,
-            slaStatus,
-          };
-        }),
-      });
+    const uniqueNames = Array.from(
+      new Set(args.mdaNames.map((n) => n.trim()).filter(Boolean)),
+    );
+    if (uniqueNames.length === 0) {
+      return { truncated: false, rows: [] };
     }
 
-    return { truncated, rows };
+    const truncated = uniqueNames.length > PREVIEW_MDA_LIMIT;
+    const mdaNames = uniqueNames.slice(0, PREVIEW_MDA_LIMIT);
+
+    const meta: {
+      lookbackStart: number;
+      startDate: number;
+      endDate: number;
+      monthsToCheck: Array<{ month: number; year: number }>;
+      months: Array<{ month: number; year: number; monthName: string; monthKey: string }>;
+    } = await ctx.runQuery(internal.bulkSlaScoring.getBulkSlaPreviewMeta, {
+      scoringPeriod: args.scoringPeriod,
+    });
+
+    const collected: PreviewReport[] = [];
+    let cursor: string | null = null;
+    let isDone = false;
+    let pages = 0;
+    while (!isDone && pages < 40) {
+      const page: {
+        reports: PreviewReport[];
+        continueCursor: string | null;
+        isDone: boolean;
+      } = await ctx.runQuery(internal.bulkSlaScoring.pageReformReportsForPreview, {
+        lookbackStart: meta.lookbackStart,
+        cursor,
+      });
+      collected.push(...page.reports);
+      cursor = page.continueCursor;
+      isDone = page.isDone;
+      pages += 1;
+    }
+
+    const windowReports = filterReportsToWindow(collected, {
+      targetYear: 0,
+      startDate: meta.startDate,
+      endDate: meta.endDate,
+      monthsToCheck: meta.monthsToCheck,
+      usedDynamicPeriod: false,
+    });
+
+    const slaRows: Array<{ mdaName: string; monthlySlaData: Record<string, any> }> =
+      await ctx.runQuery(internal.bulkSlaScoring.getSlaMonthlyForPreview, {
+        scoringPeriod: args.scoringPeriod,
+        mdaNames,
+      });
+    const slaByMda: Record<string, Record<string, any>> = {};
+    for (const row of slaRows) {
+      slaByMda[row.mdaName] = row.monthlySlaData ?? {};
+    }
+
+    return {
+      truncated,
+      rows: buildPreviewRows({
+        mdaNames,
+        monthDefs: meta.months,
+        windowReports,
+        slaByMda,
+      }),
+    };
+  },
+});
+
+/**
+ * @deprecated Prefer previewBulkSlaSubmissions action — kept so old clients don't crash.
+ * Only accepts a tiny chunk; still may timeout on large report tables.
+ */
+export const getBulkSlaSubmissionPreview = query({
+  args: {
+    scoringPeriod: v.string(),
+    mdaNames: v.array(v.string()),
+  },
+  returns: submissionPreviewReturns,
+  handler: async (ctx, args) => {
+    const user = await getCurrentUserOrThrow(ctx);
+    if (user.role !== "admin" && user.role !== "staff") {
+      throw new Error("Unauthorized");
+    }
+    // Force clients onto the action path — return empty so UI must use the action.
+    // (Returning an error breaks useQuery consumers.)
+    void args;
+    return { truncated: true, rows: [] };
   },
 });
 

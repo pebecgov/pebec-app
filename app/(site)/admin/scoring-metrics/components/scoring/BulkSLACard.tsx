@@ -83,7 +83,20 @@ const SLA_STATUS_LABEL: Record<string, string> = {
 };
 
 const CHUNK_SIZE = 3;
-const PREVIEW_LIMIT = 25;
+const PREVIEW_CHUNK = 40;
+
+type SubmissionPreviewRow = {
+  mdaName: string;
+  months: Array<{
+    monthKey: string;
+    monthName: string;
+    year: number;
+    submittedAt: number | null;
+    reportCount: number;
+    fileName: string | null;
+    slaStatus: "scored" | "failed" | "missing" | "none";
+  }>;
+};
 
 function formatSubmittedAt(ts: number | null): string {
   if (!ts) return "—";
@@ -118,6 +131,13 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
   const [mdaFilter, setMdaFilter] = useState("");
   const [showSubmissionDates, setShowSubmissionDates] = useState(false);
   const [datesExpandedMda, setDatesExpandedMda] = useState<string | null>(null);
+  const [submissionPreviewRows, setSubmissionPreviewRows] = useState<SubmissionPreviewRow[]>([]);
+  const [submissionPreviewTruncated, setSubmissionPreviewTruncated] = useState(false);
+  const [loadingSubmissionDates, setLoadingSubmissionDates] = useState(false);
+  const [submissionDatesError, setSubmissionDatesError] = useState<string | null>(null);
+  const previewRequestId = useRef(0);
+
+  const previewBulkSlaSubmissions = useAction(api.bulkSlaScoring.previewBulkSlaSubmissions);
 
   const uniqueMdaNames = useMemo(
     () => Array.from(new Set(mdaNames.map((n) => n.trim()).filter(Boolean))).sort((a, b) =>
@@ -149,17 +169,56 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
   const selectedSet = useMemo(() => new Set(selectedMdas), [selectedMdas]);
   const selectedCount = selectedMdas.length;
 
-  const previewNames = useMemo(
-    () => selectedMdas.slice(0, PREVIEW_LIMIT),
-    [selectedMdas],
-  );
+  const loadSubmissionDates = async (names: string[]) => {
+    const requestId = ++previewRequestId.current;
+    setLoadingSubmissionDates(true);
+    setSubmissionDatesError(null);
+    setSubmissionPreviewRows([]);
+    setSubmissionPreviewTruncated(false);
 
-  const submissionPreview = useQuery(
-    api.bulkSlaScoring.getBulkSlaSubmissionPreview,
-    showSubmissionDates && previewNames.length > 0
-      ? { scoringPeriod, mdaNames: previewNames }
-      : "skip",
-  );
+    try {
+      const allRows: SubmissionPreviewRow[] = [];
+      let truncated = false;
+      for (let i = 0; i < names.length; i += PREVIEW_CHUNK) {
+        const chunk = names.slice(i, i + PREVIEW_CHUNK);
+        const result = await previewBulkSlaSubmissions({
+          scoringPeriod,
+          mdaNames: chunk,
+        });
+        if (requestId !== previewRequestId.current) return;
+        allRows.push(...result.rows);
+        truncated = truncated || result.truncated;
+      }
+      if (requestId !== previewRequestId.current) return;
+      setSubmissionPreviewRows(allRows);
+      setSubmissionPreviewTruncated(truncated);
+    } catch (err) {
+      if (requestId !== previewRequestId.current) return;
+      const message = err instanceof Error ? err.message : "Failed to load submission dates";
+      setSubmissionDatesError(message);
+      toast.error(message);
+    } finally {
+      if (requestId === previewRequestId.current) {
+        setLoadingSubmissionDates(false);
+      }
+    }
+  };
+
+  const toggleSubmissionDates = () => {
+    if (showSubmissionDates) {
+      previewRequestId.current += 1;
+      setShowSubmissionDates(false);
+      setLoadingSubmissionDates(false);
+      setSubmissionDatesError(null);
+      return;
+    }
+    if (selectedMdas.length === 0) {
+      toast.error("Select at least one MDA");
+      return;
+    }
+    setShowSubmissionDates(true);
+    void loadSubmissionDates(selectedMdas);
+  };
 
   const toggleMda = (name: string) => {
     setSelectedMdas((prev) =>
@@ -400,25 +459,36 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
               size="sm"
               variant="outline"
               className="h-7 text-[11px]"
-              disabled={running !== null || selectedCount === 0}
-              onClick={() => setShowSubmissionDates((v) => !v)}
+              disabled={running !== null || selectedCount === 0 || loadingSubmissionDates}
+              onClick={toggleSubmissionDates}
             >
-              {showSubmissionDates ? "Hide dates" : "Show dates for selected"}
+              {loadingSubmissionDates ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Loading…
+                </>
+              ) : showSubmissionDates ? (
+                "Hide dates"
+              ) : (
+                "Show dates for selected"
+              )}
             </Button>
           </div>
           {showSubmissionDates && (
             <>
-              {selectedCount > PREVIEW_LIMIT && (
+              {submissionPreviewTruncated && (
                 <p className="text-[11px] text-amber-800">
-                  Showing the first {PREVIEW_LIMIT} selected MDAs (select fewer for a full preview).
+                  Preview capped at {PREVIEW_CHUNK} MDAs per request. Deselect some if needed.
                 </p>
               )}
-              {submissionPreview === undefined && (
+              {loadingSubmissionDates && (
                 <p className="text-[11px] text-gray-500 flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" /> Loading submission dates…
                 </p>
               )}
-              {submissionPreview && (
+              {submissionDatesError && !loadingSubmissionDates && (
+                <p className="text-[11px] text-rose-700">{submissionDatesError}</p>
+              )}
+              {!loadingSubmissionDates && !submissionDatesError && submissionPreviewRows.length > 0 && (
                 <div className="max-h-56 overflow-auto rounded border">
                   <table className="w-full text-[11px]">
                     <thead className="sticky top-0 bg-gray-50 text-left text-gray-600">
@@ -430,7 +500,7 @@ export default function BulkSLACard({ scoringPeriod, mdaNames }: Props) {
                       </tr>
                     </thead>
                     <tbody>
-                      {submissionPreview.rows.map((row) => {
+                      {submissionPreviewRows.map((row) => {
                         const withUpload = row.months.filter((m) => m.submittedAt);
                         const latestTs = withUpload.reduce(
                           (max, m) => Math.max(max, m.submittedAt ?? 0),
