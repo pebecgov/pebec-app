@@ -20,4 +20,12 @@ crons.cron("monthlyMdaReportComplianceClose", "0 22 * * *", internal.public_mda_
 // Prune stale anonymous tracker presence rows (every 5 minutes).
 crons.interval("pruneTrackerPresence", { minutes: 5 }, internal.tracker_presence.pruneStale);
 
+// Refresh public MDA tracker cache so anonymous visits don't rebuild the full dashboard.
+crons.interval(
+  "refreshPublicMdaScoresCache",
+  { minutes: 15 },
+  internal.public_scores.refreshPublicMdaScoresCache,
+  {},
+);
+
 export default crons;

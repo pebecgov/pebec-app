@@ -804,7 +804,11 @@ export const getStorageUrl = mutation({
   }) => {
     const url = await ctx.storage.getUrl(storageId);
     if (!url) return null;
-    const fileRecord = await ctx.db.query("uploaded_files").filter(q => q.eq(q.field("storageId"), storageId)).first();
+    // Indexed lookup — previously .filter scanned all uploaded_files (~64GB I/O).
+    const fileRecord = await ctx.db
+      .query("uploaded_files")
+      .withIndex("byStorageId", (q) => q.eq("storageId", storageId))
+      .first();
     return {
       url,
       fileName: fileRecord?.fileName || "downloaded_file"
