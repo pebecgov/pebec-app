@@ -93,7 +93,21 @@ export default function UserTicketForm({ guestMode = false }: { guestMode?: bool
     verificationCode: ""
   });
 
-  const emailCheckResult = useQuery(api.users.checkEmailExists, form.email && form.email.includes("@") ? { email: form.email } : "skip");
+  // Debounce email lookups so typing doesn't fire a Convex query per keystroke.
+  const [debouncedEmail, setDebouncedEmail] = useState("");
+  useEffect(() => {
+    const value = form.email.trim();
+    if (!value.includes("@")) {
+      setDebouncedEmail("");
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedEmail(value), 400);
+    return () => clearTimeout(timer);
+  }, [form.email]);
+  const emailCheckResult = useQuery(
+    api.users.checkEmailExists,
+    debouncedEmail ? { email: debouncedEmail } : "skip",
+  );
 
   useEffect(() => {
     if (userData && !guestMode) {

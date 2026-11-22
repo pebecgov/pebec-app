@@ -1149,7 +1149,14 @@ export default defineSchema({
     storageId: v.id("_storage"),
     fileName: v.string(),
     uploadedAt: v.number()
-  }),
+  }).index("byStorageId", ["storageId"]),
+
+  /** Cached public MDA tracker payload — avoids rebuilding the full dashboard per visitor. */
+  public_mda_scores_cache: defineTable({
+    year: v.number(),
+    payload: v.any(),
+    updatedAt: v.number(),
+  }).index("byYear", ["year"]),
   saber_reports: defineTable({
     submittedBy: v.id("users"),
     userName: v.string(),

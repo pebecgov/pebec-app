@@ -1680,13 +1680,12 @@ export const getTopAndBottomMdaPerformanceByMonth = query({
     to: v.number(),
   },
   handler: async (ctx, { from, to }) => {
+    // Use byCreatedAt so we only read tickets in the selected month
+    // (previously .filter scanned the entire tickets table → ~104GB I/O).
     const tickets = await ctx.db
       .query("tickets")
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("createdAt"), from),
-          q.lte(q.field("createdAt"), to),
-        ),
+      .withIndex("byCreatedAt", (q) =>
+        q.gte("createdAt", from).lte("createdAt", to),
       )
       .collect();
     const mdaMap: Record<

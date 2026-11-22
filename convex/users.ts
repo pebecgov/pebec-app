@@ -503,8 +503,23 @@ export const checkEmailExists = query({
   handler: async (ctx, {
     email
   }) => {
-    const user = await ctx.db.query("users").filter(q => q.eq(q.field("email"), email)).first();
-    return !!user;
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes("@")) return false;
+    // Use byEmail index — previously .filter scanned all users (~10GB I/O).
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byEmail", (q) => q.eq("email", trimmed))
+      .first();
+    if (user) return true;
+    const lower = trimmed.toLowerCase();
+    if (lower !== trimmed) {
+      const lowerMatch = await ctx.db
+        .query("users")
+        .withIndex("byEmail", (q) => q.eq("email", lower))
+        .first();
+      return !!lowerMatch;
+    }
+    return false;
   }
 });
 export const getTotalUsers = query({
