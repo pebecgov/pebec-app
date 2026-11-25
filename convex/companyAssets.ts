@@ -862,8 +862,9 @@ export const updateIssue = mutation({
     issueRemark: v.optional(v.string()),
     dateReturned: v.optional(v.string()),
     returnRemark: v.optional(v.string()),
-    undertakingStorageId: v.optional(v.id("_storage")),
-    undertakingFileName: v.optional(v.string()),
+    // Pass null to clear an existing undertaking file.
+    undertakingStorageId: v.optional(v.union(v.id("_storage"), v.null())),
+    undertakingFileName: v.optional(v.union(v.string(), v.null())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -889,13 +890,14 @@ export const updateIssue = mutation({
       patch.returnRemark = args.returnRemark.trim() || undefined;
     }
     if (args.undertakingStorageId !== undefined) {
+      const nextStorageId = args.undertakingStorageId ?? undefined;
       if (
         issue.undertakingStorageId &&
-        issue.undertakingStorageId !== args.undertakingStorageId
+        issue.undertakingStorageId !== nextStorageId
       ) {
         await ctx.storage.delete(issue.undertakingStorageId);
       }
-      patch.undertakingStorageId = args.undertakingStorageId;
+      patch.undertakingStorageId = nextStorageId;
     }
     if (args.undertakingFileName !== undefined) {
       patch.undertakingFileName = args.undertakingFileName || undefined;
@@ -903,5 +905,89 @@ export const updateIssue = mutation({
 
     await ctx.db.patch(args.issueId, patch);
     return null;
+  },
+});
+
+/**
+ * Move an issued property to another staff member.
+ * Closes the current issue (kept in history with its undertaking) and opens a new one.
+ */
+export const reassignAsset = mutation({
+  args: {
+    assetId: v.id("company_assets"),
+    assignToUserId: v.id("users"),
+    dateIssued: v.optional(v.string()),
+    issueRemark: v.optional(v.string()),
+    undertakingStorageId: v.optional(v.id("_storage")),
+    undertakingFileName: v.optional(v.string()),
+    returnRemark: v.optional(v.string()),
+  },
+  returns: v.id("company_asset_issues"),
+  handler: async (ctx, args) => {
+    const admin = await assertCanManageCompanyProperties(ctx);
+    const asset = await ctx.db.get(args.assetId);
+    if (!asset) {
+      throw new Error("Property not found");
+    }
+    if (asset.status !== "issued" || !asset.currentIssueId) {
+      throw new Error("This property is not currently issued");
+    }
+
+    const currentIssue = await ctx.db.get(asset.currentIssueId);
+    if (!currentIssue || currentIssue.isReturned) {
+      throw new Error("Current issue record not found");
+    }
+
+    const holder = await ctx.db.get(args.assignToUserId);
+    if (!holder) {
+      throw new Error("Selected staff member was not found");
+    }
+
+    if (currentIssue.userId === holder._id) {
+      throw new Error(
+        "This property is already with that staff member. Edit the current assignment instead.",
+      );
+    }
+
+    const now = Date.now();
+    const nextStaffName = displayName(holder);
+    const previousStaffName = currentIssue.staffName;
+    const transferDate = args.dateIssued?.trim() || todayIsoDate();
+
+    await ctx.db.patch(currentIssue._id, {
+      dateReturned: transferDate,
+      returnRemark:
+        args.returnRemark?.trim() ||
+        `Reassigned to ${nextStaffName}`,
+      isReturned: true,
+      returnedBy: admin._id,
+      returnedByName: displayName(admin),
+    });
+
+    const issueId = await ctx.db.insert("company_asset_issues", {
+      assetId: args.assetId,
+      userId: holder._id,
+      staffName: nextStaffName,
+      dateIssued: transferDate,
+      issueRemark:
+        args.issueRemark?.trim() ||
+        `Reassigned from ${previousStaffName}`,
+      isReturned: false,
+      undertakingStorageId: args.undertakingStorageId,
+      undertakingFileName: args.undertakingFileName,
+      issuedBy: admin._id,
+      issuedByName: displayName(admin),
+      createdAt: now,
+    });
+
+    await ctx.db.patch(args.assetId, {
+      status: "issued",
+      currentHolderUserId: holder._id,
+      currentHolderName: nextStaffName,
+      currentIssueId: issueId,
+      updatedAt: now,
+    });
+
+    return issueId;
   },
 });

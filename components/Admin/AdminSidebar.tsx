@@ -217,13 +217,30 @@ export default function Sidebar({
       </div>
 
       <nav className="mt-6 flex-grow overflow-y-hidden hover:overflow-y-auto">
+        {!shouldShowAllItems && (
+          <Link href="/staff" onClick={handleCloseSidebar}>
+            <div
+              className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-300 ${
+                pathname === "/staff" || pathname?.startsWith("/staff/")
+                  ? "bg-green-500 text-white hover:bg-green-600"
+                  : ""
+              }`}
+              title={!isOpen ? "Staff Dashboard" : undefined}
+            >
+              <HomeIcon className="w-5 h-5" />
+              <span className={`ml-4 ${isOpen ? "block" : "hidden"}`}>Staff Dashboard</span>
+            </div>
+          </Link>
+        )}
         {menuSections.filter(section => {
+          // Full admins see everything.
           if (shouldShowAllItems) return true;
-          if (section.path === "/admin/meeting-calendar") return true;
-          if (section.name === "Leave and Calendar") return true;
+          // Staff with extra admin permissions only see sections they were granted.
+          // Do not force Leave/Calendar here — that wrongly changes the nav for
+          // users who only have Company Properties (/admin/company-items).
           if (section.path) return allowedPaths.includes(section.path);
           if (section.items) {
-            return section.items.some(item => {
+            return section.items.some((item) => {
               if ("adminOnly" in item && item.adminOnly) return false;
               return allowedPaths.includes(item.path);
             });
@@ -253,9 +270,14 @@ export default function Sidebar({
               {section.items.filter(item => {
                 if ("adminOnly" in item && item.adminOnly && !shouldShowAllItems) return false;
                 return shouldShowAllItems || allowedPaths.includes(item.path);
-              }).map(item => <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
+              }).map(item => {
+                const isActive =
+                  pathname === item.path ||
+                  (item.path !== "/admin" && pathname?.startsWith(`${item.path}/`));
+                return (
+                <Link href={item.path} onClick={handleCloseSidebar} key={item.path}>
                 <div className={`pl-6 py-2 rounded-md transition-colors cursor-pointer flex items-center justify-between gap-2
-              ${pathname === item.path ? "bg-green-100 text-green-800 font-medium" : "text-gray-700 hover:bg-gray-100"}
+              ${isActive ? "bg-green-100 text-green-800 font-medium" : "text-gray-700 hover:bg-gray-100"}
             `}>
                   <span>{item.name}</span>
                   {"showPendingBadge" in item && item.showPendingBadge &&
@@ -266,11 +288,13 @@ export default function Sidebar({
                       </span>
                     )}
                 </div>
-              </Link>)}
+              </Link>
+                );
+              })}
             </div>}
 
           </div> : <Link href={section.path} onClick={handleCloseSidebar}>
-            <div className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100  transition-all duration-300 ${pathname === section.path ? "bg-green-500 text-white hover:bg-green-600" : ""}`} title={!isOpen ? section.name : undefined}>
+            <div className={`flex items-center p-4 rounded-lg cursor-pointer hover:bg-gray-100  transition-all duration-300 ${pathname === section.path || (section.path !== "/admin" && pathname?.startsWith(`${section.path}/`)) ? "bg-green-500 text-white hover:bg-green-600" : ""}`} title={!isOpen ? section.name : undefined}>
               {section.icon}
               <span className={`ml-4 ${isOpen ? "block" : "hidden"}`}>{section.name}</span>
             </div>
