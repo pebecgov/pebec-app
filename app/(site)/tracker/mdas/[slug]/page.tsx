@@ -12,12 +12,15 @@ import {
   SCORE_YEAR,
   SHOW_PUBLIC_MDA_REPORT_COMPLIANCE,
   getMdaAbbreviation,
-  getScoreStatus,
   scoreSlug,
   type BfaFrameworkMetric,
 } from "@/lib/scoreTracker";
 import { canonicalizeMdaName } from "@/lib/mdaNameAliases";
-import { matchBeepaTrackerRosterEntry } from "@/lib/beepaTrackerRoster";
+import {
+  beepaMaxPointsForMda,
+  matchBeepaTrackerRosterEntry,
+} from "@/lib/beepaTrackerRoster";
+import type { ScoreBreakdownLine } from "@/lib/bfaScoreBreakdowns";
 
 interface AdjustmentItem {
   id: string;
@@ -30,7 +33,18 @@ interface MdaScoreData {
   mdaName: string;
   finalScore: number;
   maxPossibleScore: number;
-  metricScores?: Record<string, { score: number; max: number; scored?: boolean; complete?: boolean }>;
+  metricScores?: Record<
+    string,
+    {
+      score: number;
+      max: number;
+      scored?: boolean;
+      complete?: boolean;
+      monthsWithData?: number;
+      totalMonths?: number;
+      percentage?: number;
+    }
+  >;
   othersBreakdown?: Array<{
     itemId: string;
     itemName: string;
@@ -42,6 +56,41 @@ interface MdaScoreData {
   bonusScore?: number;
   penaltyValues?: Record<string, boolean>;
   bonusValues?: Record<string, boolean>;
+  slaMonthIssues?: Array<{
+    monthKey: string;
+    monthLabel: string;
+    kind: "failed" | "missing" | "partial";
+    message: string;
+  }>;
+  scoreBreakdowns?: Record<
+    string,
+    Array<{
+      label: string;
+      value?: string;
+      points?: number;
+      maxPoints?: number;
+      explanation: string;
+    }>
+  >;
+  efficiencyMonthStatuses?: Record<
+    string,
+    Array<{
+      monthKey: string;
+      monthLabel: string;
+      status: "on_time" | "late" | "missing";
+      submitted: boolean;
+      onTime: boolean;
+    }>
+  >;
+  slaMonthStatuses?: Array<{
+    monthKey: string;
+    monthLabel: string;
+    status: "scored" | "failed" | "partial" | "missing";
+    points: number;
+    maxPoints: number;
+    percentage: number | null;
+    message: string;
+  }>;
   rank: number;
 }
 
@@ -85,7 +134,7 @@ export default function MdaSummaryPage() {
             href="/tracker/mdas"
             className="inline-flex items-center rounded-lg bg-[#006B3F] px-4 py-2 text-sm font-medium text-white hover:bg-[#005432]"
           >
-            Back to MDA Rankings
+            Back to MDAs
           </Link>
         </div>
       </div>
@@ -98,10 +147,14 @@ export default function MdaSummaryPage() {
   const beepaExempted =
     rosterEntry?.beepaExempted === true ||
     excluded.some((key) => key === "others" || key.startsWith("others:"));
+  const beepaMax = beepaMaxPointsForMda(selected.mdaName, abbreviation);
   const reports =
     (reportData?.mdas || []).find(
       (mda) => canonicalizeMdaName(mda.mdaName) === canonicalizeMdaName(selected.mdaName)
     ) ?? reportData?.mdas?.[0];
+  const testingServiceExempt = excluded.some(
+    (key) => key.startsWith("mysteryQuestion:") || key.startsWith("mysteryType:")
+  );
   const efficiencyKeys = new Set([
     "sla",
     "mystery",
@@ -128,39 +181,74 @@ export default function MdaSummaryPage() {
         (isBeepaMetric && beepaExempted);
       const scored = selected.metricScores?.[metric.key];
       const isScored = scored?.scored === true;
-      const isComplete = isScored && scored?.complete !== false;
+      const scoreValue = exempted ? 0 : (scored?.score ?? 0);
+      let maxValue = scored?.max ?? metric.max;
+      if (isBeepaMetric && !exempted) {
+        maxValue = beepaMax;
+      }
+      const showDetail = !exempted && (isScored || scoreValue > 0);
+
+      // Public tracker: SLA month grid only — no Report Gov / BEEPA score-math explanations.
+      let breakdown: ScoreBreakdownLine[] | undefined;
+      let monthStatuses:
+        | Array<{
+            monthKey: string;
+            monthLabel: string;
+            status: "on_time" | "late" | "missing" | "scored" | "failed" | "partial";
+            labelMode?: "timeliness" | "submission" | "sla";
+            points?: number;
+            maxPoints?: number;
+            percentage?: number | null;
+            message?: string;
+          }>
+        | undefined;
+
+      if (!exempted && metric.key === "sla") {
+        if (showDetail) {
+          breakdown = selected.scoreBreakdowns?.sla;
+        }
+        if (selected.slaMonthStatuses && selected.slaMonthStatuses.length > 0) {
+          monthStatuses = selected.slaMonthStatuses.map((month) => ({
+            ...month,
+            labelMode: "sla" as const,
+          }));
+        }
+      }
+
       return {
         name: metric.label,
-        score: exempted ? 0 : (scored?.score ?? 0),
-        maxScore: scored?.max ?? metric.max,
+        score: isBeepaMetric && !exempted ? Math.min(scoreValue, beepaMax) : scoreValue,
+        maxScore: maxValue,
+        displayMaxScore:
+          metric.key === "mystery" && testingServiceExempt ? metric.max : undefined,
         scored: exempted ? true : isScored,
-        complete: exempted ? true : isComplete,
+        // Never surface "Not scored fully" on the public tracker.
+        complete: true,
         badge: efficiencyKeys.has(metric.key) ? "Efficiency" : undefined,
-        justification: metric.justification,
+        // Admin metric justifications stay in admin scoring only — not on the public tracker.
+        justification:
+          metric.key === "mystery" && testingServiceExempt
+            ? "Testing Service is excluded. Mystery Shopping here is Phone Call and Email only."
+            : undefined,
         exempted,
+        scoreBreakdown: breakdown && breakdown.length > 0 ? breakdown : undefined,
+        monthStatuses,
       };
     });
-
-  const fullyScored = metrics
-    .filter((metric) => !metric.exempted)
-    .every((metric) => metric.scored === true && metric.complete !== false);
-  const status = fullyScored
-    ? getScoreStatus(selected.finalScore, selected.maxPossibleScore)
-    : null;
 
   return (
     <div>
       <SummaryHeader
         backHref="/tracker/mdas"
-        backLabel="Back to MDA Rankings"
+        backLabel="Back to MDAs"
         abbreviation={abbreviation}
         title={selected.mdaName}
-        description={`Rank #${selected.rank} of ${mdaData?.totalMdas || 0} MDAs`}
-        status={status}
         score={selected.finalScore}
         maxScore={selected.maxPossibleScore}
         scoreLabel="Overall BFA Score"
-        notScoredYet={!fullyScored}
+        scoreNote="Bonus points are included in this total"
+        hideScore
+        hideStatus
       />
       {beepaExempted && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -173,7 +261,13 @@ export default function MdaSummaryPage() {
           </div>
         </div>
       )}
-      <MetricBreakdown title="BFA Metrics" hint="Why each metric is scored (set by PEBEC admin)" metrics={metrics} hideStatus={!fullyScored} />
+      <MetricBreakdown
+        title="BFA Metrics"
+        hint="Click a metric for more detail where available"
+        metrics={metrics}
+        hideStatus
+        showMetricMaxOnly
+      />
       {SHOW_PUBLIC_MDA_REPORT_COMPLIANCE && reports && (
         <MonthlyReportsPanel
           mdaName={abbreviation ? `${abbreviation} - ${selected.mdaName}` : selected.mdaName}

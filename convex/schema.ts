@@ -332,6 +332,8 @@ export default defineSchema({
       v.literal("follow_up_view"),
       v.literal("follow_up_reply"),
       v.literal("follow_up_attach"),
+      v.literal("status_select"),
+      v.literal("ticket_select"),
       v.literal("collect_evidence")
     ),
     language: v.optional(
@@ -365,6 +367,28 @@ export default defineSchema({
     createdAt: v.number()
   }).index("byMessageSid", ["messageSid"]),
 
+  whatsapp_outbound: defineTable({
+    phone: v.string(),
+    ticketId: v.optional(v.id("tickets")),
+    kind: v.union(
+      v.literal("status"),
+      v.literal("needs_info"),
+      v.literal("rate_limited"),
+      v.literal("skipped_policy"),
+    ),
+    channel: v.union(
+      v.literal("session"),
+      v.literal("template"),
+      v.literal("none"),
+    ),
+    sent: v.boolean(),
+    error: v.optional(v.string()),
+    bodyPreview: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("byPhone_createdAt", ["phone", "createdAt"])
+    .index("byTicket_createdAt", ["ticketId", "createdAt"]),
+
   ticket_comments: defineTable({
     content: v.string(),
     ticketId: v.id("tickets"),
@@ -373,7 +397,9 @@ export default defineSchema({
     authorName: v.optional(v.string()),
     authorImage: v.optional(v.string()),
     createdAt: v.number(),
-    fileIds: v.optional(v.array(v.id("_storage")))
+    fileIds: v.optional(v.array(v.id("_storage"))),
+    /** Opt-in push to citizen WhatsApp ("needs info" / citizen update). */
+    notifyWhatsApp: v.optional(v.boolean()),
   }).index("byTicket", ["ticketId"]),
   ticket_internal_notes: defineTable({
     content: v.string(),
@@ -664,7 +690,7 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     reportPeriodMonth: v.optional(v.number()),
     reportPeriodYear: v.optional(v.number())
-  }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]),
+  }).index("byTemplate", ["templateId"]).index("bySubmittedBy", ["submittedBy"]).index("byDate", ["submittedAt"]).index("byDraft", ["isDraft"]).index("bySubmittedByAndDraft", ["submittedBy", "isDraft"]).index("byMdaName", ["mdaName"]).index("byMdaNameAndDraft", ["mdaName", "isDraft"]),
   tasks: defineTable({
     customTaskId: v.optional(v.string()), // Manual ID for the task
     title: v.string(),
@@ -886,6 +912,7 @@ export default defineSchema({
     materialType: v.optional(v.union(
       v.literal("general"),
       v.literal("final_results"),
+      v.literal("year2_results"),
       v.literal("prior_results")
     )),
     state: v.optional(v.string())
@@ -1122,7 +1149,14 @@ export default defineSchema({
     storageId: v.id("_storage"),
     fileName: v.string(),
     uploadedAt: v.number()
-  }),
+  }).index("byStorageId", ["storageId"]),
+
+  /** Cached public MDA tracker payload — avoids rebuilding the full dashboard per visitor. */
+  public_mda_scores_cache: defineTable({
+    year: v.number(),
+    payload: v.any(),
+    updatedAt: v.number(),
+  }).index("byYear", ["year"]),
   saber_reports: defineTable({
     submittedBy: v.id("users"),
     userName: v.string(),
@@ -1662,4 +1696,16 @@ export default defineSchema({
   })
     .index("byFrameworkYear", ["framework", "year"])
     .index("byFrameworkYearMetric", ["framework", "year", "metricKey"]),
+
+  /** Anonymous public tracker visitors (MDA + state) for admin live monitoring. */
+  tracker_presence: defineTable({
+    sessionId: v.string(),
+    path: v.string(),
+    section: v.union(v.literal("mdas"), v.literal("states"), v.literal("other")),
+    lastSeenAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_lastSeen", ["lastSeenAt"])
+    .index("by_section_lastSeen", ["section", "lastSeenAt"]),
 });

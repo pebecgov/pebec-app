@@ -21,12 +21,16 @@ import { Button } from "@/components/ui/button";
 import { useStateRankings } from "@/hooks/useStateRankings";
 import {
   CURRENT_INDICATOR_YEAR,
+  foldLandRegistrationPoints,
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
   getOverallMaxScoreForYear,
+  getSubIndicatorScore,
+  sumStateScoreRows,
 } from "@/convex/config/indicators";
 import { generateStateRankingPDF } from "@/lib/stateRankingPdfGenerator";
 import AnalysisTab from "@/components/Admin/AnalysisTab";
+import TrackerPresenceMonitor from "@/components/Admin/TrackerPresenceMonitor";
 import { generateStateIndicatorPDF, processStateScoresForIndicator } from "@/lib/stateIndicatorPdfGenerator";
 import { toast } from "sonner";
 import { stateRegions, geopoliticalRegions } from "@/lib/stateRegions";
@@ -238,13 +242,14 @@ const AnalyticsDashboard = () => {
 
     filteredScores.forEach(score => {
       if (statesInRegion.includes(score.state)) {
-        if (!stateScores[score.state]) {
-          stateScores[score.state] = 0;
+        if (!stateDetails[score.state]) {
           stateDetails[score.state] = [];
         }
-        stateScores[score.state] += score.score || 0;
         stateDetails[score.state].push(score);
       }
+    });
+    Object.entries(stateDetails).forEach(([state, rows]) => {
+      stateScores[state] = sumStateScoreRows(rows, ANALYTICS_YEAR);
     });
 
     // Convert to chart data format
@@ -995,9 +1000,16 @@ export default function StateScoringPage() {
       if (!indicatorScores[score.indicator]) {
         indicatorScores[score.indicator] = { total: 0, subMetrics: {} };
       }
-      indicatorScores[score.indicator].total += score.score ?? 0;
+      // Derive points from stored value so stale score:0 rows (e.g. GIS Yes) still reflect.
+      const points = getSubIndicatorScore(
+        score.indicator,
+        score.subIndicator,
+        score.value ?? "",
+        ANALYTICS_YEAR
+      );
+      indicatorScores[score.indicator].total += points;
       indicatorScores[score.indicator].subMetrics[score.subIndicator] = {
-        score: score.score ?? 0,
+        score: points,
         value: score.value,
         linkToSource: (score as any).linkToSource,
       };
@@ -1005,11 +1017,7 @@ export default function StateScoringPage() {
 
     return Object.entries(getIndicatorsForYear(ANALYTICS_YEAR)).map(([indicatorKey, config]) => {
       const indicatorData = indicatorScores[indicatorKey] || { total: 0, subMetrics: {} };
-      const totalScore = indicatorData.total;
-      const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
-      const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
-
-      // Build sub-metrics array
+      // Prefer recomputed sub-metric sum so totals stay consistent with values.
       const subMetrics = Object.entries(config.subIndicators).map(([subIndicatorKey, subIndicatorConfig]) => {
         const subMetricData = indicatorData.subMetrics[subIndicatorKey] || { score: 0 };
         const subMetricMaxScore = Math.max(
@@ -1026,6 +1034,14 @@ export default function StateScoringPage() {
           linkToSource: subMetricData.linkToSource,
         };
       });
+      const totalScore =
+        indicatorKey === "digitalizing_land_registration"
+          ? foldLandRegistrationPoints(
+              Object.fromEntries(subMetrics.map((sub) => [sub.subIndicator, sub.score]))
+            )
+          : subMetrics.reduce((sum, sub) => sum + (sub.score || 0), 0);
+      const maxScore = indicatorMaxScores[indicatorKey] ?? 0;
+      const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
       return {
         name: config.name,
@@ -1092,6 +1108,7 @@ export default function StateScoringPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">State Scoring & Rankings</h1>
           <p className="text-gray-600">Score states, analyze indicator performance, and view rankings.</p>
         </div>
+        <TrackerPresenceMonitor />
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Global State Filter</p>
@@ -1223,7 +1240,7 @@ export default function StateScoringPage() {
                     year={CURRENT_INDICATOR_YEAR}
                     metrics={stateJustificationMetrics}
                     title="State indicator justifications"
-                    description="These explanations appear on the public state tracker under each indicator and sub-indicator."
+                    description="Internal scoring notes for the team. They are not shown on the public state tracker."
                   />
                 </div>
               )}

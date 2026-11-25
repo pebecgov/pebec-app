@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import mysteryCallData from './BFA_MysteryCall_clean.json';
 import mysteryShoppingData from './UPDATED_MYSTERY_SHOPPING.json';
-import recommendationsData from './recommendations.json';
+import type { MdaRankingSummary } from './mdaRankingSummary';
 
 interface MdaDetailedData {
   mdaName: string;
@@ -10,44 +10,56 @@ interface MdaDetailedData {
   sla: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   mysteryShopping: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   controversial: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   toutingRentseeking: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   innovation: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   stakeholder: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   transparency: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   reportGovResolution: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   monthlyReport: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   timeliness: {
     firstHalf: any;
     secondHalf: any;
+    fullYear?: any;
   };
   position?: number | string;
+  /** Ranking-table totals — when present, the summary uses these instead of legacy math. */
+  rankingSummary?: MdaRankingSummary;
 }
 
 // Define interfaces for the import data
@@ -60,11 +72,6 @@ interface MysteryCallEntry {
   "DATE SENT": string;
   "TIME SENT": string;
   "DATE MDA RESPONDED": string;
-}
-
-interface RecommendationEntry {
-  agency: string;
-  recommendations: string[];
 }
 
 interface MysteryShoppingEntry {
@@ -150,6 +157,86 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   doc.text(reportTitle, pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 5;
 
+  // Live Dashboard ranking totals (2026+ = out of 100). Prefer these over legacy rebuilds.
+  const ranking = data.rankingSummary;
+  const useTableTotals =
+    !!ranking && (ranking.year >= 2026 || data.year >= 2026);
+
+  const buildRankingSummaryBody = (summary: MdaRankingSummary): string[][] => {
+    // Same labels/order as Live Dashboard columns (no lumped "Others").
+    const body: string[][] = [
+      ['SLA (Efficiency)', `${summary.slaScore.toFixed(1)}/${summary.slaMax}`],
+      ['Mystery Shopping', `${summary.mysteryScore.toFixed(1)}/${summary.mysteryMax}`],
+    ];
+    for (const line of summary.othersLines) {
+      body.push([
+        line.name,
+        line.excluded ? 'Excluded' : `${line.score.toFixed(1)}/${line.max}`,
+      ]);
+    }
+    body.push(
+      [
+        'Report Gov Resolution',
+        summary.reportGovSkipped
+          ? 'Skipped'
+          : `${summary.reportGovScore.toFixed(1)}/${summary.reportGovMax}`,
+      ],
+      ['Report Submission', `${summary.monthlyScore.toFixed(1)}/${summary.monthlyMax}`],
+      ['Timeliness', `${summary.timelinessScore.toFixed(1)}/${summary.timelinessMax}`],
+    );
+    for (const line of summary.penaltyLines) {
+      body.push([
+        `${line.name} (Penalty)`,
+        line.applied ? `−${Math.abs(line.value).toFixed(1)}` : '0.0',
+      ]);
+    }
+    for (const line of summary.bonusLines) {
+      body.push([
+        `${line.name} (Bonus)`,
+        line.applied ? `+${Math.abs(line.value).toFixed(1)}` : '0.0',
+      ]);
+    }
+    if (summary.penaltyLines.length === 0 && summary.penaltyScore > 0) {
+      body.push(['Penalties', `−${summary.penaltyScore.toFixed(1)}`]);
+    }
+    if (summary.bonusLines.length === 0 && summary.bonusScore > 0) {
+      body.push(['Bonuses', `+${summary.bonusScore.toFixed(1)}`]);
+    }
+    body.push(
+      ['', ''],
+      [
+        'Final Score',
+        `${summary.totalScore.toFixed(1)}/${summary.maxPossiblePoints}`,
+      ],
+    );
+    return body;
+  };
+
+  // Put table-matching overall first so PDF totals match the Live Dashboard (/100).
+  if (useTableTotals && ranking) {
+    autoTable(doc, {
+      startY: yPosition,
+      head: [['OVERALL SCORE SUMMARY (matches Live Dashboard)', '']],
+      body: buildRankingSummaryBody(ranking),
+      headStyles: {
+        fillColor: [25, 118, 210],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+      },
+      styles: { fontSize: 9 },
+      theme: 'striped',
+      didParseCell: (hookData: any) => {
+        if (hookData.section === 'body') {
+          const label = String(hookData.row.raw?.[0] || '');
+          if (label === 'OVERALL TOTAL' || label === 'Final Score' || label === 'Total Score' || label === 'Base Total Score') {
+            hookData.cell.styles.fontStyle = 'bold';
+          }
+        }
+      },
+    });
+    yPosition = (doc as any).lastAutoTable.finalY + 12;
+  }
+
   // Helper function to sort months Jan-Dec
   const sortMonthsByYearAndMonth = (entries: Array<[string, any]>): Array<[string, any]> => {
     return entries.sort(([a], [b]) => {
@@ -173,102 +260,130 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   ];
 
   // Service Level Agreement (SLA)
-  // Generate all 12 months for the year
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const slaTableData: string[][] = [];
 
-  // Collect all months with data
-  const monthlyData: { [key: string]: { percentage?: number; method?: string } } = {};
+  // 2026 SLA is stored on the full-year period; older years used 1st/2nd half.
+  const slaSources = [data.sla.fullYear, data.sla.firstHalf, data.sla.secondHalf].filter(Boolean);
 
-  if (data.sla.firstHalf?.monthlySlaData) {
-    Object.entries(data.sla.firstHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
-      if (value && (value.method === 'file' || value.method === 'rating')) {
-        monthlyData[key] = {
-          percentage: value.method === 'file' ? value.overallPercentage : (value.rating / 10) * 100,
-          method: value.method
-        };
-      }
+  // Collect all months with data (legacy rebuild path)
+  const monthlyData: { [key: string]: { percentage?: number; score?: number; method?: string } } = {};
+
+  const monthHasSlaData = (value: any): boolean => {
+    if (!value || typeof value !== 'object') return false;
+    if (value.method === 'file' && value.overallPercentage != null) return true;
+    if (value.method === 'rating' && (value.rating ?? 0) > 0) return true;
+    if (typeof value.score === 'number' && Number.isFinite(value.score) && value.score > 0) return true;
+    if (typeof value.overallPercentage === 'number') return true;
+    return false;
+  };
+
+  const monthDisplayValue = (value: {
+    percentage?: number;
+    score?: number;
+    method?: string;
+  }): string => {
+    if (typeof value.percentage === 'number' && Number.isFinite(value.percentage)) {
+      return `${value.percentage.toFixed(1)}%`;
+    }
+    if (typeof value.score === 'number' && Number.isFinite(value.score)) {
+      return `${value.score.toFixed(2)} pts`;
+    }
+    return 'Scored';
+  };
+
+  slaSources.forEach((source) => {
+    if (!source?.monthlySlaData || typeof source.monthlySlaData !== 'object') return;
+    Object.entries(source.monthlySlaData).forEach(([key, value]: [string, any]) => {
+      if (!monthHasSlaData(value)) return;
+      const percentage =
+        value.method === 'file'
+          ? value.overallPercentage
+          : value.method === 'rating'
+            ? (value.rating / 10) * 100
+            : typeof value.overallPercentage === 'number'
+              ? value.overallPercentage
+              : undefined;
+      monthlyData[key] = {
+        percentage,
+        score: typeof value.score === 'number' ? value.score : undefined,
+        method: value.method,
+      };
     });
-  }
+  });
 
-  if (data.sla.secondHalf?.monthlySlaData) {
-    Object.entries(data.sla.secondHalf.monthlySlaData).forEach(([key, value]: [string, any]) => {
-      if (value && (value.method === 'file' || value.method === 'rating')) {
-        monthlyData[key] = {
-          percentage: value.method === 'file' ? value.overallPercentage : (value.rating / 10) * 100,
-          method: value.method
-        };
-      }
-    });
-  }
-
-  // Calculate SLA score (used for both SLA table and Overall Summary) - Exclude November (10) and December (11)
+  // Calculate SLA score (legacy path) - Exclude November (10) and December (11)
   const slaAllMonthKeys = new Set<string>();
-  [data.sla.firstHalf, data.sla.secondHalf].forEach(half => {
-    if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
-      Object.keys(half.monthlySlaData).forEach(key => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11)
-        if (monthIndex === 10 || monthIndex === 11) return;
-
-        const monthData = half.monthlySlaData[key];
-        if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
-          slaAllMonthKeys.add(key);
-        }
-      });
-    }
-  });
-
-  const slaTotalMonthsWithData = slaAllMonthKeys.size;
-  // Recalculate sumTotalScore excluding November and December
   let slaSumTotalScore = 0;
-  [data.sla.firstHalf, data.sla.secondHalf].forEach(half => {
-    if (half?.monthlySlaData && typeof half.monthlySlaData === 'object') {
-      Object.entries(half.monthlySlaData).forEach(([key, monthData]: [string, any]) => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11)
-        if (monthIndex === 10 || monthIndex === 11) return;
-
-        if (monthData && ((monthData.method === 'file' && monthData.overallPercentage !== null) || (monthData.method === 'rating' && monthData.rating > 0))) {
-          // Calculate score for this month (5 points max per month)
-          if (monthData.method === 'file') {
-            slaSumTotalScore += (monthData.overallPercentage / 100) * 5;
-          } else if (monthData.method === 'rating') {
-            slaSumTotalScore += (monthData.rating / 10) * 5;
-          }
-        }
-      });
-    }
+  slaSources.forEach((source) => {
+    if (!source?.monthlySlaData || typeof source.monthlySlaData !== 'object') return;
+    Object.entries(source.monthlySlaData).forEach(([key, monthData]: [string, any]) => {
+      const monthIndex = parseInt(key.split('-')[1], 10);
+      if (monthIndex === 10 || monthIndex === 11) return;
+      if (!monthHasSlaData(monthData)) return;
+      slaAllMonthKeys.add(key);
+      if (typeof monthData.score === 'number' && Number.isFinite(monthData.score)) {
+        slaSumTotalScore += monthData.score;
+      } else if (monthData.method === 'file' && monthData.overallPercentage != null) {
+        slaSumTotalScore += (monthData.overallPercentage / 100) * 5;
+      } else if (monthData.method === 'rating') {
+        slaSumTotalScore += (monthData.rating / 10) * 5;
+      }
+    });
   });
-  const slaMaxPossibleRawScore = slaTotalMonthsWithData * 5;
-  const pointsPerMonth = 30 / 10; // Changed from 12 to 10 months
-  const slaMaxPossibleScoreForMonths = slaTotalMonthsWithData * pointsPerMonth;
-  const slaFinalScore = slaTotalMonthsWithData > 0 ? (slaSumTotalScore / slaMaxPossibleRawScore) * slaMaxPossibleScoreForMonths : 0;
 
-  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
-  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
-    const monthKey = `${data.year}-${monthIndex}`;
-    const monthName = monthNames[monthIndex];
-    const monthData = monthlyData[monthKey];
+  const slaTotalMonthsWithDataLegacy = slaAllMonthKeys.size;
+  const slaMaxPossibleRawScore = slaTotalMonthsWithDataLegacy * 5;
+  const pointsPerMonth = 30 / 10;
+  const slaMaxPossibleScoreForMonths = slaTotalMonthsWithDataLegacy * pointsPerMonth;
+  const slaFinalScore =
+    slaTotalMonthsWithDataLegacy > 0
+      ? (slaSumTotalScore / slaMaxPossibleRawScore) * slaMaxPossibleScoreForMonths
+      : 0;
 
-    if (monthData) {
-      slaTableData.push([`${monthName} ${data.year}`, `${monthData.percentage?.toFixed(1)}%`]);
-    } else {
-      slaTableData.push([`${monthName} ${data.year}`, 'No data']);
+  if (useTableTotals && ranking) {
+    for (const month of ranking.slaMonths) {
+      slaTableData.push([month.monthLabel, month.display]);
+    }
+  } else {
+    // Add only Jan-Oct months (legacy)
+    for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
+      const monthKey = `${data.year}-${monthIndex}`;
+      const monthName = monthNames[monthIndex];
+      const monthEntry = monthlyData[monthKey];
+      if (monthEntry) {
+        slaTableData.push([`${monthName} ${data.year}`, monthDisplayValue(monthEntry)]);
+      } else {
+        slaTableData.push([`${monthName} ${data.year}`, 'No data']);
+      }
     }
   }
 
-  // Add summary rows
-  slaTableData.push(['Total Score', `${slaFinalScore.toFixed(1)}/30 (${((slaFinalScore / 30) * 100).toFixed(1)}%)`]);
-  slaTableData.push(['Months with Data', `${slaTotalMonthsWithData}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+  const slaMaxForPdf = useTableTotals && ranking ? ranking.slaMax : 30;
+  const slaScoreForPdf = useTableTotals && ranking ? ranking.slaScore : slaFinalScore;
+  const slaMonthsWithDataForPdf =
+    useTableTotals && ranking
+      ? ranking.slaMonthsCounted
+      : slaTotalMonthsWithDataLegacy;
+  const slaMonthsTotalForPdf =
+    useTableTotals && ranking ? ranking.slaMonthsTotal || 10 : 10;
+
+  slaTableData.push([
+    'Total Score',
+    `${slaScoreForPdf.toFixed(1)}/${slaMaxForPdf}${
+      useTableTotals ? '' : ` (${((slaFinalScore / 30) * 100).toFixed(1)}%)`
+    }`,
+  ]);
+  slaTableData.push([
+    'Months with Data',
+    `${slaMonthsWithDataForPdf}/${slaMonthsTotalForPdf}`,
+  ]);
 
   // Only render SLA table if not an excluded MDA
   if (!isExcludedMDA) {
     autoTable(doc, {
       startY: yPosition,
-      head: [['1. Service Level Agreement (30 points)', 'Score']],
+      head: [[`1. Service Level Agreement (${slaMaxForPdf} points)`, 'Score']],
       body: slaTableData.slice(0, -2),
       headStyles: {
         fillColor: [41, 128, 185],
@@ -344,8 +459,8 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       });
 
       if (half.totalScore) avgTotalScore += half.totalScore;
-      // Mystery Shopping is always out of 20 points, regardless of question count
-      avgMaxScore = 20;
+      // Legacy mystery max was 20; 2026 Live Dashboard uses ranking.mysteryMax (typically 40).
+      avgMaxScore = useTableTotals && ranking ? ranking.mysteryMax : 20;
       if (half.percentage) avgPercentage += half.percentage;
     }
   });
@@ -353,21 +468,26 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   Object.entries(combinedRatings).forEach(([key, info]) => {
     const avgRating = info.values.reduce((sum, val) => sum + val, 0) / info.values.length;
     if (info.type === 'rating') {
-      const points = (avgRating / 5) * 1;
       const ratingLabel = avgRating === 0 ? '0' : (ratingLabels[Math.round(avgRating)] || avgRating.toFixed(1));
       mysteryTableData.push([info.label, `${ratingLabel}`]);
     } else {
       const answer = avgRating >= 0.5 ? 'Yes' : 'No';
-      const points = avgRating >= 0.5 ? 1 : 0;
       mysteryTableData.push([info.label, `${answer}`]);
     }
   });
 
   const finalMysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
   const finalMysteryPercentage = avgPercentage / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
+  const mysteryMaxForPdf = useTableTotals && ranking ? ranking.mysteryMax : 20;
+  const mysteryScoreForPdf = useTableTotals && ranking ? ranking.mysteryScore : finalMysteryScore;
 
   if (mysteryTableData.length > 0) {
-    mysteryTableData.push(['Total Score', `${finalMysteryScore.toFixed(1)}/20 (${finalMysteryPercentage.toFixed(1)}%)`]);
+    mysteryTableData.push([
+      'Total Score',
+      useTableTotals
+        ? `${mysteryScoreForPdf.toFixed(1)}/${mysteryMaxForPdf}`
+        : `${finalMysteryScore.toFixed(1)}/20 (${finalMysteryPercentage.toFixed(1)}%)`,
+    ]);
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -376,7 +496,7 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['2. Mystery Shopping (20 points)', '']],
+      head: [[`2. Mystery Shopping (${mysteryMaxForPdf} points)`, '']],
       body: mysteryTableData.slice(0, -1),
       headStyles: {
         fillColor: [46, 125, 50],
@@ -477,6 +597,45 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
+  // 2026+: render each Live Dashboard column item separately (not a lumped "Others").
+  // Pre-2026: keep legacy Innovation / Stakeholder / Transparency / penalty halves.
+  let nextSectionNumber = 3;
+  const othersSectionColors: Array<[number, number, number]> = [
+    [156, 39, 176],
+    [255, 152, 0],
+    [233, 30, 99],
+    [0, 121, 107],
+    [63, 81, 181],
+  ];
+
+  if (useTableTotals && ranking) {
+    ranking.othersLines.forEach((line, idx) => {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      const color = othersSectionColors[idx % othersSectionColors.length];
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[`${nextSectionNumber}. ${line.name} (${line.max} points)`, '']],
+        body: [
+          [
+            'Score',
+            line.excluded ? 'Excluded' : `${line.score.toFixed(1)}/${line.max}`,
+          ],
+        ],
+        headStyles: {
+          fillColor: color,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'grid',
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      nextSectionNumber += 1;
+    });
+  } else {
   // Controversial - average both halves
   if (data.controversial.firstHalf || data.controversial.secondHalf) {
     const contFirst = data.controversial.firstHalf || { isControversial: false, score: 0 };
@@ -644,10 +803,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       });
 
       if (bothSkipped) {
-        bodyRows.push(['Status', '⚠️ Transparency skipped']);
+        bodyRows.push(['Status', 'Transparency skipped']);
       } else {
         bodyRows.push(['Combined Score', `${combinedScore.toFixed(1)}/5`]);
-        // Mirror notes removed per requirement
       }
 
       autoTable(doc, {
@@ -665,12 +823,17 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       yPosition = (doc as any).lastAutoTable.finalY + 15;
     }
   }
+  nextSectionNumber = 8;
+  }
 
   // Report Gov Resolution - show single half if only one exists, otherwise sum/average
-  if (data.reportGovResolution.firstHalf || data.reportGovResolution.secondHalf) {
+  if (data.reportGovResolution.firstHalf || data.reportGovResolution.secondHalf || (useTableTotals && ranking)) {
     const resFirst = data.reportGovResolution.firstHalf || {};
     const resSecond = data.reportGovResolution.secondHalf || {};
-    const isSkipped = (resFirst?.isSkipped || false) || (resSecond?.isSkipped || false);
+    const isSkipped =
+      (useTableTotals && ranking?.reportGovSkipped) ||
+      (resFirst?.isSkipped || false) ||
+      (resSecond?.isSkipped || false);
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -678,10 +841,17 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
 
     // If skipped, just show "Skipped"
+    const reportGovMaxForPdf =
+      useTableTotals && ranking ? ranking.reportGovMax : 15;
+    const reportGovScoreForPdf =
+      useTableTotals && ranking ? ranking.reportGovScore : null;
+    const reportGovSectionLabel = `${nextSectionNumber}. Report Gov Resolution (${reportGovMaxForPdf} points)`;
+    nextSectionNumber += 1;
+
     if (isSkipped) {
       autoTable(doc, {
         startY: yPosition,
-        head: [['8. Report Gov Resolution (15 points)', '']],
+        head: [[reportGovSectionLabel, '']],
         body: [['Status', 'Skipped']],
         headStyles: {
           fillColor: [63, 81, 181],
@@ -690,6 +860,20 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         },
         styles: { fontSize: 9 },
         theme: 'striped'
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+    } else if (!data.reportGovResolution.firstHalf && !data.reportGovResolution.secondHalf && reportGovScoreForPdf != null) {
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[reportGovSectionLabel, '']],
+        body: [['Score', `${reportGovScoreForPdf.toFixed(1)}/${reportGovMaxForPdf}`]],
+        headStyles: {
+          fillColor: [63, 81, 181],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'striped',
       });
       yPosition = (doc as any).lastAutoTable.finalY + 15;
     } else {
@@ -737,18 +921,22 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
         avgScore = originalHalfScore / 2; // Divide by 2 when only one half
       }
 
+      if (reportGovScoreForPdf != null) {
+        avgScore = reportGovScoreForPdf;
+      }
+
       const tableBody = [
         ['Total Tickets', totalTickets.toFixed(0)],
         ['Resolved Tickets', resolvedTickets.toFixed(0)],
         ['Resolution Rate', `${resolutionRate.toFixed(1)}%`],
         ['Avg Response Time', `${avgResponseTime.toFixed(1)} hours`],
         ['Avg Resolution Time', `${avgResolutionTime.toFixed(1)} hours`],
-        ['Score', `${avgScore.toFixed(1)}/15`]
+        ['Score', `${avgScore.toFixed(1)}/${reportGovMaxForPdf}`]
       ];
 
       autoTable(doc, {
         startY: yPosition,
-        head: [['8. Report Gov Resolution (15 points)', '']],
+        head: [[reportGovSectionLabel, '']],
         body: tableBody,
         headStyles: {
           fillColor: [63, 81, 181],
@@ -762,24 +950,23 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  // Monthly Report Submission - show all 12 months but exclude Nov/Dec from calculations
+  // Monthly Report Submission — prefer Live Dashboard monthStatuses (individual + bulk).
   const monthlyReportTableData: string[][] = [];
   const monthlyReportMonths: { [key: string]: boolean } = {};
-  [data.monthlyReport.firstHalf, data.monthlyReport.secondHalf].forEach(half => {
-    if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
-      Object.entries(half.manualMonthlyReports).forEach(([key, value]) => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11) from calculations
-        if (monthIndex === 10 || monthIndex === 11) return;
+  [data.monthlyReport.fullYear, data.monthlyReport.firstHalf, data.monthlyReport.secondHalf]
+    .filter(Boolean)
+    .forEach((half) => {
+      if (half?.manualMonthlyReports && typeof half.manualMonthlyReports === 'object') {
+        Object.entries(half.manualMonthlyReports).forEach(([key, value]) => {
+          const monthIndex = parseInt(key.split('-')[1]);
+          if (monthIndex === 10 || monthIndex === 11) return;
+          if (value) monthlyReportMonths[key] = true;
+        });
+      }
+    });
 
-        if (value) monthlyReportMonths[key] = true;
-      });
-    }
-  });
-
-  // Check if this is FIRS, NPA, FRSC, NAMA, CAC, SEC, NDLEA, or CBN (need this before table generation)
-  const isFIRS = data.mdaName.toLowerCase().includes('federal inland revenue service') ||
+  const isFIRS =
+    data.mdaName.toLowerCase().includes('federal inland revenue service') ||
     data.mdaName.toLowerCase().includes('nigeria revenue service') ||
     data.mdaName.toLowerCase().includes('nrs');
   const isNPA = data.mdaName.toLowerCase().includes('nigerian ports authority');
@@ -790,51 +977,55 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
   const isNDLEA = data.mdaName.toLowerCase().includes('national drug law enforcement');
   const isCBN = data.mdaName.toLowerCase().includes('central bank');
 
-  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
-  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
-    const monthKey = `${data.year}-${monthIndex}`;
-    const monthName = monthNames[monthIndex];
-    const isSubmitted = monthlyReportMonths[monthKey] === true;
-
-    // For FIRS and NPA, always show as "Submitted"
-    // For FRSC, only January (month 0) should be forced to "Submitted"
-    // For NAMA, only February (month 1) should be forced to "Submitted"
-    // For CAC, only July (month 6) should be forced to "Submitted"
-    // For SEC, April (month 3) and May (month 4) should be forced to "Submitted"
-    // For NDLEA, only October (month 9) should be forced to "Submitted"
-    // For CBN, only January (month 0) should be forced to "Submitted"
-    let displayStatus: string;
-    if (isFIRS || isNPA) {
-      displayStatus = 'Submitted';
-    } else if (isFRSC && monthIndex === 0) {
-      displayStatus = 'Submitted';
-    } else if (isNAMA && monthIndex === 1) {
-      displayStatus = 'Submitted';
-    } else if (isCAC && monthIndex === 6) {
-      displayStatus = 'Submitted';
-    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
-      displayStatus = 'Submitted';
-    } else if (isNDLEA && monthIndex === 9) {
-      displayStatus = 'Submitted';
-    } else if (isCBN && monthIndex === 0) {
-      displayStatus = 'Submitted';
-    } else {
-      displayStatus = isSubmitted ? 'Submitted' : 'Not submitted';
+  if (useTableTotals && ranking) {
+    for (const month of ranking.monthlyMonths) {
+      monthlyReportTableData.push([month.monthLabel, month.display]);
     }
-    monthlyReportTableData.push([`${monthName} ${data.year}`, displayStatus]);
+  } else {
+    for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
+      const monthKey = `${data.year}-${monthIndex}`;
+      const monthName = monthNames[monthIndex];
+      const isSubmitted = monthlyReportMonths[monthKey] === true;
+      let displayStatus: string;
+      if (isFIRS || isNPA) {
+        displayStatus = 'Submitted';
+      } else if (isFRSC && monthIndex === 0) {
+        displayStatus = 'Submitted';
+      } else if (isNAMA && monthIndex === 1) {
+        displayStatus = 'Submitted';
+      } else if (isCAC && monthIndex === 6) {
+        displayStatus = 'Submitted';
+      } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+        displayStatus = 'Submitted';
+      } else if (isNDLEA && monthIndex === 9) {
+        displayStatus = 'Submitted';
+      } else if (isCBN && monthIndex === 0) {
+        displayStatus = 'Submitted';
+      } else {
+        displayStatus = isSubmitted ? 'Submitted' : 'Not submitted';
+      }
+      monthlyReportTableData.push([`${monthName} ${data.year}`, displayStatus]);
+    }
   }
 
-
   const monthlyReportCount = Object.keys(monthlyReportMonths).length;
-  const monthlyReportScore = monthlyReportCount * (3 / 10); // Changed from 12 to 10 months
+  const monthlyReportScore = monthlyReportCount * (3 / 10);
+  const monthlyMaxForPdf = useTableTotals && ranking ? ranking.monthlyMax : 3;
+  const monthlyScoreForPdf = useTableTotals && ranking ? ranking.monthlyScore : null;
+  const monthlyCountForPdf =
+    useTableTotals && ranking
+      ? ranking.monthlyMonthsCounted
+      : monthlyReportCount;
+  const monthlyTotalForPdf =
+    useTableTotals && ranking ? ranking.monthlyMonthsTotal || 10 : 10;
 
-  // Only render Monthly Report Submission table if not an excluded MDA
   if (monthlyReportTableData.length > 0 && !isExcludedMDA) {
-    // For FIRS and NPA, use custom display values but keep actual calculation for total
-    // For FRSC, NAMA, CAC, SEC, NDLEA, and CBN, use custom display values
     let displayScore: string;
     let displayCount: string;
-    if (isFIRS || isNPA) {
+    if (monthlyScoreForPdf != null) {
+      displayScore = monthlyScoreForPdf.toFixed(1);
+      displayCount = String(monthlyCountForPdf);
+    } else if (isFIRS || isNPA) {
       displayScore = '3';
       displayCount = '10';
     } else if (isFRSC) {
@@ -857,9 +1048,11 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
       displayCount = monthlyReportCount.toString();
     }
 
-
-    monthlyReportTableData.push(['Total Score', `${displayScore}/3`]);
-    monthlyReportTableData.push(['Months Submitted', `${displayCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
+    monthlyReportTableData.push(['Total Score', `${displayScore}/${monthlyMaxForPdf}`]);
+    monthlyReportTableData.push([
+      'Months Submitted',
+      `${displayCount}/${monthlyTotalForPdf}`,
+    ]);
 
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -868,98 +1061,121 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['9. Monthly Report Submission (3 points)', 'Status']],
+      head: [[`${nextSectionNumber}. Monthly Report Submission (${monthlyMaxForPdf} points)`, 'Status']],
       body: monthlyReportTableData.slice(0, -2),
       headStyles: {
         fillColor: [0, 150, 136],
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
       },
       styles: { fontSize: 9 },
-      theme: 'striped'
+      theme: 'striped',
     });
+    nextSectionNumber += 1;
     yPosition = (doc as any).lastAutoTable.finalY + 10;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(monthlyReportTableData[monthlyReportTableData.length - 2][0] + ': ' + monthlyReportTableData[monthlyReportTableData.length - 2][1], 14, yPosition);
+    doc.text(
+      monthlyReportTableData[monthlyReportTableData.length - 2][0] +
+        ': ' +
+        monthlyReportTableData[monthlyReportTableData.length - 2][1],
+      14,
+      yPosition
+    );
     yPosition += 6;
-    doc.text(monthlyReportTableData[monthlyReportTableData.length - 1][0] + ': ' + monthlyReportTableData[monthlyReportTableData.length - 1][1], 14, yPosition);
+    doc.text(
+      monthlyReportTableData[monthlyReportTableData.length - 1][0] +
+        ': ' +
+        monthlyReportTableData[monthlyReportTableData.length - 1][1],
+      14,
+      yPosition
+    );
     yPosition += 15;
   }
 
-  // Timeliness - show all 12 months but exclude Nov/Dec from calculations
+  // Timeliness — prefer Live Dashboard monthStatuses (individual + bulk).
   const timelinessTableData: string[][] = [];
   const timelinessMonths: { [key: string]: boolean } = {};
-  [data.timeliness.firstHalf, data.timeliness.secondHalf].forEach(half => {
-    if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
-      Object.entries(half.manualTimeliness).forEach(([key, value]) => {
-        // Extract month index from key (format: "year-month")
-        const monthIndex = parseInt(key.split('-')[1]);
-        // Exclude November (10) and December (11) from calculations
-        if (monthIndex === 10 || monthIndex === 11) return;
+  [data.timeliness.fullYear, data.timeliness.firstHalf, data.timeliness.secondHalf]
+    .filter(Boolean)
+    .forEach((half) => {
+      if (half?.manualTimeliness && typeof half.manualTimeliness === 'object') {
+        Object.entries(half.manualTimeliness).forEach(([key, value]) => {
+          const monthIndex = parseInt(key.split('-')[1]);
+          if (monthIndex === 10 || monthIndex === 11) return;
+          if (value) timelinessMonths[key] = true;
+        });
+      }
+    });
 
-        if (value) timelinessMonths[key] = true;
-      });
+  if (useTableTotals && ranking) {
+    for (const month of ranking.timelinessMonths) {
+      timelinessTableData.push([month.monthLabel, month.display]);
     }
-  });
-
-  // Add only Jan-Oct months (0-indexed: 0 = Jan, 9 = Oct), excluding Nov and Dec
-  for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
-    const monthKey = `${data.year}-${monthIndex}`;
-    const monthName = monthNames[monthIndex];
-    const isOnTime = timelinessMonths[monthKey] === true;
-    const isSubmitted = monthlyReportMonths[monthKey] === true;
-
-    // For FIRS, hardcode the status: July (month 6) is "On Time", all others are "Late"
-    // For NPA, hardcode: Only Sep (month 8) is "Late", all others are "On Time"
-    // For FRSC, hardcode: January (month 0) is "Late", others follow normal logic
-    // For NAMA, hardcode: February (month 1) is "Late", others follow normal logic
-    // For CAC, hardcode: July (month 6) is "Late", others follow normal logic
-    // For SEC, hardcode: April (month 3) and May (month 4) are "Late", others follow normal logic
-    // For NDLEA, hardcode: October (month 9) is "Late", others follow normal logic
-    // For CBN, hardcode: January (month 0) is "Late", others follow normal logic
-    let status: string;
-    if (isFIRS) {
-      status = monthIndex === 6 ? 'On Time' : 'Late';
-    } else if (isNPA) {
-      status = monthIndex === 8 ? 'Late' : 'On Time';
-    } else if (isFRSC && monthIndex === 0) {
-      status = 'Late';
-    } else if (isNAMA && monthIndex === 1) {
-      status = 'Late';
-    } else if (isCAC && monthIndex === 6) {
-      status = 'Late';
-    } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
-      status = 'Late';
-    } else if (isNDLEA && monthIndex === 9) {
-      status = 'Late';
-    } else if (isCBN && monthIndex === 0) {
-      status = 'Late';
-    } else {
-      // Normal logic for other MDAs
-      if (!isSubmitted) {
+  } else {
+    for (let monthIndex = 0; monthIndex < 10; monthIndex++) {
+      const monthKey = `${data.year}-${monthIndex}`;
+      const monthName = monthNames[monthIndex];
+      const isOnTime = timelinessMonths[monthKey] === true;
+      const isSubmitted = monthlyReportMonths[monthKey] === true;
+      let status: string;
+      if (isFIRS) {
+        status = monthIndex === 6 ? 'On Time' : 'Late';
+      } else if (isNPA) {
+        status = monthIndex === 8 ? 'Late' : 'On Time';
+      } else if (isFRSC && monthIndex === 0) {
+        status = 'Late';
+      } else if (isNAMA && monthIndex === 1) {
+        status = 'Late';
+      } else if (isCAC && monthIndex === 6) {
+        status = 'Late';
+      } else if (isSEC && (monthIndex === 3 || monthIndex === 4)) {
+        status = 'Late';
+      } else if (isNDLEA && monthIndex === 9) {
+        status = 'Late';
+      } else if (isCBN && monthIndex === 0) {
+        status = 'Late';
+      } else if (!isSubmitted) {
         status = 'Not Submitted';
       } else {
         status = isOnTime ? 'On Time' : 'Late';
       }
+      timelinessTableData.push([`${monthName} ${data.year}`, status]);
     }
-
-    timelinessTableData.push([`${monthName} ${data.year}`, status]);
   }
 
   const timelinessCount = Object.keys(timelinessMonths).length;
-  const timelinessScore = timelinessCount * (2 / 10); // Changed from 12 to 10 months
+  const timelinessScore = timelinessCount * (2 / 10);
+  const timelinessMaxForPdf = useTableTotals && ranking ? ranking.timelinessMax : 2;
+  const displayTimelinessScore =
+    useTableTotals && ranking
+      ? ranking.timelinessScore.toFixed(1)
+      : isFIRS
+        ? '0.2'
+        : isNPA
+          ? '1.8'
+          : timelinessScore.toFixed(1);
+  const displayTimelinessCount =
+    useTableTotals && ranking
+      ? String(ranking.timelinessMonthsCounted)
+      : isFIRS
+        ? '1'
+        : isNPA
+          ? '9'
+          : timelinessCount.toString();
+  const timelinessTotalForPdf =
+    useTableTotals && ranking ? ranking.timelinessMonthsTotal || 10 : 10;
 
-  // For FIRS and NPA, use custom display values but keep actual calculation for total
-  const displayTimelinessScore = isFIRS ? '0.2' : (isNPA ? '1.8' : timelinessScore.toFixed(1));
-  const displayTimelinessCount = isFIRS ? '1' : (isNPA ? '9' : timelinessCount.toString());
+  timelinessTableData.push([
+    'Total Score',
+    `${displayTimelinessScore}/${timelinessMaxForPdf}`,
+  ]);
+  timelinessTableData.push([
+    'Months On Time',
+    `${displayTimelinessCount}/${timelinessTotalForPdf}`,
+  ]);
 
-  // Add summary rows
-  timelinessTableData.push(['Total Score', `${displayTimelinessScore}/2`]);
-  timelinessTableData.push(['Months On Time', `${displayTimelinessCount}/10`]); // Changed from 12 to 10 (excluding Nov/Dec)
-
-  // Only render Timeliness table if not an excluded MDA
   if (!isExcludedMDA) {
     if (yPosition > pageHeight - 80) {
       doc.addPage();
@@ -968,33 +1184,105 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     autoTable(doc, {
       startY: yPosition,
-      head: [['10. Timeliness in Submitting Report (2 points)', 'Status']],
+      head: [[`${nextSectionNumber}. Timeliness in Submitting Report (${timelinessMaxForPdf} points)`, 'Status']],
       body: timelinessTableData.slice(0, -2),
       headStyles: {
         fillColor: [121, 85, 72],
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
       },
       styles: { fontSize: 9 },
-      theme: 'striped'
+      theme: 'striped',
     });
     yPosition = (doc as any).lastAutoTable.finalY + 10;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text(timelinessTableData[timelinessTableData.length - 2][0] + ': ' + timelinessTableData[timelinessTableData.length - 2][1], 14, yPosition);
+    doc.text(
+      timelinessTableData[timelinessTableData.length - 2][0] +
+        ': ' +
+        timelinessTableData[timelinessTableData.length - 2][1],
+      14,
+      yPosition
+    );
     yPosition += 6;
-    doc.text(timelinessTableData[timelinessTableData.length - 1][0] + ': ' + timelinessTableData[timelinessTableData.length - 1][1], 14, yPosition);
+    doc.text(
+      timelinessTableData[timelinessTableData.length - 1][0] +
+        ': ' +
+        timelinessTableData[timelinessTableData.length - 1][1],
+      14,
+      yPosition
+    );
     yPosition += 15;
+    nextSectionNumber += 1;
   }
 
-  // Overall Score Summary
-  // Reuse SLA score calculated earlier (but exclude from total if this is an excluded MDA)
+  // Penalties / bonuses after efficiency columns (same order as Live Dashboard).
+  if (useTableTotals && ranking) {
+    for (const line of ranking.penaltyLines) {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[`${nextSectionNumber}. ${line.name} (Penalty)`, '']],
+        body: [
+          [
+            'Applied',
+            line.applied ? `Yes (−${Math.abs(line.value).toFixed(1)})` : 'No (0.0)',
+          ],
+        ],
+        headStyles: {
+          fillColor: [156, 39, 176],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'grid',
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      nextSectionNumber += 1;
+    }
+
+    for (const line of ranking.bonusLines) {
+      if (yPosition > pageHeight - 50) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      autoTable(doc, {
+        startY: yPosition,
+        head: [[`${nextSectionNumber}. ${line.name} (Bonus)`, '']],
+        body: [
+          [
+            'Applied',
+            line.applied ? `Yes (+${Math.abs(line.value).toFixed(1)})` : 'No (0.0)',
+          ],
+        ],
+        headStyles: {
+          fillColor: [46, 125, 50],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+        },
+        styles: { fontSize: 9 },
+        theme: 'grid',
+      });
+      yPosition = (doc as any).lastAutoTable.finalY + 15;
+      nextSectionNumber += 1;
+    }
+  }
+
+  // Overall Score Summary — already printed at top for 2026 table totals.
+  let summaryBody: string[][] = [];
+
+  if (useTableTotals && ranking) {
+    // Skip duplicate summary; totals already match the Live Dashboard above.
+  } else {
+  // Legacy summary (pre-2026 / when ranking totals were not passed)
   const slaScore = isExcludedMDA ? 0 : slaFinalScore;
 
   const mysteryScore = avgTotalScore / ([data.mysteryShopping.firstHalf, data.mysteryShopping.secondHalf].filter(Boolean).length || 1);
 
-  // Controversial: Handle both old and new data formats
   let controversialScore = data.controversial.firstHalf || data.controversial.secondHalf ?
     ((data.controversial.firstHalf?.score || 0) + (data.controversial.secondHalf?.score || 0)) / 2 : 0;
   if (data.controversial.firstHalf || data.controversial.secondHalf) {
@@ -1005,19 +1293,15 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
   }
 
-  // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
   let toutingRentseekingScore = 0;
   if (data.toutingRentseeking?.firstHalf || data.toutingRentseeking?.secondHalf) {
     const toutingFirst = data.toutingRentseeking?.firstHalf;
     const toutingSecond = data.toutingRentseeking?.secondHalf;
     if (toutingFirst && toutingSecond) {
-      // Both halves have data - average
       toutingRentseekingScore = ((toutingFirst.score || 0) + (toutingSecond.score || 0)) / 2;
     } else if (toutingFirst) {
-      // Only first half
       toutingRentseekingScore = toutingFirst.score || 0;
     } else if (toutingSecond) {
-      // Only second half
       toutingRentseekingScore = toutingSecond.score || 0;
     }
   }
@@ -1041,7 +1325,6 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     }
     isTransparencySkipped = activeTransparencyEntries.length === 0;
   }
-  // Calculate Report Gov Resolution score (divide by 2 if only one half, average if both halves)
   let reportGovResScore = 0;
   const isReportGovSkipped = (data.reportGovResolution.firstHalf?.isSkipped || false) ||
     (data.reportGovResolution.secondHalf?.isSkipped || false);
@@ -1053,32 +1336,25 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
 
     if (!isReportGovSkipped) {
       if (hasFirstHalf && hasSecondHalf) {
-        // Both halves have data - average
         reportGovResScore = ((resFirst.score || 0) + (resSecond.score || 0)) / 2;
       } else if (hasFirstHalf) {
-        // Only first half - divide by 2
         reportGovResScore = (resFirst.score || 0) / 2;
       } else if (hasSecondHalf) {
-        // Only second half - divide by 2
         reportGovResScore = (resSecond.score || 0) / 2;
       }
     }
   }
 
-  // Calculate base total score (all metrics except controversial and touting & rentseeking)
-  // Exclude SLA, Monthly Report, and Timeliness for excluded MDAs
   const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
     transparencyScore + reportGovResScore +
     (isExcludedMDA ? 0 : monthlyReportScore) +
     (isExcludedMDA ? 0 : timelinessScore);
 
-  // Calculate penalties (convert negative scores to positive penalty values)
   const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
   const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
   const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
 
   let maxPossiblePoints = 90;
-  // For excluded MDAs, subtract SLA (30) + Monthly Report (3) + Timeliness (2) = 35 points
   if (isExcludedMDA) {
     maxPossiblePoints -= 35;
   }
@@ -1089,48 +1365,9 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     maxPossiblePoints -= 15;
   }
 
-  // Hardcoded percentages for specific MDAs
-  let totalPercentage: number;
-  const mdaLower = data.mdaName.toLowerCase();
-
-  if (mdaLower.includes('nigerian agricultural insurance corporation')) {
-    totalPercentage = 37.1;
-  } else if (mdaLower.includes('national insurance commission')) {
-    totalPercentage = 37.3;
-  } else if (mdaLower.includes('advertising regulatory council of nigeria')) {
-    totalPercentage = 3.0;
-  } else if (mdaLower.includes('federal ministry of justice')) {
-    totalPercentage = 22.5;
-  } else if (mdaLower.includes('federal ministry of information and national orientation')) {
-    totalPercentage = 13.0;
-  } else if (mdaLower.includes('federal ministry of aviation and aerospace development')) {
-    totalPercentage = 10.5;
-  } else if (mdaLower.includes('federal ministry of transportation')) {
-    totalPercentage = 10.5;
-  } else if (mdaLower.includes('federal ministry of finance')) {
-    totalPercentage = 7.4;
-  } else if (mdaLower.includes('federal ministry of environment')) {
-    totalPercentage = 4.9;
-  } else if (mdaLower.includes('federal ministry of power')) {
-    totalPercentage = 4.9;
-  } else if (mdaLower.includes('federal ministry of works')) {
-    totalPercentage = 12.3;
-  } else if (mdaLower.includes('ministry of foreign affairs')) {
-    totalPercentage = -2.1;
-  } else {
-    // Calculate percentage normally for other MDAs
-    totalPercentage = maxPossiblePoints > 0
-      ? (totalScore / maxPossiblePoints) * 100
-      : 0;
-  }
-
-  if (yPosition > pageHeight - 60) {
-    doc.addPage();
-    yPosition = 20;
-  }
-
-  // Build summary body conditionally based on excluded MDA status
-  const summaryBody: string[][] = [];
+  const totalPercentage = maxPossiblePoints > 0
+    ? (totalScore / maxPossiblePoints) * 100
+    : 0;
 
   if (!isExcludedMDA) {
     summaryBody.push(['SLA', `${slaScore.toFixed(1)}/30`]);
@@ -1157,70 +1394,43 @@ export async function generateMdaScoringPDF(data: MdaDetailedData): Promise<void
     ['Controversial (Penalty)', `${controversialScore.toFixed(1)} points`],
     ['Touting & Rentseeking (Penalty)', `${toutingRentseekingScore.toFixed(1)} points`],
     ['', ''],
-    maxPossiblePoints !== 90
-      ? ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
-      : ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints} (${totalPercentage.toFixed(1)}%)`]
+    ['OVERALL TOTAL', `${totalScore.toFixed(1)}/${maxPossiblePoints}`]
   );
+  }
 
-  autoTable(doc, {
-    startY: yPosition,
-    head: [['OVERALL SCORE SUMMARY', '']],
-    body: summaryBody,
-    headStyles: {
-      fillColor: [25, 118, 210],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    bodyStyles: {
-      fontSize: 9
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 4
-    },
-    theme: 'striped',
-    didParseCell: (data: any) => {
-      if (data.row.index === data.table.body.length - 1) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fontSize = 10;
-        data.cell.styles.fillColor = [25, 118, 210];
-        data.cell.styles.textColor = [255, 255, 255];
-      }
-    }
-  });
-  yPosition = (doc as any).lastAutoTable.finalY + 5;
-
-  // Recommendations
-  const recommendationsEntry = (recommendationsData as RecommendationEntry[]).find(
-    (item) => item.agency?.toLowerCase() === data.mdaName.toLowerCase() ||
-      data.mdaName.toLowerCase().includes(item.agency?.toLowerCase()) ||
-      item.agency?.toLowerCase().includes(data.mdaName.toLowerCase())
-  );
-
-  if (recommendationsEntry && recommendationsEntry.recommendations && recommendationsEntry.recommendations.length > 0) {
+  if (summaryBody.length > 0) {
     if (yPosition > pageHeight - 60) {
       doc.addPage();
       yPosition = 20;
     }
 
-    const recommendationsBody = recommendationsEntry.recommendations.map((rec) => [rec]);
-
     autoTable(doc, {
       startY: yPosition,
-      head: [['Recommendations for Improvement']],
-      body: recommendationsBody,
+      head: [['OVERALL SCORE SUMMARY', '']],
+      body: summaryBody,
       headStyles: {
-        fillColor: [255, 87, 34],
+        fillColor: [25, 118, 210],
         textColor: [255, 255, 255],
         fontStyle: 'bold'
       },
+      bodyStyles: {
+        fontSize: 9
+      },
       styles: {
         fontSize: 9,
-        cellPadding: 4,
-        overflow: 'linebreak'
+        cellPadding: 4
       },
-      theme: 'striped'
+      theme: 'striped',
+      didParseCell: (hookData: any) => {
+        if (hookData.row.index === hookData.table.body.length - 1) {
+          hookData.cell.styles.fontStyle = 'bold';
+          hookData.cell.styles.fontSize = 10;
+          hookData.cell.styles.fillColor = [25, 118, 210];
+          hookData.cell.styles.textColor = [255, 255, 255];
+        }
+      }
     });
+    yPosition = (doc as any).lastAutoTable.finalY + 5;
   }
 
   // Save PDF

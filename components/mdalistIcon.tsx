@@ -23,7 +23,7 @@ export const mdalistIcon = [{
     abbreviation: "DSS",
     icon: "🛡️" // Icon representing a shield or security
   }, {
-    name: "EFCC - Special Control Unit for Money Laundering",
+    name: "EFCC - Special Control Unit Against Money Laundering (SCUML)",
     abbreviation: "SCUML",
     icon: "🚨" // Icon representing an alert or warning
   }, {
@@ -142,10 +142,14 @@ export const mdalistIcon = [{
     name: "National Pension Commission",
     abbreviation: "PENCOM",
     icon: "👴👵" // Icon representing elderly people or pensions
-  }, {
+  },   {
     name: "National Bureau of Statistics",
     abbreviation: "NBS",
     icon: "📊" // Icon representing a bar chart or statistics
+  }, {
+    name: "National Single Window",
+    abbreviation: "NSW",
+    icon: "🪟" // Icon representing a single window / digital gateway
   }, {
     name: "Nigeria Agricultural Quarantine Service",
     abbreviation: "NAQS",
@@ -159,7 +163,7 @@ export const mdalistIcon = [{
     abbreviation: "NCS",
     icon: "🛂" // Icon representing passport control or customs
   }, {
-    name: "Nigeria Export Processing Zone Authority",
+    name: "Nigeria Export Processing Zones Authority (NEPZA)",
     abbreviation: "NEPZA",
     icon: "📦" // Icon representing a box or export
   }, {
@@ -195,7 +199,7 @@ export const mdalistIcon = [{
     abbreviation: "NCC",
     icon: "📱" // Icon representing a phone or communication
   }, {
-    name: "Nigerian Content Development Management Board",
+    name: "Nigerian Content Development and Monitoring Board (NCDMB)",
     abbreviation: "NCDMB",
     icon: "📝" // Icon representing a document or content
   }, {
@@ -267,7 +271,7 @@ export const mdalistIcon = [{
     abbreviation: "SEC",
     icon: "💰" // Icon representing money or finance
   }, {
-    name: "Service Compact",
+    name: "Service Compact (SERVICOM)",
     abbreviation: "SERVICOM",
     icon: "🤝" // Icon representing a handshake or a deal
   }, {

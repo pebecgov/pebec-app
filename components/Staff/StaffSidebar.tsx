@@ -221,10 +221,11 @@ export default function Sidebar({
   ...lettersAndLeaveMenu,
   ];
 
-  // Add admin features if user has admin permissions (not for logistics — restricted nav only)
+  // Add admin features if user has admin permissions.
+  // Logistics is restricted, but may still get Company Properties when granted.
   const adminPermissions = staffStream === "logistics"
-    ? []
-    : allowed.filter(permission => permission.startsWith('/admin'));
+    ? allowed.filter((permission) => permission === "/admin/company-items")
+    : allowed.filter((permission) => permission.startsWith("/admin"));
   if (adminPermissions.length > 0) {
     // Add admin features section before profile
     const adminMenuItems: MenuItem[] = [];
@@ -358,7 +359,7 @@ export default function Sidebar({
 
     // Materials & Projects section  
     const resourcePermissions = adminPermissions.filter(p =>
-      p.includes('materials') || p.includes('projects') || p.includes('kanban')
+      p.includes('materials') || p.includes('projects') || p.includes('kanban') || p.includes('company-items')
     );
     if (resourcePermissions.length > 0) {
       const resourceItems: MenuItemChild[] = [];
@@ -370,6 +371,9 @@ export default function Sidebar({
       }
       if (allowed.includes('/admin/saber-materials')) {
         resourceItems.push({ name: "Saber Materials", path: "/admin/saber-materials" });
+      }
+      if (allowed.includes('/admin/company-items')) {
+        resourceItems.push({ name: "Company Properties", path: "/admin/company-items" });
       }
       if (allowed.includes('/admin/kanban')) {
         resourceItems.push({ name: "Shared Tasks", path: "/admin/kanban" });

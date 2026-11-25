@@ -465,16 +465,19 @@ async function finishComplaint(
     activeTicketId: created.ticketId,
   });
 
-  return {
-    reply: copy.submittedCloud(
-      created.ticketNumber,
-      WHATSAPP_DEFAULT_TITLE,
-      state,
-      assignedMDA,
-      formatIncidentDate(incidentDate),
-    ),
-    kind: "text",
-  };
+  const body = copy.submittedCloud(
+    created.ticketNumber,
+    WHATSAPP_DEFAULT_TITLE,
+    state,
+    assignedMDA,
+    formatIncidentDate(incidentDate),
+  );
+  return menuReply(copy, body);
+}
+
+function parseStatusTicketRowId(replyId: string): Id<"tickets"> | null {
+  if (!replyId.startsWith("status:")) return null;
+  return replyId.slice("status:".length) as Id<"tickets">;
 }
 
 async function statusReply(
@@ -495,57 +498,9 @@ async function statusReply(
         kind: "text",
       };
     }
-    return { reply: await formatTicketStatus(ctx, ticket, copy), kind: "text" };
+    return await followUpSummary(ctx, session, ticket);
   }
-
-  const tickets = await ctx.db
-    .query("tickets")
-    .withIndex("byWhatsappPhone", (q) => q.eq("whatsappPhone", session.phone))
-    .order("desc")
-    .take(5);
-
-  if (tickets.length === 0) {
-    return {
-      reply: copy.noTicketsCloud,
-      kind: "text",
-    };
-  }
-
-  const lines = await Promise.all(
-    tickets.map(async (ticket) => {
-      const mda = ticket.assignedMDA
-        ? await ctx.db.get(ticket.assignedMDA)
-        : null;
-      return `• ${ticket.ticketNumber} — ${ticket.status.replace("_", " ")} — ${mda?.name ?? copy.unassigned}`;
-    }),
-  );
-  return {
-    reply: [
-      copy.recentTickets,
-      ...lines,
-      "",
-      copy.sendTicketNumberCloud,
-    ].join("\n"),
-    kind: "text",
-  };
-}
-
-async function formatTicketStatus(
-  ctx: MutationCtx,
-  ticket: Doc<"tickets">,
-  copy: Copy,
-): Promise<string> {
-  const mda = ticket.assignedMDA ? await ctx.db.get(ticket.assignedMDA) : null;
-  const lines = [
-    ticket.ticketNumber,
-    `${copy.statusLabel}: ${ticket.status.replace("_", " ")}`,
-    `${copy.titleLabel}: ${ticket.title}`,
-    `${copy.mdaLabel}: ${mda?.name ?? copy.unassigned}`,
-  ];
-  if (ticket.resolutionNote) {
-    lines.push(`${copy.resolutionLabel}: ${ticket.resolutionNote}`);
-  }
-  return lines.join("\n");
+  return await startTicketPicker(ctx, session);
 }
 
 function clipText(value: string, max: number): string {
@@ -697,10 +652,12 @@ async function followUpSummary(
   return followUpActionsMenu(ticket._id, body, fu);
 }
 
-async function startFollowUp(
+/** Shared list picker for Check Complaint and Follow Up. */
+async function startTicketPicker(
   ctx: MutationCtx,
   session: SessionDoc,
 ): Promise<Reply> {
+  const copy = sessionCopy(session);
   const fu = followCopy(session);
   const tickets = await ctx.db
     .query("tickets")
@@ -716,8 +673,26 @@ async function startFollowUp(
   }
 
   await patchSession(ctx, session._id, {
-    step: "follow_up_select",
+    step: "ticket_select",
   });
+
+  const rows = await Promise.all(
+    tickets.map(async (ticket) => {
+      const mda = ticket.assignedMDA
+        ? await ctx.db.get(ticket.assignedMDA)
+        : null;
+      const mdaName = mda?.name ?? copy.unassigned;
+      return {
+        id: ticketRowId(ticket._id),
+        title: ticket.ticketNumber,
+        description: clipText(
+          `${statusLabel(fu, ticket.status)} — ${mdaName}`,
+          72,
+        ),
+      };
+    }),
+  );
+
   return {
     reply: fu.listBody,
     kind: "list",
@@ -727,18 +702,18 @@ async function startFollowUp(
       sections: [
         {
           title: fu.listButton,
-          rows: [
-            ...tickets.map((ticket) => ({
-              id: ticketRowId(ticket._id),
-              title: ticket.ticketNumber,
-              description: statusLabel(fu, ticket.status),
-            })),
-            { id: "open_menu", title: fu.menuButton },
-          ],
+          rows: [...rows, { id: "open_menu", title: fu.menuButton }],
         },
       ],
     },
   };
+}
+
+async function startFollowUp(
+  ctx: MutationCtx,
+  session: SessionDoc,
+): Promise<Reply> {
+  return await startTicketPicker(ctx, session);
 }
 
 async function showConversation(
@@ -811,10 +786,21 @@ async function saveFollowUpMessage(
 function isFollowUpStep(step: SessionDoc["step"]): boolean {
   return (
     step === "follow_up_select" ||
+    step === "ticket_select" ||
+    step === "status_select" ||
     step === "follow_up_ticket" ||
     step === "follow_up_view" ||
     step === "follow_up_reply" ||
     step === "follow_up_attach"
+  );
+}
+
+/** Free-text steps where "hello" should be saved as content, not reopen the prompt. */
+function isFreeTextStep(step: SessionDoc["step"]): boolean {
+  return (
+    step === "awaiting_complaint" ||
+    step === "follow_up_reply" ||
+    step === "collect_incident_date"
   );
 }
 
@@ -831,21 +817,44 @@ async function nextReply(
   const replyId = buttonId ?? "";
   const copy = sessionCopy(session);
   const fu = followCopy(session);
+  const ticketNumberInText = extractTicketNumber(text);
+  const inFreeText = isFreeTextStep(session.step);
 
   const languageChoice = parseLanguageChoice(replyId || text);
   if (languageChoice && (replyId.startsWith("lang_") || session.step === "collect_language")) {
     return await setLanguage(ctx, session, languageChoice);
   }
 
+  // Pasted ticket ID (e.g. REP-201026-008) → Check Complaint, even as first message.
   if (
-    (session.step === "idle" || session.step === "collect_language") &&
-    isGreeting(normalized)
+    ticketNumberInText &&
+    !replyId &&
+    !inFreeText &&
+    (session.step === "idle" ||
+      session.step === "collect_language" ||
+      session.step === "ticket_select" ||
+      session.step === "status_select" ||
+      session.step === "follow_up_select")
   ) {
-    return await askLanguage(ctx, session);
+    return await statusReply(ctx, session, text);
   }
 
-  if (session.step === "collect_language") {
-    return languagePicker();
+  // First prompt (language picker):
+  // - First contact: any message when language is not set yet
+  // - Hello / hi / asalam / barka (etc.): reopen the first prompt anytime
+  // Mid-chat free-text steps keep the typed words as content.
+  const isFirstContact =
+    !session.language &&
+    (session.step === "idle" || session.step === "collect_language") &&
+    !replyId &&
+    !storageId &&
+    !ticketNumberInText;
+  if (
+    isFirstContact ||
+    session.step === "collect_language" ||
+    (!inFreeText && !replyId && isGreeting(normalized))
+  ) {
+    return await askLanguage(ctx, session);
   }
 
   if (normalized === "help" || replyId === "help") {
@@ -869,6 +878,7 @@ async function nextReply(
   }
 
   const selectedTicketId =
+    parseStatusTicketRowId(replyId) ??
     parseTicketRowId(replyId) ??
     parseActionTicketId(replyId, "reply") ??
     parseActionTicketId(replyId, "attach") ??
@@ -877,7 +887,7 @@ async function nextReply(
   if (selectedTicketId) {
     const ticket = await ownedTicket(ctx, session, selectedTicketId);
     if (!ticket) {
-      return await startFollowUp(ctx, session);
+      return await startTicketPicker(ctx, session);
     }
     if (replyId.startsWith("view:")) {
       return await showConversation(ctx, session, ticket);
@@ -891,14 +901,17 @@ async function nextReply(
     if (replyId.startsWith("attach:")) {
       return await askFollowUpReply(ctx, session, ticket._id, fu.typeResponse);
     }
+    // Check Complaint + Follow Up share one picker → same ticket summary.
     return await followUpSummary(ctx, session, ticket);
   }
 
-  if (replyId === "follow_up" || normalized === "follow up" || normalized === "followup") {
-    return await startFollowUp(ctx, session);
-  }
-  if (replyId === "check_status") {
-    return await statusReply(ctx, session, text);
+  if (
+    replyId === "follow_up" ||
+    replyId === "check_status" ||
+    normalized === "follow up" ||
+    normalized === "followup"
+  ) {
+    return await startTicketPicker(ctx, session);
   }
   if (replyId === "submit_filing" && session.step === "collect_evidence") {
     return await finishComplaint(ctx, session);
@@ -964,8 +977,12 @@ async function nextReply(
   if (session.step === "follow_up_attach") {
     return { reply: fu.sendFile, kind: "text" };
   }
-  if (session.step === "follow_up_select") {
-    return await startFollowUp(ctx, session);
+  if (
+    session.step === "follow_up_select" ||
+    session.step === "status_select" ||
+    session.step === "ticket_select"
+  ) {
+    return await startTicketPicker(ctx, session);
   }
   if (session.step === "follow_up_ticket" && session.activeTicketId) {
     const ticket = await ownedTicket(ctx, session, session.activeTicketId);
@@ -976,10 +993,6 @@ async function nextReply(
     const ticket = await ownedTicket(ctx, session, session.activeTicketId);
     if (ticket) return await showConversation(ctx, session, ticket);
     return await startFollowUp(ctx, session);
-  }
-
-  if (extractTicketNumber(text) && session.step === "idle") {
-    return await statusReply(ctx, session, text);
   }
 
   if (replyId.startsWith("zone_")) {
@@ -1086,9 +1099,15 @@ async function nextReply(
   if (wantsComplaint(normalized)) {
     return await startComplaint(ctx, session);
   }
-  if (isGreeting(normalized)) {
-    return await askLanguage(ctx, session);
+
+  // Idle with language already set → show action menu once.
+  // Mid-chat: do not re-send the menu; say Hi to reopen the first prompt.
+  if (session.step === "idle") {
+    return await showMenu(ctx, session);
   }
 
-  return await showMenu(ctx, session);
+  return {
+    reply: copy.help,
+    kind: "text",
+  };
 }

@@ -1,8 +1,13 @@
-export type SaberMaterialType = "general" | "final_results" | "prior_results";
+export type SaberMaterialType =
+  | "general"
+  | "final_results"
+  | "year2_results"
+  | "prior_results";
 
 export const SABER_MATERIAL_TYPE_LABELS: Record<SaberMaterialType, string> = {
   general: "General SABER material",
   final_results: "Year 1 Results (APA report)",
+  year2_results: "Year 2 Results (APA report)",
   prior_results: "Prior Results",
 };
 

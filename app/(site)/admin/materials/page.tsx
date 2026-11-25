@@ -61,7 +61,11 @@ export default function SaberMaterialsPage() {
                   <span className="text-xs text-gray-400 mt-1 block">
                     {(mat.fileSize / 1024 / 1024).toFixed(2)} MB
                     {mat.materialType && mat.materialType !== "general" && (
-                      <> · {mat.materialType === "final_results" ? "Yr 1" : "Prior"}
+                      <> · {mat.materialType === "final_results"
+                        ? "Yr 1"
+                        : mat.materialType === "year2_results"
+                          ? "Yr 2"
+                          : "Prior"}
                       {mat.state ? ` · ${mat.state}` : ""}</>
                     )}
                   </span>
@@ -179,12 +183,12 @@ export default function SaberMaterialsPage() {
       <Dialog open={showMigrateDialog} onOpenChange={setShowMigrateDialog}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Auto-tag Final APA reports</DialogTitle>
+            <DialogTitle>Auto-tag APA reports</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600">
             This updates existing <strong>saber</strong> materials in place — no re-upload. Titles like
-            &quot;Katsina State Final SABER APA Report YR 1&quot; become <strong>Year 1 Results</strong> with state
-            parsed from the title.
+            &quot;Katsina State Final SABER APA Report YR 1&quot; become <strong>Year 1 Results</strong>, and
+            &quot;… YR 2&quot; become <strong>Year 2 Results</strong>, with state parsed from the title.
           </p>
           {migratePreview && (
             <div className="space-y-3 text-sm">

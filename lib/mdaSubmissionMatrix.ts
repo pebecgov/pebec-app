@@ -37,8 +37,12 @@ export function normalizeMdaKey(value: string): string {
 export function splitMdaNameParts(value: string): { abbr?: string; name?: string } {
   const cleaned = normalizeMdaKey(value);
   const parts = cleaned.split(" - ").map((p) => p.trim()).filter(Boolean);
-  if (parts.length >= 2) {
-    return { abbr: parts[0], name: parts.slice(1).join(" - ") };
+  let index = 0;
+  while (index < parts.length - 1 && /^[a-z0-9]{2,8}$/.test(parts[index] || "")) {
+    index += 1;
+  }
+  if (index > 0) {
+    return { abbr: parts[0], name: parts.slice(index).join(" - ") };
   }
   return { name: cleaned };
 }

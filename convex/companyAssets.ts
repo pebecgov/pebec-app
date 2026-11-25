@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { getCurrentUserOrThrow } from "./users";
+import { canManageCompanyProperties } from "../lib/companyPropertiesAccess";
 
 const ASSET_LIMIT = 500;
 const ISSUE_LIMIT = 500;
@@ -93,10 +94,12 @@ function todayIsoDate() {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-async function assertAdmin(ctx: QueryCtx | MutationCtx) {
+async function assertCanManageCompanyProperties(ctx: QueryCtx | MutationCtx) {
   const user = await getCurrentUserOrThrow(ctx);
-  if (user.role !== "admin") {
-    throw new Error("Unauthorized: Only admins can manage company properties.");
+  if (!canManageCompanyProperties(user)) {
+    throw new Error(
+      "Unauthorized: You do not have access to manage company properties.",
+    );
   }
   return user;
 }
@@ -144,7 +147,7 @@ export const generateUploadUrl = mutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -153,7 +156,7 @@ export const listTypes = query({
   args: {},
   returns: v.array(typeValidator),
   handler: async (ctx) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const types = await ctx.db.query("company_asset_types").take(200);
     return types
       .map((type) => ({
@@ -169,7 +172,7 @@ export const createType = mutation({
   args: { name: v.string() },
   returns: v.id("company_asset_types"),
   handler: async (ctx, args) => {
-    const user = await assertAdmin(ctx);
+    const user = await assertCanManageCompanyProperties(ctx);
     const name = args.name.trim();
     if (!name) {
       throw new Error("Property type name is required");
@@ -198,7 +201,7 @@ export const updateType = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const type = await ctx.db.get(args.typeId);
     if (!type) {
       throw new Error("Property type not found");
@@ -228,7 +231,7 @@ export const deleteType = mutation({
   args: { typeId: v.id("company_asset_types") },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const type = await ctx.db.get(args.typeId);
     if (!type) {
       throw new Error("Property type not found");
@@ -251,7 +254,7 @@ export const seedCommonTypes = mutation({
   args: {},
   returns: v.object({ added: v.number() }),
   handler: async (ctx) => {
-    const user = await assertAdmin(ctx);
+    const user = await assertCanManageCompanyProperties(ctx);
     const existing = await ctx.db.query("company_asset_types").take(200);
     const existingNames = new Set(
       existing.map((type) => type.name.toLowerCase()),
@@ -276,7 +279,7 @@ export const listAssignableUsers = query({
   args: {},
   returns: v.array(assignableUserValidator),
   handler: async (ctx) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const staff = await ctx.db
       .query("users")
       .withIndex("byRole", (q) => q.eq("role", "staff"))
@@ -309,7 +312,7 @@ export const getStats = query({
     staffWithItems: v.number(),
   }),
   handler: async (ctx) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const assets = await ctx.db.query("company_assets").take(ASSET_LIMIT);
     const issued = assets.filter((asset) => asset.status === "issued");
     const holders = new Set(
@@ -334,7 +337,7 @@ export const listAssets = query({
   },
   returns: v.array(assetListItemValidator),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
 
     let assets: Doc<"company_assets">[];
     if (args.typeId) {
@@ -412,7 +415,7 @@ export const getAsset = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const asset = await ctx.db.get(args.assetId);
     if (!asset) return null;
 
@@ -459,7 +462,7 @@ export const listStaffHolders = query({
     }),
   ),
   handler: async (ctx) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const assets = await ctx.db.query("company_assets").take(ASSET_LIMIT);
     const issues = await ctx.db.query("company_asset_issues").take(1000);
 
@@ -540,7 +543,7 @@ export const getStaffAssets = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const user = await ctx.db.get(args.userId);
     if (!user) return null;
 
@@ -621,7 +624,7 @@ export const createAsset = mutation({
   },
   returns: v.id("company_assets"),
   handler: async (ctx, args) => {
-    const admin = await assertAdmin(ctx);
+    const admin = await assertCanManageCompanyProperties(ctx);
     const type = await ctx.db.get(args.typeId);
     if (!type) {
       throw new Error("Property type not found. Add it in Configure first.");
@@ -694,7 +697,7 @@ export const updateAsset = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const asset = await ctx.db.get(args.assetId);
     if (!asset) {
       throw new Error("Property not found");
@@ -731,7 +734,7 @@ export const deleteAsset = mutation({
   args: { assetId: v.id("company_assets") },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const asset = await ctx.db.get(args.assetId);
     if (!asset) {
       throw new Error("Property not found");
@@ -768,7 +771,7 @@ export const issueAsset = mutation({
   },
   returns: v.id("company_asset_issues"),
   handler: async (ctx, args) => {
-    const admin = await assertAdmin(ctx);
+    const admin = await assertCanManageCompanyProperties(ctx);
     const asset = await ctx.db.get(args.assetId);
     if (!asset) {
       throw new Error("Property not found");
@@ -818,7 +821,7 @@ export const returnAsset = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const admin = await assertAdmin(ctx);
+    const admin = await assertCanManageCompanyProperties(ctx);
     const asset = await ctx.db.get(args.assetId);
     if (!asset) {
       throw new Error("Property not found");
@@ -859,12 +862,13 @@ export const updateIssue = mutation({
     issueRemark: v.optional(v.string()),
     dateReturned: v.optional(v.string()),
     returnRemark: v.optional(v.string()),
-    undertakingStorageId: v.optional(v.id("_storage")),
-    undertakingFileName: v.optional(v.string()),
+    // Pass null to clear an existing undertaking file.
+    undertakingStorageId: v.optional(v.union(v.id("_storage"), v.null())),
+    undertakingFileName: v.optional(v.union(v.string(), v.null())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await assertAdmin(ctx);
+    await assertCanManageCompanyProperties(ctx);
     const issue = await ctx.db.get(args.issueId);
     if (!issue) {
       throw new Error("Issue record not found");
@@ -886,13 +890,14 @@ export const updateIssue = mutation({
       patch.returnRemark = args.returnRemark.trim() || undefined;
     }
     if (args.undertakingStorageId !== undefined) {
+      const nextStorageId = args.undertakingStorageId ?? undefined;
       if (
         issue.undertakingStorageId &&
-        issue.undertakingStorageId !== args.undertakingStorageId
+        issue.undertakingStorageId !== nextStorageId
       ) {
         await ctx.storage.delete(issue.undertakingStorageId);
       }
-      patch.undertakingStorageId = args.undertakingStorageId;
+      patch.undertakingStorageId = nextStorageId;
     }
     if (args.undertakingFileName !== undefined) {
       patch.undertakingFileName = args.undertakingFileName || undefined;
@@ -900,5 +905,89 @@ export const updateIssue = mutation({
 
     await ctx.db.patch(args.issueId, patch);
     return null;
+  },
+});
+
+/**
+ * Move an issued property to another staff member.
+ * Closes the current issue (kept in history with its undertaking) and opens a new one.
+ */
+export const reassignAsset = mutation({
+  args: {
+    assetId: v.id("company_assets"),
+    assignToUserId: v.id("users"),
+    dateIssued: v.optional(v.string()),
+    issueRemark: v.optional(v.string()),
+    undertakingStorageId: v.optional(v.id("_storage")),
+    undertakingFileName: v.optional(v.string()),
+    returnRemark: v.optional(v.string()),
+  },
+  returns: v.id("company_asset_issues"),
+  handler: async (ctx, args) => {
+    const admin = await assertCanManageCompanyProperties(ctx);
+    const asset = await ctx.db.get(args.assetId);
+    if (!asset) {
+      throw new Error("Property not found");
+    }
+    if (asset.status !== "issued" || !asset.currentIssueId) {
+      throw new Error("This property is not currently issued");
+    }
+
+    const currentIssue = await ctx.db.get(asset.currentIssueId);
+    if (!currentIssue || currentIssue.isReturned) {
+      throw new Error("Current issue record not found");
+    }
+
+    const holder = await ctx.db.get(args.assignToUserId);
+    if (!holder) {
+      throw new Error("Selected staff member was not found");
+    }
+
+    if (currentIssue.userId === holder._id) {
+      throw new Error(
+        "This property is already with that staff member. Edit the current assignment instead.",
+      );
+    }
+
+    const now = Date.now();
+    const nextStaffName = displayName(holder);
+    const previousStaffName = currentIssue.staffName;
+    const transferDate = args.dateIssued?.trim() || todayIsoDate();
+
+    await ctx.db.patch(currentIssue._id, {
+      dateReturned: transferDate,
+      returnRemark:
+        args.returnRemark?.trim() ||
+        `Reassigned to ${nextStaffName}`,
+      isReturned: true,
+      returnedBy: admin._id,
+      returnedByName: displayName(admin),
+    });
+
+    const issueId = await ctx.db.insert("company_asset_issues", {
+      assetId: args.assetId,
+      userId: holder._id,
+      staffName: nextStaffName,
+      dateIssued: transferDate,
+      issueRemark:
+        args.issueRemark?.trim() ||
+        `Reassigned from ${previousStaffName}`,
+      isReturned: false,
+      undertakingStorageId: args.undertakingStorageId,
+      undertakingFileName: args.undertakingFileName,
+      issuedBy: admin._id,
+      issuedByName: displayName(admin),
+      createdAt: now,
+    });
+
+    await ctx.db.patch(args.assetId, {
+      status: "issued",
+      currentHolderUserId: holder._id,
+      currentHolderName: nextStaffName,
+      currentIssueId: issueId,
+      updatedAt: now,
+    });
+
+    return issueId;
   },
 });

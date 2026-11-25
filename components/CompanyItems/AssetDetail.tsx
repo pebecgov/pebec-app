@@ -10,32 +10,39 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AssetFormDialog, IssueDialog, ReturnDialog } from "./AssetDialogs";
+import {
+  AssetFormDialog,
+  EditIssueDialog,
+  IssueDialog,
+  ReturnDialog,
+} from "./AssetDialogs";
 import { formatPrettyDate, getItemTypeMeta } from "./itemTypeMeta";
 import { convexErrorMessage } from "./convexError";
+import { canManageCompanyProperties } from "@/lib/companyPropertiesAccess";
 
 export default function AssetDetail({ assetId }: { assetId: Id<"company_assets"> }) {
   const router = useRouter();
   const currentUser = useQuery(api.users.getCurrentUsers);
-  const isAdmin = currentUser?.role === "admin";
+  const canManage = !!currentUser && canManageCompanyProperties(currentUser);
   const asset = useQuery(
     api.companyAssets.getAsset,
-    isAdmin ? { assetId } : "skip",
+    canManage ? { assetId } : "skip",
   );
-  const types = useQuery(api.companyAssets.listTypes, isAdmin ? {} : "skip");
-  const users = useQuery(api.companyAssets.listAssignableUsers, isAdmin ? {} : "skip");
+  const types = useQuery(api.companyAssets.listTypes, canManage ? {} : "skip");
+  const users = useQuery(api.companyAssets.listAssignableUsers, canManage ? {} : "skip");
   const deleteAsset = useMutation(api.companyAssets.deleteAsset);
   const [issueOpen, setIssueOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [editIssueOpen, setEditIssueOpen] = useState(false);
 
   if (currentUser === undefined) {
     return <p className="py-16 text-center text-gray-500">Loading property...</p>;
   }
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!currentUser || !canManage) {
     return (
       <p className="py-16 text-center text-red-500">
-        Unauthorized: Only admins can manage company properties.
+        Unauthorized: You do not have access to manage company properties.
       </p>
     );
   }
@@ -154,7 +161,17 @@ export default function AssetDetail({ assetId }: { assetId: Id<"company_assets">
 
       {currentIssue && (
         <section className="rounded-3xl border bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">Current issue details</h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-gray-900">Current issue details</h2>
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setEditIssueOpen(true)}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit assignment / attach file
+            </Button>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Detail label="Staff name" value={currentIssue.staffName} />
             <Detail label="Date issued" value={formatPrettyDate(currentIssue.dateIssued)} />
@@ -173,7 +190,13 @@ export default function AssetDetail({ assetId }: { assetId: Id<"company_assets">
                     {currentIssue.undertakingFileName || "View file"}
                   </a>
                 ) : (
-                  "No file attached"
+                  <button
+                    type="button"
+                    onClick={() => setEditIssueOpen(true)}
+                    className="text-left text-amber-700 underline-offset-2 hover:underline"
+                  >
+                    No file attached — click to add
+                  </button>
                 )
               }
             />
@@ -267,6 +290,15 @@ export default function AssetDetail({ assetId }: { assetId: Id<"company_assets">
             serialNumber: asset.serialNumber,
             label: asset.label,
           }}
+        />
+      )}
+      {editIssueOpen && currentIssue && (
+        <EditIssueDialog
+          open={editIssueOpen}
+          onOpenChange={setEditIssueOpen}
+          assetId={assetId}
+          issue={currentIssue}
+          users={users ?? []}
         />
       )}
     </div>

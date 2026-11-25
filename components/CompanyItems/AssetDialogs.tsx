@@ -345,6 +345,191 @@ export function IssueDialog({
   );
 }
 
+type CurrentIssueForEdit = {
+  _id: Id<"company_asset_issues">;
+  userId?: Id<"users">;
+  staffName: string;
+  dateIssued: string;
+  issueRemark?: string;
+  undertakingStorageId?: Id<"_storage">;
+  undertakingFileName?: string;
+  undertakingUrl?: string | null;
+};
+
+export function EditIssueDialog({
+  open,
+  onOpenChange,
+  assetId,
+  issue,
+  users,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  assetId: Id<"company_assets">;
+  issue: CurrentIssueForEdit;
+  users: AssignableUser[];
+}) {
+  const updateIssue = useMutation(api.companyAssets.updateIssue);
+  const reassignAsset = useMutation(api.companyAssets.reassignAsset);
+  const [assignToUserId, setAssignToUserId] = useState<Id<"users"> | undefined>(
+    issue.userId,
+  );
+  const [dateIssued, setDateIssued] = useState(issue.dateIssued || todayInputValue());
+  const [issueRemark, setIssueRemark] = useState(issue.issueRemark || "");
+  const [undertakingStorageId, setUndertakingStorageId] = useState<
+    Id<"_storage"> | undefined | null
+  >(issue.undertakingStorageId);
+  const [undertakingFileName, setUndertakingFileName] = useState<string | undefined>(
+    issue.undertakingFileName,
+  );
+  const [undertakingUrl, setUndertakingUrl] = useState<string | null | undefined>(
+    issue.undertakingUrl,
+  );
+  const [fileChanged, setFileChanged] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const staffChanged = !!assignToUserId && assignToUserId !== issue.userId;
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!assignToUserId) {
+      toast.error("Select the staff member holding this property");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      if (staffChanged) {
+        // Previous undertaking stays on the closed history record.
+        // Only attach a file here if the user uploaded a new one for the new holder.
+        await reassignAsset({
+          assetId,
+          assignToUserId,
+          dateIssued,
+          issueRemark: issueRemark.trim() || undefined,
+          undertakingStorageId:
+            fileChanged && undertakingStorageId ? undertakingStorageId : undefined,
+          undertakingFileName:
+            fileChanged && undertakingStorageId ? undertakingFileName : undefined,
+        });
+        toast.success("Property reassigned. Previous assignment kept in history.");
+      } else {
+        await updateIssue({
+          issueId: issue._id,
+          dateIssued,
+          issueRemark: issueRemark.trim() || undefined,
+          ...(fileChanged
+            ? {
+                undertakingStorageId: undertakingStorageId ?? null,
+                undertakingFileName: undertakingFileName ?? null,
+              }
+            : {}),
+        });
+        toast.success("Assignment updated");
+      }
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(convexErrorMessage(error, "Could not update assignment"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit current assignment</DialogTitle>
+          <DialogDescription>
+            Attach or replace the undertaking, update remarks, or move this property to
+            another staff member. Changing staff keeps the previous assignment in history.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Staff member</Label>
+            <UserPicker
+              users={users}
+              value={assignToUserId}
+              onChange={setAssignToUserId}
+              placeholder="Select a staff member"
+              allowNone={false}
+            />
+            {staffChanged && (
+              <p className="text-xs text-amber-700">
+                Previous holder ({issue.staffName}) will be closed and kept in issue history,
+                including any undertaking already attached.
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="editIssueDate">Date issued</Label>
+            <Input
+              id="editIssueDate"
+              type="date"
+              value={dateIssued}
+              onChange={(event) => setDateIssued(event.target.value)}
+              className="h-11 rounded-xl"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="editIssueNote">Remark</Label>
+            <Textarea
+              id="editIssueNote"
+              value={issueRemark}
+              onChange={(event) => setIssueRemark(event.target.value)}
+              placeholder="Condition, accessories, notes..."
+              className="min-h-[80px] rounded-xl"
+            />
+          </div>
+          <UndertakingUploader
+            fileName={
+              staffChanged && !fileChanged ? undefined : undertakingFileName
+            }
+            fileUrl={staffChanged && !fileChanged ? undefined : undertakingUrl}
+            onUploaded={(storageId, name) => {
+              setUndertakingStorageId(storageId);
+              setUndertakingFileName(name);
+              setUndertakingUrl(undefined);
+              setFileChanged(true);
+            }}
+            onClear={
+              staffChanged
+                ? undefined
+                : () => {
+                    setUndertakingStorageId(null);
+                    setUndertakingFileName(undefined);
+                    setUndertakingUrl(undefined);
+                    setFileChanged(true);
+                  }
+            }
+          />
+          {staffChanged && (
+            <p className="text-xs text-gray-500">
+              Optionally attach a new undertaking for the new staff member. The previous
+              file stays with the old history entry.
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving
+                ? "Saving..."
+                : staffChanged
+                  ? "Reassign property"
+                  : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ReturnDialog({
   open,
   onOpenChange,

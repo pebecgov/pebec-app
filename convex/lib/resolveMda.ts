@@ -19,11 +19,16 @@ function looksLikeAbbreviation(value: string): boolean {
 }
 
 function coreMdaName(name: string): string {
-  const dashParts = name.split(/\s*-\s*/).map((part) => part.trim()).filter(Boolean);
-  if (dashParts.length >= 2 && looksLikeAbbreviation(dashParts[0])) {
-    return normalizeMdaKey(dashParts.slice(1).join(" - "));
+  const normalizedDashes = name.replace(/[–—]/g, "-");
+  const dashParts = normalizedDashes.split(/\s*-\s*/).map((part) => part.trim()).filter(Boolean);
+  // "SCUML - EFCC - Special Control Unit..." and "EFCC - Special Control Unit..."
+  // are the same agency. Peel every leading abbreviation, not only the first.
+  let index = 0;
+  while (index < dashParts.length - 1 && looksLikeAbbreviation(dashParts[index])) {
+    index += 1;
   }
-  return normalizeMdaKey(name);
+  const remainder = dashParts.slice(index).join(" - ");
+  return normalizeMdaKey(remainder || name);
 }
 
 /**

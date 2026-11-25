@@ -1,19 +1,35 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { internalMutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { api } from "./_generated/api";
 import { canonicalizeMdaName } from "../lib/mdaNameAliases";
 import {
   BEEPA_TRACKER_ROSTER,
+  beepaMaxPointsForMda,
+  isSuperBeepaMda,
   matchBeepaTrackerRosterEntry,
   type BeepaTrackerRosterEntry,
 } from "../lib/beepaTrackerRoster";
 import {
   CURRENT_INDICATOR_YEAR,
+  foldLandRegistrationPoints,
   getIndicatorMaxScoresForYear,
   getIndicatorsForYear,
-  getOverallMaxScoreForYear,
+  getSubIndicatorScore,
 } from "./config/indicators";
-import { STATE_LIST, normalizeStateName, VALID_NIGERIAN_STATES } from "./stateUtils";
+import {
+  RANKING_STATE_LIST,
+  isIncludedInSubnationalRanking,
+  normalizeStateName,
+} from "./stateUtils";
+import {
+  buildMdaMetricScoreBreakdowns,
+  type ScoreBreakdownLine,
+} from "../lib/bfaScoreBreakdowns";
+import { mergeProgrammeMetricExclusions } from "../lib/programmeMetricExclusions";
+
+/** Public tracker headline for MDAs and states. Bonus points sit inside this total. */
+const PUBLIC_TRACKER_SCORE_MAX = 100;
 
 // Helper function for grade calculation
 function gradeFromPercentage(percentage: number): string {
@@ -48,7 +64,7 @@ export const getPublicStateRankings = query({
     const yearIndicators = getIndicatorsForYear(currentYear);
     const yearIndicatorMaxScores = getIndicatorMaxScoresForYear(currentYear);
 
-    // Always seed the full roster so Total States = 37 even before any scores exist.
+    // Always seed the 36-state roster (FCT excluded) so Total States stays stable.
     const stateDetails = new Map<
       string,
       {
@@ -66,7 +82,7 @@ export const getPublicStateRankings = query({
       }
     >();
 
-    for (const stateName of STATE_LIST) {
+    for (const stateName of RANKING_STATE_LIST) {
       stateDetails.set(stateName, {
         totalScore: 0,
         indicators: {},
@@ -81,7 +97,7 @@ export const getPublicStateRankings = query({
 
     for (const score of allScores) {
       const stateName = normalizeStateName(score.state);
-      if (!VALID_NIGERIAN_STATES.has(stateName)) {
+      if (!isIncludedInSubnationalRanking(stateName)) {
         continue;
       }
 
@@ -95,7 +111,13 @@ export const getPublicStateRankings = query({
         continue;
       }
 
-      stateData.totalScore += score.score;
+      const points = getSubIndicatorScore(
+        score.indicator,
+        score.subIndicator,
+        score.value ?? "",
+        currentYear
+      );
+      stateData.totalScore += points;
 
       if (score.createdAt > stateData.lastUpdated) {
         stateData.lastUpdated = score.createdAt;
@@ -110,19 +132,28 @@ export const getPublicStateRankings = query({
         };
       }
 
-      stateData.indicators[score.indicator].score += score.score;
-      stateData.indicators[score.indicator].subIndicators[score.subIndicator] = score.score;
+      stateData.indicators[score.indicator].score += points;
+      stateData.indicators[score.indicator].subIndicators[score.subIndicator] = points;
     }
 
-    const denominator: number = getOverallMaxScoreForYear(currentYear);
+    // Land registration: show all spreadsheet columns, but score = GIS + highest automation tier.
+    for (const stateData of stateDetails.values()) {
+      const land = stateData.indicators.digitalizing_land_registration;
+      if (!land) continue;
+      const folded = foldLandRegistrationPoints(land.subIndicators);
+      stateData.totalScore += folded - land.score;
+      land.score = folded;
+    }
+
     const sortedStates = Array.from(stateDetails.entries())
       .map(([stateName, data]) => {
-        const percentage = denominator > 0 ? (data.totalScore / denominator) * 100 : 0;
+        const totalScore = Math.min(data.totalScore, PUBLIC_TRACKER_SCORE_MAX);
+        const percentage = Math.round((totalScore / PUBLIC_TRACKER_SCORE_MAX) * 10000) / 100;
         return {
           state: stateName,
-          totalScore: data.totalScore,
-          maxScore: denominator,
-          percentage: Math.round(percentage * 100) / 100,
+          totalScore,
+          maxScore: PUBLIC_TRACKER_SCORE_MAX,
+          percentage,
           lastUpdated: data.lastUpdated,
           indicators: data.indicators,
         };
@@ -264,14 +295,32 @@ function buildBfaFrameworkMetrics(
   return metrics;
 }
 
+type MetricScoreCell = {
+  score: number;
+  max: number;
+  scored: boolean;
+  complete?: boolean;
+  /** For proportional month metrics / SLA — used for public score explanations. */
+  monthsWithData?: number;
+  totalMonths?: number;
+  percentage?: number;
+};
+
 function metricScoreFromDashboard(
   mda: Record<string, unknown>,
   key: string,
   frameworkMax: number
-): { score: number; max: number; scored: boolean; complete?: boolean } {
-  const nested = (field: string, fallbackMax: number) => {
+): MetricScoreCell {
+  const nested = (field: string, fallbackMax: number): MetricScoreCell => {
     const bucket = mda[field] as
-      | { score?: number; maxPossibleScore?: number; complete?: boolean }
+      | {
+          score?: number;
+          maxPossibleScore?: number;
+          complete?: boolean;
+          monthsWithData?: number;
+          totalMonths?: number;
+          percentage?: number;
+        }
       | null
       | undefined;
     if (!bucket) {
@@ -282,6 +331,10 @@ function metricScoreFromDashboard(
       max: bucket.maxPossibleScore || fallbackMax,
       scored: true,
       complete: bucket.complete !== false,
+      monthsWithData:
+        typeof bucket.monthsWithData === "number" ? bucket.monthsWithData : undefined,
+      totalMonths: typeof bucket.totalMonths === "number" ? bucket.totalMonths : undefined,
+      percentage: typeof bucket.percentage === "number" ? bucket.percentage : undefined,
     };
   };
 
@@ -368,7 +421,13 @@ type ScoringYearConfig = {
     timelinessPoints?: number;
   } | null;
   mysteryShoppingTypes?: Array<{ questions?: Array<{ weight?: number }> }>;
-  othersItems?: Array<{ itemId: string; itemName: string; weight: number; order?: number }>;
+  othersItems?: Array<{
+    itemId: string;
+    itemName: string;
+    weight: number;
+    order?: number;
+    answerType?: string;
+  }>;
   innovationItems?: Array<{ weight?: number }>;
   stakeholderItems?: Array<{ weight?: number }>;
   penaltyItems?: Array<{ penaltyId: string; penaltyName: string; penaltyValue: number }>;
@@ -387,7 +446,7 @@ type PublicMdaRow = {
   finalScore: number;
   maxPossibleScore: number;
   percentage: number;
-  metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }>;
+  metricScores: Record<string, MetricScoreCell>;
   othersBreakdown: OthersBreakdownItem[];
   excludedMetrics: string[];
   applicableMetricCount: number;
@@ -395,6 +454,39 @@ type PublicMdaRow = {
   bonusScore: number;
   penaltyValues: Record<string, boolean>;
   bonusValues: Record<string, boolean>;
+  /** Plain-language SLA month problems for the public tracker (failed / missing / partial). */
+  slaMonthIssues: Array<{
+    monthKey: string;
+    monthLabel: string;
+    kind: "failed" | "missing" | "partial";
+    message: string;
+  }>;
+  /** How each metric score was calculated (for MDAs on the public tracker). */
+  scoreBreakdowns: Record<string, ScoreBreakdownLine[]>;
+  /**
+   * Month-by-month status for Monthly Report / Timeliness (same detail as admin).
+   * Keys: reportSubmission, timeliness.
+   */
+  efficiencyMonthStatuses: Record<
+    string,
+    Array<{
+      monthKey: string;
+      monthLabel: string;
+      status: "on_time" | "late" | "missing";
+      submitted: boolean;
+      onTime: boolean;
+    }>
+  >;
+  /** Full SLA month grid: points, %, and plain-language notes per month. */
+  slaMonthStatuses: Array<{
+    monthKey: string;
+    monthLabel: string;
+    status: "scored" | "failed" | "partial" | "missing";
+    points: number;
+    maxPoints: number;
+    percentage: number | null;
+    message: string;
+  }>;
   lastUpdated: number;
   rank: number;
 };
@@ -423,6 +515,44 @@ const othersBreakdownValidator = v.array(
   })
 );
 
+const slaMonthIssueValidator = v.object({
+  monthKey: v.string(),
+  monthLabel: v.string(),
+  kind: v.union(v.literal("failed"), v.literal("missing"), v.literal("partial")),
+  message: v.string(),
+});
+
+const scoreBreakdownLineValidator = v.object({
+  label: v.string(),
+  value: v.optional(v.string()),
+  points: v.optional(v.number()),
+  maxPoints: v.optional(v.number()),
+  explanation: v.string(),
+});
+
+const efficiencyMonthStatusValidator = v.object({
+  monthKey: v.string(),
+  monthLabel: v.string(),
+  status: v.union(v.literal("on_time"), v.literal("late"), v.literal("missing")),
+  submitted: v.boolean(),
+  onTime: v.boolean(),
+});
+
+const slaMonthStatusValidator = v.object({
+  monthKey: v.string(),
+  monthLabel: v.string(),
+  status: v.union(
+    v.literal("scored"),
+    v.literal("failed"),
+    v.literal("partial"),
+    v.literal("missing"),
+  ),
+  points: v.number(),
+  maxPoints: v.number(),
+  percentage: v.union(v.number(), v.null()),
+  message: v.string(),
+});
+
 const publicMdaScoresReturns = v.object({
   mdas: v.array(
     v.object({
@@ -437,6 +567,9 @@ const publicMdaScoresReturns = v.object({
           max: v.number(),
           scored: v.boolean(),
           complete: v.optional(v.boolean()),
+          monthsWithData: v.optional(v.number()),
+          totalMonths: v.optional(v.number()),
+          percentage: v.optional(v.number()),
         })
       ),
       othersBreakdown: othersBreakdownValidator,
@@ -446,6 +579,10 @@ const publicMdaScoresReturns = v.object({
       bonusScore: v.number(),
       penaltyValues: v.record(v.string(), v.boolean()),
       bonusValues: v.record(v.string(), v.boolean()),
+      slaMonthIssues: v.array(slaMonthIssueValidator),
+      scoreBreakdowns: v.record(v.string(), v.array(scoreBreakdownLineValidator)),
+      efficiencyMonthStatuses: v.record(v.string(), v.array(efficiencyMonthStatusValidator)),
+      slaMonthStatuses: v.array(slaMonthStatusValidator),
       lastUpdated: v.number(),
       rank: v.number(),
     })
@@ -487,7 +624,8 @@ const publicMdaScoresReturns = v.object({
 function buildOthersBreakdown(
   mda: Record<string, unknown>,
   othersItems: Array<{ itemId: string; itemName: string; weight: number; order?: number }>,
-  excludedMetrics: string[]
+  excludedMetrics: string[],
+  displayName: string
 ): OthersBreakdownItem[] {
   const others = mda.others as
     | { scores?: Record<string, number>; values?: Record<string, boolean | number> }
@@ -495,16 +633,26 @@ function buildOthersBreakdown(
     | undefined;
   const scores = others?.scores || {};
   const fullyExcluded = excludedMetrics.includes("others");
+  const beepaMax = beepaMaxPointsForMda(displayName);
 
   return [...othersItems]
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .filter((item) => !fullyExcluded && !excludedMetrics.includes(`others:${item.itemId}`))
-    .map((item) => ({
-      itemId: item.itemId,
-      itemName: item.itemName,
-      score: roundScore(Number(scores[item.itemId]) || 0),
-      max: item.weight,
-    }));
+    .map((item) => {
+      const nameKey = String(item.itemName || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+      const isBeepa = nameKey === "beepa" || nameKey.includes("beepa");
+      const max = isBeepa ? beepaMax : item.weight;
+      const score = Math.min(roundScore(Number(scores[item.itemId]) || 0), max);
+      return {
+        itemId: item.itemId,
+        itemName: item.itemName,
+        score,
+        max,
+      };
+    });
 }
 
 function findBeepaExclusionKey(
@@ -521,23 +669,52 @@ function findBeepaExclusionKey(
   return beepa ? `others:${beepa.itemId}` : null;
 }
 
+function findBeepaMetricKey(
+  othersItems: Array<{ itemId: string; itemName: string }>
+): string | null {
+  return findBeepaExclusionKey(othersItems);
+}
+
 function buildPublicMdaRowFromDashboard(
   mda: Record<string, unknown>,
   displayName: string,
   frameworkMetrics: FrameworkMetric[],
-  othersItems: Array<{ itemId: string; itemName: string; weight: number; order?: number }>,
+  othersItems: Array<{
+    itemId: string;
+    itemName: string;
+    weight: number;
+    order?: number;
+    answerType?: string;
+  }>,
   extraExcluded: string[] = [],
   trackerStatusByKey: Record<string, boolean> = {}
 ): PublicMdaRow {
-  const excludedMetrics = Array.from(
+  const excludedMetrics = mergeProgrammeMetricExclusions(
+    displayName,
     new Set([
       ...(Array.isArray(mda.excludedMetrics) ? (mda.excludedMetrics as string[]) : []),
       ...extraExcluded,
     ])
   );
-  const metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }> = {};
+  const beepaKey = findBeepaMetricKey(othersItems);
+  const isSuperMda = isSuperBeepaMda(displayName);
+  const beepaMax = beepaMaxPointsForMda(displayName);
+  const mysteryMaxOverride =
+    typeof mda.mysteryMaxPoints === "number" ? mda.mysteryMaxPoints : null;
+  const metricScores: Record<string, MetricScoreCell> = {};
   for (const metric of frameworkMetrics) {
-    const base = metricScoreFromDashboard(mda, metric.key, metric.max);
+    const frameworkMax =
+      beepaKey && metric.key === beepaKey ? beepaMax : metric.max;
+    const base = metricScoreFromDashboard(mda, metric.key, frameworkMax);
+    if (metric.key === "mystery" && mysteryMaxOverride != null) {
+      base.max = mysteryMaxOverride;
+      if (base.score > mysteryMaxOverride) base.score = mysteryMaxOverride;
+    }
+    // Cap BEEPA display max (and score if it somehow exceeds) for non–Super MDAs.
+    if (beepaKey && metric.key === beepaKey) {
+      base.max = beepaMax;
+      if (base.score > beepaMax) base.score = beepaMax;
+    }
     if (Object.prototype.hasOwnProperty.call(trackerStatusByKey, metric.key)) {
       const adminFullyScored = trackerStatusByKey[metric.key] === true;
       const hasProgress = base.scored || base.score > 0;
@@ -560,17 +737,55 @@ function buildPublicMdaRowFromDashboard(
 
   const penalties = mda.penalties as { score?: number; values?: Record<string, boolean> } | null | undefined;
   const bonuses = mda.bonuses as { score?: number; values?: Record<string, boolean> } | null | undefined;
-  const othersBreakdown = buildOthersBreakdown(mda, othersItems, excludedMetrics);
+  const othersBreakdown = buildOthersBreakdown(
+    mda,
+    othersItems,
+    excludedMetrics,
+    displayName
+  );
+  const slaBucket = mda.sla as
+    | {
+        monthIssues?: PublicMdaRow["slaMonthIssues"];
+        monthStatuses?: PublicMdaRow["slaMonthStatuses"];
+      }
+    | null
+    | undefined;
+  const monthlyBucket = mda.monthlyReport as
+    | { monthStatuses?: PublicMdaRow["efficiencyMonthStatuses"][string] }
+    | null
+    | undefined;
+  const timelinessBucket = mda.timeliness as
+    | { monthStatuses?: PublicMdaRow["efficiencyMonthStatuses"][string] }
+    | null
+    | undefined;
 
-  const maxFromFramework = frameworkMetrics
-    .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
-    .reduce((sum, metric) => sum + metric.max, 0);
+  const efficiencyMonthStatuses: PublicMdaRow["efficiencyMonthStatuses"] = {};
+  if (Array.isArray(monthlyBucket?.monthStatuses) && monthlyBucket.monthStatuses.length > 0) {
+    efficiencyMonthStatuses.reportSubmission = monthlyBucket.monthStatuses;
+  }
+  if (Array.isArray(timelinessBucket?.monthStatuses) && timelinessBucket.monthStatuses.length > 0) {
+    efficiencyMonthStatuses.timeliness = timelinessBucket.monthStatuses;
+  }
+  const slaMonthStatuses = Array.isArray(slaBucket?.monthStatuses) ? slaBucket.monthStatuses : [];
+
+  // Headline is always out of 100. Bonus and innovation points are already inside
+  // the earned total, so they do not raise the ceiling.
+  let metricsSum = 0;
+  for (const metric of frameworkMetrics) {
+    if (isMetricExcluded(excludedMetrics, metric.key)) continue;
+    metricsSum += metricScores[metric.key]?.score || 0;
+  }
+  const penaltyRaw = Number(penalties?.score) || 0;
+  const bonusRaw = Number(bonuses?.score) || 0;
+  const earnedScore = roundScore(metricsSum + penaltyRaw + bonusRaw);
+  const finalScore = Math.min(earnedScore, PUBLIC_TRACKER_SCORE_MAX);
+  const percentage = roundScore((finalScore / PUBLIC_TRACKER_SCORE_MAX) * 100);
 
   return {
     mdaName: displayName,
-    finalScore: roundScore(Number(mda.totalScore) || 0),
-    maxPossibleScore: Number(mda.maxPossiblePoints) || maxFromFramework || 100,
-    percentage: roundScore(Number(mda.totalPercentage) || 0),
+    finalScore,
+    maxPossibleScore: PUBLIC_TRACKER_SCORE_MAX,
+    percentage,
     metricScores,
     othersBreakdown,
     excludedMetrics,
@@ -581,6 +796,13 @@ function buildPublicMdaRowFromDashboard(
     bonusScore: roundScore(Math.abs(bonuses?.score || 0)),
     penaltyValues: penalties?.values || {},
     bonusValues: bonuses?.values || {},
+    slaMonthIssues: Array.isArray(slaBucket?.monthIssues) ? slaBucket.monthIssues : [],
+    scoreBreakdowns: buildMdaMetricScoreBreakdowns(mda, othersItems, {
+      isSuperMda,
+      beepaMaxPoints: beepaMax,
+    }),
+    efficiencyMonthStatuses,
+    slaMonthStatuses,
     lastUpdated: Number(mda.lastUpdated) || Date.now(),
     rank: 0,
   };
@@ -593,10 +815,7 @@ function buildEmptyPublicMdaRow(
 ): PublicMdaRow {
   const excludedMetrics =
     entry.beepaExempted && beepaExclusionKey ? [beepaExclusionKey] : [];
-  const maxPossibleScore = frameworkMetrics
-    .filter((metric) => !isMetricExcluded(excludedMetrics, metric.key))
-    .reduce((sum, metric) => sum + metric.max, 0);
-  const metricScores: Record<string, { score: number; max: number; scored: boolean; complete?: boolean }> = {};
+  const metricScores: Record<string, MetricScoreCell> = {};
   for (const metric of frameworkMetrics) {
     metricScores[metric.key] = { score: 0, max: metric.max, scored: false, complete: false };
   }
@@ -604,7 +823,7 @@ function buildEmptyPublicMdaRow(
   return {
     mdaName: entry.name,
     finalScore: 0,
-    maxPossibleScore: maxPossibleScore || 100,
+    maxPossibleScore: PUBLIC_TRACKER_SCORE_MAX,
     percentage: 0,
     metricScores,
     othersBreakdown: [],
@@ -616,6 +835,10 @@ function buildEmptyPublicMdaRow(
     bonusScore: 0,
     penaltyValues: {},
     bonusValues: {},
+    slaMonthIssues: [],
+    scoreBreakdowns: {},
+    efficiencyMonthStatuses: {},
+    slaMonthStatuses: [],
     lastUpdated: Date.now(),
     rank: 0,
   };
@@ -638,7 +861,177 @@ function emptyPublicMdaScores(
   };
 }
 
-// Public MDA scoring query that uses the exact same data source as the Live Dashboard
+function applyPublicMdaScoresLimit(
+  payload: PublicMdaScoresResult,
+  limit: number | undefined,
+): PublicMdaScoresResult {
+  if (!limit || limit <= 0 || payload.mdas.length <= limit) return payload;
+  return { ...payload, mdas: payload.mdas.slice(0, limit) };
+}
+
+/**
+ * Heavy builder — same data source as the Live Dashboard.
+ * Prefer serving from `public_mda_scores_cache` for public traffic.
+ */
+async function computePublicMdaScores(
+  ctx: QueryCtx | MutationCtx,
+  requestedYear: number,
+  requestedYearArg?: number,
+): Promise<PublicMdaScoresResult> {
+  try {
+    const [dashboardResult, rawYearConfig, trackerStatuses, justificationMap] = await Promise.all([
+      ctx.runQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, {
+        year: requestedYear,
+      }),
+      ctx.runQuery(api.scoring_config.getAllConfigurationsForYear, {
+        year: requestedYear,
+      }),
+      ctx.runQuery(api.scoring_config.getMetricTrackerStatuses, {
+        scoringPeriod: String(requestedYear),
+      }),
+      ctx.runQuery(api.metric_justifications.getMap, {
+        framework: "bfa",
+        year: requestedYear,
+      }),
+    ]);
+
+    const trackerStatusByKey: Record<string, boolean> = {};
+    for (const row of trackerStatuses) {
+      trackerStatusByKey[row.metricKey] = row.fullyScored;
+    }
+    const yearConfig = (rawYearConfig ?? null) as ScoringYearConfig | null;
+    const frameworkMetrics = buildBfaFrameworkMetrics(requestedYear, yearConfig).map((metric) => ({
+      ...metric,
+      justification: justificationMap[metric.key] || undefined,
+    }));
+    // Default: Mystery + Others items are "not scored fully" until an admin marks them.
+    for (const metric of frameworkMetrics) {
+      if (
+        (metric.key === "mystery" || metric.key.startsWith("others:")) &&
+        !Object.prototype.hasOwnProperty.call(trackerStatusByKey, metric.key)
+      ) {
+        trackerStatusByKey[metric.key] = false;
+      }
+    }
+    const adjustments = {
+      penalties: (yearConfig?.penaltyItems || []).map((item) => ({
+        id: item.penaltyId,
+        name: item.penaltyName,
+        value: item.penaltyValue,
+        justification: justificationMap[`penalty:${item.penaltyId}`] || undefined,
+      })),
+      bonuses: (yearConfig?.bonusItems || []).map((item) => ({
+        id: item.bonusId,
+        name: item.bonusName,
+        value: item.bonusValue,
+        justification: justificationMap[`bonus:${item.bonusId}`] || undefined,
+      })),
+    };
+    const dashboardData = ((dashboardResult as { data?: Array<Record<string, unknown>> } | null)?.data ||
+      []) as Array<Record<string, unknown>>;
+    const othersItems = yearConfig?.othersItems || [];
+    const beepaExclusionKey = findBeepaExclusionKey(othersItems);
+
+    // 2026+ public tracker is scoped to the official BEEPA MDA roster (minus BOA).
+    if (requestedYear >= 2026) {
+      const dashboardByRosterName = new Map<string, Record<string, unknown>>();
+      for (const mda of dashboardData) {
+        if (!mda || typeof mda.mdaName !== "string") continue;
+        const matched = matchBeepaTrackerRosterEntry(String(mda.mdaName));
+        if (!matched) continue;
+        const key = matched.name;
+        const existing = dashboardByRosterName.get(key);
+        if (!existing || Number(mda.totalScore) > Number(existing.totalScore || 0)) {
+          dashboardByRosterName.set(key, mda);
+        }
+      }
+
+      const sortedRosterMdas: PublicMdaRow[] = BEEPA_TRACKER_ROSTER.map((entry) => {
+        const dashboardRow = dashboardByRosterName.get(entry.name);
+        const extraExcluded =
+          entry.beepaExempted && beepaExclusionKey ? [beepaExclusionKey] : [];
+        if (dashboardRow) {
+          return buildPublicMdaRowFromDashboard(
+            dashboardRow,
+            entry.name,
+            frameworkMetrics,
+            othersItems,
+            extraExcluded,
+            trackerStatusByKey
+          );
+        }
+        return buildEmptyPublicMdaRow(entry, frameworkMetrics, beepaExclusionKey);
+      }).sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
+
+      const scoredMdas = withDenseTiedRanks(sortedRosterMdas, (mda) => mda.finalScore);
+      const hasAnyScore = scoredMdas.some((mda) => mda.finalScore > 0);
+
+      return {
+        mdas: scoredMdas,
+        totalMdas: BEEPA_TRACKER_ROSTER.length,
+        year: requestedYear,
+        requestedYear: requestedYearArg,
+        availableYears: hasAnyScore ? [requestedYear] : [],
+        hasDataForRequestedYear: hasAnyScore,
+        frameworkMetrics,
+        adjustments,
+        message: hasAnyScore
+          ? undefined
+          : `No MDA scoring data available for ${requestedYear} yet. Showing the ${BEEPA_TRACKER_ROSTER.length} agencies on the BEEPA assessment roster.`,
+      };
+    }
+
+    if (!dashboardData.length) {
+      return {
+        ...emptyPublicMdaScores(
+          requestedYear,
+          `No MDA scoring data available for ${requestedYear}. Federal MDAs have not been scored for this assessment period.`,
+          frameworkMetrics
+        ),
+        adjustments,
+      };
+    }
+
+    const sortedLegacyMdas: PublicMdaRow[] = dashboardData
+      .filter((mda) => mda && typeof mda.mdaName === "string" && Number(mda.totalScore) > 0)
+      .map((mda) =>
+        buildPublicMdaRowFromDashboard(
+          mda,
+          canonicalizeMdaName(String(mda.mdaName)),
+          frameworkMetrics,
+          othersItems,
+          [],
+          trackerStatusByKey
+        )
+      )
+      .sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
+
+    const scoredMdas = withDenseTiedRanks(sortedLegacyMdas, (mda) => mda.finalScore);
+
+    return {
+      mdas: scoredMdas,
+      totalMdas: scoredMdas.length,
+      year: requestedYear,
+      requestedYear: requestedYearArg,
+      availableYears: scoredMdas.length > 0 ? [requestedYear] : [],
+      hasDataForRequestedYear: scoredMdas.length > 0,
+      frameworkMetrics,
+      adjustments,
+    };
+  } catch (error) {
+    console.error("Error fetching public MDA scores:", error);
+    return emptyPublicMdaScores(
+      requestedYear,
+      "Error loading MDA scoring data. Please try again later."
+    );
+  }
+}
+
+/**
+ * Public MDA tracker. Serves a cached snapshot so anonymous traffic does not
+ * rebuild the full live dashboard on every page view (~56GB I/O previously).
+ * Falls back to a live compute only when the cache row is missing.
+ */
 export const getPublicMdaScores = query({
   args: {
     year: v.optional(v.number()),
@@ -648,156 +1041,51 @@ export const getPublicMdaScores = query({
   handler: async (ctx, args): Promise<PublicMdaScoresResult> => {
     const requestedYear = args.year || new Date().getFullYear();
 
-    try {
-      const [dashboardResult, rawYearConfig, trackerStatuses, justificationMap] = await Promise.all([
-        ctx.runQuery(api.mda_scoring.getAllMdaSavedDataForDashboard, {
-          year: requestedYear,
-        }),
-        ctx.runQuery(api.scoring_config.getAllConfigurationsForYear, {
-          year: requestedYear,
-        }),
-        ctx.runQuery(api.scoring_config.getMetricTrackerStatuses, {
-          scoringPeriod: String(requestedYear),
-        }),
-        ctx.runQuery(api.metric_justifications.getMap, {
-          framework: "bfa",
-          year: requestedYear,
-        }),
-      ]);
+    const cached = await ctx.db
+      .query("public_mda_scores_cache")
+      .withIndex("byYear", (q) => q.eq("year", requestedYear))
+      .first();
 
-      const trackerStatusByKey: Record<string, boolean> = {};
-      for (const row of trackerStatuses) {
-        trackerStatusByKey[row.metricKey] = row.fullyScored;
-      }
-      const yearConfig = (rawYearConfig ?? null) as ScoringYearConfig | null;
-      const frameworkMetrics = buildBfaFrameworkMetrics(requestedYear, yearConfig).map((metric) => ({
-        ...metric,
-        justification: justificationMap[metric.key] || undefined,
-      }));
-      // Default: Mystery + Others items are "not scored fully" until an admin marks them.
-      for (const metric of frameworkMetrics) {
-        if (
-          (metric.key === "mystery" || metric.key.startsWith("others:")) &&
-          !Object.prototype.hasOwnProperty.call(trackerStatusByKey, metric.key)
-        ) {
-          trackerStatusByKey[metric.key] = false;
-        }
-      }
-      const adjustments = {
-        penalties: (yearConfig?.penaltyItems || []).map((item) => ({
-          id: item.penaltyId,
-          name: item.penaltyName,
-          value: item.penaltyValue,
-          justification: justificationMap[`penalty:${item.penaltyId}`] || undefined,
-        })),
-        bonuses: (yearConfig?.bonusItems || []).map((item) => ({
-          id: item.bonusId,
-          name: item.bonusName,
-          value: item.bonusValue,
-          justification: justificationMap[`bonus:${item.bonusId}`] || undefined,
-        })),
-      };
-      const dashboardData = ((dashboardResult as { data?: Array<Record<string, unknown>> } | null)?.data ||
-        []) as Array<Record<string, unknown>>;
-      const othersItems = yearConfig?.othersItems || [];
-      const beepaExclusionKey = findBeepaExclusionKey(othersItems);
-
-      // 2026+ public tracker is scoped to the official BEEPA MDA roster (minus BOA).
-      if (requestedYear >= 2026) {
-        const dashboardByRosterName = new Map<string, Record<string, unknown>>();
-        for (const mda of dashboardData) {
-          if (!mda || typeof mda.mdaName !== "string") continue;
-          const matched = matchBeepaTrackerRosterEntry(String(mda.mdaName));
-          if (!matched) continue;
-          const key = matched.name;
-          const existing = dashboardByRosterName.get(key);
-          if (!existing || Number(mda.totalScore) > Number(existing.totalScore || 0)) {
-            dashboardByRosterName.set(key, mda);
-          }
-        }
-
-        const sortedRosterMdas: PublicMdaRow[] = BEEPA_TRACKER_ROSTER.map((entry) => {
-          const dashboardRow = dashboardByRosterName.get(entry.name);
-          const extraExcluded =
-            entry.beepaExempted && beepaExclusionKey ? [beepaExclusionKey] : [];
-          if (dashboardRow) {
-            return buildPublicMdaRowFromDashboard(
-              dashboardRow,
-              entry.name,
-              frameworkMetrics,
-              othersItems,
-              extraExcluded,
-              trackerStatusByKey
-            );
-          }
-          return buildEmptyPublicMdaRow(entry, frameworkMetrics, beepaExclusionKey);
-        }).sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
-
-        const scoredMdas = withDenseTiedRanks(sortedRosterMdas, (mda) => mda.finalScore);
-
-        const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
-        const hasAnyScore = scoredMdas.some((mda) => mda.finalScore > 0);
-
-        return {
-          mdas: limitedMdas,
-          totalMdas: BEEPA_TRACKER_ROSTER.length,
-          year: requestedYear,
+    if (cached?.payload && typeof cached.payload === "object") {
+      const payload = cached.payload as PublicMdaScoresResult;
+      return applyPublicMdaScoresLimit(
+        {
+          ...payload,
           requestedYear: args.year,
-          availableYears: hasAnyScore ? [requestedYear] : [],
-          hasDataForRequestedYear: hasAnyScore,
-          frameworkMetrics,
-          adjustments,
-          message: hasAnyScore
-            ? undefined
-            : `No MDA scoring data available for ${requestedYear} yet. Showing the ${BEEPA_TRACKER_ROSTER.length} agencies on the BEEPA assessment roster.`,
-        };
-      }
-
-      if (!dashboardData.length) {
-        return {
-          ...emptyPublicMdaScores(
-            requestedYear,
-            `No MDA scoring data available for ${requestedYear}. Federal MDAs have not been scored for this assessment period.`,
-            frameworkMetrics
-          ),
-          adjustments,
-        };
-      }
-
-      const sortedLegacyMdas: PublicMdaRow[] = dashboardData
-        .filter((mda) => mda && typeof mda.mdaName === "string" && Number(mda.totalScore) > 0)
-        .map((mda) =>
-          buildPublicMdaRowFromDashboard(
-            mda,
-            canonicalizeMdaName(String(mda.mdaName)),
-            frameworkMetrics,
-            othersItems,
-            [],
-            trackerStatusByKey
-          )
-        )
-        .sort((a, b) => b.finalScore - a.finalScore || a.mdaName.localeCompare(b.mdaName));
-
-      const scoredMdas = withDenseTiedRanks(sortedLegacyMdas, (mda) => mda.finalScore);
-
-      const limitedMdas = args.limit ? scoredMdas.slice(0, args.limit) : scoredMdas;
-
-      return {
-        mdas: limitedMdas,
-        totalMdas: scoredMdas.length,
-        year: requestedYear,
-        requestedYear: args.year,
-        availableYears: scoredMdas.length > 0 ? [requestedYear] : [],
-        hasDataForRequestedYear: scoredMdas.length > 0,
-        frameworkMetrics,
-        adjustments,
-      };
-    } catch (error) {
-      console.error("Error fetching public MDA scores:", error);
-      return emptyPublicMdaScores(
-        requestedYear,
-        "Error loading MDA scoring data. Please try again later."
+        },
+        args.limit,
       );
     }
+
+    // Rare cold start before the first cron refresh.
+    const live = await computePublicMdaScores(ctx, requestedYear, args.year);
+    return applyPublicMdaScoresLimit(live, args.limit);
+  },
+});
+
+/** Rebuild public tracker cache for a year (cron / manual). */
+export const refreshPublicMdaScoresCache = internalMutation({
+  args: {
+    year: v.optional(v.number()),
+  },
+  returns: v.object({
+    year: v.number(),
+    mdaCount: v.number(),
+    updatedAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const year = args.year || new Date().getFullYear();
+    const payload = await computePublicMdaScores(ctx, year, year);
+    const updatedAt = Date.now();
+    const existing = await ctx.db
+      .query("public_mda_scores_cache")
+      .withIndex("byYear", (q) => q.eq("year", year))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { payload, updatedAt });
+    } else {
+      await ctx.db.insert("public_mda_scores_cache", { year, payload, updatedAt });
+    }
+    return { year, mdaCount: payload.mdas.length, updatedAt };
   },
 });

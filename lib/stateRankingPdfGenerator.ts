@@ -8,7 +8,6 @@ interface StateRankingRow {
   totalScore: number;
   maxScore: number;
   percentageScore: number;
-  deduction?: number;
 }
 
 interface GenerateStateRankingPDFParams {
@@ -95,14 +94,13 @@ export async function generateStateRankingPDF({
     const tableData = rankings.map((row) => [
       `#${row.rank}`,
       row.state,
-      row.deduction && row.deduction > 0 ? `- ${row.deduction.toFixed(1)}` : "—",
       `${row.totalScore.toFixed(1)}/${row.maxScore.toFixed(1)}`,
       `${row.percentageScore.toFixed(1)}%`,
     ]);
 
     autoTable(doc, {
       startY: yPosition,
-      head: [["Rank", "State", "Deductions", "Score", "% Score"]],
+      head: [["Rank", "State", "Score", "% Score"]],
       body: tableData,
       headStyles: {
         fillColor: [41, 128, 185],

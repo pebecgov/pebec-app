@@ -1,50 +1,165 @@
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
+import {
+  getRankingExemptEntry,
+  isExcludedFromDashboardReport,
+  isRankingExemptMda,
+  RANKING_EXEMPT_MDAS,
+  NEWLY_ONBOARDED_EXEMPT_NOTE,
+} from "./dashboardReportExclusions";
+import { formatMdaNameForBeepaReport } from "./beepaTrackerRoster";
 
 interface MdaList {
   name: string;
 }
 
-// Helper function to strip abbreviation prefix from MDA names (e.g., "FME - Federal Ministry" -> "Federal Ministry")
-function stripAbbreviation(mdaName: string): string {
-  if (!mdaName) return mdaName;
-  // Remove pattern like "ABC - " or "ABC -" from the start
-  const match = mdaName.match(/^[A-Z]+ - (.+)$/);
-  if (match && match[1]) {
-    return match[1].trim();
-  }
-  return mdaName.trim();
-}
-
-interface DashboardData {
-  mdaName: string;
-  sla?: { score: number; monthsWithData?: number };
-  mysteryShopping?: { score: number };
-  controversial?: { score: number; isControversial?: boolean };
-  toutingRentseeking?: { score: number };
-  innovation?: { score: number };
-  stakeholder?: { score: number };
-  transparency?: { score: number; isSkipped?: boolean };
-  reportGovResolution?: { score: number; isSkipped?: boolean };
-  monthlyReport?: { score: number; monthsWithData?: number };
-  timeliness?: { score: number; monthsWithData?: number };
-}
-
 interface GenerateDashboardPDFParams {
-  liveDashboardData: DashboardData[];
+  liveDashboardData: any[];
   selectedMetric: string;
   dashboardYear: number;
   mdasList: MdaList[];
-  filterType?: 'all' | 'withData'; // Optional filter type
+  filterType?: "all" | "withData";
+  othersConfig?: Array<{ itemId: string; itemName: string; weight: number }>;
+  penaltyConfig?: Array<{ penaltyId: string; penaltyName: string; penaltyValue: number }>;
+  bonusConfig?: Array<{ bonusId: string; bonusName: string; bonusValue: number }>;
+  efficiencyConfig?: {
+    slaPoints?: number;
+    reportGovPoints?: number;
+    reportSubmissionPoints?: number;
+    timelinessPoints?: number;
+  };
+  /** When true, keep the incoming row order (already ranked like the Live Dashboard). */
+  preserveOrder?: boolean;
 }
 
+function isExcluded(mda: any, metric: string): boolean {
+  const excluded: string[] = Array.isArray(mda.excludedMetrics) ? mda.excludedMetrics : [];
+  return excluded.includes(metric);
+}
+
+function isOthersItemExcluded(mda: any, itemId: string): boolean {
+  const excluded: string[] = Array.isArray(mda.excludedMetrics) ? mda.excludedMetrics : [];
+  return excluded.includes("others") || excluded.includes(`others:${itemId}`);
+}
+
+/** Same ranking key as DashboardTable.getMetricScore — must stay in sync. */
+function metricSortValue(mda: any, selectedMetric: string): number {
+  // Overall ranking uses absolute Final Score points (highest → lowest).
+  if (selectedMetric === "totalScore") return Number(mda.totalScore) || 0;
+  if (selectedMetric === "mysteryShopping") {
+    return isExcluded(mda, "mystery") ? 0 : Number(mda.mysteryShopping?.score) || 0;
+  }
+  if (selectedMetric === "sla") {
+    return isExcluded(mda, "sla") ? 0 : Number(mda.sla?.score) || 0;
+  }
+  if (selectedMetric === "controversial") {
+    return isExcluded(mda, "controversial") ? 0 : Number(mda.controversial?.score) || 0;
+  }
+  if (selectedMetric === "toutingRentseeking") {
+    return isExcluded(mda, "toutingRentseeking")
+      ? 0
+      : Number(mda.toutingRentseeking?.score) || 0;
+  }
+  if (selectedMetric === "innovation") {
+    return isExcluded(mda, "innovation") ? 0 : Number(mda.innovation?.score) || 0;
+  }
+  if (selectedMetric === "stakeholder") {
+    return isExcluded(mda, "stakeholder") ? 0 : Number(mda.stakeholder?.score) || 0;
+  }
+  if (selectedMetric === "transparency") {
+    return isExcluded(mda, "transparency") ? 0 : Number(mda.transparency?.score) || 0;
+  }
+  if (selectedMetric === "reportGovResolution") {
+    return isExcluded(mda, "reportGov") ? 0 : Number(mda.reportGovResolution?.score) || 0;
+  }
+  if (selectedMetric === "monthlyReport") {
+    return isExcluded(mda, "reportSubmission") ? 0 : Number(mda.monthlyReport?.score) || 0;
+  }
+  if (selectedMetric === "timeliness") {
+    return isExcluded(mda, "timeliness") ? 0 : Number(mda.timeliness?.score) || 0;
+  }
+  if (selectedMetric === "efficiency") {
+    const slaScore = isExcluded(mda, "sla") ? 0 : Number(mda.sla?.score) || 0;
+    const reportScore = isExcluded(mda, "reportSubmission")
+      ? 0
+      : Number(mda.monthlyReport?.score) || 0;
+    const timelinessScore = isExcluded(mda, "timeliness")
+      ? 0
+      : Number(mda.timeliness?.score) || 0;
+    return slaScore + reportScore + timelinessScore;
+  }
+  if (selectedMetric === "penalties") {
+    return isExcluded(mda, "penalties") ? 0 : Number(mda.penalties?.score) || 0;
+  }
+  if (selectedMetric === "bonuses") {
+    return isExcluded(mda, "bonuses") ? 0 : Number(mda.bonuses?.score) || 0;
+  }
+  if (selectedMetric.startsWith("others:")) {
+    const itemId = selectedMetric.replace("others:", "");
+    return isOthersItemExcluded(mda, itemId)
+      ? 0
+      : Number(mda.others?.scores?.[itemId]) || 0;
+  }
+  if (selectedMetric === "others") {
+    return isExcluded(mda, "others") ? 0 : Number(mda.others?.score) || 0;
+  }
+  return Number(mda.totalScore) || 0;
+}
+
+function cellScore(score: number | undefined | null, max: number, skipped = false): string {
+  if (skipped) return `0/${max}\nSkipped`;
+  if (score == null || !Number.isFinite(score)) return "—";
+  return `${Number(score).toFixed(1)}/${max}`;
+}
+
+function cellScoreWithMonths(
+  score: number | undefined | null,
+  max: number,
+  monthsWithData?: number | null,
+  totalMonths?: number | null
+): string {
+  const top = cellScore(score, max);
+  if (
+    monthsWithData != null &&
+    totalMonths != null &&
+    Number.isFinite(monthsWithData) &&
+    Number.isFinite(totalMonths) &&
+    totalMonths > 0
+  ) {
+    return `${top}\n${monthsWithData}/${totalMonths} months`;
+  }
+  return top;
+}
+
+function formatOthersValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Avoid float noise like 1.6999999999999997 — one decimal is enough.
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+  return "—";
+}
+
+function formatFinalPercentage(pct: number): string {
+  // Single rounded whole-number percent (round half up).
+  const rounded = Math.round(Number(pct) || 0);
+  return `${rounded}%`;
+}
+
+/**
+ * Dashboard PDF uses the same columns, sort order, and cell values as the Live Dashboard table.
+ */
 export async function generateDashboardPDF({
   liveDashboardData,
   selectedMetric,
   dashboardYear,
-  mdasList,
-  filterType = 'all'
+  filterType = "all",
+  othersConfig = [],
+  penaltyConfig = [],
+  bonusConfig = [],
+  efficiencyConfig,
+  preserveOrder = false,
 }: GenerateDashboardPDFParams): Promise<void> {
   if (!liveDashboardData || !Array.isArray(liveDashboardData) || liveDashboardData.length === 0) {
     toast.error("No data available to download");
@@ -53,505 +168,440 @@ export async function generateDashboardPDF({
 
   try {
     const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4'
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
     });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     let yPosition = 30;
 
-    // Add logo in the center
     try {
-      const logoUrl = '/images/logo/logo_pebec1.PNG';
+      const logoUrl = "/images/logo/logo_pebec1.PNG";
       const img = new Image();
       img.src = logoUrl;
-      img.crossOrigin = 'anonymous';
+      img.crossOrigin = "anonymous";
       await new Promise((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
-        setTimeout(() => reject(new Error('Logo load timeout')), 5000);
+        setTimeout(() => reject(new Error("Logo load timeout")), 5000);
       });
       const logoWidth = 60;
       const logoHeight = 18;
       const logoX = (pageWidth - logoWidth) / 2;
-      doc.addImage(img, 'PNG', logoX, 10, logoWidth, logoHeight);
+      doc.addImage(img, "PNG", logoX, 10, logoWidth, logoHeight);
       yPosition = 40;
-    } catch (error) {
-      console.error('Error loading logo:', error);
+    } catch {
       doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('PEBEC', pageWidth / 2, 20, { align: 'center' });
+      doc.setFont("helvetica", "bold");
+      doc.text("PEBEC", pageWidth / 2, 20, { align: "center" });
       yPosition = 35;
     }
 
-    // Get metric display name
-    const metricNames: { [key: string]: string } = {
-      'totalScore': 'Total Score (All Metrics)',
-      'mysteryShopping': 'Mystery Shopping',
-      'sla': 'Service Level Agreement',
-      'controversial': 'Controversial',
-      'toutingRentseeking': 'Touting & Rentseeking',
-      'innovation': 'Innovation',
-      'stakeholder': 'Stakeholder Engagement',
-      'transparency': 'Transparency',
-      'reportGovResolution': 'Report Gov Resolution',
-      'monthlyReport': 'Monthly Report Submission',
-      'timeliness': 'Timeliness'
+    const metricNames: Record<string, string> = {
+      totalScore: "BFA Scoring Table",
+      mysteryShopping: "Mystery Shopping",
+      sla: "Service Level Agreement",
+      efficiency: "Efficiency",
+      controversial: "Controversial",
+      toutingRentseeking: "Touting & Rentseeking",
+      innovation: "Innovation",
+      stakeholder: "Stakeholder Engagement",
+      transparency: "Transparency",
+      reportGovResolution: "Report Gov Resolution",
+      monthlyReport: "Monthly Report Submission",
+      timeliness: "Timeliness",
+      penalties: "Penalties",
+      bonuses: "Bonuses",
     };
+    const metricDisplayName =
+      metricNames[selectedMetric] ||
+      (selectedMetric.startsWith("others:")
+        ? othersConfig.find((item) => `others:${item.itemId}` === selectedMetric)?.itemName ||
+          selectedMetric
+        : selectedMetric);
 
-    const metricDisplayName = metricNames[selectedMetric] || selectedMetric;
+    const pdfTitle =
+      selectedMetric === "totalScore"
+        ? "BFA Scoring Table"
+        : `BFA Scoring Table - ${metricDisplayName}`;
 
-    // Title
     doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Live Scoring Dashboard - ${metricDisplayName}`, pageWidth / 2, yPosition, { align: 'center' });
+    doc.setFont("helvetica", "bold");
+    doc.text(pdfTitle, pageWidth / 2, yPosition, {
+      align: "center",
+    });
     yPosition += 8;
     doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Year: ${dashboardYear}`, pageWidth / 2, yPosition, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    doc.text(`Year: ${dashboardYear}`, pageWidth / 2, yPosition, { align: "center" });
     yPosition += 5;
-    if (filterType === 'withData') {
+    if (filterType === "withData") {
       doc.setFontSize(10);
-      doc.text(`Filter: MDAs with Data`, pageWidth / 2, yPosition, { align: 'center' });
+      doc.text("Filter: MDAs with Data", pageWidth / 2, yPosition, { align: "center" });
       yPosition += 5;
     }
-    yPosition += 10;
+    if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      yPosition += 2;
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "italic");
+      const legendLines = doc.splitTextToSize(
+        "Note: Metrics that are not applicable (e.g. BEEPA exemption, Mystery Testing Service not tested, SERVICOM monthly scoring exemption) are removed from that MDA’s applicable maximum — they are not scored as zero. Scores are then converted to a /100 Final Score so MDAs are not penalised for inapplicable metrics. For Testing Service: full marks on the remaining channels (e.g. 20/20) equals full Mystery (same as 40/40).",
+        pageWidth - 20
+      );
+      doc.text(legendLines, pageWidth / 2, yPosition, { align: "center" });
+      yPosition += legendLines.length * 3.2 + 2;
+      doc.setFont("helvetica", "normal");
+    }
+    yPosition += 6;
 
-    // Process data - if filterType is 'withData', use the filtered data directly
-    // Otherwise, merge with all MDAs from mdasList
-    let allMdasArray: any[];
+    const allMdasArray = liveDashboardData
+      .filter((mda: any) => !isExcludedFromDashboardReport(mda?.mdaName || mda?.name || ""))
+      .map((mda: any) => ({
+        ...mda,
+        baseTotalScore: Number(mda.totalGrossScore ?? mda.baseTotalScore ?? mda.totalScore) || 0,
+        totalScore: Number(mda.totalScore) || 0,
+        totalPercentage: Number(mda.totalPercentage) || 0,
+        maxPossiblePoints: Number(mda.maxPossiblePoints) || (dashboardYear >= 2026 ? 100 : 90),
+      }));
 
-    if (filterType === 'withData') {
-      // Use filtered data directly - it's already processed and filtered
-      allMdasArray = liveDashboardData.map((mda: any) => {
-        // Use scores directly as they are already processed
-        const slaScore = mda.sla?.score || 0;
-        const monthlyReportScore = mda.monthlyReport?.score || 0;
-        const timelinessScore = mda.timeliness?.score || 0;
+    const rankedPool = allMdasArray.filter(
+      (mda) => !isRankingExemptMda(mda?.mdaName || mda?.name || "")
+    );
+    const exemptFromData = allMdasArray.filter((mda) =>
+      isRankingExemptMda(mda?.mdaName || mda?.name || "")
+    );
 
-        const mysteryScore = mda.mysteryShopping?.score || 0;
-        const innovationScore = mda.innovation?.score || 0;
-        const stakeholderScore = mda.stakeholder?.score || 0;
-        const transparencyScore = mda.transparency?.score || 0;
-        const reportGovResScore = mda.reportGovResolution?.score || 0;
-
-        // Calculate base total score (all metrics except controversial and touting & rentseeking)
-        const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
-          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
-
-        // Controversial: Handle both old and new data formats
-        let controversialScore = mda.controversial?.score || 0;
-        if (mda.controversial) {
-          const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
-          if (isOldFormat) {
-            if (mda.controversial.isControversial) {
-              controversialScore = -5;
-            } else {
-              controversialScore = 0;
-            }
+    const sortedRanked = preserveOrder
+      ? rankedPool
+      : [...rankedPool].sort((a, b) => {
+          const diff = metricSortValue(b, selectedMetric) - metricSortValue(a, selectedMetric);
+          if (diff !== 0) return diff;
+          if (selectedMetric === "totalScore") {
+            const pctDiff =
+              (Number(b.totalPercentage) || 0) - (Number(a.totalPercentage) || 0);
+            if (pctDiff !== 0) return pctDiff;
           }
-        }
-
-        // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
-        let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
-
-        // Calculate penalties (convert negative scores to positive penalty values)
-        const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
-        const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
-        const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
-
-        const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
-        const isTransparencySkipped = mda.transparency?.isSkipped || false;
-        let maxPossiblePoints = 90;
-        if (isTransparencySkipped) {
-          maxPossiblePoints -= 5;
-        }
-        if (isReportGovSkipped) {
-          maxPossiblePoints -= 15;
-        }
-
-        const totalPercentage = maxPossiblePoints > 0
-          ? (totalScore / maxPossiblePoints) * 100
-          : 0;
-
-        return {
-          ...mda,
-          sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
-          monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
-          timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
-          baseTotalScore,
-          totalScore,
-          totalPercentage,
-          isReportGovSkipped,
-          isTransparencySkipped,
-          maxPossiblePoints
-        };
-      });
-    } else {
-      // Process data similar to how it's done in the table - merge with all MDAs
-      const allMdasMap = new Map<string, any>();
-      mdasList.forEach(mda => {
-        allMdasMap.set(mda.name, {
-          mdaName: mda.name,
-          sla: null,
-          mysteryShopping: null,
-          controversial: null,
-          toutingRentseeking: null,
-          innovation: null,
-          stakeholder: null,
-          transparency: null,
-          reportGovResolution: null,
-          monthlyReport: null,
-          timeliness: null,
-          totalScore: 0,
-          totalPercentage: 0
+          return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
         });
+
+    // Always list ranking-exempt agencies at the bottom (stub if missing from data).
+    const usedExempt = new Set<string>();
+    const onboardedBottom = RANKING_EXEMPT_MDAS.map((entry) => {
+      const existing = exemptFromData.find((mda) => {
+        const match = getRankingExemptEntry(mda?.mdaName || "");
+        if (!match || match.abbreviation !== entry.abbreviation) return false;
+        if (usedExempt.has(match.abbreviation)) return false;
+        return true;
       });
-
-      liveDashboardData.forEach((mda: any) => {
-        // Strip abbreviation from backend MDA name for matching
-        const cleanedMdaName = stripAbbreviation(mda.mdaName);
-        if (allMdasMap.has(cleanedMdaName)) {
-          const existing = allMdasMap.get(cleanedMdaName);
-          allMdasMap.set(cleanedMdaName, {
-            ...existing,
-            ...mda,
-            mdaName: cleanedMdaName // Use cleaned name without abbreviation
-          });
-        } else {
-          // Add MDAs that might not be in mdasList but have data
-          allMdasMap.set(cleanedMdaName, {
-            ...mda,
-            mdaName: cleanedMdaName // Use cleaned name without abbreviation
-          });
-        }
-      });
-
-      allMdasArray = Array.from(allMdasMap.values()).map((mda: any) => {
-        // Use scores directly as they are already processed
-        const slaScore = mda.sla?.score || 0;
-        const monthlyReportScore = mda.monthlyReport?.score || 0;
-        const timelinessScore = mda.timeliness?.score || 0;
-
-        const mysteryScore = mda.mysteryShopping?.score || 0;
-        const innovationScore = mda.innovation?.score || 0;
-        const stakeholderScore = mda.stakeholder?.score || 0;
-        const transparencyScore = mda.transparency?.score || 0;
-        const reportGovResScore = mda.reportGovResolution?.score || 0;
-
-        // Calculate base total score (all metrics except controversial and touting & rentseeking)
-        const baseTotalScore = slaScore + mysteryScore + innovationScore + stakeholderScore +
-          transparencyScore + reportGovResScore + monthlyReportScore + timelinessScore;
-
-        // Controversial: Handle both old and new data formats
-        let controversialScore = mda.controversial?.score || 0;
-        if (mda.controversial) {
-          const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
-          if (isOldFormat) {
-            if (mda.controversial.isControversial) {
-              controversialScore = -5;
-            } else {
-              controversialScore = 0;
-            }
-          }
-        }
-
-        // Touting & Rentseeking: If Yes (true), score is -10. If No (false), score is 0.
-        let toutingRentseekingScore = mda.toutingRentseeking?.score || 0;
-
-        // Calculate penalties (convert negative scores to positive penalty values)
-        const controversialPenalty = controversialScore < 0 ? Math.abs(controversialScore) : 0;
-        const toutingRentseekingPenalty = toutingRentseekingScore < 0 ? Math.abs(toutingRentseekingScore) : 0;
-        const totalScore = baseTotalScore - controversialPenalty - toutingRentseekingPenalty;
-
-        // Check if optional metrics are skipped
-        const isReportGovSkipped = mda.reportGovResolution?.isSkipped || false;
-        const isTransparencySkipped = mda.transparency?.isSkipped || false;
-        let maxPossiblePoints = 90;
-        if (isTransparencySkipped) {
-          maxPossiblePoints -= 5;
-        }
-        if (isReportGovSkipped) {
-          maxPossiblePoints -= 15;
-        }
-
-        // Normalize percentage using adjusted max points
-        const totalPercentage = maxPossiblePoints > 0
-          ? (totalScore / maxPossiblePoints) * 100
-          : 0;
-
+      if (existing) {
+        usedExempt.add(entry.abbreviation);
         return {
-          ...mda,
-          sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
-          monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
-          timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
-          baseTotalScore,
-          totalScore,
-          totalPercentage,
-          isReportGovSkipped,
-          isTransparencySkipped,
-          maxPossiblePoints
+          ...existing,
+          mdaName: `${entry.abbreviation} - ${entry.name}`,
+          rankingExemptNote: entry.note,
         };
-      });
-    }
-
-    // Sort by selected metric
-    const sortedData = [...allMdasArray].sort((a: any, b: any) => {
-      let aValue: any = 0;
-      let bValue: any = 0;
-
-      if (selectedMetric === 'totalScore') {
-        aValue = a.totalPercentage || 0; // Use normalized percentage for fair ranking
-        bValue = b.totalPercentage || 0;
-      } else if (selectedMetric === 'mysteryShopping') {
-        aValue = a.mysteryShopping?.score || 0;
-        bValue = b.mysteryShopping?.score || 0;
-      } else if (selectedMetric === 'sla') {
-        aValue = a.sla?.score || 0;
-        bValue = b.sla?.score || 0;
-      } else if (selectedMetric === 'controversial') {
-        aValue = a.controversial?.score || 0;
-        bValue = b.controversial?.score || 0;
-      } else if (selectedMetric === 'toutingRentseeking') {
-        aValue = a.toutingRentseeking?.score || 0;
-        bValue = b.toutingRentseeking?.score || 0;
-      } else if (selectedMetric === 'innovation') {
-        aValue = a.innovation?.score || 0;
-        bValue = b.innovation?.score || 0;
-      } else if (selectedMetric === 'stakeholder') {
-        aValue = a.stakeholder?.score || 0;
-        bValue = b.stakeholder?.score || 0;
-      } else if (selectedMetric === 'reportGovernance') {
-        aValue = a.reportGovernance?.score || 0;
-        bValue = b.reportGovernance?.score || 0;
-      } else if (selectedMetric === 'reportGovResolution') {
-        aValue = a.reportGovResolution?.score || 0;
-        bValue = b.reportGovResolution?.score || 0;
-      } else if (selectedMetric === 'monthlyReport') {
-        aValue = a.monthlyReport?.score || 0;
-        bValue = b.monthlyReport?.score || 0;
-      } else if (selectedMetric === 'timeliness') {
-        aValue = a.timeliness?.score || 0;
-        bValue = b.timeliness?.score || 0;
       }
-
-      return bValue - aValue;
+      return {
+        mdaName: `${entry.abbreviation} - ${entry.name}`,
+        rankingExemptNote: entry.note,
+      };
     });
 
-    // Calculate ranks
-    const rankMap = new Map<string, number>();
-    sortedData.forEach((mda: any, idx: number) => {
-      rankMap.set(mda.mdaName, idx + 1);
-    });
+    const slaMax = efficiencyConfig?.slaPoints || (dashboardYear >= 2026 ? 5 : 30);
+    const reportGovMax = efficiencyConfig?.reportGovPoints || (dashboardYear >= 2026 ? 20 : 15);
+    const monthlyMax =
+      efficiencyConfig?.reportSubmissionPoints || (dashboardYear >= 2026 ? 2 : 3);
+    const timelinessMax = efficiencyConfig?.timelinessPoints || (dashboardYear >= 2026 ? 3 : 2);
 
-    // Prepare table data
     const tableData: string[][] = [];
-    sortedData.forEach((mda: any) => {
-      const rank = rankMap.get(mda.mdaName) || sortedData.length;
-      let score = 0;
-      let maxScore = 100;
-      let overallPercentage = 0;
+    let head: string[] = [];
 
-      if (selectedMetric === 'totalScore') {
-        score = mda.totalScore || 0;
-        maxScore = 100;
-        overallPercentage = mda.totalPercentage || 0; // Use normalized percentage
-      } else if (selectedMetric === 'mysteryShopping') {
-        score = mda.mysteryShopping?.score || 0;
-        maxScore = 20;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'sla') {
-        score = mda.sla?.score || 0;
-        maxScore = 30;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'controversial') {
-        score = mda.controversial?.score || 0;
-        // Controversial is a penalty (-5 to 0), display as-is
-        overallPercentage = score; // Display raw penalty value
-      } else if (selectedMetric === 'toutingRentseeking') {
-        score = mda.toutingRentseeking?.score || 0;
-        // Touting & Rentseeking is a penalty (-10 to 0), display as-is
-        overallPercentage = score; // Display raw penalty value
-      } else if (selectedMetric === 'innovation') {
-        score = mda.innovation?.score || 0;
-        maxScore = 5;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'stakeholder') {
-        score = mda.stakeholder?.score || 0;
-        maxScore = 10;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'transparency') {
-        score = mda.transparency?.score || 0;
-        maxScore = 5;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'reportGovResolution') {
-        score = mda.reportGovResolution?.score || 0;
-        maxScore = 15;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'monthlyReport') {
-        score = mda.monthlyReport?.score || 0;
-        maxScore = 3;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      } else if (selectedMetric === 'timeliness') {
-        score = mda.timeliness?.score || 0;
-        maxScore = 2;
-        overallPercentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-      }
+    if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      // Exact Live Dashboard column set / order.
+      head = [
+        "Rank",
+        "MDA Name",
+        "SLA (Efficiency)",
+        "Mystery Shopping",
+        ...othersConfig.map((item) => item.itemName),
+        "Report Gov Resolution",
+        "Report Submission",
+        "Timeliness",
+        ...penaltyConfig.map((item) => item.penaltyName),
+        ...bonusConfig.map((item) => item.bonusName),
+        "Final Score",
+      ];
 
-      if (selectedMetric === 'totalScore') {
-        // Handle controversial score (old and new format)
-        let controversialDisplay = '0.0';
-        if (mda.controversial) {
-          let controversialScore = mda.controversial.score || 0;
-          if (mda.controversial) {
-            const isOldFormat = controversialScore >= 0 && controversialScore <= 5;
-            if (isOldFormat) {
-              if (mda.controversial.isControversial) {
-                controversialScore = -5;
-              } else {
-                controversialScore = 0;
-              }
-            }
-          }
-          controversialDisplay = controversialScore.toFixed(1);
-        }
+      const dashCell = () => "—";
+      const emptyOthers = othersConfig.map(() => dashCell());
+      const emptyPenalties = penaltyConfig.map(() => dashCell());
+      const emptyBonuses = bonusConfig.map(() => dashCell());
 
-        // Handle touting & rentseeking score
-        const toutingRentseekingDisplay = mda.toutingRentseeking ? mda.toutingRentseeking.score.toFixed(1) : '0.0';
-
-        // Format SLA with months info if available
-        let slaDisplay = '—';
-        if (mda.sla) {
-          if (mda.sla.monthsWithData !== undefined) {
-            slaDisplay = `${mda.sla.score.toFixed(1)}/30\n${mda.sla.monthsWithData}/10 months`;
-          } else {
-            slaDisplay = `${mda.sla.score.toFixed(1)}/30`;
-          }
-        }
-
-        // Format Monthly Report with months info if available
-        let monthlyReportDisplay = '—';
-        if (mda.monthlyReport) {
-          if (mda.monthlyReport.monthsWithData !== undefined) {
-            monthlyReportDisplay = `${mda.monthlyReport.score.toFixed(1)}/3\n${mda.monthlyReport.monthsWithData}/10 months`;
-          } else {
-            monthlyReportDisplay = `${mda.monthlyReport.score.toFixed(1)}/3`;
-          }
-        }
-
-        // Format Timeliness with months info if available
-        let timelinessDisplay = '—';
-        if (mda.timeliness) {
-          if (mda.timeliness.monthsWithData !== undefined) {
-            timelinessDisplay = `${mda.timeliness.score.toFixed(1)}/2\n${mda.timeliness.monthsWithData}/10 months`;
-          } else {
-            timelinessDisplay = `${mda.timeliness.score.toFixed(1)}/2`;
-          }
-        }
-
-        // Format Report Gov Resolution
-        let reportGovDisplay = '—';
-        if (mda.reportGovResolution) {
-          if (mda.reportGovResolution.isSkipped) {
-            reportGovDisplay = '0/15\n(Skipped)';
-          } else {
-            reportGovDisplay = `${mda.reportGovResolution.score.toFixed(1)}/15`;
-          }
-        }
-
-        tableData.push([
-          `#${rank}`,
-          mda.mdaName,
-          slaDisplay,
-          mda.mysteryShopping ? `${mda.mysteryShopping.score.toFixed(1)}/20` : '—',
-          mda.innovation ? (mda.innovation.score === 0 ? '0/5' : `${mda.innovation.score.toFixed(0)}/5`) : '—',
-          mda.stakeholder ? (mda.stakeholder.score === 0 ? '0/10' : `${mda.stakeholder.score.toFixed(0)}/10`) : '—',
-          mda.transparency ? (mda.transparency.score === 0 ? '0/5' : `${mda.transparency.score.toFixed(0)}/5`) : '—',
-          reportGovDisplay,
-          monthlyReportDisplay,
-          timelinessDisplay,
-          mda.baseTotalScore ? `${mda.baseTotalScore.toFixed(1)}/${mda.maxPossiblePoints}` : `${mda.totalScore.toFixed(1)}/${mda.maxPossiblePoints}`,
-          controversialDisplay,
-          toutingRentseekingDisplay,
-          `${mda.totalScore.toFixed(1)}\n(${mda.totalPercentage.toFixed(1)}%)`
-        ]);
-      } else {
-        let displayValue: string;
-        if (selectedMetric === 'controversial' || selectedMetric === 'toutingRentseeking') {
-          // For penalties, show raw score value
-          displayValue = score !== 0 ? score.toFixed(1) : '0.0';
-        } else {
-          displayValue = score > 0
-            ? (mda.isReportGovSkipped
-              ? `${overallPercentage.toFixed(1)}% (max: ${mda.maxPossiblePoints})`
-              : `${overallPercentage.toFixed(1)}%`)
-            : '—';
-        }
-        tableData.push([
-          `#${rank}`,
-          mda.mdaName,
-          displayValue
-        ]);
-      }
-    });
-
-    // Create table
-    if (selectedMetric === 'totalScore') {
-      autoTable(doc, {
-        startY: yPosition,
-        head: [['Rank', 'MDA Name', 'Efficiency', 'Mystery Shopping', 'Innovation', 'Stakeholder', 'Transparency', 'Report Gov Resolution', 'Report Submission', 'Timeliness', 'Total Score', 'Controversial', 'Touting & Rentseeking', 'Final Score']],
-        body: tableData,
-        headStyles: {
-          fillColor: [41, 128, 185],
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          fontSize: 8
-        },
-        bodyStyles: { fontSize: 7 },
-        styles: { fontSize: 7, cellPadding: 2 },
-        theme: 'striped',
-        margin: { left: 10, right: 10 },
-        didDrawPage: (data: any) => {
-          // Add page numbers
-          doc.setFontSize(10);
-          doc.text(
-            `Page ${data.pageNumber}`,
-            pageWidth / 2,
-            pageHeight - 10,
-            { align: 'center' }
+      const pushRankedRow = (mda: any, rankLabel: string, finalCell: string) => {
+        const mysteryMax = Number(mda.mysteryShopping?.maxPossibleScore) || 40;
+        const beepaExcludedInData = othersConfig.some((item) => {
+          const nameKey = String(item.itemName || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim();
+          return (
+            (nameKey === "beepa" || nameKey.includes("beepa")) &&
+            isOthersItemExcluded(mda, item.itemId)
           );
-        }
+        });
+        const othersCells = othersConfig.map((item) => {
+          if (isOthersItemExcluded(mda, item.itemId)) return "Excluded";
+          const score = Number(mda.others?.scores?.[item.itemId]) || 0;
+          const value = formatOthersValue(mda.others?.values?.[item.itemId]);
+          return `${cellScore(score, item.weight || 0)}\n${value}`;
+        });
+        const penaltyCells = penaltyConfig.map((item) => {
+          if (isExcluded(mda, "penalties")) return "Excluded";
+          const applied = mda.penalties?.values?.[item.penaltyId] === true;
+          return applied ? String(item.penaltyValue ?? 0) : "0.0";
+        });
+        const bonusCells = bonusConfig.map((item) => {
+          if (isExcluded(mda, "bonuses")) return "Excluded";
+          const applied = mda.bonuses?.values?.[item.bonusId] === true;
+          return applied ? `+${item.bonusValue ?? 0}` : "0.0";
+        });
+
+        tableData.push([
+          rankLabel,
+          formatMdaNameForBeepaReport(mda.mdaName, null, {
+            beepaExcluded: beepaExcludedInData,
+            testingServiceExempt: !!mda.isTestingServiceExempt,
+          }),
+          isExcluded(mda, "sla")
+            ? "Excluded"
+            : cellScoreWithMonths(
+                mda.sla?.score,
+                Number(mda.sla?.maxPossibleScore) || slaMax,
+                mda.sla?.monthsWithData,
+                mda.sla?.totalMonths
+              ),
+          isExcluded(mda, "mystery")
+            ? "Excluded"
+            : mda.isTestingServiceExempt
+              ? `${cellScore(mda.mysteryShopping?.score, mysteryMax)}\n(Full on tested; Testing Service N/A)`
+              : cellScore(mda.mysteryShopping?.score, mysteryMax),
+          ...othersCells,
+          isExcluded(mda, "reportGov")
+            ? "Excluded"
+            : cellScore(
+                mda.reportGovResolution?.score,
+                Number(mda.reportGovResolution?.maxPossibleScore) || reportGovMax,
+                !!mda.reportGovResolution?.isSkipped
+              ),
+          isExcluded(mda, "reportSubmission")
+            ? "Excluded"
+            : cellScoreWithMonths(
+                mda.monthlyReport?.score,
+                Number(mda.monthlyReport?.maxPossibleScore) || monthlyMax,
+                mda.monthlyReport?.monthsWithData,
+                mda.monthlyReport?.totalMonths
+              ),
+          isExcluded(mda, "timeliness")
+            ? "Excluded"
+            : cellScoreWithMonths(
+                mda.timeliness?.score,
+                Number(mda.timeliness?.maxPossibleScore) || timelinessMax,
+                mda.timeliness?.monthsWithData,
+                mda.timeliness?.totalMonths
+              ),
+          ...penaltyCells,
+          ...bonusCells,
+          finalCell,
+        ]);
+      };
+
+      sortedRanked.forEach((mda, idx) => {
+        const maxPts = Number(mda.maxPossiblePoints) || 100;
+        const finalPts = Number(mda.totalScore) || 0;
+        pushRankedRow(
+          mda,
+          `#${idx + 1}`,
+          `${finalPts.toFixed(1)}/${maxPts}\n${formatFinalPercentage(Number(mda.totalPercentage || 0))}`
+        );
+      });
+
+      onboardedBottom.forEach((mda) => {
+        tableData.push([
+          "—",
+          mda.mdaName,
+          dashCell(),
+          dashCell(),
+          ...emptyOthers,
+          dashCell(),
+          dashCell(),
+          dashCell(),
+          ...emptyPenalties,
+          ...emptyBonuses,
+          mda.rankingExemptNote || NEWLY_ONBOARDED_EXEMPT_NOTE,
+        ]);
+      });
+    } else if (selectedMetric === "totalScore") {
+      head = [
+        "Rank",
+        "MDA Name",
+        "SLA",
+        "Mystery",
+        "Innovation",
+        "Stakeholder",
+        "Transparency",
+        "Report Gov",
+        "Report Sub",
+        "Timeliness",
+        "Gross",
+        "Controversial",
+        "Touting",
+        "Final",
+      ];
+      sortedRanked.forEach((mda, idx) => {
+        const maxPts = Number(mda.maxPossiblePoints) || 90;
+        const pct = Number(mda.totalPercentage || 0);
+        tableData.push([
+          `#${idx + 1}`,
+          mda.mdaName,
+          cellScore(mda.sla?.score, Number(mda.sla?.maxPossibleScore) || 30),
+          cellScore(mda.mysteryShopping?.score, Number(mda.mysteryShopping?.maxPossibleScore) || 20),
+          cellScore(mda.innovation?.score, 5),
+          cellScore(mda.stakeholder?.score, 10),
+          cellScore(mda.transparency?.score, 5, !!mda.transparency?.isSkipped),
+          cellScore(
+            mda.reportGovResolution?.score,
+            Number(mda.reportGovResolution?.maxPossibleScore) || 15,
+            !!mda.reportGovResolution?.isSkipped
+          ),
+          cellScore(mda.monthlyReport?.score, Number(mda.monthlyReport?.maxPossibleScore) || 3),
+          cellScore(mda.timeliness?.score, Number(mda.timeliness?.maxPossibleScore) || 2),
+          `${Number(mda.baseTotalScore || 0).toFixed(1)}/${maxPts}`,
+          (Number(mda.controversial?.score) || 0).toFixed(1),
+          (Number(mda.toutingRentseeking?.score) || 0).toFixed(1),
+          formatFinalPercentage(pct),
+        ]);
+      });
+      onboardedBottom.forEach((mda) => {
+        tableData.push([
+          "—",
+          mda.mdaName,
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          mda.rankingExemptNote || NEWLY_ONBOARDED_EXEMPT_NOTE,
+        ]);
       });
     } else {
-      autoTable(doc, {
-        startY: yPosition,
-        head: [['Rank', 'MDA Name', `${metricDisplayName} (%)`]],
-        body: tableData,
-        headStyles: {
-          fillColor: [41, 128, 185],
-          textColor: [255, 255, 255],
-          fontStyle: 'bold'
-        },
-        bodyStyles: { fontSize: 9 },
-        styles: { fontSize: 9 },
-        theme: 'striped',
-        margin: { left: 10, right: 10 },
-        didDrawPage: (data: any) => {
-          // Add page numbers
-          doc.setFontSize(10);
-          doc.text(
-            `Page ${data.pageNumber}`,
-            pageWidth / 2,
-            pageHeight - 10,
-            { align: 'center' }
-          );
-        }
+      head = ["Rank", "MDA Name", `${metricDisplayName}`];
+      sortedRanked.forEach((mda, idx) => {
+        const value = metricSortValue(mda, selectedMetric);
+        tableData.push([
+          `#${idx + 1}`,
+          mda.mdaName,
+          Number.isFinite(value) ? value.toFixed(2) : "—",
+        ]);
       });
     }
 
-    // Save PDF
-    const fileName = `Dashboard_${metricDisplayName.replace(/[^a-z0-9]/gi, '_')}_${dashboardYear}.pdf`;
+    const manyCols = head.length > 12;
+    autoTable(doc, {
+      startY: yPosition,
+      head: [head],
+      body: tableData,
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        fontSize: selectedMetric === "totalScore" ? (manyCols ? 5.5 : 7) : 9,
+      },
+      bodyStyles: { fontSize: selectedMetric === "totalScore" ? (manyCols ? 5.5 : 6.5) : 9 },
+      styles: {
+        fontSize: selectedMetric === "totalScore" ? (manyCols ? 5.5 : 6.5) : 9,
+        cellPadding: manyCols ? 1 : 1.5,
+        overflow: "linebreak",
+      },
+      theme: "striped",
+      margin: { left: 6, right: 6 },
+      columnStyles:
+        selectedMetric === "totalScore" && dashboardYear >= 2026
+          ? {
+              // Rank + MDA name (with BEEPA status note under the name)
+              0: { cellWidth: 10 },
+              1: { cellWidth: 42, fontSize: manyCols ? 5 : 5.5 },
+            }
+          : undefined,
+      didDrawPage: (data: any) => {
+        doc.setFontSize(10);
+        doc.text(`Page ${data.pageNumber}`, pageWidth / 2, pageHeight - 10, { align: "center" });
+      },
+    });
+
+    if (selectedMetric === "totalScore" && dashboardYear >= 2026) {
+      const tableEndY =
+        (doc as any).lastAutoTable?.finalY != null
+          ? Number((doc as any).lastAutoTable.finalY)
+          : yPosition;
+      let methodY = tableEndY + 10;
+      const left = 10;
+      const contentWidth = pageWidth - 20;
+      const ensureSpace = (needed: number) => {
+        if (methodY + needed > pageHeight - 16) {
+          doc.addPage();
+          methodY = 16;
+        }
+      };
+
+      ensureSpace(40);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("BFA Compliance Assessment and Ranking Methodology", left, methodY);
+      methodY += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const methodologyParagraphs = [
+        "The BFA compliance assessment was based on a total of ten (10) metrics. However, not all metrics were applicable to every Ministry, Department, and Agency (MDA). Consequently, while some MDAs were assessed against all ten (10) metrics, others were assessed against eight (8) or nine (9), depending on the applicability of the metrics to their operations.",
+        "To ensure fairness, consistency, and comparability in the assessment and ranking process, it was agreed that each MDA’s compliance score would be calculated based on the total number of metrics applicable to and assessed for that MDA, rather than the overall ten (10) metrics.",
+        "The resulting scores would then be converted into percentages and used as the basis for ranking all MDAs. This approach ensures that MDAs are not penalised for metrics that are not applicable to them, while maintaining a standardised and equitable basis for comparing compliance performance across all MDAs.",
+      ];
+      for (const paragraph of methodologyParagraphs) {
+        const lines = doc.splitTextToSize(paragraph, contentWidth);
+        ensureSpace(lines.length * 3.6 + 4);
+        doc.text(lines, left, methodY);
+        methodY += lines.length * 3.6 + 3;
+      }
+
+      ensureSpace(18);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("Calculation", left, methodY);
+      methodY += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      const calcLines = doc.splitTextToSize(
+        "Compliance Score (%) = (Metrics Complied With ÷ Total Applicable Metrics) × 100",
+        contentWidth
+      );
+      doc.text(calcLines, left, methodY);
+      methodY += calcLines.length * 3.6 + 3;
+      const exampleLines = doc.splitTextToSize(
+        "For example, an MDA that complied with 7 out of 8 applicable metrics would receive a compliance score of 87.5%, while an MDA that complied with 9 out of 10 would receive 90%.",
+        contentWidth
+      );
+      ensureSpace(exampleLines.length * 3.6 + 2);
+      doc.text(exampleLines, left, methodY);
+    }
+
+    const fileName = `${pdfTitle.replace(/[^a-z0-9]/gi, "_")}_${dashboardYear}.pdf`;
     doc.save(fileName);
     toast.success("PDF downloaded successfully!");
   } catch (error) {
@@ -559,4 +609,3 @@ export async function generateDashboardPDF({
     toast.error("Failed to download PDF");
   }
 }
-

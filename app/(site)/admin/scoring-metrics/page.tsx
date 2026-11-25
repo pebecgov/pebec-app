@@ -12,12 +12,24 @@ import { toast } from "sonner";
 
 import { generateRegionalAveragesPDF, RegionalAverageRow } from "@/lib/regionalAveragesPdf";
 import { geopoliticalRegions, stateRegions } from "@/lib/stateRegions";
+import {
+  exemptMysteryQuestionIds,
+  mysteryTestingServiceAdjustment,
+} from "@/lib/mysteryTypeExemption";
 
 import ScoringTab from "./components/scoring/ScoringTab";
 import { BulkPdfDownloader } from "@/components/Admin/BulkPdfDownloader";
 
 // Import utility files
 import { generateDashboardPDF } from "@/lib/dashboardPdfGenerator";
+import {
+  isExcludedFromDashboardReport,
+  isNewlyOnboardedExemptMda,
+} from "@/lib/dashboardReportExclusions";
+import {
+  mergeProgrammeMetricExclusions,
+  normalizeProgrammeExemptedScore,
+} from "@/lib/programmeMetricExclusions";
 import {
   STATE_OVERALL_MAX_SCORE,
 } from "./utils/constants";
@@ -219,19 +231,11 @@ export default function ScoringMetricsPage() {
         yearExclusionLookup.get(normalized) ||
         (parts.fullName ? yearExclusionLookup.get(parts.fullName) : undefined) ||
         (parts.abbr ? yearExclusionLookup.get(parts.abbr) : undefined);
-      return Array.from(set || []);
+      return mergeProgrammeMetricExclusions(mdaName, set || []);
     };
 
-    const baseMaxPoints = (() => {
-      if (dashboardYear < 2026) return 80;
-      const efficiencyTotal = (efficiencyConfig?.slaPoints || 30) +
-        (efficiencyConfig?.reportSubmissionPoints || 3) +
-        (efficiencyConfig?.reportGovPoints || 15) +
-        (efficiencyConfig?.timelinessPoints || 2);
-      const mysteryTotal = 20;
-      const othersTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
-      return efficiencyTotal + mysteryTotal + othersTotal;
-    })();
+    // 2026 BFA is scored out of 100 (same as mda_scoring dashboard + public tracker).
+    const baseMaxPoints = dashboardYear < 2026 ? 80 : 100;
 
     // Initialize all MDAs from mdasList with null data
     const allMdasMap = new Map<string, any>();
@@ -312,45 +316,74 @@ export default function ScoringMetricsPage() {
       const isExcluded = (metricKey: string) => excludedMetricSet.has(metricKey);
       const isOthersItemExcluded = (itemId: string) =>
         excludedMetricSet.has("others") || excludedMetricSet.has(`others:${itemId}`);
-      // Recalculate SLA score based on 10 months instead of 12
+      // 2025 only: stretch a 12-month / 30-point SLA onto a 10-month window (×1.2).
+      // 2026 scores are already on the configured point scale and must stay capped.
+      const capScore = (score: number, max: number) =>
+        Math.min(Math.max(score, 0), max > 0 ? max : score);
+
       let slaScore = isExcluded("sla") ? 0 : (mda.sla?.score || 0);
-      if (mda.sla && mda.sla.monthsWithData) {
-        // Recalculate: if backend calculated based on 12 months, we need to adjust to 10 months
-        // Backend: score = (monthsWithData * (30/12)) * percentage = monthsWithData * 2.5 * percentage
-        // Frontend (10 months): score = (monthsWithData * (30/10)) * percentage = monthsWithData * 3 * percentage
-        // Adjustment factor: (30/10) / (30/12) = 3 / 2.5 = 1.2
-        // But we need to recalculate from raw data if available
-        if (mda.sla.monthsWithData > 0) {
-          // If we have the raw totalScore and monthsWithData, recalculate
-          const pointsPerMonth10 = 30 / 10; // 3 points per month
-          const pointsPerMonth12 = 30 / 12; // 2.5 points per month (backend calculation)
-          // Backend score was calculated as: (monthsWithData * pointsPerMonth12) * percentage
-          // We need: (monthsWithData * pointsPerMonth10) * percentage
-          // So: newScore = oldScore * (pointsPerMonth10 / pointsPerMonth12)
-          slaScore = mda.sla.score * (pointsPerMonth10 / pointsPerMonth12);
-        }
-      } else if (dashboardYear >= 2026 && efficiencyConfig) {
-        // For 2026+, specific recalculation if needed, otherwise rely on backend score
-        // Currently assuming backend/ScoringTab saves correct score based on dynamic config
+      if (dashboardYear < 2026 && mda.sla && mda.sla.monthsWithData > 0) {
+        const pointsPerMonth10 = 30 / 10;
+        const pointsPerMonth12 = 30 / 12;
+        slaScore = mda.sla.score * (pointsPerMonth10 / pointsPerMonth12);
+      } else if (dashboardYear >= 2026) {
+        slaScore = capScore(slaScore, mda.sla?.maxPossibleScore || efficiencyConfig?.slaPoints || 5);
       }
 
-      // Recalculate Monthly Report score based on 10 months instead of 12
       let monthlyReportScore = isExcluded("reportSubmission") ? 0 : (mda.monthlyReport?.score || 0);
-      if (mda.monthlyReport && mda.monthlyReport.monthsWithData) {
-        const pointsPerMonth10 = 3 / 10; // 0.3 points per month
-        const pointsPerMonth12 = 3 / 12; // 0.25 points per month (backend calculation)
+      if (dashboardYear < 2026 && mda.monthlyReport && mda.monthlyReport.monthsWithData > 0) {
+        const pointsPerMonth10 = 3 / 10;
+        const pointsPerMonth12 = 3 / 12;
         monthlyReportScore = mda.monthlyReport.score * (pointsPerMonth10 / pointsPerMonth12);
+      } else if (dashboardYear >= 2026) {
+        monthlyReportScore = capScore(
+          monthlyReportScore,
+          mda.monthlyReport?.maxPossibleScore || efficiencyConfig?.reportSubmissionPoints || 2
+        );
       }
 
-      // Recalculate Timeliness score based on 10 months instead of 12
       let timelinessScore = isExcluded("timeliness") ? 0 : (mda.timeliness?.score || 0);
-      if (mda.timeliness && mda.timeliness.monthsWithData) {
-        const pointsPerMonth10 = 2 / 10; // 0.2 points per month
-        const pointsPerMonth12 = 2 / 12; // 0.167 points per month (backend calculation)
+      if (dashboardYear < 2026 && mda.timeliness && mda.timeliness.monthsWithData > 0) {
+        const pointsPerMonth10 = 2 / 10;
+        const pointsPerMonth12 = 2 / 12;
         timelinessScore = mda.timeliness.score * (pointsPerMonth10 / pointsPerMonth12);
+      } else if (dashboardYear >= 2026) {
+        timelinessScore = capScore(
+          timelinessScore,
+          mda.timeliness?.maxPossibleScore || efficiencyConfig?.timelinessPoints || 3
+        );
       }
 
-      const mysteryScore = isExcluded("mystery") ? 0 : (mda.mysteryShopping?.score || 0);
+      let mysteryScore = isExcluded("mystery") ? 0 : (mda.mysteryShopping?.score || 0);
+      let mysteryExemptionPoints = 0;
+      let mysteryApplicableMax = 40;
+      if (dashboardYear >= 2026 && !isExcluded("mystery") && Array.isArray(mysteryConfig)) {
+        const exemptQuestionIds = exemptMysteryQuestionIds(excludedMetricSet);
+        const mysteryQuestions = mysteryConfig.flatMap(
+          (type: {
+            questions?: Array<{
+              questionId?: string;
+              questionText?: string;
+              weight?: number;
+              answerType?: string;
+            }>;
+          }) =>
+            (type.questions || []).map((question) => ({
+              questionId: String(question.questionId || ""),
+              questionText: question.questionText,
+              weight: question.weight || 0,
+              answerType: question.answerType,
+            }))
+        );
+        const adjustment = mysteryTestingServiceAdjustment(
+          mysteryQuestions,
+          exemptQuestionIds,
+          40
+        );
+        mysteryExemptionPoints = adjustment.exemptPoints;
+        mysteryApplicableMax = adjustment.applicableMax || 40;
+        mysteryScore = capScore(mysteryScore, mysteryApplicableMax);
+      }
       const innovationScore = isExcluded("innovation") ? 0 : (mda.innovation?.score || 0);
       const stakeholderScore = isExcluded("stakeholder") ? 0 : (mda.stakeholder?.score || 0);
       const transparencyScore = isExcluded("transparency") ? 0 : (mda.transparency?.score || 0);
@@ -420,22 +453,30 @@ export default function ScoringMetricsPage() {
       const isTransparencySkipped = mda.transparency?.isSkipped || false;
 
       // Recompute max points from active yearly metric totals and per-MDA exclusions.
-      // This guarantees denominator reflects exclusions even for empty/no-data rows.
       let maxPossiblePoints = baseMaxPoints;
       if (isTransparencySkipped) maxPossiblePoints -= 5;
       if (isReportGovSkipped) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
-      if (isExcluded("sla")) maxPossiblePoints -= 30;
-      if (isExcluded("mystery")) maxPossiblePoints -= 20;
+      if (isExcluded("sla")) {
+        maxPossiblePoints -= dashboardYear < 2026 ? 30 : (efficiencyConfig?.slaPoints || 5);
+      }
+      if (isExcluded("mystery")) {
+        maxPossiblePoints -= dashboardYear < 2026 ? 20 : 40;
+      } else if (mysteryExemptionPoints > 0) {
+        maxPossiblePoints -= mysteryExemptionPoints;
+      }
       if (isExcluded("innovation")) maxPossiblePoints -= 5;
       if (isExcluded("transparency")) maxPossiblePoints -= 5;
       if (isExcluded("reportGov")) maxPossiblePoints -= (dashboardYear < 2026 ? 15 : (efficiencyConfig?.reportGovPoints || 15));
       if (isExcluded("reportSubmission")) maxPossiblePoints -= (dashboardYear < 2026 ? 3 : (efficiencyConfig?.reportSubmissionPoints || 3));
       if (isExcluded("timeliness")) maxPossiblePoints -= (dashboardYear < 2026 ? 2 : (efficiencyConfig?.timelinessPoints || 2));
+      // BEEPA / Others exclusions: remove from applicable max (do not treat as scored 0).
+      let excludedOthersWeight = 0;
       if (dashboardYear >= 2026 && isExcluded("others")) {
-        const othersTotal = (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
-        maxPossiblePoints -= othersTotal;
+        excludedOthersWeight =
+          (othersConfig || []).reduce((sum: number, item: any) => sum + (item.weight || 0), 0) || 25;
+        maxPossiblePoints -= excludedOthersWeight;
       } else if (dashboardYear >= 2026 && othersConfig) {
-        const excludedOthersWeight = (othersConfig || []).reduce((sum: number, item: any) => {
+        excludedOthersWeight = (othersConfig || []).reduce((sum: number, item: any) => {
           if (isOthersItemExcluded(item.itemId)) return sum + (item.weight || 0);
           return sum;
         }, 0);
@@ -443,21 +484,40 @@ export default function ScoringMetricsPage() {
       }
       maxPossiblePoints = Math.max(0, maxPossiblePoints);
 
-      const totalPercentage = maxPossiblePoints > 0
-        ? (totalScore / maxPossiblePoints) * 100
-        : 0;
+      // Scale onto /100 when metrics were removed from the max (fair ranking).
+      const normalized = normalizeProgrammeExemptedScore({
+        mdaName: mda.mdaName,
+        totalScore,
+        applicableMax: maxPossiblePoints,
+        fullMax: baseMaxPoints,
+        shouldNormalize: mysteryExemptionPoints > 0 || excludedOthersWeight > 0,
+      });
 
       return {
         ...mda,
         sla: mda.sla ? { ...mda.sla, score: slaScore } : mda.sla,
         monthlyReport: mda.monthlyReport ? { ...mda.monthlyReport, score: monthlyReportScore } : mda.monthlyReport,
         timeliness: mda.timeliness ? { ...mda.timeliness, score: timelinessScore } : mda.timeliness,
+        mysteryShopping: mda.mysteryShopping
+          ? {
+              ...mda.mysteryShopping,
+              score: mysteryScore,
+              maxPossibleScore:
+                mysteryExemptionPoints > 0
+                  ? mysteryApplicableMax
+                  : (mda.mysteryShopping.maxPossibleScore || 40),
+            }
+          : mda.mysteryShopping,
         totalGrossScore: baseTotalScore,
-        totalScore,
-        totalPercentage,
+        totalScore: normalized.totalScore,
+        totalPercentage: normalized.totalPercentage,
         isReportGovSkipped,
         isTransparencySkipped,
-        maxPossiblePoints
+        isProgrammeNormalized: normalized.isProgrammeNormalized,
+        isTestingServiceExempt: mysteryExemptionPoints > 0,
+        rawTotalScore: normalized.rawTotalScore,
+        applicableMaxPoints: normalized.applicableMax,
+        maxPossiblePoints: normalized.maxPossiblePoints,
       };
     });
 
@@ -470,6 +530,12 @@ export default function ScoringMetricsPage() {
           mda.monthlyReport || mda.timeliness || mda.totalScore > 0;
       });
     }
+
+    // Always drop ministries/agencies that are not part of the scoring report
+    // (Nigeria Gas Company is kept; see dashboardReportExclusions).
+    allMdasArray = allMdasArray.filter(
+      (mda: any) => !isExcludedFromDashboardReport(mda.mdaName)
+    );
 
     // Filter based on ministry filter
     if (ministryFilterType === 'ministries-only') {
@@ -487,30 +553,46 @@ export default function ScoringMetricsPage() {
       return;
     }
 
-    // Process and filter data based on current filter
-    const processedData = processDashboardMdaData(mdaFilter, ministryFilter);
-
-    // Convert back to the format expected by PDF generator
-    const filteredLiveData = processedData.map((mda: any) => ({
-      mdaName: mda.mdaName,
-      sla: mda.sla,
-      mysteryShopping: mda.mysteryShopping,
-      controversial: mda.controversial,
-      toutingRentseeking: mda.toutingRentseeking,
-      innovation: mda.innovation,
-      stakeholder: mda.stakeholder,
-      transparency: mda.transparency,
-      reportGovResolution: mda.reportGovResolution,
-      monthlyReport: mda.monthlyReport,
-      timeliness: mda.timeliness
-    }));
+    // Same rows + same rank order as the Live Dashboard table (sort by Final Score points).
+    // Newly onboarded exempt MDAs (REA/BOA/NSW/MOFI/NPERA) always sort to the bottom.
+    const processedData = [...processDashboardMdaData(mdaFilter, ministryFilter)].sort(
+      (a: any, b: any) => {
+        const aExempt = isNewlyOnboardedExemptMda(a?.mdaName || "");
+        const bExempt = isNewlyOnboardedExemptMda(b?.mdaName || "");
+        if (aExempt !== bExempt) return aExempt ? 1 : -1;
+        const aScore =
+          selectedMetric === "totalScore"
+            ? Number(a.totalScore) || 0
+            : selectedMetric.startsWith("others:")
+              ? Number(a.others?.scores?.[selectedMetric.replace("others:", "")]) || 0
+              : Number(a[selectedMetric]?.score ?? a.totalScore) || 0;
+        const bScore =
+          selectedMetric === "totalScore"
+            ? Number(b.totalScore) || 0
+            : selectedMetric.startsWith("others:")
+              ? Number(b.others?.scores?.[selectedMetric.replace("others:", "")]) || 0
+              : Number(b[selectedMetric]?.score ?? b.totalScore) || 0;
+        if (bScore !== aScore) return bScore - aScore;
+        if (selectedMetric === "totalScore") {
+          const pctDiff =
+            (Number(b.totalPercentage) || 0) - (Number(a.totalPercentage) || 0);
+          if (pctDiff !== 0) return pctDiff;
+        }
+        return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
+      }
+    );
 
     await generateDashboardPDF({
-      liveDashboardData: filteredLiveData,
+      liveDashboardData: processedData,
       selectedMetric,
       dashboardYear,
       mdasList,
-      filterType: mdaFilter === 'withData' || ministryFilter !== 'all' ? 'withData' : 'all'
+      filterType: mdaFilter === 'withData' || ministryFilter !== 'all' ? 'withData' : 'all',
+      othersConfig: othersConfig || [],
+      penaltyConfig: penaltyConfig || [],
+      bonusConfig: bonusConfig || [],
+      efficiencyConfig: liveDashboardData?.efficiencyConfig ?? efficiencyConfig ?? undefined,
+      preserveOrder: true,
     });
   };
 

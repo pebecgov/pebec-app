@@ -27,7 +27,7 @@ export const PORTS_CUSTOMS_MDAS = [
   {
     id: "mda_nepza",
     title: "NEPZA",
-    name: "Nigeria Export Processing Zone Authority",
+    name: "Nigeria Export Processing Zones Authority (NEPZA)",
   },
   {
     id: "mda_nimasa",

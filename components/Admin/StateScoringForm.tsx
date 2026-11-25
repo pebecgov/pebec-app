@@ -186,21 +186,33 @@ const StateForm = memo(({
         {Object.entries(indicatorConfig.subIndicators).map(([subIndicator, config]) => (
           <div key={subIndicator} className="space-y-2">
             <Label className="text-sm font-medium">{config.label}</Label>
-            <Select
-              value={stateData[subIndicator] || ""}
-              onValueChange={(value) => onUpdate(subIndicator, value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={`Select ${config.label.toLowerCase()}`} />
-              </SelectTrigger>
-              <SelectContent>
-                {config.options.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {config.numericMax != null ? (
+              <Input
+                type="number"
+                min={0}
+                max={config.numericMax}
+                step="any"
+                placeholder={`0 – ${config.numericMax}`}
+                value={stateData[subIndicator] || ""}
+                onChange={(e) => onUpdate(subIndicator, e.target.value)}
+              />
+            ) : (
+              <Select
+                value={stateData[subIndicator] || ""}
+                onValueChange={(value) => onUpdate(subIndicator, value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={`Select ${config.label.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {config.options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Link to Source (Optional)</Label>
               <Input

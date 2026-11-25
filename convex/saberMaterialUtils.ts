@@ -8,11 +8,16 @@ const STATE_LIST = [
   "Federal Capital Territory",
 ];
 
-export type SaberMaterialType = "general" | "final_results" | "prior_results";
+export type SaberMaterialType =
+  | "general"
+  | "final_results"
+  | "year2_results"
+  | "prior_results";
 
 export const SABER_MATERIAL_TYPES: SaberMaterialType[] = [
   "general",
   "final_results",
+  "year2_results",
   "prior_results",
 ];
 
@@ -42,10 +47,27 @@ export function inferMaterialTypeFromTitle(title: string): SaberMaterialType | u
     return "prior_results";
   }
 
+  const isYear2 =
+    /\byr\s*2\b/.test(lower) ||
+    /\byear\s*2\b/.test(lower) ||
+    /\by2\b/.test(lower);
+
+  if (
+    isYear2 &&
+    (lower.includes("apa") ||
+      lower.includes("final") ||
+      lower.includes("assessment") ||
+      lower.includes("result"))
+  ) {
+    return "year2_results";
+  }
+
   if (
     (lower.includes("final") && lower.includes("apa")) ||
     lower.includes("final saber apa") ||
-    lower.includes("final assessment report")
+    lower.includes("final assessment report") ||
+    /\byr\s*1\b/.test(lower) ||
+    /\byear\s*1\b/.test(lower)
   ) {
     return "final_results";
   }

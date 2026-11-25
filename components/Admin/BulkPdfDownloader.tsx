@@ -4,15 +4,33 @@ import { useState } from 'react';
 import { useConvex } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
+import { buildMdaRankingSummary } from '@/lib/mdaRankingSummary';
+import { isExcludedFromBulkPdf } from '@/lib/dashboardReportExclusions';
 import { toast } from 'sonner';
 import { Loader2, Package } from 'lucide-react';
 
 interface BulkPdfDownloaderProps {
     mdaData: any[];
     year: number;
+    othersConfig?: Array<{ itemId: string; itemName: string; weight: number }>;
+    penaltyConfig?: Array<{ penaltyId: string; penaltyName: string; penaltyValue: number }>;
+    bonusConfig?: Array<{ bonusId: string; bonusName: string; bonusValue: number }>;
+    efficiencyConfig?: {
+        slaPoints?: number;
+        reportGovPoints?: number;
+        reportSubmissionPoints?: number;
+        timelinessPoints?: number;
+    };
 }
 
-export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
+export function BulkPdfDownloader({
+    mdaData,
+    year,
+    othersConfig,
+    penaltyConfig,
+    bonusConfig,
+    efficiencyConfig,
+}: BulkPdfDownloaderProps) {
     const [isDownloading, setIsDownloading] = useState(false);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const convex = useConvex();
@@ -23,12 +41,20 @@ export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
             return;
         }
 
-        // Sort MDAs by totalPercentage (rank) in descending order to match dashboard ranking
-        const sortedMdaData = [...mdaData].sort((a: any, b: any) => {
-            const aValue = a.totalPercentage || 0;
-            const bValue = b.totalPercentage || 0;
-            return bValue - aValue; // Descending order (highest rank first)
-        });
+        // Sort by Final Score points (highest → lowest) to match Live Dashboard ranking.
+        // Skip ministries/agencies that are not part of bulk BFA PDFs (incl. Ministry of Interior).
+        const sortedMdaData = [...mdaData]
+            .filter((mda: any) => !isExcludedFromBulkPdf(mda?.mdaName || ""))
+            .sort((a: any, b: any) => {
+                const scoreDiff =
+                  (Number(b.totalScore) || 0) - (Number(a.totalScore) || 0);
+                if (scoreDiff !== 0) return scoreDiff;
+                const pctDiff =
+                  (Number(b.totalPercentage) || 0) -
+                  (Number(a.totalPercentage) || 0);
+                if (pctDiff !== 0) return pctDiff;
+                return String(a.mdaName || "").localeCompare(String(b.mdaName || ""));
+            });
 
         setIsDownloading(true);
         setProgress({ current: 0, total: sortedMdaData.length });
@@ -50,6 +76,12 @@ export function BulkPdfDownloader({ mdaData, year }: BulkPdfDownloaderProps) {
                 if (detailedData) {
                     // Add rank/position based on sorted order (1 = top rank)
                     detailedData.position = i + 1;
+                    detailedData.rankingSummary = buildMdaRankingSummary(mda, year, {
+                        othersConfig: othersConfig || [],
+                        penaltyConfig: penaltyConfig || [],
+                        bonusConfig: bonusConfig || [],
+                        efficiencyConfig,
+                    });
 
                     // Generate PDF
                     await generateMdaScoringPDF(detailedData);

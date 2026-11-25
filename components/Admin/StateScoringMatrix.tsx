@@ -103,6 +103,7 @@ export default function StateScoringMatrix() {
       key,
       label: config.label,
       options: config.options,
+      numericMax: config.numericMax,
     }));
   }, [indicator, yearIndicators]);
 
@@ -240,8 +241,9 @@ export default function StateScoringMatrix() {
     }
   };
 
-  const fillOptions =
-    subIndicators.find((s) => s.key === fillSubIndicator)?.options ?? [];
+  const fillSub = subIndicators.find((s) => s.key === fillSubIndicator);
+  const fillOptions = fillSub?.options ?? [];
+  const fillIsNumeric = fillSub?.numericMax != null;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -351,22 +353,36 @@ export default function StateScoringMatrix() {
 
             <div>
               <Label className="text-xs text-gray-500">Value</Label>
-              <Select
-                value={fillValue}
-                onValueChange={setFillValue}
-                disabled={!fillSubIndicator}
-              >
-                <SelectTrigger className="mt-1.5 w-[200px]">
-                  <SelectValue placeholder="Score…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {fillOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {fillIsNumeric ? (
+                <Input
+                  type="number"
+                  min={0}
+                  max={fillSub?.numericMax}
+                  step="any"
+                  value={fillValue}
+                  onChange={(e) => setFillValue(e.target.value)}
+                  disabled={!fillSubIndicator}
+                  className="mt-1.5 w-[200px]"
+                  placeholder={`0–${fillSub?.numericMax}`}
+                />
+              ) : (
+                <Select
+                  value={fillValue}
+                  onValueChange={setFillValue}
+                  disabled={!fillSubIndicator}
+                >
+                  <SelectTrigger className="mt-1.5 w-[200px]">
+                    <SelectValue placeholder="Score…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fillOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <Button type="button" variant="outline" onClick={applyColumnFill}>
@@ -438,11 +454,14 @@ export default function StateScoringMatrix() {
                       const dirty = dirtyKeys.has(cellKey(state, sub.key));
                       return (
                         <td key={sub.key} className="px-2 py-1.5">
-                          <Select
-                            value={value || undefined}
-                            onValueChange={(v) => setCell(state, sub.key, v)}
-                          >
-                            <SelectTrigger
+                          {sub.numericMax != null ? (
+                            <Input
+                              type="number"
+                              min={0}
+                              max={sub.numericMax}
+                              step="any"
+                              value={value}
+                              onChange={(e) => setCell(state, sub.key, e.target.value)}
                               className={`h-9 text-xs ${
                                 dirty
                                   ? "border-amber-400 bg-amber-50"
@@ -450,17 +469,33 @@ export default function StateScoringMatrix() {
                                     ? "border-emerald-200 bg-emerald-50/40"
                                     : "border-gray-200"
                               }`}
+                              placeholder={`0–${sub.numericMax}`}
+                            />
+                          ) : (
+                            <Select
+                              value={value || undefined}
+                              onValueChange={(v) => setCell(state, sub.key, v)}
                             >
-                              <SelectValue placeholder="—" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sub.options.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                              <SelectTrigger
+                                className={`h-9 text-xs ${
+                                  dirty
+                                    ? "border-amber-400 bg-amber-50"
+                                    : value
+                                      ? "border-emerald-200 bg-emerald-50/40"
+                                      : "border-gray-200"
+                                }`}
+                              >
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sub.options.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </td>
                       );
                     })}

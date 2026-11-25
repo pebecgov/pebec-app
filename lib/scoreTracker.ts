@@ -61,7 +61,11 @@ export function getNormalizedScore(score: number, maxScore: number): number {
 }
 
 export function formatPoints(score: number): string {
-  return Number.isInteger(score) ? String(score) : score.toFixed(1);
+  if (Number.isInteger(score)) return String(score);
+  // Keep two decimals when needed (e.g. 15.91) so tracker matches admin.
+  const two = score.toFixed(2);
+  if (two.endsWith("0")) return score.toFixed(1);
+  return two;
 }
 
 export function formatScorePair(score: number, maxScore: number): string {

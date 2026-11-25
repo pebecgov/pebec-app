@@ -5,22 +5,27 @@ import { v } from "convex/values";
 import { getCurrentUserOrThrow, filterAdminsForNotifications } from "./users";
 import { Id } from "./_generated/dataModel";
 import { api } from "./_generated/api";
-import { internal } from "./_generated/api";
-import { followUpCopy } from "./whatsapp/i18n";
 export const addTicketComment = mutation({
   args: {
     ticketId: v.id("tickets"),
     content: v.string(),
-    fileIds: v.optional(v.array(v.id("_storage")))
+    fileIds: v.optional(v.array(v.id("_storage"))),
+    /** Opt-in: push this update to the citizen on WhatsApp. */
+    notifyWhatsApp: v.optional(v.boolean()),
   },
+  returns: v.object({
+    shouldNotifyWhatsApp: v.boolean(),
+  }),
   handler: async (ctx, {
     ticketId,
     content,
-    fileIds
+    fileIds,
+    notifyWhatsApp,
   }) => {
     const user = await getCurrentUserOrThrow(ctx);
     const ticket = await ctx.db.get(ticketId);
     if (!ticket) throw new Error("Ticket not found");
+    const wantsWhatsApp = Boolean(notifyWhatsApp);
     await ctx.db.insert("ticket_comments", {
       ticketId,
       content,
@@ -29,7 +34,8 @@ export const addTicketComment = mutation({
       authorName: user.firstName || "Unknown",
       authorImage: user.imageUrl || undefined,
       createdAt: Date.now(),
-      fileIds: fileIds || []
+      fileIds: fileIds || [],
+      notifyWhatsApp: wantsWhatsApp || undefined,
     });
     const timestamp = Date.now();
     await ctx.db.insert("notifications", {
@@ -81,23 +87,14 @@ export const addTicketComment = mutation({
         html: `<p>Dear ${ticketCreator.firstName || "User"},</p><p>A new comment has been added to your ticket <strong>#${ticket.ticketNumber}</strong>.</p><p><strong>Comment:</strong> ${content}</p>`
       });
     }
-    const whatsappPhone = ticket.whatsappPhone;
-    if (whatsappPhone && user._id !== ticket.createdBy) {
-      const clipped =
-        content.length > 900 ? `${content.slice(0, 900)}…` : content;
-      const session = await ctx.db
-        .query("whatsapp_sessions")
-        .withIndex("byPhone", (q) => q.eq("phone", whatsappPhone))
-        .first();
-      const fu = followUpCopy(session?.language);
-      await ctx.scheduler.runAfter(0, internal.whatsapp.cloud.notifyCitizen, {
-        phone: whatsappPhone,
-        body: fu.officerUpdate(ticket.ticketNumber, clipped),
-        replyTicketId: ticket._id,
-        replyTitle: fu.reply,
-        menuTitle: fu.menuButton,
-      });
-    }
+    // WhatsApp push only when staff opts in ("needs info" / notify citizen).
+    return {
+      shouldNotifyWhatsApp: Boolean(
+        wantsWhatsApp &&
+          ticket.whatsappPhone &&
+          user._id !== ticket.createdBy,
+      ),
+    };
   }
 });
 export const getTicketComments = query({

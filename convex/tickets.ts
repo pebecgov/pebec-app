@@ -10,7 +10,6 @@ import {
   isEmailNotificationBlacklisted,
 } from "./users";
 import { api } from "./_generated/api";
-import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   calculateBusinessHours,
@@ -529,27 +528,7 @@ export const updateTicketStatus = mutation({
     console.log(
       `📧 Email sent to ${ticket.email} for status update to ${status}`,
     );
-    if (ticket.whatsappPhone) {
-      const statusLabel = status.replace("_", " ");
-      const whatsappLines = [
-        "PEBEC ReportGov update",
-        "",
-        `Ticket: ${ticket.ticketNumber}`,
-        `Status: ${statusLabel}`,
-      ];
-      if (
-        (status === "resolved" || status === "closed") &&
-        resolutionNote
-      ) {
-        whatsappLines.push(`Note: ${resolutionNote}`);
-      }
-      whatsappLines.push("");
-      whatsappLines.push("Send this ticket number on WhatsApp to check status.");
-      await ctx.scheduler.runAfter(0, internal.whatsapp.cloud.notifyCitizen, {
-        phone: ticket.whatsappPhone,
-        body: whatsappLines.join("\n"),
-      });
-    }
+    // WhatsApp is sent instantly by updateTicketStatusAndNotify (action).
     return true;
   },
 });
@@ -1701,13 +1680,12 @@ export const getTopAndBottomMdaPerformanceByMonth = query({
     to: v.number(),
   },
   handler: async (ctx, { from, to }) => {
+    // Use byCreatedAt so we only read tickets in the selected month
+    // (previously .filter scanned the entire tickets table → ~104GB I/O).
     const tickets = await ctx.db
       .query("tickets")
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("createdAt"), from),
-          q.lte(q.field("createdAt"), to),
-        ),
+      .withIndex("byCreatedAt", (q) =>
+        q.gte("createdAt", from).lte("createdAt", to),
       )
       .collect();
     const mdaMap: Record<

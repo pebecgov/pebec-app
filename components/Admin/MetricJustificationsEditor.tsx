@@ -28,7 +28,7 @@ export default function MetricJustificationsEditor({
   year,
   metrics,
   title = "Metric justifications",
-  description = "Explain why each metric is scored. Text appears on the public tracker for MDAs and states.",
+  description = "Explain why each metric is scored. For reference while scoring — not shown on the public tracker.",
 }: Props) {
   const saved = useQuery(api.metric_justifications.list, { framework, year });
   const saveJustification = useMutation(api.metric_justifications.save);

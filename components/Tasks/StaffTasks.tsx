@@ -14,9 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2, Search, Pencil } from "lucide-react";
+import { Calendar, User, CheckCircle2, Clock, AlertCircle, Hourglass, FileText, X, Download, MessageSquare, Send, Upload, Eye, Droplets, Trash2, Search, Pencil, Printer } from "lucide-react";
 import { fuelDriverLabel, FUEL_DRIVERS, type FuelDriverKey } from "@/lib/fuelDrivers";
 import { fuelCarLabel, FUEL_CARS, type FuelCarKey } from "@/lib/fuelCars";
+import { printFuelRequest } from "@/lib/printFuelRequest";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -536,8 +537,21 @@ export default function StaffTasks() {
                             {row.priceAmount != null ? row.priceAmount.toLocaleString() : "—"}
                           </TableCell>
                           <TableCell>
+                            <div className="flex flex-wrap items-center gap-2 justify-end">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const opened = printFuelRequest(row);
+                                if (!opened) toast.error("Allow pop-ups to print this request.");
+                              }}
+                            >
+                              <Printer className="w-4 h-4 mr-1" />
+                              Print
+                            </Button>
                             {row.status === "approved" && row.priceAmount == null && (
-                              <div className="flex flex-wrap items-center gap-2 justify-end">
+                              <>
                                 <Input
                                   type="text"
                                   inputMode="decimal"
@@ -581,8 +595,9 @@ export default function StaffTasks() {
                                 >
                                   Save
                                 </Button>
-                              </div>
+                              </>
                             )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

@@ -6,6 +6,7 @@ import { getMonthsForPeriod } from '../../utils/helpers';
 import { MonthlySlaData } from '../../utils/types';
 import ScoreActionButtons from './ScoreActionButtons';
 import MetricStatusBadge from './MetricStatusBadge';
+import { isSlaMonthScored, slaMonthPoints } from '@/lib/slaScoreMath';
 
 interface SLAMetricCardProps {
     isLoadingSLAData: boolean;
@@ -89,7 +90,8 @@ export default function SLAMetricCard({
                                 .toLocaleString('default', { month: 'short' });
                             const monthKey = `${periodMonth.year}-${periodMonth.month}`;
                             const monthData = monthlySlaData[monthKey];
-                            const hasData = monthData && (monthData.method === 'file' ? monthData.overallPercentage !== null : monthData.rating > 0);
+                            const hasData = isSlaMonthScored(monthData);
+                            const monthPts = hasData ? slaMonthPoints(monthData, pointsPerMonth) : 0;
 
                             return (
                                 <div key={index} className={`p-2 rounded-md text-center border ${hasData
@@ -98,7 +100,7 @@ export default function SLAMetricCard({
                                     }`}>
                                     <div className="font-medium">{monthName}</div>
                                     <div className="text-xs inline-flex items-center gap-0.5">
-                                        {hasData ? <><Check className="h-3 w-3" />{pointsPerMonth.toFixed(1)}pts</> : '0pts'}
+                                        {hasData ? <><Check className="h-3 w-3" />{monthPts.toFixed(1)}pts</> : '0pts'}
                                     </div>
                                 </div>
                             );

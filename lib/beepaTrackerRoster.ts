@@ -2,14 +2,27 @@
  * Official BEEPA / public tracker MDA roster for 2026.
  * Source: PEBEC BEEPA General Report MDA list (Assessed + Exempted), excluding Bank of Agriculture (BOA).
  */
+import { getProgrammeExclusionReportNote } from "./programmeMetricExclusions";
+
 export type BeepaTrackerRosterEntry = {
   name: string;
   abbreviation: string;
   /** Programme-exempted from BEEPA (BFA recalculated without BEEPA). */
   beepaExempted: boolean;
+  /**
+   * Super MDAs are graded out of 10 on BEEPA; all other assessed MDAs out of 9.
+   * (Recognised Super MDAs under the BEEPA framework.)
+   */
+  superMda?: boolean;
+  /** Reason shown beside the MDA name on BFA ranking reports when BEEPA-exempted. */
+  beepaExemptionReason?: string;
   /** Extra names/abbrs used when matching dashboard / import rows. */
   aliases?: string[];
 };
+
+/** BEEPA max points: Super MDAs = 10, everyone else = 9. */
+export const BEEPA_SUPER_MDA_MAX = 10;
+export const BEEPA_STANDARD_MDA_MAX = 9;
 
 function normalizeKey(value: string): string {
   return String(value || "")
@@ -22,21 +35,28 @@ function normalizeKey(value: string): string {
 
 /** 53 assessed + 5 exempted (BOA removed) = 58. */
 export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
-  { name: "Nigeria Customs Service", abbreviation: "NCS" },
-  { name: "Nigerian Ports Authority", abbreviation: "NPA" },
-  { name: "National Information Technology Development Agency", abbreviation: "NITDA" },
-  { name: "National Pension Commission", abbreviation: "PENCOM" },
+  { name: "Nigeria Customs Service", abbreviation: "NCS", superMda: true },
+  { name: "Nigerian Ports Authority", abbreviation: "NPA", superMda: true },
+  { name: "National Information Technology Development Agency", abbreviation: "NITDA", superMda: true },
+  { name: "National Pension Commission", abbreviation: "PENCOM", superMda: true },
   { name: "Nigeria Agricultural Quarantine Service", abbreviation: "NAQS" },
   { name: "Nigeria Immigration Service", abbreviation: "NIS" },
   { name: "Nigerian Communications Commission", abbreviation: "NCC" },
   { name: "Nigeria Civil Aviation Authority", abbreviation: "NCAA" },
   { name: "Federal Road Safety Corps", abbreviation: "FRSC" },
   { name: "National Insurance Commission", abbreviation: "NAICOM" },
-  { name: "Service Compact", abbreviation: "SERVICOM" },
   {
-    name: "Nigerian Content Development and Monitoring Board",
+    name: "Service Compact (SERVICOM)",
+    abbreviation: "SERVICOM",
+    aliases: ["Service Compact", "SERVICOM"],
+  },
+  {
+    name: "Nigerian Content Development and Monitoring Board (NCDMB)",
     abbreviation: "NCDMB",
-    aliases: ["Nigerian Content Development Management Board"],
+    aliases: [
+      "Nigerian Content Development and Monitoring Board",
+      "Nigerian Content Development Management Board",
+    ],
   },
   { name: "Nigerian Electricity Management Service Agency", abbreviation: "NEMSA" },
   { name: "National Identity Management Commission", abbreviation: "NIMC" },
@@ -49,11 +69,16 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
   { name: "Corporate Affairs Commission", abbreviation: "CAC" },
   { name: "Federal Airports Authority of Nigeria", abbreviation: "FAAN" },
   {
-    name: "EFCC - Special Control Unit for Money Laundering",
+    name: "EFCC - Special Control Unit Against Money Laundering (SCUML)",
     abbreviation: "SCUML",
     aliases: [
+      "EFCC - Special Control Unit Against Money Laundering",
+      "EFCC - Special Control Unit for Money Laundering",
       "EFCC – Special Control Unit for Money Laundering",
+      "SCUML - EFCC - Special Control Unit for Money Laundering",
+      "SCUML - EFCC - Special Control Unit Against Money Laundering",
       "Special Control Unit for Money Laundering",
+      "Special Control Unit Against Money Laundering",
     ],
   },
   { name: "Nigeria Export Promotion Council", abbreviation: "NEPC" },
@@ -68,7 +93,14 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
     aliases: ["Nigerian Investment Promotion Council"],
   },
   { name: "Rural Electrification Agency", abbreviation: "REA" },
-  { name: "Nigeria Export Processing Zone Authority", abbreviation: "NEPZA" },
+  {
+    name: "Nigeria Export Processing Zones Authority (NEPZA)",
+    abbreviation: "NEPZA",
+    aliases: [
+      "Nigeria Export Processing Zones Authority",
+      "Nigeria Export Processing Zone Authority",
+    ],
+  },
   { name: "Nigerian Postal Service", abbreviation: "NIPOST" },
   { name: "Oil & Gas Free Zone Authority", abbreviation: "OGFZA" },
   { name: "Nigerian Maritime Administration and Safety Agency", abbreviation: "NIMASA" },
@@ -142,6 +174,7 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
     name: "Nigerian Agricultural Insurance Corporation",
     abbreviation: "NAIC",
     beepaExempted: true,
+    beepaExemptionReason: "Exempted due to fire incident (full BFA ranking exemption)",
   },
   {
     name: "Nigeria Revenue Service",
@@ -164,10 +197,68 @@ export const BEEPA_TRACKER_ROSTER: BeepaTrackerRosterEntry[] = [
   name: entry.name,
   abbreviation: entry.abbreviation,
   beepaExempted: entry.beepaExempted === true,
+  superMda: entry.superMda === true,
+  beepaExemptionReason: entry.beepaExemptionReason,
   aliases: entry.aliases,
 }));
 
 export const BEEPA_TRACKER_ROSTER_COUNT = BEEPA_TRACKER_ROSTER.length;
+
+/** Note shown beside MDA names on BFA ranking / dashboard PDFs. */
+export function beepaReportNameNote(
+  mdaName: string,
+  abbreviation?: string | null,
+  options?: { beepaExcluded?: boolean }
+): string | null {
+  const entry = matchBeepaTrackerRosterEntry(mdaName, abbreviation);
+  const beepaExcluded = options?.beepaExcluded === true || entry?.beepaExempted === true;
+  if (beepaExcluded) {
+    return (
+      entry?.beepaExemptionReason ||
+      "Exempted from BEEPA — not applicable; removed from max (not scored as 0). Score normalized to /100"
+    );
+  }
+  if (!entry) return null;
+  if (entry.superMda) {
+    return "BEEPA Super MDA (BEEPA scored out of 10)";
+  }
+  return "Not a BEEPA Super MDA (BEEPA scored out of 9)";
+}
+
+/** MDA name plus BEEPA / programme status notes for ranking report cells. */
+export function formatMdaNameForBeepaReport(
+  mdaName: string,
+  abbreviation?: string | null,
+  options?: {
+    beepaExcluded?: boolean;
+    testingServiceExempt?: boolean;
+  }
+): string {
+  const name = String(mdaName || "").trim();
+  if (!name) return name;
+  const notes: string[] = [];
+  const beepaNote = beepaReportNameNote(name, abbreviation, options);
+  if (beepaNote) notes.push(beepaNote);
+  const programmeNote = getProgrammeExclusionReportNote(name);
+  if (programmeNote) notes.push(programmeNote);
+  if (options?.testingServiceExempt) {
+    notes.push(
+      "Mystery Testing Service not tested — graded only on tested channels; full marks on that reduced max (e.g. 20/20) equals full Mystery (same as 40/40). Score normalized to /100"
+    );
+  }
+  if (notes.length === 0) return name;
+  return `${name}\n${notes.map((n) => `(${n})`).join("\n")}`;
+}
+
+export function beepaMaxPointsForMda(mdaName: string, abbreviation?: string | null): number {
+  const entry = matchBeepaTrackerRosterEntry(mdaName, abbreviation);
+  if (entry?.superMda) return BEEPA_SUPER_MDA_MAX;
+  return BEEPA_STANDARD_MDA_MAX;
+}
+
+export function isSuperBeepaMda(mdaName: string, abbreviation?: string | null): boolean {
+  return matchBeepaTrackerRosterEntry(mdaName, abbreviation)?.superMda === true;
+}
 
 export function matchBeepaTrackerRosterEntry(
   mdaName: string,

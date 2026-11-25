@@ -4,8 +4,12 @@ import { api } from "@/convex/_generated/api";
 import {
   getIndicatorMaxScoresForYear,
   getOverallMaxScoreForYear,
+  sumStateScoreRows,
 } from "@/convex/config/indicators";
-import { getStateDeduction, normalizeStateName } from "@/convex/stateUtils";
+import {
+  isIncludedInSubnationalRanking,
+  normalizeStateName,
+} from "@/convex/stateUtils";
 
 export interface StateRanking {
   state: string;
@@ -13,28 +17,18 @@ export interface StateRanking {
   percentageScore: number;
   rank: number;
   maxScore: number;
-  deduction?: number;
 }
 
-function applyDeductions(
+function rankStates(
   items: Array<{ state: string; totalScore: number; percentageScore: number; maxScore: number }>
 ): StateRanking[] {
   return items
-    .map((item) => {
-      const normalizedState = normalizeStateName(item.state);
-      const deduction = getStateDeduction(normalizedState);
-      const adjustedScore = Math.max(item.totalScore - deduction, 0);
-      const adjustedPercentage =
-        item.maxScore > 0 ? (adjustedScore / item.maxScore) * 100 : 0;
-
-      return {
-        state: normalizedState,
-        totalScore: adjustedScore,
-        percentageScore: adjustedPercentage,
-        maxScore: item.maxScore,
-        deduction,
-      };
-    })
+    .map((item) => ({
+      state: normalizeStateName(item.state),
+      totalScore: item.totalScore,
+      percentageScore: item.percentageScore,
+      maxScore: item.maxScore,
+    }))
     .sort((a, b) => b.percentageScore - a.percentageScore)
     .map((item, index) => ({
       ...item,
@@ -56,12 +50,18 @@ export function useStateRankings(indicator?: string, year?: number) {
         return [];
       }
 
-      const stateTotals = new Map<string, number>();
+      const scoresByState = new Map<string, typeof filtered>();
       filtered.forEach((score) => {
         const normalizedState = normalizeStateName(score.state);
-        const currentTotal = stateTotals.get(normalizedState) || 0;
-        stateTotals.set(normalizedState, currentTotal + (score.score || 0));
+        if (!isIncludedInSubnationalRanking(normalizedState)) return;
+        const bucket = scoresByState.get(normalizedState) ?? [];
+        bucket.push(score);
+        scoresByState.set(normalizedState, bucket);
       });
+      const stateTotals = new Map<string, number>();
+      for (const [state, rows] of scoresByState) {
+        stateTotals.set(state, sumStateScoreRows(rows, currentYear));
+      }
 
       const maxScore = getIndicatorMaxScoresForYear(currentYear)[indicator] ?? 0;
       const baseItems = Array.from(stateTotals.entries()).map(([state, totalScore]) => {
@@ -74,28 +74,30 @@ export function useStateRankings(indicator?: string, year?: number) {
         };
       });
 
-      return applyDeductions(baseItems);
+      return rankStates(baseItems);
     }
 
     if (!baseRankings) return undefined;
 
     const overallMaxScore = getOverallMaxScoreForYear(currentYear);
-    const normalizedBase = baseRankings.map((ranking) => {
-      const state = normalizeStateName(ranking.state);
-      const totalScore = ranking.totalScore ?? 0;
-      const percentageScore =
-        ranking.percentageScore ??
-        (overallMaxScore > 0 ? (totalScore / overallMaxScore) * 100 : 0);
+    const normalizedBase = baseRankings
+      .map((ranking) => {
+        const state = normalizeStateName(ranking.state);
+        const totalScore = ranking.totalScore ?? 0;
+        const percentageScore =
+          ranking.percentageScore ??
+          (overallMaxScore > 0 ? (totalScore / overallMaxScore) * 100 : 0);
 
-      return {
-        state,
-        totalScore,
-        percentageScore,
-        maxScore: ranking.maxScore ?? overallMaxScore,
-      };
-    });
+        return {
+          state,
+          totalScore,
+          percentageScore,
+          maxScore: ranking.maxScore ?? overallMaxScore,
+        };
+      })
+      .filter((ranking) => isIncludedInSubnationalRanking(ranking.state));
 
-    return applyDeductions(normalizedBase);
+    return rankStates(normalizedBase);
   }, [indicator, baseRankings, stateScores, currentYear]);
 
   return {

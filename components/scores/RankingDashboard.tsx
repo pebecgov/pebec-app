@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LayoutGrid, List, Search } from "lucide-react";
-import { SCORE_YEAR, formatPoints, type RankingRow } from "@/lib/scoreTracker";
+import { SCORE_YEAR, type RankingRow } from "@/lib/scoreTracker";
 import { RankingTable } from "./RankingTable";
 import { StatusDistribution } from "./StatusDistribution";
 import {
@@ -31,6 +31,10 @@ interface RankingDashboardProps {
   hideStatusDistribution?: boolean;
   /** Hide status badges in table/cards (MDA tracker). */
   hideStatusColumn?: boolean;
+  /** MDA list: name only, no overall score. */
+  hideScoreColumn?: boolean;
+  /** MDA list: hide the reports column. */
+  hideExtraColumn?: boolean;
 }
 
 export function RankingDashboard({
@@ -45,6 +49,8 @@ export function RankingDashboard({
   emptyMessage,
   hideStatusDistribution = false,
   hideStatusColumn = false,
+  hideScoreColumn = false,
+  hideExtraColumn = false,
 }: RankingDashboardProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>("ranking");
@@ -61,11 +67,6 @@ export function RankingDashboard({
     );
   }, [rows, searchQuery]);
 
-  const averageScore =
-    filteredRows.length > 0
-      ? filteredRows.reduce((sum, row) => sum + row.score, 0) / filteredRows.length
-      : 0;
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -75,13 +76,13 @@ export function RankingDashboard({
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {rows ? (
             <>
               <StatCard
                 title={`Total ${entityLabel}s`}
                 value={rows.length}
-                subtitle={entityLabel === "MDA" ? "Ministries, Departments & Agencies" : "Nigerian states & FCT"}
+                subtitle={entityLabel === "MDA" ? "Ministries, Departments & Agencies" : "36 Nigerian states"}
                 icon={
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -108,20 +109,9 @@ export function RankingDashboard({
                   </svg>
                 }
               />
-              <StatCard
-                title="Average Score"
-                value={formatPoints(averageScore)}
-                subtitle={searchQuery ? `Across ${filteredRows.length} matching results` : `Across all ${entityLabel.toLowerCase()}s`}
-                icon={
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                }
-              />
             </>
           ) : (
             <>
-              <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />
@@ -138,7 +128,7 @@ export function RankingDashboard({
 
       <section>
         <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">{entityLabel} Rankings</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{entityLabel}s</h2>
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -197,6 +187,8 @@ export function RankingDashboard({
               rows={filteredRows}
               extraColumnHeader={extraColumnHeader}
               hideStatusColumn={hideStatusColumn}
+              hideScoreColumn={hideScoreColumn}
+              hideExtraColumn={hideExtraColumn}
               onRowClick={(row) => router.push(row.href)}
             />
           ) : (
@@ -207,6 +199,8 @@ export function RankingDashboard({
                   row={row}
                   extraLabel={extraCardLabel}
                   hideStatus={hideStatusColumn}
+                  hideScore={hideScoreColumn}
+                  hideExtra={hideExtraColumn}
                   onClick={() => router.push(row.href)}
                 />
               ))}

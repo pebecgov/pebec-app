@@ -1,7 +1,12 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
-import { getIndicatorsForYear } from "@/convex/config/indicators";
+import {
+  foldLandRegistrationPoints,
+  getIndicatorMaxScoreForYear,
+  getIndicatorsForYear,
+  getSubIndicatorScore,
+} from "@/convex/config/indicators";
 
 export interface StateIndicatorScore {
   state: string;
@@ -259,11 +264,7 @@ export function processStateScoresForIndicator(
   const indicatorConfig = getIndicatorsForYear(year)[indicatorKey];
   if (!indicatorConfig) return [];
 
-  // Calculate max score for this indicator
-  const maxScore = Object.values(indicatorConfig.subIndicators).reduce((sum, subConfig) => {
-    const maxSubScore = Math.max(...subConfig.options.map((opt) => opt.score));
-    return sum + maxSubScore;
-  }, 0);
+  const maxScore = getIndicatorMaxScoreForYear(indicatorKey, year);
 
   // Filter scores for this indicator
   const indicatorScores = allScores.filter(score => score.indicator === indicatorKey);
@@ -279,14 +280,13 @@ export function processStateScoresForIndicator(
 
   // Process each state
   return Object.entries(stateGroups).map(([state, scores]) => {
-    const totalScore = scores.reduce((sum, score) => sum + score.score, 0);
-    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
-
-    // Process sub-indicators
+    // Process sub-indicators — derive points from value so stale score:0 rows still count.
     const subIndicatorScores = Object.entries(indicatorConfig.subIndicators).map(([subKey, subConfig]) => {
       const subScore = scores.find(s => s.subIndicator === subKey);
       const maxSubScore = Math.max(...subConfig.options.map((opt) => opt.score));
-      const score = subScore?.score || 0;
+      const score = subScore
+        ? getSubIndicatorScore(indicatorKey, subKey, subScore.value ?? "", year)
+        : 0;
       const subPercentage = maxSubScore > 0 ? (score / maxSubScore) * 100 : 0;
 
       return {
@@ -298,6 +298,15 @@ export function processStateScoresForIndicator(
         percentage: subPercentage
       };
     });
+    const totalScore =
+      indicatorKey === "digitalizing_land_registration"
+        ? foldLandRegistrationPoints(
+            Object.fromEntries(
+              subIndicatorScores.map((sub) => [sub.subIndicator, sub.score])
+            )
+          )
+        : subIndicatorScores.reduce((sum, sub) => sum + sub.score, 0);
+    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
     return {
       state,

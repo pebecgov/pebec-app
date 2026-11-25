@@ -198,19 +198,21 @@ export default function SaberMaterialsPage() {
   };
 
   const allFinal = grouped?.finalResults ?? [];
+  const allYear2 = grouped?.year2Results ?? [];
   const allPrior = grouped?.priorResults ?? [];
   const generalMaterials = grouped?.generalMaterials ?? [];
   const total = grouped?.total ?? 0;
 
-  // States that have data in either Final or Prior Results
   const statesWithData = Array.from(
     new Set([
       ...allFinal.map((m) => m.state),
+      ...allYear2.map((m) => m.state),
       ...allPrior.map((m) => m.state),
     ].filter(Boolean) as string[])
   ).sort();
 
   const finalResults = stateFilter === "all" ? allFinal : allFinal.filter((m) => m.state === stateFilter);
+  const year2Results = stateFilter === "all" ? allYear2 : allYear2.filter((m) => m.state === stateFilter);
   const priorResults = stateFilter === "all" ? allPrior : allPrior.filter((m) => m.state === stateFilter);
 
   return (
@@ -284,9 +286,12 @@ export default function SaberMaterialsPage() {
                   )}
                 </div>
               )}
-              <TabsList className="grid w-full grid-cols-3 h-auto">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
                 <TabsTrigger value="final" className="text-xs sm:text-sm py-2">
                   Year 1 Results {stateFilter !== "all" ? `(${finalResults.length})` : `(${allFinal.length})`}
+                </TabsTrigger>
+                <TabsTrigger value="year2" className="text-xs sm:text-sm py-2">
+                  Year 2 Results {stateFilter !== "all" ? `(${year2Results.length})` : `(${allYear2.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="prior" className="text-xs sm:text-sm py-2">
                   Prior Results {stateFilter !== "all" ? `(${priorResults.length})` : `(${allPrior.length})`}
@@ -301,6 +306,18 @@ export default function SaberMaterialsPage() {
                   materials={finalResults}
                   emptyTitle="No Year 1 Results yet"
                   emptyDescription="Year 1 APA reports by state will appear here once uploaded and tagged."
+                  getDownloadUrl={getDownloadUrl}
+                  getFileIcon={getFileIcon}
+                  formatFileSize={formatFileSize}
+                  getReferenceColor={getReferenceColor}
+                />
+              </TabsContent>
+
+              <TabsContent value="year2" className="mt-6">
+                <MaterialsGrid
+                  materials={year2Results}
+                  emptyTitle="No Year 2 Results yet"
+                  emptyDescription="Year 2 APA reports by state will appear here once uploaded and tagged."
                   getDownloadUrl={getDownloadUrl}
                   getFileIcon={getFileIcon}
                   formatFileSize={formatFileSize}
@@ -343,6 +360,10 @@ export default function SaberMaterialsPage() {
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-gray-600">Year 1 Results</p>
                   <p className="text-xl font-bold text-gray-900">{finalResults.length}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">Year 2 Results</p>
+                  <p className="text-xl font-bold text-gray-900">{year2Results.length}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-gray-600">Prior Results</p>

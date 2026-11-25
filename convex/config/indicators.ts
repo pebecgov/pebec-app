@@ -14,6 +14,8 @@ export type IndicatorOption = {
 export type SubIndicatorConfig = {
   readonly label: string;
   readonly options: readonly IndicatorOption[];
+  /** When set, any finite numeric `value` scores as itself clamped to [0, numericMax]. */
+  readonly numericMax?: number;
 };
 
 export type IndicatorConfig = {
@@ -28,37 +30,39 @@ export type IndicatorSet = Readonly<Record<string, IndicatorConfig>>;
 const indicators2025 = {
   electricity: {
     name: "Electricity (16%)",
+    // Spreadsheet: Law 3 + Agency 3 + Licence 1 + Generation 4 + Transmission 5 = 16
     subIndicators: {
       state_electricity_law: {
-        label: "State Electricity Law (2%)",
+        label: "Law (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "transfer_order_issued",
+            label: "Transfer Order Issued by NERC (3)",
+            score: 3,
+          },
+          {
+            value: "no_transfer_order",
+            label: "No Transfer Order from NERC (0)",
+            score: 0,
+          },
         ],
       },
       electricity_regulatory_commission: {
-        label: "Establishment of State Electricity Regulatory Commission (2%)",
+        label: "Establishment of Agency (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      nerc_transfer_request: {
-        label: "Request for Transfer from NERC (2%)",
-        options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "yes", label: "Yes (3)", score: 3 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_license: {
-        label: "License (1%)",
+        label: "Licence (1%)",
         options: [
           { value: "yes", label: "Yes (1)", score: 1 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_generation: {
-        label: "Electricity Generation (4% Bonus)",
+        label: "Generation (4%)",
         options: [
           { value: "excellent", label: "Excellent (4)", score: 4 },
           { value: "good", label: "Good (3)", score: 3 },
@@ -68,7 +72,7 @@ const indicators2025 = {
         ],
       },
       electricity_transmission_distribution: {
-        label: "Electricity Transmission and Distribution (5%)",
+        label: "Transmission (5%)",
         options: [
           { value: "excellent", label: "Excellent (5)", score: 5 },
           { value: "good", label: "Good (4)", score: 4 },
@@ -82,25 +86,20 @@ const indicators2025 = {
   },
   infrastructure: {
     name: "Infrastructure (8%)",
+    // Presence of industrial layout 2 + Functional industrial park 6 = 8
     subIndicators: {
-      roads_within_state_capital: {
-        label: "Roads within State Capital (4%)",
+      industrial_layout_presence: {
+        label: "Presence of Industrial Layout (2%)",
         options: [
-          { value: "excellent", label: "Excellent (4)", score: 4 },
-          { value: "very_good", label: "Very Good (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "poor", label: "Poor (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      industrial_zones: {
-        label: "Industrial Zones (4%)",
+      functional_industrial_park: {
+        label: "Functional Industrial Park (6%)",
         options: [
-          { value: "excellent", label: "Excellent (4)", score: 4 },
-          { value: "very_good", label: "Very Good (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "poor", label: "Poor (0)", score: 0 },
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
@@ -161,22 +160,34 @@ const indicators2025 = {
   },
   digitalizing_land_registration: {
     name: "Digitalizing Land Registration (10%)",
+    // GIS 3 + one automation tier (Full 7 / Semi 5 / Doc 2) = max 10
     subIndicators: {
       gis: {
-        label: "GIS (3%)",
+        label: "Availability of GIS (3%)",
         options: [
-          { value: "excellent", label: "Excellent (3)", score: 3 },
-          { value: "good", label: "Good (2)", score: 2 },
-          { value: "fair", label: "Fair (1)", score: 1 },
-          { value: "none", label: "None (0)", score: 0 },
+          { value: "yes", label: "Yes (3)", score: 3 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       automated: {
-        label: "Automated (7%)",
+        label: "Land Registration Automation (7%)",
         options: [
-          { value: "fully-automated", label: "Fully automated (7)", score: 7 },
-          { value: "hybrid", label: "Hybrid (4)", score: 4 },
-          { value: "manual", label: "Manual (0)", score: 0 },
+          {
+            value: "full_automation",
+            label: "Full automation end-to-end (7)",
+            score: 7,
+          },
+          {
+            value: "semi_automation",
+            label: "Semi-automation (5)",
+            score: 5,
+          },
+          {
+            value: "document_downloads",
+            label: "Document downloads/processing (2)",
+            score: 2,
+          },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
@@ -239,6 +250,7 @@ const indicators2025 = {
   },
   harmonized_taxes: {
     name: "Harmonized Taxes, Levies & Fees (10%)",
+    // Law 3 + Digitized 2 + Publication 2 + Procedures 2 + Incentives 1 = 10
     subIndicators: {
       harmonization_law: {
         label: "Harmonization Law (3%)",
@@ -248,19 +260,24 @@ const indicators2025 = {
         ],
       },
       digitized_tax_payment: {
-        label: "Digitized Tax Payment (4%)",
+        label: "Digitized Tax System (2%)",
         options: [
-          { value: "digital", label: "Digital / e-payment with automatic receipts (4)", score: 4 },
-          { value: "hybrid", label: "Partial / hybrid digitization (2)", score: 2 },
-          { value: "manual", label: "Manual / cash-based (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      publication_of_fees_procedures: {
-        label: "Publication of Fees & Procedures (2%)",
+      publication_of_fees: {
+        label: "Publication of Fees (2%)",
         options: [
-          { value: "publicly-available", label: "Fees and procedures publicly available (2)", score: 2 },
-          { value: "partial", label: "Either fees or procedures published (1)", score: 1 },
-          { value: "not-published", label: "Not published (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      procedures: {
+        label: "Procedures (2%)",
+        options: [
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       tax_incentives: {
@@ -394,37 +411,39 @@ const indicators2025 = {
 const indicators2026 = {
   electricity: {
     name: "Electricity (16%)",
+    // Spreadsheet: Law 3 + Agency 3 + Licence 1 + Generation 4 + Transmission 5 = 16
     subIndicators: {
       state_electricity_law: {
-        label: "State Electricity Law (2%)",
+        label: "Law (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "transfer_order_issued",
+            label: "Transfer Order Issued by NERC (3)",
+            score: 3,
+          },
+          {
+            value: "no_transfer_order",
+            label: "No Transfer Order from NERC (0)",
+            score: 0,
+          },
         ],
       },
       electricity_regulatory_commission: {
-        label: "Establishment of State Electricity Regulatory Commission (2%)",
+        label: "Establishment of Agency (3%)",
         options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
-          { value: "no", label: "No (0)", score: 0 },
-        ],
-      },
-      nerc_transfer_request: {
-        label: "Request for Transfer from NERC (2%)",
-        options: [
-          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "yes", label: "Yes (3)", score: 3 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_license: {
-        label: "License (1%)",
+        label: "Licence (1%)",
         options: [
           { value: "yes", label: "Yes (1)", score: 1 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       electricity_generation: {
-        label: "Electricity Generation (4% Bonus)",
+        label: "Generation (4%)",
         options: [
           { value: "excellent", label: "Excellent (4)", score: 4 },
           { value: "good", label: "Good (3)", score: 3 },
@@ -434,7 +453,7 @@ const indicators2026 = {
         ],
       },
       electricity_transmission_distribution: {
-        label: "Electricity Transmission and Distribution (5%)",
+        label: "Transmission (5%)",
         options: [
           { value: "excellent", label: "Excellent (5)", score: 5 },
           { value: "good", label: "Good (4)", score: 4 },
@@ -448,13 +467,20 @@ const indicators2026 = {
   },
   infrastructure: {
     name: "Infrastructure (8%)",
+    // Presence of industrial layout 2 + Functional industrial park 6 = 8
     subIndicators: {
-      industrial_zones: {
-        label: "Industrial Zones (8%)",
+      industrial_layout_presence: {
+        label: "Presence of Industrial Layout (2%)",
         options: [
-          { value: "eight", label: "8 pts", score: 8 },
-          { value: "four", label: "4 pts", score: 4 },
-          { value: "one", label: "1 pt", score: 1 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      functional_industrial_park: {
+        label: "Functional Industrial Park (6%)",
+        options: [
+          { value: "yes", label: "Yes (6)", score: 6 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
     },
@@ -507,33 +533,48 @@ const indicators2026 = {
   },
   digitalizing_land_registration: {
     name: "Digitalizing Land Registration (10%)",
+    // GIS 3 + one automation tier (Full 7 / Semi 5 / Doc 2) = max 10
     subIndicators: {
       gis: {
-        label: "GIS (3%)",
+        label: "Availability of GIS (3%)",
         options: [
           { value: "yes", label: "Yes (3)", score: 3 },
           { value: "no", label: "No (0)", score: 0 },
         ],
       },
       automated: {
-        label: "Automated (7%)",
+        label: "Land Registration Automation (7%)",
         options: [
-          { value: "yes", label: "Yes (7)", score: 7 },
-          { value: "no", label: "No (0)", score: 0 },
+          {
+            value: "full_automation",
+            label: "Full automation end-to-end (7)",
+            score: 7,
+          },
+          {
+            value: "semi_automation",
+            label: "Semi-automation (5)",
+            score: 5,
+          },
+          {
+            value: "document_downloads",
+            label: "Document downloads/processing (2)",
+            score: 2,
+          },
+          { value: "none", label: "None (0)", score: 0 },
         ],
       },
     },
   },
   access_to_skilled_labour: {
     name: "Access to Skilled Labor (5%)",
+    // PEBEC sheet: relative uni/2 + accredited TVET/2 + centres/1 → continuous total /5
     subIndicators: {
-      technical_vocational_training_centers: {
-        label: "Technical & Vocational Training Centers (5%)",
+      skilled_workers_index: {
+        label: "Skilled Workers Index (5%) — PEBEC sheet total",
+        numericMax: 5,
         options: [
-          { value: "seven-plus", label: "7 or more centres (5)", score: 5 },
-          { value: "four-to-six", label: "4 to 6 centres (3.5)", score: 3.5 },
-          { value: "one-to-three", label: "1 to 3 centres (2)", score: 2 },
-          { value: "zero", label: "None (0)", score: 0 },
+          { value: "0", label: "0", score: 0 },
+          { value: "5", label: "5 (max)", score: 5 },
         ],
       },
     },
@@ -573,6 +614,7 @@ const indicators2026 = {
   },
   harmonized_taxes: {
     name: "Harmonized Taxes, Levies & Fees (10%)",
+    // Law 3 + Digitized 2 + Publication 2 + Procedures 2 + Incentives 1 = 10
     subIndicators: {
       harmonization_law: {
         label: "Harmonization Law (3%)",
@@ -582,19 +624,24 @@ const indicators2026 = {
         ],
       },
       digitized_tax_payment: {
-        label: "Digitized Tax Payment (4%)",
+        label: "Digitized Tax System (2%)",
         options: [
-          { value: "digital", label: "Digital / e-payment with automatic receipts (4)", score: 4 },
-          { value: "hybrid", label: "Partial / hybrid digitization (2)", score: 2 },
-          { value: "manual", label: "Manual / cash-based (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
-      publication_of_fees_procedures: {
-        label: "Publication of Fees & Procedures (2%)",
+      publication_of_fees: {
+        label: "Publication of Fees (2%)",
         options: [
-          { value: "publicly-available", label: "Fees and procedures publicly available (2)", score: 2 },
-          { value: "partial", label: "Either fees or procedures published (1)", score: 1 },
-          { value: "not-published", label: "Not published (0)", score: 0 },
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
+        ],
+      },
+      procedures: {
+        label: "Procedures (2%)",
+        options: [
+          { value: "yes", label: "Yes (2)", score: 2 },
+          { value: "no", label: "No (0)", score: 0 },
         ],
       },
       tax_incentives: {
@@ -622,10 +669,24 @@ const indicators2026 = {
     name: "Grievance Redress Mechanism (4%)",
     subIndicators: {
       availability_of_grm: {
-        label: "Availability of GRM (1%)",
+        label: "Availability of GRM (0.5%)",
         options: [
-          { value: "yes", label: "Available (1)", score: 1 },
+          { value: "yes", label: "Available (0.5)", score: 0.5 },
           { value: "no", label: "Not available (0)", score: 0 },
+        ],
+      },
+      functionality: {
+        label: "Functionality (2%)",
+        options: [
+          { value: "yes", label: "Functional (2)", score: 2 },
+          { value: "no", label: "Not functional (0)", score: 0 },
+        ],
+      },
+      multiple_channels: {
+        label: "Multiple Channels (0.5%)",
+        options: [
+          { value: "yes", label: "Multiple channels (0.5)", score: 0.5 },
+          { value: "no", label: "No multiple channels (0)", score: 0 },
         ],
       },
       centralized_grm: {
@@ -633,13 +694,6 @@ const indicators2026 = {
         options: [
           { value: "yes", label: "Centralized GRM available (1)", score: 1 },
           { value: "no", label: "No centralized GRM (0)", score: 0 },
-        ],
-      },
-      multiple_channels_functionality: {
-        label: "Multiple Channels & Functionality (2%)",
-        options: [
-          { value: "yes", label: "Easily accessible via multiple channels (2)", score: 2 },
-          { value: "no", label: "Difficult to find or access (0)", score: 0 },
         ],
       },
     },
@@ -737,6 +791,67 @@ export function getIndicatorMaxScoresForYear(year?: number): Record<string, numb
   return computed;
 }
 
+/**
+ * Fold land-registration sub-points: GIS + automation.
+ * Still folds legacy split columns (full/semi/doc) to the highest tier until migrated.
+ */
+export function foldLandRegistrationPoints(
+  subPoints: Record<string, number | undefined>
+): number {
+  const gis = Number(subPoints.gis) || 0;
+  const automation = Math.max(
+    Number(subPoints.automated) || 0,
+    Number(subPoints.full_automation) || 0,
+    Number(subPoints.semi_automation) || 0,
+    Number(subPoints.document_downloads) || 0
+  );
+  return gis + automation;
+}
+
+/** Sum sub-points for one indicator, applying land-registration fold when needed. */
+export function sumIndicatorSubPoints(
+  indicatorKey: string,
+  subPoints: Record<string, number | undefined>
+): number {
+  if (indicatorKey === "digitalizing_land_registration") {
+    return foldLandRegistrationPoints(subPoints);
+  }
+  return Object.values(subPoints).reduce<number>(
+    (sum, value) => sum + (Number(value) || 0),
+    0
+  );
+}
+
+/**
+ * Sum points across score rows for one or more indicators, with land fold.
+ */
+export function sumStateScoreRows(
+  rows: ReadonlyArray<{
+    indicator: string;
+    subIndicator: string;
+    value?: string | null;
+  }>,
+  year?: number
+): number {
+  const byIndicator = new Map<string, Record<string, number>>();
+  for (const row of rows) {
+    const points = getSubIndicatorScore(
+      row.indicator,
+      row.subIndicator,
+      row.value ?? "",
+      year
+    );
+    const bucket = byIndicator.get(row.indicator) ?? {};
+    bucket[row.subIndicator] = points;
+    byIndicator.set(row.indicator, bucket);
+  }
+  let total = 0;
+  for (const [indicatorKey, subPoints] of byIndicator) {
+    total += sumIndicatorSubPoints(indicatorKey, subPoints);
+  }
+  return total;
+}
+
 export function getIndicatorMaxScoreForYear(indicatorKey: string, year?: number): number {
   return getIndicatorMaxScoresForYear(year)[indicatorKey] ?? 0;
 }
@@ -756,9 +871,97 @@ export function getSubIndicatorScore(
   value: string,
   year?: number
 ): number {
+  // Retired: folded into Law (Transfer Order) by migrateElectricityToSpreadsheetModel.
+  if (
+    indicatorKey === "electricity" &&
+    subIndicatorKey === "nerc_transfer_request"
+  ) {
+    return 0;
+  }
+
   const subIndicator = getIndicatorsForYear(year)[indicatorKey]?.subIndicators?.[subIndicatorKey];
-  if (!subIndicator) return 0;
-  return subIndicator.options.find((option) => option.value === value)?.score ?? 0;
+  if (!subIndicator) {
+    // Legacy split land-automation columns (pre single dropdown).
+    if (indicatorKey === "digitalizing_land_registration") {
+      if (subIndicatorKey === "full_automation" && value === "yes") return 7;
+      if (subIndicatorKey === "semi_automation" && value === "yes") return 5;
+      if (subIndicatorKey === "document_downloads" && value === "yes") return 2;
+    }
+    return 0;
+  }
+  const direct = subIndicator.options.find((option) => option.value === value)?.score;
+  if (direct != null) return direct;
+
+  // Continuous numeric values (e.g. skilled workers sheet totals).
+  // Round to 2dp so admin UI / PDFs / reports stay readable.
+  if (subIndicator.numericMax != null) {
+    const n = Number(value);
+    if (Number.isFinite(n)) {
+      const clamped = Math.min(subIndicator.numericMax, Math.max(0, n));
+      return Math.round(clamped * 100) / 100;
+    }
+  }
+
+  // Legacy electricity Law values (pre-spreadsheet Transfer Order options).
+  if (
+    indicatorKey === "electricity" &&
+    subIndicatorKey === "state_electricity_law" &&
+    (value === "yes" || value === "no")
+  ) {
+    return value === "yes" ? 3 : 0;
+  }
+
+  // Legacy land-registration GIS / automation values.
+  if (indicatorKey === "digitalizing_land_registration") {
+    if (subIndicatorKey === "gis") {
+      if (value === "excellent" || value === "good" || value === "fair") return 3;
+      if (value === "none") return 0;
+    }
+    if (subIndicatorKey === "automated") {
+      if (value === "yes" || value === "fully-automated") return 7;
+      if (value === "hybrid") return 5;
+      if (value === "no" || value === "manual") return 0;
+    }
+  }
+
+  // Legacy harmonized-taxes values (pre split fees/procedures + digital max 2).
+  if (indicatorKey === "harmonized_taxes") {
+    if (subIndicatorKey === "digitized_tax_payment") {
+      if (value === "digital" || value === "hybrid" || value === "yes") return 2;
+      if (value === "manual" || value === "no") return 0;
+    }
+    if (subIndicatorKey === "publication_of_fees_procedures") {
+      // Retired combined field — scored only via publication_of_fees + procedures.
+      return 0;
+    }
+  }
+
+  // Legacy infrastructure keys (roads / single industrial_zones scale).
+  if (indicatorKey === "infrastructure") {
+    if (subIndicatorKey === "roads_within_state_capital") return 0;
+    if (subIndicatorKey === "industrial_zones") {
+      if (
+        value === "eight" ||
+        value === "excellent" ||
+        value === "very_good" ||
+        value === "good"
+      ) {
+        return 8; // treated as full via fold in migration; legacy sum path
+      }
+      if (value === "four" || value === "fair") return 2; // layout only
+      return 0;
+    }
+  }
+
+  // Retired 2026 TVET dropdown — replaced by skilled_workers_index sheet totals.
+  if (
+    (year == null || year >= 2026) &&
+    indicatorKey === "access_to_skilled_labour" &&
+    subIndicatorKey === "technical_vocational_training_centers"
+  ) {
+    return 0;
+  }
+  return 0;
 }
 
 export type IndicatorKey = keyof typeof indicators2026 | keyof typeof indicators2025;

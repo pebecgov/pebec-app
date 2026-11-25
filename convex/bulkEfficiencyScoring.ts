@@ -23,6 +23,7 @@ import {
   normalizeMdaKey,
   splitMdaNameForMatch,
 } from "./mda_scoring";
+import { mergeProgrammeMetricExclusions } from "../lib/programmeMetricExclusions";
 import {
   buildMonthlyReportData,
   calculateAdjustedResolutionRate,
@@ -91,12 +92,12 @@ function excludedMetricsFor(
   mdaName: string,
 ): Set<string> {
   const parts = splitMdaNameForMatch(mdaName);
-  return (
+  const raw =
     exclusionMap.get(normalizeMdaKey(mdaName)) ||
     (parts.fullName ? exclusionMap.get(parts.fullName) : undefined) ||
     (parts.abbr ? exclusionMap.get(parts.abbr) : undefined) ||
-    new Set<string>()
-  );
+    new Set<string>();
+  return new Set(mergeProgrammeMetricExclusions(mdaName, raw));
 }
 
 export const runAutomaticEfficiencyScoring = mutation({
@@ -287,7 +288,6 @@ export const runAutomaticEfficiencyScoring = mutation({
         } else if ((existing?.isSkipped || existing?.isManual) && !overwriteManual) {
           outcomes.push({ metric: "reportGov", status: "manual_override", previousScore: existing.score, newScore: existing.score, detail: existing.isSkipped ? "Kept \"Skip (0 points)\"" : "Kept manual entry" });
         } else {
-          // Mirrors the one-MDA screen: an MDA not on the platform has no tickets → 0.
           const tickets = mda
             ? await ctx.db
                 .query("tickets")
@@ -296,8 +296,7 @@ export const runAutomaticEfficiencyScoring = mutation({
             : [];
           const stats = computeTicketStats(tickets, ticketWindow.startDate, ticketWindow.endDate);
 
-          // No tickets → Skip (0 points): remove ReportGov from the max so the
-          // MDA can still reach 100% on the remaining Efficiency metrics.
+          // No tickets / not on platform → Skip (0); remove ReportGov from the max.
           const shouldSkip = !mda || stats.totalTickets === 0;
           if (shouldSkip) {
             const detail = !mda

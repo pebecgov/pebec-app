@@ -94,6 +94,8 @@ export default function LiveDashboardTab({
                     processDashboardMdaData={processDashboardMdaData}
                     othersConfig={othersConfig}
                     penaltyConfig={penaltyConfig}
+                    bonusConfig={bonusConfig}
+                    efficiencyConfig={liveDashboardData?.efficiencyConfig || efficiencyConfig}
                 />
 
                 <DashboardTable

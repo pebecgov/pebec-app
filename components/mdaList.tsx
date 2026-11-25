@@ -24,7 +24,7 @@ export const mdasList = [{
   name: "Department of State Services",
   abbreviation: "DSS"
 },  {
-  name: "EFCC - Special Control Unit for Money Laundering",
+  name: "EFCC - Special Control Unit Against Money Laundering (SCUML)",
   abbreviation: "SCUML"
 }, {
   name: "Environmental Health Council of Nigeria",
@@ -113,9 +113,12 @@ export const mdasList = [{
 }, {
   name: "National Pension Commission",
   abbreviation: "PENCOM"
-}, {
+},   {
   name: "National Bureau of Statistics",
   abbreviation: "NBS"
+}, {
+  name: "National Single Window",
+  abbreviation: "NSW"
 }, {
   name: "Nigeria Agricultural Quarantine Service",
   abbreviation: "NAQS"
@@ -129,7 +132,7 @@ export const mdasList = [{
   name: "Nigeria Data Protection Commission",
   abbreviation: "NDPC"
 }, {
-  name: "Nigeria Export Processing Zone Authority",
+  name: "Nigeria Export Processing Zones Authority (NEPZA)",
   abbreviation: "NEPZA"
 }, {
   name: "Nigeria Export Promotion Council",
@@ -159,7 +162,7 @@ export const mdasList = [{
   name: "Nigerian Communications Commission",
   abbreviation: "NCC"
 }, {
-  name: "Nigerian Content Development Management Board",
+  name: "Nigerian Content Development and Monitoring Board (NCDMB)",
   abbreviation: "NCDMB"
 }, {
   name: "Nigerian Copyright Commission",
@@ -216,7 +219,7 @@ export const mdasList = [{
   name: "Securities and Exchange Commission",
   abbreviation: "SEC"
 }, {
-  name: "Service Compact",
+  name: "Service Compact (SERVICOM)",
   abbreviation: "SERVICOM"
 }, {
   name: "Standards Organisation of Nigeria",

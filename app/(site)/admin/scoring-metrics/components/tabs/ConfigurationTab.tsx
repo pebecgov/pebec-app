@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, GripVertical, Save, Loader2, AlertTriangle, Check, Zap, Unlock, ClipboardList } from "lucide-react";
 import { mdasList } from "@/components/mdaList";
+import { isTestingServiceMysteryQuestion } from "@/lib/mysteryTypeExemption";
 import MetricJustificationsEditor, {
     type JustificationMetricOption,
 } from "@/components/Admin/MetricJustificationsEditor";
@@ -142,11 +143,18 @@ export default function ConfigurationTab({ currentYear, onYearChange }: Configur
                     </TabsContent>
 
                     <TabsContent value="exclusions">
-                        <MetricExclusionConfiguration
-                            year={selectedYear}
-                            allExclusions={configurations?.metricExclusions || []}
-                            othersItems={configurations?.othersItems || []}
-                        />
+                        <div className="space-y-6">
+                            <TestingServiceExemptionCard
+                                year={selectedYear}
+                                mysteryTypes={configurations?.mysteryShoppingTypes || []}
+                                allExclusions={configurations?.metricExclusions || []}
+                            />
+                            <MetricExclusionConfiguration
+                                year={selectedYear}
+                                allExclusions={configurations?.metricExclusions || []}
+                                othersItems={configurations?.othersItems || []}
+                            />
+                        </div>
                     </TabsContent>
                 </Tabs>
             )}
@@ -213,8 +221,7 @@ function BfaJustificationsConfiguration({
             <CardHeader>
                 <CardTitle>BFA justifications</CardTitle>
                 <CardDescription>
-                    These explanations appear on each MDA&apos;s public tracker page under the matching metric,
-                    bonus, or penalty.
+                    Internal scoring notes for the team. They are not shown on the public MDA tracker.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -225,6 +232,178 @@ function BfaJustificationsConfiguration({
                     title="Why each BFA metric is scored"
                     description="Write the justification agencies should see. Leave blank and save to remove."
                 />
+            </CardContent>
+        </Card>
+    );
+}
+
+function namesLooselyMatch(a: string, b: string): boolean {
+    const norm = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
+    const left = norm(a);
+    const right = norm(b);
+    if (left === right) return true;
+    const leftFull = left.includes(" - ") ? left.split(" - ").slice(1).join(" - ").trim() : "";
+    const rightFull = right.includes(" - ") ? right.split(" - ").slice(1).join(" - ").trim() : "";
+    return Boolean(
+        (leftFull && (leftFull === right || leftFull === rightFull)) ||
+        (rightFull && rightFull === left)
+    );
+}
+
+function TestingServiceExemptionCard({
+    year,
+    mysteryTypes,
+    allExclusions,
+}: {
+    year: number;
+    mysteryTypes: Array<{
+        questions?: Array<{ questionText?: string; weight?: number }>;
+    }>;
+    allExclusions: Array<{ mdaName: string; excludedMetrics: string[] }>;
+}) {
+    const testingService = (() => {
+        const seen = new Set<string>();
+        let weight = 0;
+        let count = 0;
+        for (const type of mysteryTypes || []) {
+            for (const question of type.questions || []) {
+                if (!isTestingServiceMysteryQuestion(question.questionText || "")) continue;
+                const key = String(question.questionText || "")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, " ")
+                    .trim();
+                if (seen.has(key)) continue;
+                seen.add(key);
+                weight += question.weight || 0;
+                count += 1;
+            }
+        }
+        return { weight, count };
+    })();
+
+    const [selectedMdas, setSelectedMdas] = useState<string[]>([]);
+    const [mdaSearch, setMdaSearch] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
+    const saveExemptions = useMutation(api.scoring_config.saveTestingServiceMysteryExemptions);
+    const mdaOptions = useMemo(
+        () =>
+            mdasList
+                .map((mda) => `${mda.abbreviation} - ${mda.name}`)
+                .sort((a, b) => a.localeCompare(b)),
+        []
+    );
+
+    useEffect(() => {
+        const selected = (allExclusions || [])
+            .filter((row) =>
+                (row.excludedMetrics || []).some(
+                    (key) => key.startsWith("mysteryQuestion:") || key.startsWith("mysteryType:")
+                )
+            )
+            .map((row) => {
+                const option = mdaOptions.find((name) => namesLooselyMatch(name, row.mdaName));
+                return option || row.mdaName;
+            });
+        setSelectedMdas(selected);
+    }, [allExclusions, mdaOptions]);
+
+    const filteredMdaOptions = mdaOptions.filter((mda) =>
+        mda.toLowerCase().includes(mdaSearch.toLowerCase())
+    );
+
+    const toggleMda = (mdaName: string) => {
+        setSelectedMdas((prev) =>
+            prev.includes(mdaName) ? prev.filter((name) => name !== mdaName) : [...prev, mdaName]
+        );
+    };
+
+    const handleSave = async () => {
+        if (testingService.count === 0) {
+            toast.error("No Testing Service question is configured for this year.");
+            return;
+        }
+        setIsSaving(true);
+        try {
+            await saveExemptions({ year, mdaNames: selectedMdas });
+            toast.success(
+                selectedMdas.length === 0
+                    ? "Testing service exemption cleared."
+                    : `Testing service exemption saved for ${selectedMdas.length} MDA(s).`
+            );
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to save testing service exemptions.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Testing Service mystery shopping</CardTitle>
+                <CardDescription>
+                    Pick the MDAs that do not offer Testing Service. Their Mystery Shopping score uses Phone Call and Email only, and the Testing Service points come off the maximum.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {testingService.count === 0 ? (
+                    <p className="text-sm text-gray-500">
+                        No Testing Service question is configured for this year. Add that question under Mystery Shopping first.
+                    </p>
+                ) : (
+                    <>
+                        <p className="text-sm text-gray-600">
+                            Testing Service is {testingService.weight} points inside Mystery Shopping. An exempt MDA who scores 8 on Phone Call and 6 on Email is 14 out of {Math.max(40 - testingService.weight, 0)}. A full mark on Phone Call and Email is {Math.max(40 - testingService.weight, 0)} out of {Math.max(40 - testingService.weight, 0)}.
+                        </p>
+                        <div className="space-y-2">
+                            <Label>MDAs exempt from Testing Service</Label>
+                            <Input
+                                placeholder="Search MDA..."
+                                value={mdaSearch}
+                                onChange={(event) => setMdaSearch(event.target.value)}
+                            />
+                            <div className="border rounded-md max-h-56 overflow-auto p-2 space-y-2">
+                                {filteredMdaOptions.map((mda) => {
+                                    const checked = selectedMdas.includes(mda);
+                                    return (
+                                        <div
+                                            key={mda}
+                                            onClick={() => toggleMda(mda)}
+                                            className={`w-full flex items-center justify-between rounded border px-3 py-2 text-left transition-colors ${
+                                                checked
+                                                    ? "bg-green-50 border-green-500"
+                                                    : "bg-white border-gray-200 hover:bg-gray-50"
+                                            }`}
+                                        >
+                                            <span className="text-sm">{mda}</span>
+                                            <Checkbox
+                                                checked={checked}
+                                                onCheckedChange={() => toggleMda(mda)}
+                                                onClick={(event) => event.stopPropagation()}
+                                                className={`${checked ? "border-green-600 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : "border-gray-400"} focus-visible:ring-0 focus-visible:ring-offset-0`}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-xs text-gray-500">{selectedMdas.length} selected</p>
+                        </div>
+                        <Button onClick={handleSave} className="w-full" disabled={isSaving}>
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Save Testing Service exemptions
+                                </>
+                            )}
+                        </Button>
+                    </>
+                )}
             </CardContent>
         </Card>
     );

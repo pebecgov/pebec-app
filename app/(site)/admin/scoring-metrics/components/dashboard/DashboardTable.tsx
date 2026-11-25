@@ -4,7 +4,12 @@ import React from 'react';
 import { AlertTriangle, Download, Eye } from 'lucide-react';
 import { api } from '@/convex/_generated/api';
 import { generateMdaScoringPDF } from '@/lib/pdfGenerator';
+import { buildMdaRankingSummary } from '@/lib/mdaRankingSummary';
 import { toast } from 'sonner';
+import {
+    getRankingExemptNote,
+    isNewlyOnboardedExemptMda,
+} from '@/lib/dashboardReportExclusions';
 
 interface DashboardTableProps {
     liveDashboardData: any[] | undefined;
@@ -71,7 +76,8 @@ export default function DashboardTable({
                                                         metric === 'timeliness' ? 'Timeliness' : 'Score';
     };
     const getMetricScore = (mda: any, metric: string) => {
-        if (metric === "totalScore") return mda.totalScore || 0;
+   
+        if (metric === "totalScore") return Number(mda.totalScore) || 0;
         if (metric === "mysteryShopping") return isExcluded(mda, "mystery") ? 0 : (mda.mysteryShopping?.score || 0);
         if (metric === "sla") return isExcluded(mda, "sla") ? 0 : (mda.sla?.score || 0);
         if (metric === "controversial") return isExcluded(mda, "controversial") ? 0 : (mda.controversial?.score || 0);
@@ -163,7 +169,6 @@ export default function DashboardTable({
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Gov Resolution</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Submission</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timeliness</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Score</th>
 
                                     {dashboardYear < 2026 ? (
                                         <>
@@ -207,11 +212,31 @@ export default function DashboardTable({
                                 ? allMdasArray
                                 : allMdasArray.filter((mda: any) => !isMdaExcludedForSelectedMetric(mda, selectedMetric));
                             const sortedData = Array.isArray(metricScopedData)
-                                ? [...metricScopedData].sort((a: any, b: any) => getMetricScore(b, selectedMetric) - getMetricScore(a, selectedMetric))
+                                ? [...metricScopedData].sort((a: any, b: any) => {
+                                    const aExempt = isNewlyOnboardedExemptMda(a?.mdaName || "");
+                                    const bExempt = isNewlyOnboardedExemptMda(b?.mdaName || "");
+                                    if (aExempt !== bExempt) return aExempt ? 1 : -1;
+                                    const diff =
+                                      getMetricScore(b, selectedMetric) -
+                                      getMetricScore(a, selectedMetric);
+                                    if (diff !== 0) return diff;
+                                    // Tie-break equal points by percentage, then name.
+                                    if (selectedMetric === "totalScore") {
+                                      const pctDiff =
+                                        (Number(b.totalPercentage) || 0) -
+                                        (Number(a.totalPercentage) || 0);
+                                      if (pctDiff !== 0) return pctDiff;
+                                    }
+                                    return String(a.mdaName || "").localeCompare(
+                                      String(b.mdaName || "")
+                                    );
+                                  })
                                 : [];
-                            const rankedByMetric = [...sortedData];
+                            const rankedByMetric = sortedData.filter(
+                                (mda: any) => !isNewlyOnboardedExemptMda(mda?.mdaName || "")
+                            );
 
-                            // Calculate ranks based on selected metric
+                            // Calculate ranks based on selected metric (exempt MDAs are unranked)
                             const rankMap = new Map<string, number>();
                             rankedByMetric.forEach((mda: any, idx: number) => {
                                 rankMap.set(mda.mdaName, idx + 1);
@@ -219,7 +244,10 @@ export default function DashboardTable({
 
                             return sortedData.map((mda: any, index: number) => {
                                 // Get rank based on selected metric
-                                const rank = rankMap.get(mda.mdaName) || sortedData.length;
+                                const isExempt = isNewlyOnboardedExemptMda(mda?.mdaName || "");
+                                const rank = isExempt
+                                    ? "—"
+                                    : (rankMap.get(mda.mdaName) || sortedData.length);
 
                                 // Calculate overall percentage for selected metric
                                 let score = 0;
@@ -306,7 +334,7 @@ export default function DashboardTable({
                                 return (
                                     <tr key={mda.mdaName} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                            #{rank}
+                                            {isExempt ? "—" : `#${rank}`}
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             {mda.mdaName}
@@ -445,22 +473,6 @@ export default function DashboardTable({
                                                         <span className="text-gray-400">—</span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-bold text-gray-700">
-                                                            {(mda.totalGrossScore || 0).toFixed(1)}
-                                                        </span>
-                                                        {mda.reportGovResolution?.isSkipped && (
-                                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded inline-flex items-center gap-1" title="Report Gov Resolution skipped - points normalized">
-                                                                <AlertTriangle className="h-3 w-3" />
-                                                                Normalized
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500 mt-1">
-                                                        <span>{(mda.totalGrossScore || 0).toFixed(1)}/{mda.maxPossiblePoints}</span>
-                                                    </div>
-                                                </td>
                                                 {dashboardYear < 2026 ? (
                                                     <>
                                                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -519,22 +531,44 @@ export default function DashboardTable({
                                                     </>
                                                 )}
                                                 <td className="px-4 py-4 whitespace-nowrap text-sm">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`font-bold ${mda.totalPercentage >= 90 ? 'text-green-600' :
-                                                            mda.totalPercentage >= 80 ? 'text-blue-600' :
-                                                                mda.totalPercentage >= 70 ? 'text-yellow-600' :
-                                                                    mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
-                                                            }`}>
-                                                            {mda.totalScore.toFixed(1)}
+                                                    {isExempt ? (
+                                                        <span className="text-xs text-gray-600 font-medium">
+                                                            {getRankingExemptNote(mda?.mdaName || "") ||
+                                                                "Exempted due to being newly onboarded"}
                                                         </span>
-                                                    </div>
-                                                    <div className={`text-xs mt-1 ${mda.totalPercentage >= 90 ? 'text-green-600' :
-                                                        mda.totalPercentage >= 80 ? 'text-blue-600' :
-                                                            mda.totalPercentage >= 70 ? 'text-yellow-600' :
-                                                                mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
-                                                        }`}>
-                                                        {mda.totalPercentage.toFixed(1)}%
-                                                    </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`font-bold ${mda.totalPercentage >= 90 ? 'text-green-600' :
+                                                                    mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                                                        mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                                                            mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                                                    }`}>
+                                                                    {mda.totalScore.toFixed(1)}/{mda.maxPossiblePoints || 100}
+                                                                </span>
+                                                                {(mda.reportGovResolution?.isSkipped || mda.isProgrammeNormalized) && (
+                                                                    <span
+                                                                        className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded inline-flex items-center gap-1"
+                                                                        title={
+                                                                            mda.isProgrammeNormalized
+                                                                                ? "Programme exemptions — score scaled to /100 so excluded metrics do not count against ranking"
+                                                                                : "Report Gov Resolution skipped - points normalized"
+                                                                        }
+                                                                    >
+                                                                        <AlertTriangle className="h-3 w-3" />
+                                                                        Normalized
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className={`text-xs mt-1 ${mda.totalPercentage >= 90 ? 'text-green-600' :
+                                                                mda.totalPercentage >= 80 ? 'text-blue-600' :
+                                                                    mda.totalPercentage >= 70 ? 'text-yellow-600' :
+                                                                        mda.totalPercentage >= 60 ? 'text-orange-600' : 'text-red-600'
+                                                                }`}>
+                                                                {mda.totalPercentage.toFixed(1)}%
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </td>
                                             </>
                                         ) : (
@@ -575,6 +609,16 @@ export default function DashboardTable({
                                                             ) as any;
                                                             if (detailedData) {
                                                                 detailedData.position = rank;
+                                                                detailedData.rankingSummary = buildMdaRankingSummary(
+                                                                    mda,
+                                                                    dashboardYear,
+                                                                    {
+                                                                        othersConfig: othersConfig || [],
+                                                                        penaltyConfig: penaltyConfig || [],
+                                                                        bonusConfig: bonusConfig || [],
+                                                                        efficiencyConfig,
+                                                                    }
+                                                                );
                                                                 await generateMdaScoringPDF(detailedData);
                                                                 toast.success("PDF downloaded successfully!");
                                                             } else {

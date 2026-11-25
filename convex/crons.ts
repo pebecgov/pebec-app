@@ -17,4 +17,15 @@ crons.cron("dailyOverdueTicketReminders", "0 9 * * *", internal.tickets.processO
 // Close monthly BFA report windows on the 30th (or last day of shorter months), Nigeria time.
 crons.cron("monthlyMdaReportComplianceClose", "0 22 * * *", internal.public_mda_reports.refreshMonthlyReportCompliance);
 
+// Prune stale anonymous tracker presence rows (every 5 minutes).
+crons.interval("pruneTrackerPresence", { minutes: 5 }, internal.tracker_presence.pruneStale);
+
+// Refresh public MDA tracker cache so anonymous visits don't rebuild the full dashboard.
+crons.interval(
+  "refreshPublicMdaScoresCache",
+  { minutes: 15 },
+  internal.public_scores.refreshPublicMdaScoresCache,
+  {},
+);
+
 export default crons;

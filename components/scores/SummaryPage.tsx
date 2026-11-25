@@ -15,6 +15,8 @@ export interface MetricItem {
   name: string;
   score: number;
   maxScore: number;
+  /** Tracker label only. The bar still uses maxScore. */
+  displayMaxScore?: number;
   /** False when this metric has not been saved yet (do not treat as a real zero). */
   scored?: boolean;
   /**
@@ -35,6 +37,40 @@ export interface MetricItem {
   badge?: string;
   /** Programme exemption: metric is shown but not included in the BFA total. */
   exempted?: boolean;
+  /**
+   * Plain-language problems for this metric (e.g. SLA months that failed or
+   * were not submitted). Shown to agencies on the public tracker.
+   */
+  issues?: {
+    label: string;
+    message: string;
+    kind: "failed" | "missing" | "partial";
+  }[];
+  /**
+   * How the decimal score was calculated (e.g. 11/13 on time × 4 pts = 3.38).
+   */
+  scoreBreakdown?: {
+    label: string;
+    value?: string;
+    points?: number;
+    maxPoints?: number;
+    explanation: string;
+  }[];
+  /**
+   * Month tiles — Timeliness / Monthly Report / SLA.
+   * SLA tiles can include points, %, and a plain-language message.
+   */
+  monthStatuses?: {
+    monthKey: string;
+    monthLabel: string;
+    status: "on_time" | "late" | "missing" | "scored" | "failed" | "partial";
+    /** For Monthly Report Submission: show "Submitted" instead of "On Time". */
+    labelMode?: "timeliness" | "submission" | "sla";
+    points?: number;
+    maxPoints?: number;
+    percentage?: number | null;
+    message?: string;
+  }[];
 }
 
 export function SummaryHeader({
@@ -47,8 +83,10 @@ export function SummaryHeader({
   score,
   maxScore,
   scoreLabel,
+  scoreNote,
   notScoredYet = false,
   hideStatus = false,
+  hideScore = false,
 }: {
   backHref: string;
   backLabel: string;
@@ -59,12 +97,15 @@ export function SummaryHeader({
   score: number;
   maxScore: number;
   scoreLabel: string;
+  scoreNote?: string;
   notScoredYet?: boolean;
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
+  /** Hide overall X / 100 total and progress bar in the header. */
+  hideScore?: boolean;
 }) {
-  // Incomplete overall: show "Not scored yet" badge, but keep a running total if any points exist.
-  const showIncompleteBadge = notScoredYet || !status;
+  // Incomplete overall: only when status UI is on. Public trackers pass hideStatus.
+  const showIncompleteBadge = !hideStatus && (notScoredYet || !status);
   const showRunningTotal = !showIncompleteBadge || score > 0;
   const progressColor = hideStatus || !status ? "green" : status.color;
 
@@ -103,22 +144,27 @@ export function SummaryHeader({
           )}
         </div>
 
-        <div className="mt-6 bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-200">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">{scoreLabel}</span>
+        {!hideScore && (
+          <div className="mt-6 bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">{scoreLabel}</span>
+              {showRunningTotal ? (
+                <span className="text-2xl font-bold text-[#006B3F]">{formatScorePair(score, maxScore)}</span>
+              ) : (
+                <span className="text-lg font-semibold text-gray-500">Not scored fully</span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Assessment year {SCORE_YEAR}
+              {scoreNote ? ` · ${scoreNote}` : ""}
+            </p>
             {showRunningTotal ? (
-              <span className="text-2xl font-bold text-[#006B3F]">{formatScorePair(score, maxScore)}</span>
+              <ProgressBar score={score} maxScore={maxScore} color={progressColor} size="lg" />
             ) : (
-              <span className="text-lg font-semibold text-gray-500">Not scored fully</span>
+              <p className="text-sm text-gray-500">Scores will appear here once all indicators are assessed.</p>
             )}
           </div>
-          <p className="text-xs text-gray-500 mb-3">Assessment year {SCORE_YEAR}</p>
-          {showRunningTotal ? (
-            <ProgressBar score={score} maxScore={maxScore} color={progressColor} size="lg" />
-          ) : (
-            <p className="text-sm text-gray-500">Scores will appear here once all indicators are assessed.</p>
-          )}
-        </div>
+        )}
       </div>
     </header>
   );
@@ -129,14 +175,20 @@ export function MetricBreakdown({
   hint,
   metrics,
   hideStatus = false,
+  showMetricMaxOnly = false,
 }: {
   title: string;
   hint?: string;
   metrics: MetricItem[];
   /** Public tracker: hide band labels like "Requires Intervention". */
   hideStatus?: boolean;
+  /** Show the metric maximum only, not the points this MDA earned on it. */
+  showMetricMaxOnly?: boolean;
 }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(() => {
+    const withIssues = metrics.find((m) => (m.issues?.length ?? 0) > 0);
+    return withIssues?.name ?? null;
+  });
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -154,10 +206,18 @@ export function MetricBreakdown({
       ) : (
         <div className="space-y-4">
           {metrics.map((metric, index) => {
-            const isExpanded = expanded === metric.name;
             const isExempted = metric.exempted === true;
             const details = metric.details || [];
+            const issues = metric.issues || [];
+            const scoreBreakdown = metric.scoreBreakdown || [];
+            const monthStatuses = metric.monthStatuses || [];
             const hasDetails = details.length > 0;
+            const hasIssues = issues.length > 0;
+            const hasScoreBreakdown = scoreBreakdown.length > 0;
+            const hasMonthStatuses = monthStatuses.length > 0;
+            // Score math is always shown inline; expand is only for SLA issues / sub-indicators.
+            const isExpandable = hasDetails || hasIssues;
+            const isExpanded = expanded === metric.name;
             const hasScoredDetails = details.some((detail) => detail.scored === true);
             const allDetailsScored =
               hasDetails && details.every((detail) => detail.scored === true);
@@ -166,12 +226,14 @@ export function MetricBreakdown({
             // Incomplete vs configured questions/details — never show a final band label.
             const detailsIncomplete = hasDetails && !allDetailsScored;
             const markedIncomplete = metric.complete === false;
+            // Public tracker (hideStatus): never show "Not scored fully" on metrics.
             const showAsInProgress =
+              !hideStatus &&
               !isExempted &&
               hasAnyProgress &&
               (markedIncomplete || detailsIncomplete || metric.scored !== true);
             const showAsNotStarted =
-              !isExempted && !hasAnyProgress && metric.scored !== true;
+              !hideStatus && !isExempted && !hasAnyProgress && metric.scored !== true;
             const showAsNotScored = showAsInProgress || showAsNotStarted;
             const status =
               showAsNotScored || isExempted
@@ -186,12 +248,12 @@ export function MetricBreakdown({
                 className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden hover:shadow-lg transition-shadow"
               >
                 <div
-                  className={`p-5 ${hasDetails ? "cursor-pointer hover:bg-gray-50" : ""} transition-colors`}
-                  onClick={() => hasDetails && setExpanded(isExpanded ? null : metric.name)}
+                  className={`p-5 ${isExpandable ? "cursor-pointer hover:bg-gray-50" : ""} transition-colors`}
+                  onClick={() => isExpandable && setExpanded(isExpanded ? null : metric.name)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      {hasDetails && (
+                      {isExpandable && (
                         <button type="button" className="text-gray-400 hover:text-gray-600 p-1">
                           <svg
                             className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -213,6 +275,11 @@ export function MetricBreakdown({
                             {metric.badge}
                           </span>
                         ) : null}
+                        {hasIssues ? (
+                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
+                            {issues.length} month{issues.length === 1 ? "" : "s"} need attention
+                          </span>
+                        ) : null}
                         {isExempted ? (
                           <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                             Exempted
@@ -224,7 +291,7 @@ export function MetricBreakdown({
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not in BFA total
                       </span>
-                    ) : showAsInProgress ? (
+                    ) : hideStatus ? null : showAsInProgress ? (
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-900 border border-amber-200">
                         Not scored fully
                       </span>
@@ -232,20 +299,16 @@ export function MetricBreakdown({
                       <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 border border-gray-200">
                         Not scored yet
                       </span>
-                    ) : !hideStatus && status ? (
+                    ) : status ? (
                       <StatusBadge status={status} size="sm" />
                     ) : null}
                   </div>
                   {isExempted ? (
-                    <p className={`text-sm text-gray-600 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                    <p className={`text-sm text-gray-600 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Programme exemption — this metric is excluded from the overall BFA score and maximum.
                     </p>
-                  ) : showAsNotStarted ? (
-                    <p className={`text-sm text-gray-500 ${hasDetails ? "ml-9" : "ml-0"}`}>
-                      Not scored yet — this is not a zero score.
-                    </p>
-                  ) : (
-                    <div className={`flex items-center gap-4 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                  ) : hideStatus ? (
+                    <div className={`flex items-center gap-4 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       <div className="flex-1 max-w-md">
                         <ProgressBar
                           score={metric.score}
@@ -254,29 +317,227 @@ export function MetricBreakdown({
                           size="sm"
                         />
                       </div>
-                      <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
-                        {formatPoints(metric.score)}
-                      </span>
-                      <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                      {showMetricMaxOnly ? (
+                        <span className="text-right shrink-0">
+                          <span className="block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                            Metric maximum
+                          </span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formatPoints(metric.displayMaxScore ?? metric.maxScore)}
+                          </span>
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
+                            {formatPoints(metric.score)}
+                          </span>
+                          <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : showAsNotStarted ? (
+                    <p className={`text-sm text-gray-500 ${isExpandable ? "ml-9" : "ml-0"}`}>
+                      Not scored yet — this is not a zero score.
+                    </p>
+                  ) : (
+                    <div className={`flex items-center gap-4 ${isExpandable ? "ml-9" : "ml-0"}`}>
+                      <div className="flex-1 max-w-md">
+                        <ProgressBar
+                          score={metric.score}
+                          maxScore={metric.maxScore}
+                          color={progressColor}
+                          size="sm"
+                        />
+                      </div>
+                      {showMetricMaxOnly ? (
+                        <span className="text-right shrink-0">
+                          <span className="block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                            Metric maximum
+                          </span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formatPoints(metric.displayMaxScore ?? metric.maxScore)}
+                          </span>
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-sm font-semibold text-gray-900 min-w-[72px]">
+                            {formatPoints(metric.score)}
+                          </span>
+                          <span className="text-sm text-gray-500">/ {formatPoints(metric.maxScore)}</span>
+                        </>
+                      )}
                     </div>
                   )}
-                  {showAsInProgress && showPartialProgress ? (
-                    <p className={`text-xs text-amber-800 mt-2 ${hasDetails ? "ml-9" : "ml-0"}`}>
+                  {!hideStatus && showAsInProgress && showPartialProgress ? (
+                    <p className={`text-xs text-amber-800 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
                       Not scored fully — this is not the final score for this metric.
                     </p>
                   ) : null}
                   {metric.justification ? (
-                    <p className={`text-sm text-gray-600 mt-2 leading-relaxed ${hasDetails ? "ml-9" : "ml-0"}`}>
+                    <p className={`text-sm text-gray-600 mt-2 leading-relaxed ${isExpandable ? "ml-9" : "ml-0"}`}>
                       {metric.justification}
                     </p>
                   ) : null}
+                  {hasScoreBreakdown || hasMonthStatuses ? (
+                    <div
+                      className={`mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 ${
+                        isExpandable ? "ml-9" : "ml-0"
+                      }`}
+                    >
+                      {hasScoreBreakdown ? (
+                        <>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            How this score was calculated
+                          </p>
+                          <ul className="space-y-2.5">
+                            {scoreBreakdown.map((line, lineIndex) => (
+                              <li key={`${line.label}-${lineIndex}`}>
+                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                  <span className="text-sm font-medium text-gray-900">{line.label}</span>
+                                  <div className="flex items-center gap-2 text-sm">
+                                    {line.value ? (
+                                      <span className="text-gray-600">{line.value}</span>
+                                    ) : null}
+                                    {line.points !== undefined && line.maxPoints !== undefined ? (
+                                      <span className="font-semibold text-gray-900">
+                                        {formatPoints(line.points)} / {formatPoints(line.maxPoints)}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-700 leading-relaxed mt-0.5">
+                                  {line.explanation}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+                      {hasMonthStatuses ? (
+                        <div className={hasScoreBreakdown ? "mt-3 pt-3 border-t border-slate-200" : ""}>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            Month by month
+                          </p>
+                          <div
+                            className={
+                              monthStatuses.some((m) => m.labelMode === "sla")
+                                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"
+                                : "grid grid-cols-2 sm:grid-cols-4 gap-2"
+                            }
+                          >
+                            {monthStatuses.map((month) => {
+                              const isSubmission = month.labelMode === "submission";
+                              const isSla = month.labelMode === "sla";
+                              // SLA: green (scored, including former partial) or red (failed/missing).
+                              // Timeliness still uses yellow for late.
+                              const tone =
+                                month.status === "on_time" ||
+                                month.status === "scored" ||
+                                (isSla && month.status === "partial")
+                                  ? "bg-green-100 text-green-900 border-green-200"
+                                  : month.status === "late"
+                                    ? "bg-yellow-100 text-yellow-950 border-yellow-200"
+                                    : month.status === "failed"
+                                      ? "bg-rose-100 text-rose-900 border-rose-200"
+                                      : "bg-red-100 text-red-900 border-red-200";
+                              const statusLabel =
+                                month.status === "scored" || (isSla && month.status === "partial")
+                                  ? "Scored"
+                                  : month.status === "on_time"
+                                    ? isSubmission
+                                      ? "Submitted"
+                                      : "On Time"
+                                    : month.status === "late"
+                                      ? "Late"
+                                      : month.status === "partial"
+                                        ? "Partially scored"
+                                        : month.status === "failed"
+                                          ? "Could not score"
+                                          : isSubmission
+                                            ? "Not submitted"
+                                            : "Not submitted";
+                              return (
+                                <div
+                                  key={month.monthKey}
+                                  className={`p-2.5 rounded-md text-xs border ${tone} ${
+                                    isSla ? "text-left" : "text-center"
+                                  }`}
+                                >
+                                  <div className="flex flex-wrap items-baseline justify-between gap-1">
+                                    <span className="font-semibold">{month.monthLabel}</span>
+                                    {isSla &&
+                                    month.points !== undefined &&
+                                    month.maxPoints !== undefined ? (
+                                      <span className="font-semibold">
+                                        {formatPoints(month.points)} / {formatPoints(month.maxPoints)} pts
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className={isSla ? "mt-0.5" : ""}>
+                                    {statusLabel}
+                                    {isSla && month.percentage != null
+                                      ? ` · ${formatPoints(month.percentage)}%`
+                                      : null}
+                                  </div>
+                                  {isSla && month.message ? (
+                                    <p className="mt-1.5 text-[11px] leading-relaxed opacity-90">
+                                      {month.message}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {!isExpanded && hasIssues ? (
+                    <p className={`text-xs text-amber-800 mt-2 ${isExpandable ? "ml-9" : "ml-0"}`}>
+                      Open for month-by-month guidance on what to fix and resubmit.
+                    </p>
+                  ) : null}
                 </div>
+
+                {isExpanded && hasIssues && (
+                  <div className="border-t border-amber-200 bg-amber-50/60">
+                    <div className="px-5 py-3 border-b border-amber-200">
+                      <h4 className="text-sm font-semibold text-amber-950">
+                        Months that need attention
+                      </h4>
+                      <p className="text-xs text-amber-900/80 mt-0.5">
+                        These months were not scored. Fix the issue below and resubmit the Excel report for that month.
+                      </p>
+                    </div>
+                    <ul className="divide-y divide-amber-100">
+                      {issues.map((issue) => (
+                        <li key={`${issue.label}-${issue.kind}`} className="px-5 py-4">
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className="text-sm font-semibold text-gray-900">{issue.label}</span>
+                            <span
+                              className={
+                                issue.kind === "missing"
+                                  ? "inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800"
+                                  : "inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800"
+                              }
+                            >
+                              {issue.kind === "missing" ? "Not submitted" : "Could not score"}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 leading-relaxed">{issue.message}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {isExpanded && hasDetails && (
                   <div className="border-t border-gray-200">
                     <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 grid grid-cols-12 gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       <div className="col-span-7">Sub-indicator</div>
-                      <div className="col-span-5 text-right">Score</div>
+                      <div className="col-span-5 text-right">
+                        {showMetricMaxOnly ? "Maximum" : "Score"}
+                      </div>
                     </div>
                     <div className="divide-y divide-gray-100">
                       {metric.details!.map((detail) => (
@@ -294,11 +555,15 @@ export function MetricBreakdown({
                           <div className="col-span-5 text-right text-sm font-semibold text-gray-900">
                             {isExempted
                               ? "Exempted"
-                              : detail.scored !== true
-                                ? "Not scored yet"
-                                : detail.maxScore !== undefined
-                                  ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
-                                  : formatPoints(detail.score)}
+                              : showMetricMaxOnly
+                                ? detail.maxScore !== undefined
+                                  ? formatPoints(detail.maxScore)
+                                  : "—"
+                                : detail.scored !== true
+                                  ? "Not scored yet"
+                                  : detail.maxScore !== undefined
+                                    ? `${formatPoints(detail.score)} / ${formatPoints(detail.maxScore)}`
+                                    : formatPoints(detail.score)}
                           </div>
                         </div>
                       ))}

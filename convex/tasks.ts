@@ -1840,6 +1840,9 @@ export const listReceptionInboxDocuments = query({
                 return {
                     ...row,
                     uploaderName,
+                    linkedTaskId: row.linkedTaskId ?? null,
+                    linkedTaskTitle: linkedTask?.title ?? null,
+                    linkedTaskStatus: linkedTask?.status ?? null,
                     linkedTaskAssignedToName: linkedTask?.assignedToName,
                     linkedTaskAssignedStream: linkedTask?.assignedStream
                 };
