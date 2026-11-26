@@ -595,9 +595,6 @@ export function ScoreAdjustments({
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Bonuses & Penalties</h2>
-      <p className="text-sm text-gray-500 mb-6">
-        Extra points and deductions from the 2026 BFA configuration. These are not counted in the metrics total.
-      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-emerald-200 p-5">
           <div className="flex items-center justify-between mb-4">

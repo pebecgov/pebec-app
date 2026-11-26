@@ -1057,9 +1057,13 @@ export const getPublicMdaScores = query({
       );
     }
 
-    // Rare cold start before the first cron refresh.
-    const live = await computePublicMdaScores(ctx, requestedYear, args.year);
-    return applyPublicMdaScoresLimit(live, args.limit);
+    // No cache yet — return empty rather than rebuilding the full dashboard in a
+    // public query (that path previously timed out under the 1s limit). Cron /
+    // refreshPublicMdaScoresCache fills the cache.
+    return emptyPublicMdaScores(
+      requestedYear,
+      "Public MDA scores are refreshing. Please try again in a moment.",
+    );
   },
 });
 

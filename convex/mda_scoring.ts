@@ -2684,78 +2684,9 @@ export const getAllMdaSavedDataForDashboard = query({
     });
 
     const reportGovMaxPoints = efficiencyConfig?.reportGovPoints ?? 20;
-    const ticketWindow = await resolveScoringWindow(ctx, fullYearPeriod, "currentMonth");
-    const useAdjustedRate = ticketWindow.targetYear >= 2026;
-    const reportGovSystem = useAdjustedRate
-      ? await loadSystemResolutionContext(
-          ctx,
-          ticketWindow.targetYear,
-          ticketWindow.startDate,
-          ticketWindow.endDate,
-        )
-      : null;
 
-    const needsLiveReportGov = Object.values(reportGovResByMda).some((dataList) => {
-      const primary =
-        dataList.find((d) => d.scoringPeriod === fullYearPeriod) || dataList[0];
-      return primary && !primary.isSkipped && !primary.isManual;
-    });
-
-    const ticketsByMdaId = new Map<string, Array<{
-      createdAt: number;
-      updatedAt: number;
-      status: string;
-      firstResponseAt?: number;
-      assignedMDA?: Id<"mdas">;
-    }>>();
-    const mdaDocByCanonical = new Map<string, Doc<"mdas">>();
-    let allMdaDocsForReportGov: Doc<"mdas">[] = [];
-
-    if (needsLiveReportGov) {
-      const [allMdaDocs, periodTickets] = await Promise.all([
-        ctx.db.query("mdas").collect(),
-        ctx.db
-          .query("tickets")
-          .withIndex("byCreatedAt", (q) =>
-            q.gte("createdAt", ticketWindow.startDate).lte("createdAt", ticketWindow.endDate),
-          )
-          .collect(),
-      ]);
-      allMdaDocsForReportGov = allMdaDocs;
-      for (const mda of allMdaDocs) {
-        mdaDocByCanonical.set(canonicalizeMdaName(mda.name), mda);
-      }
-      for (const ticket of periodTickets) {
-        if (!ticket.assignedMDA) continue;
-        const key = String(ticket.assignedMDA);
-        const bucket = ticketsByMdaId.get(key);
-        if (bucket) bucket.push(ticket);
-        else ticketsByMdaId.set(key, [ticket]);
-      }
-    }
-
-    const resolveMdaDocsForReportGov = (name: string): Doc<"mdas">[] => {
-      const canonical = canonicalizeMdaName(name);
-      const seen = new Set<string>();
-      const matches: Doc<"mdas">[] = [];
-      const add = (mda: Doc<"mdas"> | undefined) => {
-        if (!mda || seen.has(String(mda._id))) return;
-        seen.add(String(mda._id));
-        matches.push(mda);
-      };
-      add(mdaDocByCanonical.get(canonical));
-      for (const mda of allMdaDocsForReportGov) {
-        if (
-          canonicalizeMdaName(mda.name) === canonical ||
-          mdaNamesMatch(mda.name, name) ||
-          mdaNamesMatch(mda.name, canonical)
-        ) {
-          add(mda);
-        }
-      }
-      return matches;
-    };
-
+    // Use saved ReportGov rows only. Live ticket recompute previously loaded every
+    // ticket in the scoring window and blew the 1s query limit (~104GB+ I/O class).
     Object.entries(reportGovResByMda).forEach(([rawMdaName, dataList]) => {
       const mdaName = canonicalizeMdaName(rawMdaName.trim());
       if (!mdaDataMap[mdaName]) {
@@ -2769,8 +2700,7 @@ export const getAllMdaSavedDataForDashboard = query({
 
       const hasFirstHalfData = firstHalf && firstHalf.score !== undefined && firstHalf.score !== null;
       const hasSecondHalfData = secondHalf && secondHalf.score !== undefined && secondHalf.score !== null;
-      let isSkipped = !!(primary?.isSkipped || fullYear?.isSkipped || firstHalf?.isSkipped || secondHalf?.isSkipped);
-      const isManual = !!(primary?.isManual);
+      const isSkipped = !!(primary?.isSkipped || fullYear?.isSkipped || firstHalf?.isSkipped || secondHalf?.isSkipped);
 
       let totalTickets = 0;
       let resolvedTickets = 0;
@@ -2781,7 +2711,6 @@ export const getAllMdaSavedDataForDashboard = query({
       let avgScore = 0;
 
       if (isSkipped) {
-        // Includes not-on-platform MDAs (Skip / normalize). Do not convert to full credit.
         avgScore = 0;
         totalTickets = primary?.totalTickets || 0;
         resolvedTickets = primary?.resolvedTickets || 0;
@@ -2789,50 +2718,6 @@ export const getAllMdaSavedDataForDashboard = query({
         avgResolutionTime = primary?.averageResolutionTime || 0;
         resolutionRate = primary?.resolutionRate || 0;
         adjustedResolutionRate = primary?.adjustedResolutionRate ?? null;
-      } else if (isManual) {
-        // Respect explicit manual saves.
-        avgScore = primary?.score || 0;
-        totalTickets = primary?.totalTickets || 0;
-        resolvedTickets = primary?.resolvedTickets || 0;
-        avgResponseTime = primary?.averageResponseTime || 0;
-        avgResolutionTime = primary?.averageResolutionTime || 0;
-        resolutionRate = primary?.resolutionRate || 0;
-        adjustedResolutionRate = primary?.adjustedResolutionRate ?? null;
-      } else if (needsLiveReportGov) {
-        // Same live path as admin ScoringTab / getPeriodTicketData.
-        const mdaDocs = resolveMdaDocsForReportGov(primary?.mdaName || rawMdaName || mdaName);
-        const mdaTickets = mdaDocs.flatMap(
-          (mdaDoc) => ticketsByMdaId.get(String(mdaDoc._id)) || [],
-        );
-        const stats = computeTicketStats(
-          mdaTickets,
-          ticketWindow.startDate,
-          ticketWindow.endDate,
-        );
-        totalTickets = stats.totalTickets;
-        resolvedTickets = stats.resolvedTickets;
-        resolutionRate = stats.resolutionRate;
-        avgResponseTime = stats.averageResponseTime;
-        avgResolutionTime = stats.averageResolutionTime;
-        // No tickets / not on platform → Skip (0) and normalize.
-        if (mdaDocs.length === 0 || stats.totalTickets === 0) {
-          avgScore = 0;
-          isSkipped = true;
-          adjustedResolutionRate = null;
-        } else {
-          adjustedResolutionRate = reportGovSystem
-            ? calculateAdjustedResolutionRate({
-                complaintsReceived: stats.totalTickets,
-                resolutionRate: stats.resolutionRate,
-                minimumThreshold: reportGovSystem.minimumThreshold,
-                systemAverageResolutionRate: reportGovSystem.systemAverageResolutionRate,
-              })
-            : null;
-          avgScore = computeReportGovScore(
-            { ...stats, adjustedResolutionRate },
-            reportGovMaxPoints,
-          );
-        }
       } else if (fullYear && fullYear.score !== undefined && fullYear.score !== null) {
         avgScore = fullYear.score;
         totalTickets = fullYear.totalTickets || 0;
@@ -2841,6 +2726,14 @@ export const getAllMdaSavedDataForDashboard = query({
         avgResponseTime = fullYear.averageResponseTime || 0;
         avgResolutionTime = fullYear.averageResolutionTime || 0;
         adjustedResolutionRate = fullYear.adjustedResolutionRate ?? null;
+      } else if (primary && primary.score !== undefined && primary.score !== null) {
+        avgScore = primary.score || 0;
+        totalTickets = primary.totalTickets || 0;
+        resolvedTickets = primary.resolvedTickets || 0;
+        avgResponseTime = primary.averageResponseTime || 0;
+        avgResolutionTime = primary.averageResolutionTime || 0;
+        resolutionRate = primary.resolutionRate || 0;
+        adjustedResolutionRate = primary.adjustedResolutionRate ?? null;
       } else if (hasFirstHalfData && hasSecondHalfData) {
         avgScore = ((firstHalf.score || 0) + (secondHalf.score || 0)) / 2;
         totalTickets = (firstHalf.totalTickets || 0) + (secondHalf.totalTickets || 0);
@@ -2887,10 +2780,8 @@ export const getAllMdaSavedDataForDashboard = query({
       };
     });
 
-    // Process Monthly Report + Timeliness.
-    // Admin auto mode recalculates from reform-champion submissions (same as
-    // bulk efficiency). Tracker used saved scores and could drift — recompute
-    // live for non-manual rows. Manual overrides still use the saved checkboxes.
+    // Process Monthly Report + Timeliness from saved rows only.
+    // Live reform-champion report scans (submittedAt >= 0) previously timed out the 1s query.
     const monthlyReportByMda: { [key: string]: any[] } = {};
     monthlyReportData.forEach(data => {
       const key = canonicalizeMdaName(data.mdaName);
@@ -2910,81 +2801,24 @@ export const getAllMdaSavedDataForDashboard = query({
     const reportWindow = await resolveScoringWindow(ctx, fullYearPeriod, "yearToDate");
     const reportTotalMonths = reportWindow.monthsToCheck.length || efficiencyConfig?.totalMonths || 12;
 
-    const needsLiveReports =
-      Object.values(monthlyReportByMda).some((list) => !list.some((d) => d.useManual)) ||
-      Object.values(timelinessByMda).some((list) => !list.some((d) => d.useManual));
-
-    const reportsByMdaKey = new Map<string, Doc<"submitted_reports">[]>();
-    if (needsLiveReports) {
-      const allReports = await ctx.db
-        .query("submitted_reports")
-        .withIndex("byDate", (q) => q.gte("submittedAt", 0))
-        .filter((q) => q.eq(q.field("role"), "reform_champion"))
-        .collect();
-      for (const report of filterReportsToWindow(allReports, reportWindow)) {
-        const key = mdaMatchKey(report.mdaName ?? "");
-        if (!key) continue;
-        const bucket = reportsByMdaKey.get(key);
-        if (bucket) bucket.push(report);
-        else reportsByMdaKey.set(key, [report]);
-      }
-    }
-
-    const formatMonthLabel = (month: number, year: number) => {
-      const short = new Date(year, month, 1).toLocaleString("default", { month: "short" });
-      return `${short} ${year}`;
+    const formatMonthLabel = (month: number, yearNum: number) => {
+      const short = new Date(yearNum, month, 1).toLocaleString("default", { month: "short" });
+      return `${short} ${yearNum}`;
     };
-
-    const monthStatusesFromLive = (
-      monthly: Array<{ month: string; year: number; submitted: boolean; onTime: boolean }>,
-    ) =>
-      monthly.map((m, i) => {
-        const fromWindow = reportWindow.monthsToCheck[i];
-        const monthIndex =
-          fromWindow?.month ??
-          MONTH_NAMES.findIndex((name) => name.toLowerCase() === m.month.toLowerCase());
-        const year = fromWindow?.year ?? m.year;
-        const month = monthIndex >= 0 ? monthIndex : 0;
-        const status = m.onTime ? "on_time" : m.submitted ? "late" : "missing";
-        return {
-          monthKey: `${year}-${month}`,
-          monthLabel: formatMonthLabel(month, year),
-          status: status as "on_time" | "late" | "missing",
-          submitted: m.submitted,
-          onTime: m.onTime,
-        };
-      });
 
     const monthStatusesFromManual = (manualMap: Record<string, boolean> | undefined) => {
       const map = manualMap && typeof manualMap === "object" ? manualMap : {};
-      return reportWindow.monthsToCheck.map(({ month, year }) => {
-        const monthKey = `${year}-${month}`;
-        const hit = map[monthKey] === true || map[`${year}-${String(month).padStart(2, "0")}`] === true;
+      return reportWindow.monthsToCheck.map(({ month, year: y }) => {
+        const monthKey = `${y}-${month}`;
+        const hit = map[monthKey] === true || map[`${y}-${String(month).padStart(2, "0")}`] === true;
         return {
           monthKey,
-          monthLabel: formatMonthLabel(month, year),
+          monthLabel: formatMonthLabel(month, y),
           status: (hit ? "on_time" : "missing") as "on_time" | "late" | "missing",
           submitted: hit,
           onTime: hit,
         };
       });
-    };
-
-    const liveReportStatsFor = (mdaName: string, rawName?: string) => {
-      const key =
-        mdaMatchKey(mdaName) ||
-        mdaMatchKey(rawName || "") ||
-        mdaMatchKey(canonicalizeMdaName(mdaName));
-      const reports = (key ? reportsByMdaKey.get(key) : undefined) ?? [];
-      const monthly = buildMonthlyReportData(reports, reportWindow.monthsToCheck);
-      const submitted = monthly.filter((m) => m.submitted).length;
-      const onTime = monthly.filter((m) => m.onTime).length;
-      return {
-        submitted,
-        onTime,
-        totalMonths: reportTotalMonths,
-        monthStatuses: monthStatusesFromLive(monthly),
-      };
     };
 
     const allEfficiencyMdaKeys = new Set([
@@ -3016,8 +2850,6 @@ export const getAllMdaSavedDataForDashboard = query({
       const timelinessList = timelinessByMda[rawMdaName] || timelinessByMda[mdaName] || [];
       const monthlyManual = monthlyList.some((d) => d.useManual);
       const timelinessManual = timelinessList.some((d) => d.useManual);
-      const needsLiveForMda = (!monthlyManual && monthlyList.length > 0) || (!timelinessManual && timelinessList.length > 0);
-      const liveStats = needsLiveForMda ? liveReportStatsFor(mdaName, monthlyList[0]?.mdaName || timelinessList[0]?.mdaName) : null;
 
       if (monthlyList.length > 0) {
         let monthsWithData = 0;
@@ -3032,7 +2864,6 @@ export const getAllMdaSavedDataForDashboard = query({
             }>
           | undefined;
         if (monthlyManual) {
-          const primary = monthlyList.find((d) => d.scoringPeriod === fullYearPeriod) || monthlyList[0];
           const mergedManual: Record<string, boolean> = {};
           monthlyList.forEach((d) => {
             if (d.manualMonthlyReports && typeof d.manualMonthlyReports === "object") {
@@ -3041,20 +2872,10 @@ export const getAllMdaSavedDataForDashboard = query({
           });
           monthStatuses = monthStatusesFromManual(mergedManual).map((m) => ({
             ...m,
-            // Submission metric: yes/no only (manual check = submitted).
             status: m.submitted ? "on_time" : "missing",
           }));
           monthsWithData = monthStatuses.filter((m) => m.submitted).length;
           score = proportionalScore(monthsWithData, reportTotalMonths, mrMaxPoints);
-          void primary;
-        } else if (liveStats) {
-          monthsWithData = liveStats.submitted;
-          score = proportionalScore(liveStats.submitted, liveStats.totalMonths, mrMaxPoints);
-          // For submission: treat late as still submitted (green "Submitted").
-          monthStatuses = liveStats.monthStatuses.map((m) => ({
-            ...m,
-            status: m.submitted ? ("on_time" as const) : ("missing" as const),
-          }));
         } else {
           const primary = monthlyList.find((d) => d.scoringPeriod === fullYearPeriod) || monthlyList[0];
           score = primary?.score || 0;
@@ -3096,10 +2917,6 @@ export const getAllMdaSavedDataForDashboard = query({
           monthStatuses = monthStatusesFromManual(mergedManual);
           monthsWithData = monthStatuses.filter((m) => m.onTime).length;
           score = proportionalScore(monthsWithData, reportTotalMonths, tMaxPoints);
-        } else if (liveStats) {
-          monthsWithData = liveStats.onTime;
-          score = proportionalScore(liveStats.onTime, liveStats.totalMonths, tMaxPoints);
-          monthStatuses = liveStats.monthStatuses;
         } else {
           const primary = timelinessList.find((d) => d.scoringPeriod === fullYearPeriod) || timelinessList[0];
           score = primary?.score || 0;
