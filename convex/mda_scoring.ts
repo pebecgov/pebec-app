@@ -1,11 +1,14 @@
 import { v } from "convex/values";
-import { internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import { getCurrentUserOrThrow } from "./users";
 import { logAuditEvent } from "./utils/auditLog";
 import { resolveReportPeriod } from "../lib/reportPeriod";
-import { canonicalizeMdaName } from "../lib/mdaNameAliases";
+import {
+  canonicalizeMdaName,
+  mdaNameLookupCandidates,
+} from "../lib/mdaNameAliases";
 import { applyOthersEdit, mergeOthersSavedRows } from "../lib/othersScoreMerge";
 import { mdaMatchKey, mdaNamesMatch } from "./lib/resolveMda";
 import {
@@ -103,6 +106,70 @@ export async function findMdaByName(ctx: any, mdaName: string) {
   });
 
   return mda || null;
+}
+
+/** Metric tables keyed by exact `mdaName` + `scoringPeriod`. */
+type MdaPeriodMetricTable =
+  | "mda_sla_data"
+  | "mda_mystery_shopping_data"
+  | "mda_controversial_data"
+  | "mda_innovation_data"
+  | "mda_stakeholder_data"
+  | "mda_transparency_data"
+  | "mda_reportgov_data"
+  | "mda_monthly_report_data"
+  | "mda_timeliness_data"
+  | "mda_touting_rentseeking_data"
+  | "saved_others_data"
+  | "saved_penalties_data"
+  | "saved_bonuses_data";
+
+const MDA_PERIOD_METRIC_TABLES: MdaPeriodMetricTable[] = [
+  "mda_sla_data",
+  "mda_mystery_shopping_data",
+  "mda_controversial_data",
+  "mda_innovation_data",
+  "mda_stakeholder_data",
+  "mda_transparency_data",
+  "mda_reportgov_data",
+  "mda_monthly_report_data",
+  "mda_timeliness_data",
+  "mda_touting_rentseeking_data",
+  "saved_others_data",
+  "saved_penalties_data",
+  "saved_bonuses_data",
+];
+
+/**
+ * Resolve a saved metric row even when `mdaName` was stored under a legacy spelling.
+ * Tries dropdown/canonical/legacy candidates on the index, then a period scan.
+ */
+export async function findSavedByMdaAndPeriod(
+  ctx: QueryCtx | MutationCtx,
+  table: MdaPeriodMetricTable,
+  mdaName: string,
+  scoringPeriod: string,
+) {
+  const indexName = table.startsWith("saved_") ? "byMdaPeriod" : "byMdaAndPeriod";
+  const candidates = mdaNameLookupCandidates(mdaName);
+  for (const candidate of candidates) {
+    const row = await ctx.db
+      .query(table)
+      .withIndex(indexName as any, (q: any) =>
+        q.eq("mdaName", candidate).eq("scoringPeriod", scoringPeriod)
+      )
+      .first();
+    if (row) return row;
+  }
+
+  const target = canonicalizeMdaName(mdaName);
+  const periodRows = await ctx.db
+    .query(table)
+    .withIndex("byPeriod", (q: any) => q.eq("scoringPeriod", scoringPeriod))
+    .collect();
+  return (
+    periodRows.find((row) => canonicalizeMdaName(row.mdaName) === target) ?? null
+  );
 }
 
 // Get all MDAs with their latest scores from scoring history
@@ -1303,13 +1370,13 @@ export const saveSLAData = mutation({
     const user = await getCurrentUserOrThrow(ctx);
 
     // Check if SLA data already exists for this MDA and period
-    const existingSla = await ctx.db.query("mda_sla_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingSla = await findSavedByMdaAndPeriod(ctx, "mda_sla_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingSla) {
       // Update existing record
       await ctx.db.patch(existingSla._id, {
+        mdaName: canonicalMdaName,
         monthlySlaData,
         totalScore,
         monthsWithData,
@@ -1321,7 +1388,7 @@ export const saveSLAData = mutation({
     } else {
       // Create new record
       await ctx.db.insert("mda_sla_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         monthlySlaData,
         totalScore,
@@ -1346,11 +1413,7 @@ export const getSLAData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const slaData = await ctx.db.query("mda_sla_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return slaData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_sla_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1375,13 +1438,13 @@ export const saveReportGovData = mutation({
     const user = await getCurrentUserOrThrow(ctx);
 
     // Check if Report Gov data already exists for this MDA and period
-    const existingReportGov = await ctx.db.query("mda_reportgov_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingReportGov = await findSavedByMdaAndPeriod(ctx, "mda_reportgov_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingReportGov) {
       // Update existing record
       await ctx.db.patch(existingReportGov._id, {
+        mdaName: canonicalMdaName,
         totalTickets,
         resolvedTickets,
         averageResponseTime,
@@ -1399,7 +1462,7 @@ export const saveReportGovData = mutation({
     } else {
       // Create new record
       await ctx.db.insert("mda_reportgov_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         totalTickets,
         resolvedTickets,
@@ -1430,11 +1493,7 @@ export const getReportGovData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const reportGovData = await ctx.db.query("mda_reportgov_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return reportGovData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_reportgov_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1453,13 +1512,13 @@ export const saveMysteryShoppingData = mutation({
     const user = await getCurrentUserOrThrow(ctx);
 
     // Check if Mystery Shopping data already exists for this MDA and period
-    const existingMysteryData = await ctx.db.query("mda_mystery_shopping_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingMysteryData = await findSavedByMdaAndPeriod(ctx, "mda_mystery_shopping_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingMysteryData) {
       // Update existing record
       await ctx.db.patch(existingMysteryData._id, {
+        mdaName: canonicalMdaName,
         mysteryType,
         ratings,
         totalScore,
@@ -1471,7 +1530,7 @@ export const saveMysteryShoppingData = mutation({
     } else {
       // Create new record
       await ctx.db.insert("mda_mystery_shopping_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         mysteryType,
         ratings,
@@ -1496,11 +1555,7 @@ export const getMysteryShoppingData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const mysteryData = await ctx.db.query("mda_mystery_shopping_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return mysteryData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_mystery_shopping_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1511,11 +1566,7 @@ export const getControversialData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const controversialData = await ctx.db.query("mda_controversial_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return controversialData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_controversial_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1526,11 +1577,7 @@ export const getInnovationData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const innovationData = await ctx.db.query("mda_innovation_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return innovationData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_innovation_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1541,11 +1588,7 @@ export const getStakeholderData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const stakeholderData = await ctx.db.query("mda_stakeholder_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return stakeholderData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_stakeholder_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1556,11 +1599,7 @@ export const getTransparencyData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const transparencyData = await ctx.db.query("mda_transparency_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return transparencyData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_transparency_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1576,12 +1615,12 @@ export const saveMonthlyReportData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, manualMonthlyReports, useManual, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_monthly_report_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_monthly_report_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         manualMonthlyReports,
         useManual,
         score,
@@ -1590,7 +1629,7 @@ export const saveMonthlyReportData = mutation({
       });
     } else {
       await ctx.db.insert("mda_monthly_report_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         manualMonthlyReports,
         useManual,
@@ -1613,11 +1652,7 @@ export const getMonthlyReportData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const monthlyReportData = await ctx.db.query("mda_monthly_report_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return monthlyReportData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_monthly_report_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1633,12 +1668,12 @@ export const saveTimelinessData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, manualTimeliness, useManual, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_timeliness_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_timeliness_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         manualTimeliness,
         useManual,
         score,
@@ -1647,7 +1682,7 @@ export const saveTimelinessData = mutation({
       });
     } else {
       await ctx.db.insert("mda_timeliness_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         manualTimeliness,
         useManual,
@@ -1670,11 +1705,7 @@ export const getTimelinessData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const timelinessData = await ctx.db.query("mda_timeliness_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return timelinessData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_timeliness_data", mdaName, scoringPeriod);
   }
 });
 
@@ -1689,12 +1720,12 @@ export const saveControversialData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, isControversial, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_controversial_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_controversial_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         isControversial,
         score,
         updatedAt: Date.now(),
@@ -1702,7 +1733,7 @@ export const saveControversialData = mutation({
       });
     } else {
       await ctx.db.insert("mda_controversial_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         isControversial,
         score,
@@ -1728,12 +1759,12 @@ export const saveToutingData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, isTouting, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_touting_rentseeking_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_touting_rentseeking_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         isToutingRentseeking: isTouting,
         score,
         updatedAt: Date.now(),
@@ -1741,7 +1772,7 @@ export const saveToutingData = mutation({
       });
     } else {
       await ctx.db.insert("mda_touting_rentseeking_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         isToutingRentseeking: isTouting,
         score,
@@ -1767,12 +1798,12 @@ export const saveInnovationData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, isInnovative, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_innovation_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_innovation_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         isInnovative,
         score,
         updatedAt: Date.now(),
@@ -1780,7 +1811,7 @@ export const saveInnovationData = mutation({
       });
     } else {
       await ctx.db.insert("mda_innovation_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         isInnovative,
         score,
@@ -1809,12 +1840,12 @@ export const saveMysteryData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, score, ratings, type, percentage, maxPossibleScore }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_mystery_shopping_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_mystery_shopping_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         totalScore: score,
         ratings,
         mysteryType: type,
@@ -1825,7 +1856,7 @@ export const saveMysteryData = mutation({
       });
     } else {
       await ctx.db.insert("mda_mystery_shopping_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         totalScore: score,
         ratings,
@@ -1853,12 +1884,12 @@ export const saveStakeholderData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, rate, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_stakeholder_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_stakeholder_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         rate,
         score,
         updatedAt: Date.now(),
@@ -1866,7 +1897,7 @@ export const saveStakeholderData = mutation({
       });
     } else {
       await ctx.db.insert("mda_stakeholder_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         rate,
         score,
@@ -1893,12 +1924,12 @@ export const saveTransparencyData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, responses, score, isSkipped }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_transparency_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_transparency_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         responses,
         score,
         isSkipped,
@@ -1907,7 +1938,7 @@ export const saveTransparencyData = mutation({
       });
     } else {
       await ctx.db.insert("mda_transparency_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         responses,
         score,
@@ -3512,11 +3543,7 @@ export const getToutingRentseekingData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    const toutingRentseekingData = await ctx.db.query("mda_touting_rentseeking_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
-
-    return toutingRentseekingData;
+    return await findSavedByMdaAndPeriod(ctx, "mda_touting_rentseeking_data", mdaName, scoringPeriod);
   }
 });
 
@@ -3531,12 +3558,12 @@ export const saveToutingRentseekingData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, isToutingRentseeking, score }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("mda_touting_rentseeking_data")
-      .withIndex("byMdaAndPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "mda_touting_rentseeking_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         isToutingRentseeking,
         score,
         updatedAt: Date.now(),
@@ -3544,7 +3571,7 @@ export const saveToutingRentseekingData = mutation({
       });
     } else {
       await ctx.db.insert("mda_touting_rentseeking_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         isToutingRentseeking,
         score,
@@ -4087,15 +4114,17 @@ export const bulkSaveMysteryMatrixCells = mutation({
 
     let saved = 0;
     for (const [mdaName, mdaCells] of byMda) {
-      const existing = await ctx.db
-        .query("mda_mystery_shopping_data")
-        .withIndex("byMdaAndPeriod", (q) =>
-          q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)
-        )
-        .first();
+      const canonicalMdaName = canonicalizeMdaName(mdaName);
+      const existing = await findSavedByMdaAndPeriod(
+        ctx,
+        "mda_mystery_shopping_data",
+        mdaName,
+        scoringPeriod
+      );
 
+      const existingMystery = existing as Doc<"mda_mystery_shopping_data"> | null;
       const ratings: Record<string, number> = {
-        ...((existing?.ratings as Record<string, number> | undefined) ?? {}),
+        ...((existingMystery?.ratings as Record<string, number> | undefined) ?? {}),
       };
 
       for (const cell of mdaCells) {
@@ -4138,6 +4167,7 @@ export const bulkSaveMysteryMatrixCells = mutation({
 
       if (existing) {
         await ctx.db.patch(existing._id, {
+          mdaName: canonicalMdaName,
           mysteryType,
           ratings,
           totalScore,
@@ -4148,7 +4178,7 @@ export const bulkSaveMysteryMatrixCells = mutation({
         });
       } else {
         await ctx.db.insert("mda_mystery_shopping_data", {
-          mdaName,
+          mdaName: canonicalMdaName,
           scoringPeriod,
           mysteryType,
           ratings,
@@ -4178,19 +4208,19 @@ export const savePenaltiesData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, values, totalPenalty }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("saved_penalties_data")
-      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "saved_penalties_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         values,
         totalPenalty,
         updatedAt: Date.now()
       });
     } else {
       await ctx.db.insert("saved_penalties_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         values,
         totalPenalty,
@@ -4209,9 +4239,7 @@ export const getPenaltiesData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    return await ctx.db.query("saved_penalties_data")
-      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    return await findSavedByMdaAndPeriod(ctx, "saved_penalties_data", mdaName, scoringPeriod);
   }
 });
 
@@ -4226,19 +4254,19 @@ export const saveBonusesData = mutation({
   handler: async (ctx, { mdaName, scoringPeriod, values, totalBonus }) => {
     const user = await getCurrentUserOrThrow(ctx);
 
-    const existingData = await ctx.db.query("saved_bonuses_data")
-      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    const existingData = await findSavedByMdaAndPeriod(ctx, "saved_bonuses_data", mdaName, scoringPeriod);
+    const canonicalMdaName = canonicalizeMdaName(mdaName);
 
     if (existingData) {
       await ctx.db.patch(existingData._id, {
+        mdaName: canonicalMdaName,
         values,
         totalBonus,
         updatedAt: Date.now()
       });
     } else {
       await ctx.db.insert("saved_bonuses_data", {
-        mdaName,
+        mdaName: canonicalMdaName,
         scoringPeriod,
         values,
         totalBonus,
@@ -4257,9 +4285,7 @@ export const getBonusesData = query({
     scoringPeriod: v.string()
   },
   handler: async (ctx, { mdaName, scoringPeriod }) => {
-    return await ctx.db.query("saved_bonuses_data")
-      .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod))
-      .first();
+    return await findSavedByMdaAndPeriod(ctx, "saved_bonuses_data", mdaName, scoringPeriod);
   }
 });
 
@@ -4339,67 +4365,67 @@ async function clearSavedMetricScore(
     case "sla":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_sla_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_sla_data", mdaName, scoringPeriod)
       );
     case "reportGov":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_reportgov_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_reportgov_data", mdaName, scoringPeriod)
       );
     case "mystery":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_mystery_shopping_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_mystery_shopping_data", mdaName, scoringPeriod)
       );
     case "monthlyReport":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_monthly_report_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_monthly_report_data", mdaName, scoringPeriod)
       );
     case "timeliness":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_timeliness_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_timeliness_data", mdaName, scoringPeriod)
       );
     case "transparency":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_transparency_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_transparency_data", mdaName, scoringPeriod)
       );
     case "controversial":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_controversial_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_controversial_data", mdaName, scoringPeriod)
       );
     case "touting":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_touting_rentseeking_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_touting_rentseeking_data", mdaName, scoringPeriod)
       );
     case "innovation":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_innovation_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_innovation_data", mdaName, scoringPeriod)
       );
     case "stakeholder":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("mda_stakeholder_data").withIndex("byMdaAndPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "mda_stakeholder_data", mdaName, scoringPeriod)
       );
     case "others":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("saved_others_data").withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "saved_others_data", mdaName, scoringPeriod)
       );
     case "penalties":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("saved_penalties_data").withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "saved_penalties_data", mdaName, scoringPeriod)
       );
     case "bonuses":
       return await deleteSavedScoreRow(
         ctx,
-        await ctx.db.query("saved_bonuses_data").withIndex("byMdaPeriod", (q) => q.eq("mdaName", mdaName).eq("scoringPeriod", scoringPeriod)).first()
+        await findSavedByMdaAndPeriod(ctx, "saved_bonuses_data", mdaName, scoringPeriod)
       );
     case "finalScore": {
       const history = await ctx.db
@@ -4552,10 +4578,14 @@ export const bulkUpdateTransparencyForSLAPublication = mutation({
 
     for (const mdaName of args.mdaNames) {
       try {
+        const canonicalMdaName = canonicalizeMdaName(mdaName);
         // Check if MDA already has transparency data
-        const existingData = await ctx.db.query("saved_others_data")
-          .withIndex("byMdaPeriod", q => q.eq("mdaName", mdaName).eq("scoringPeriod", args.scoringPeriod))
-          .first();
+        const existingData = (await findSavedByMdaAndPeriod(
+          ctx,
+          "saved_others_data",
+          mdaName,
+          args.scoringPeriod
+        )) as Doc<"saved_others_data"> | null;
 
         const values = existingData?.values || {};
         const scores = existingData?.scores || {};
@@ -4571,6 +4601,7 @@ export const bulkUpdateTransparencyForSLAPublication = mutation({
           if (existingData) {
             // Update existing record
             await ctx.db.patch(existingData._id, {
+              mdaName: canonicalMdaName,
               values,
               scores,
               totalScore,
@@ -4580,7 +4611,7 @@ export const bulkUpdateTransparencyForSLAPublication = mutation({
           } else {
             // Create new record
             await ctx.db.insert("saved_others_data", {
-              mdaName,
+              mdaName: canonicalMdaName,
               scoringPeriod: args.scoringPeriod,
               values,
               scores,
@@ -4621,4 +4652,72 @@ export const bulkUpdateTransparencyForSLAPublication = mutation({
       errors
     };
   }
+});
+
+/**
+ * Rewrite legacy MDA name spellings on metric rows to the current canonical names
+ * (NCDMB / NEPZA / SCUML / SERVICOM / etc.). Merges duplicates for the same period.
+ */
+export const migrateCanonicalMdaMetricNames = internalMutation({
+  args: {
+    scoringPeriod: v.optional(v.string()),
+  },
+  returns: v.object({
+    renamed: v.number(),
+    deletedDuplicates: v.number(),
+    tablesTouched: v.array(v.string()),
+  }),
+  handler: async (ctx, { scoringPeriod }) => {
+    let renamed = 0;
+    let deletedDuplicates = 0;
+    const tablesTouched: string[] = [];
+
+    for (const table of MDA_PERIOD_METRIC_TABLES) {
+      const rows = scoringPeriod
+        ? await ctx.db
+            .query(table)
+            .withIndex("byPeriod", (q: any) => q.eq("scoringPeriod", scoringPeriod))
+            .collect()
+        : await ctx.db.query(table).collect();
+
+      const groups = new Map<string, typeof rows>();
+      for (const row of rows) {
+        const key = `${row.scoringPeriod}::${canonicalizeMdaName(row.mdaName)}`;
+        const list = groups.get(key) ?? [];
+        list.push(row);
+        groups.set(key, list);
+      }
+
+      let tableChanged = false;
+      for (const [key, group] of groups) {
+        const canonical = key.split("::").slice(1).join("::");
+        const keeper =
+          group.find((row) => row.mdaName === canonical) ??
+          [...group].sort(
+            (a, b) =>
+              Number((b as { updatedAt?: number }).updatedAt || 0) -
+              Number((a as { updatedAt?: number }).updatedAt || 0)
+          )[0];
+
+        if (!keeper) continue;
+
+        if (keeper.mdaName !== canonical) {
+          await ctx.db.patch(keeper._id, { mdaName: canonical });
+          renamed += 1;
+          tableChanged = true;
+        }
+
+        for (const row of group) {
+          if (row._id === keeper._id) continue;
+          await ctx.db.delete(row._id);
+          deletedDuplicates += 1;
+          tableChanged = true;
+        }
+      }
+
+      if (tableChanged) tablesTouched.push(table);
+    }
+
+    return { renamed, deletedDuplicates, tablesTouched };
+  },
 });

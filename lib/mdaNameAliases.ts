@@ -63,6 +63,11 @@ export const MDA_RENAMES = [
       "special control unit for money laundering",
       "special control unit against money laundering",
     ],
+    /** Exact historical `mdaName` strings still present on metric rows. */
+    legacyStoredNames: [
+      "EFCC - Special Control Unit for Money Laundering",
+      "EFCC – Special Control Unit for Money Laundering",
+    ],
   },
   {
     canonicalName: "Nigerian Content Development and Monitoring Board (NCDMB)",
@@ -72,6 +77,9 @@ export const MDA_RENAMES = [
       "nigerian content development management board",
       "nigerian content development and monitoring board",
       "nigerian content development and monitoring board ncdmb",
+    ],
+    legacyStoredNames: [
+      "Nigerian Content Development Management Board",
     ],
   },
   {
@@ -83,6 +91,10 @@ export const MDA_RENAMES = [
       "nigeria export processing zones authority",
       "nigeria export processing zones authority nepza",
     ],
+    legacyStoredNames: [
+      "Nigeria Export Processing Zones Authority",
+      "Nigeria Export Processing Zone Authority",
+    ],
   },
   {
     canonicalName: "Service Compact (SERVICOM)",
@@ -91,6 +103,10 @@ export const MDA_RENAMES = [
       "servicom",
       "service compact",
       "service compact servicom",
+    ],
+    legacyStoredNames: [
+      "Service Compact",
+      "SERVICOM",
     ],
   },
 ] as const;
@@ -124,7 +140,13 @@ export function canonicalizeMdaName(name: string): string {
   ].map(normalizeAliasKey);
 
   for (const rename of MDA_RENAMES) {
-    const aliasSet = new Set(rename.aliases.map(normalizeAliasKey));
+    const aliasSet = new Set([
+      ...rename.aliases.map(normalizeAliasKey),
+      normalizeAliasKey(rename.canonicalName),
+      ...((rename as { legacyStoredNames?: readonly string[] }).legacyStoredNames || []).map(
+        normalizeAliasKey
+      ),
+    ]);
     if (candidates.some((candidate) => aliasSet.has(candidate))) {
       return rename.canonicalName;
     }
@@ -135,4 +157,40 @@ export function canonicalizeMdaName(name: string): string {
 
 export function isRenamedMda(name: string, canonicalName: string): boolean {
   return canonicalizeMdaName(name) === canonicalName;
+}
+
+export function mdaNamesEquivalent(a: string, b: string): boolean {
+  return canonicalizeMdaName(a) === canonicalizeMdaName(b);
+}
+
+/**
+ * Exact strings to try against `byMdaAndPeriod` before a period-wide scan.
+ * Covers dropdown (canonical) names and known legacy DB spellings.
+ */
+export function mdaNameLookupCandidates(name: string): string[] {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return [];
+
+  const canonical = canonicalizeMdaName(trimmed);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: string) => {
+    const key = value.trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(key);
+  };
+
+  push(trimmed);
+  push(canonical);
+
+  for (const rename of MDA_RENAMES) {
+    if (rename.canonicalName !== canonical) continue;
+    push(rename.canonicalName);
+    for (const legacy of (rename as { legacyStoredNames?: readonly string[] }).legacyStoredNames || []) {
+      push(legacy);
+    }
+  }
+
+  return out;
 }
